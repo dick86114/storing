@@ -57,9 +57,9 @@ COPY --from=builder /app/apps/api/package.json ./apps/api/
 COPY --from=builder --chown=storing:nodejs /app/apps/api/node_modules ./apps/api/node_modules
 
 # Web 前端
-COPY --from=builder /app/apps/web/public ./apps/web/public
+COPY --from=builder /app/apps/web/public ./apps/web/.next/standalone/apps/web/public
 COPY --from=builder /app/apps/web/.next/standalone ./apps/web/.next/standalone
-COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/standalone/apps/web/.next/static
 COPY --from=builder --chown=storing:nodejs /app/apps/web/node_modules ./apps/web/node_modules
 
 # 复根目录文件

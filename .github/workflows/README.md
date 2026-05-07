@@ -1,4 +1,68 @@
-# GitHub Actions Docker Workflow 使用说明
+# GitHub Actions Workflows 使用说明
+
+本项目包含两个主要的GitHub Actions workflow：
+
+1. **CI Workflow** - 代码质量检查和构建测试
+2. **Docker Workflow** - Docker镜像构建和推送
+
+---
+
+## CI Workflow
+
+### 功能说明
+
+CI workflow会在每次代码推送或Pull Request时自动运行，确保代码质量：
+
+1. **Lint检查** - 代码风格检查
+2. **Type Check** - TypeScript类型检查
+3. **Build** - 项目构建测试
+4. **Security Check** - 安全漏洞检查
+5. **Dependency Review** - 依赖审查（PR时）
+
+### 触发条件
+
+- 推送到 `main`, `master`, `develop` 分支
+- Pull Request到 `main`, `master`, `develop` 分支
+- 手动触发
+
+### Jobs说明
+
+#### 1. Lint Job
+- 运行代码风格检查
+- 使用项目配置的lint规则
+
+#### 2. Type Check Job
+- 检查API、Web、Shared三个包的TypeScript类型
+- 确保类型安全
+
+#### 3. Build Job
+- 构建整个项目
+- 上传构建产物（保留7天）
+- 验证构建是否成功
+
+#### 4. Test Job
+- 仅在Pull Request时运行
+- 运行测试脚本（如果存在）
+
+#### 5. Security Check Job
+- 运行安全审计
+- 检查依赖漏洞
+- 检查过时的依赖
+
+#### 6. Dependency Review Job
+- 仅在Pull Request时运行
+- 审查依赖变更
+- 检查许可证合规性
+
+### 查看CI结果
+
+1. 进入仓库的 **Actions** 页面
+2. 选择对应的workflow运行记录
+3. 查看各个job的执行结果
+
+---
+
+## Docker Workflow
 
 ## 功能说明
 
