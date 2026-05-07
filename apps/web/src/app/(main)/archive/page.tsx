@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import useSWR, { useSWRConfig } from 'swr';
-import { useArticles } from '@/hooks/useArticles';
 import { useToast } from '@/components/ui/Toast';
 import { useArticleContext } from '@/components/providers/ArticleContext';
 import { ArticleList } from '@/components/article/ArticleList';
@@ -14,12 +13,16 @@ export default function ArchivePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const page = parseInt(searchParams.get('page') || '1');
-  const [activeCategory, setActiveCategory] = useState('all');
-  const { data, isLoading, mutate } = useArticles('archive', page, activeCategory);
+  const [activeCat, setActiveCategory] = useState('all');
+  const { data, isLoading, mutate } = useSWR(
+    `articles:archive:${page}:${activeCat}`,
+    () => api.getArticles('archive', page, activeCat),
+    { revalidateOnFocus: false }
+  );
   const { data: catData } = useSWR('categories', () => api.getCategories(), { revalidateOnFocus: false });
   const { mutate: globalMutate } = useSWRConfig();
   const { showToast } = useToast();
-  const { openArticle, setMutateFn } = useArticleContext();
+  const { openArticle, highlightId, setMutateFn } = useArticleContext();
 
   useEffect(() => { setMutateFn(mutate); }, [setMutateFn, mutate]);
 
@@ -40,7 +43,7 @@ export default function ArchivePage() {
       <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-h2)', marginBottom: 'var(--gap-md)' }}>归档</h1>
       <CategoryPills
         categories={categories}
-        activeCategory={activeCategory}
+        activeCategory={activeCat}
         totalCount={totalCount}
         onSelect={(cat) => { setActiveCategory(cat); router.push('/archive?page=1'); }}
       />
@@ -48,7 +51,7 @@ export default function ArchivePage() {
         <div className="archive-sidebar">
           <CategorySidebar
             categories={categories}
-            activeCategory={activeCategory}
+            activeCategory={activeCat}
             totalCount={totalCount}
             onSelect={(cat) => { setActiveCategory(cat); router.push('/archive?page=1'); }}
           />
@@ -77,6 +80,7 @@ export default function ArchivePage() {
               refreshCounts();
               showToast('已移回收件箱');
             }}
+            highlightId={highlightId}
           />
         )}
       </div>

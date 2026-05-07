@@ -30,6 +30,7 @@ export function MasonryGrid({
   onArticleClick,
   onToggleFavorite,
   onArchive,
+  highlightId,
 }: {
   articles: ArticleListItem[];
   isLoading: boolean;
@@ -41,6 +42,7 @@ export function MasonryGrid({
   onArticleClick: (id: number) => void;
   onToggleFavorite: (id: number, e: React.MouseEvent) => void;
   onArchive: (id: number, e: React.MouseEvent) => void;
+  highlightId?: number | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -53,7 +55,6 @@ export function MasonryGrid({
   onLoadMoreRef.current = onLoadMore;
   isReachingEndRef.current = isReachingEnd;
 
-  // 测量每张卡片高度并计算位置
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -80,9 +81,7 @@ export function MasonryGrid({
     container.style.height = `${Math.max(...colHeights)}px`;
   }, [articles, cols, gap]);
 
-  // scroll 事件触发加载更多（仅当 onLoadMore 存在时启用无限滚动）
   useEffect(() => {
-    // 如果没有 onLoadMore，跳过无限滚动逻辑
     if (!onLoadMore) return;
 
     function checkScroll() {
@@ -92,7 +91,6 @@ export function MasonryGrid({
       const rect = sentinel.getBoundingClientRect();
       const windowHeight = window.innerHeight;
 
-      // sentinel 进入视口下方 800px 范围内时触发
       if (rect.top < windowHeight + 800) {
         loadingRef.current = true;
         onLoadMoreRef.current?.();
@@ -100,7 +98,6 @@ export function MasonryGrid({
       }
     }
 
-    // 首次检查（数据刚加载完时 sentinel 可能已在视口内）
     checkScroll();
 
     window.addEventListener('scroll', checkScroll, { passive: true });
@@ -109,7 +106,7 @@ export function MasonryGrid({
       window.removeEventListener('scroll', checkScroll);
       window.removeEventListener('resize', checkScroll);
     };
-  }, [articles, onLoadMore]); // articles 变化时重新绑定，确保新数据后能继续检查
+  }, [articles, onLoadMore]);
 
   if (isLoading) {
     return (
@@ -137,12 +134,12 @@ export function MasonryGrid({
               onClick={() => onArticleClick(a.id)}
               onToggleFavorite={(e) => onToggleFavorite(a.id, e)}
               onArchive={(e) => onArchive(a.id, e)}
+              isHighlighted={highlightId === a.id}
             />
           </div>
         ))}
       </div>
 
-      {/* 仅在无限滚动模式下显示 sentinel 和加载状态 */}
       {onLoadMore && <div ref={sentinelRef} style={{ height: 1 }} />}
 
       {onLoadMore && isLoadingMore && (

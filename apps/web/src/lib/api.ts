@@ -21,6 +21,12 @@ export const api = {
 
   getArticle: (id: number) => fetchJSON<any>(`/articles/${id}`),
 
+  getArticlePosition: (id: number, view: string, category?: string, perPage = 18) => {
+    const params = new URLSearchParams({ view, perPage: String(perPage) });
+    if (category && category !== 'all') params.set('category', category);
+    return fetchJSON<any>(`/articles/${id}/position?${params}`);
+  },
+
   toggleFavorite: (id: number) =>
     fetchJSON<any>(`/articles/${id}/favorite`, { method: 'POST' }),
 
