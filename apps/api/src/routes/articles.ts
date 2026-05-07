@@ -225,3 +225,58 @@ articlesRoutes.get('/categories', async (c) => {
     .groupBy(articleMetadata.aiCategory);
   return c.json(rows);
 });
+
+/**
+ * GET /articles/:id/position — 查找文章在某个视图中的页码位置
+ */
+articlesRoutes.get('/articles/:id/position', async (c) => {
+  const id = parseInt(c.req.param('id'));
+  const view = c.req.query('view') || 'inbox';
+  const category = c.req.query('category');
+  const perPage = parseInt(c.req.query('perPage') || '18');
+
+  let whereCondition;
+
+  if (view === 'inbox') {
+    whereCondition = or(
+      isNull(articleMetadata.id),
+      and(
+        eq(articleMetadata.isArchived, false),
+        eq(articleMetadata.isFavorited, false)
+      )
+    );
+  } else if (view === 'favorites') {
+    whereCondition = eq(articleMetadata.isFavorited, true);
+  } else if (view === 'archive') {
+    whereCondition = eq(articleMetadata.isArchived, true);
+  }
+
+  if (category && category !== 'all' && view === 'archive') {
+    whereCondition = and(whereCondition, eq(articleMetadata.aiCategory, category));
+  }
+
+  const allArticles = await db
+    .select({ id: articles.id })
+    .from(articles)
+    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .where(whereCondition)
+    .orderBy(desc(articles.createdAt));
+
+  const position = allArticles.findIndex(a => a.id === id);
+  
+  if (position === -1) {
+    return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in this view' } }, 404);
+  }
+
+  const page = Math.floor(position / perPage) + 1;
+
+  return c.json({
+    articleId: id,
+    view,
+    position: position + 1,
+    page,
+    perPage,
+    total: allArticles.length,
+    totalPages: Math.ceil(allArticles.length / perPage),
+  });
+});

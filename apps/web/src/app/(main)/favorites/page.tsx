@@ -2,8 +2,7 @@
 
 import { useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useSWRConfig } from 'swr';
-import { useArticles } from '@/hooks/useArticles';
+import useSWR, { useSWRConfig } from 'swr';
 import { useToast } from '@/components/ui/Toast';
 import { useArticleContext } from '@/components/providers/ArticleContext';
 import { ArticleList } from '@/components/article/ArticleList';
@@ -13,10 +12,14 @@ export default function FavoritesPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const page = parseInt(searchParams.get('page') || '1');
-  const { data, isLoading, mutate } = useArticles('favorites', page);
+  const { data, isLoading, mutate } = useSWR(
+    `articles:favorites:${page}`,
+    () => api.getArticles('favorites', page),
+    { revalidateOnFocus: false }
+  );
   const { mutate: globalMutate } = useSWRConfig();
   const { showToast } = useToast();
-  const { openArticle, setMutateFn } = useArticleContext();
+  const { openArticle, highlightId, setMutateFn } = useArticleContext();
 
   const articles = data?.articles ?? [];
   const totalPages = data?.totalPages ?? 1;
@@ -56,6 +59,7 @@ export default function FavoritesPage() {
             refreshCounts();
             showToast('已归档');
           }}
+          highlightId={highlightId}
         />
       )}
     </div>

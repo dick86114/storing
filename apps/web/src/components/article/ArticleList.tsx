@@ -15,6 +15,7 @@ export function ArticleList({
   onArticleClick,
   onToggleFavorite,
   onArchive,
+  highlightId,
 }: {
   articles: ArticleListItem[];
   currentPage: number;
@@ -25,6 +26,7 @@ export function ArticleList({
   onArticleClick: (id: number) => void;
   onToggleFavorite: (id: number, e: React.MouseEvent) => void;
   onArchive: (id: number, e: React.MouseEvent) => void;
+  highlightId?: number | null;
 }) {
   if (articles.length === 0) {
     return <EmptyState title={emptyTitle} description={emptyDescription} />;
@@ -39,6 +41,7 @@ export function ArticleList({
           onClick={() => onArticleClick(a.id)}
           onToggleFavorite={(e) => onToggleFavorite(a.id, e)}
           onArchive={(e) => onArchive(a.id, e)}
+          isHighlighted={highlightId === a.id}
         />
       ))}
       <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={onPageChange} />

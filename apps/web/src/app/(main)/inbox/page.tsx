@@ -17,7 +17,7 @@ export default function InboxPage() {
   const page = parseInt(searchParams.get('page') || '1');
   const { mutate: globalMutate } = useSWRConfig();
   const { showToast } = useToast();
-  const { openArticle, setMutateFn } = useArticleContext();
+  const { openArticle, highlightId, setMutateFn } = useArticleContext();
 
   const { data, isLoading, mutate } = useSWR(
     `articles:inbox:${page}`,
@@ -28,7 +28,6 @@ export default function InboxPage() {
   const articles = data?.articles ?? [];
   const totalPages = data?.totalPages ?? 1;
 
-  // 注册 mutate 函数到 Context，供详情页调用
   useEffect(() => { setMutateFn(mutate); }, [setMutateFn, mutate]);
 
   function refreshCounts() {
@@ -60,6 +59,7 @@ export default function InboxPage() {
           refreshCounts();
           showToast('已归档');
         }}
+        highlightId={highlightId}
       />
       <Pagination
         currentPage={page}

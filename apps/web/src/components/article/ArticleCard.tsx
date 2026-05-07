@@ -9,11 +9,13 @@ export function ArticleCard({
   onClick,
   onToggleFavorite,
   onArchive,
+  isHighlighted = false,
 }: {
   article: ArticleListItem;
   onClick: () => void;
   onToggleFavorite: (e: React.MouseEvent) => void;
   onArchive: (e: React.MouseEvent) => void;
+  isHighlighted?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -31,24 +33,30 @@ export function ArticleCard({
 
   return (
     <article
+      data-article-id={article.id}
       onClick={onClick}
       className="cursor-pointer border"
       style={{
         padding: 'var(--gap-md) var(--gap-lg)',
         background: 'var(--glass)',
-        borderColor: 'var(--glass-border)',
+        borderColor: isHighlighted ? 'var(--accent)' : 'var(--glass-border)',
         borderRadius: 'var(--radius-lg)',
         backdropFilter: 'blur(12px)',
         transition: 'border-color 0.2s, box-shadow 0.2s, transform 0.2s',
+        animation: isHighlighted ? 'pulseHighlight 2s ease-in-out infinite' : 'none',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = 'color-mix(in oklch, var(--accent) 30%, var(--border))';
+        if (!isHighlighted) {
+          e.currentTarget.style.borderColor = 'color-mix(in oklch, var(--accent) 30%, var(--border))';
+        }
         e.currentTarget.style.boxShadow = 'var(--shadow-md)';
         e.currentTarget.style.transform = 'translateY(-2px)';
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = 'var(--glass-border)';
-        e.currentTarget.style.boxShadow = 'none';
+        if (!isHighlighted) {
+          e.currentTarget.style.borderColor = 'var(--glass-border)';
+        }
+        e.currentTarget.style.boxShadow = isHighlighted ? '0 0 20px color-mix(in oklch, var(--accent) 40%, transparent)' : 'none';
         e.currentTarget.style.transform = 'none';
         setMenuOpen(false);
       }}

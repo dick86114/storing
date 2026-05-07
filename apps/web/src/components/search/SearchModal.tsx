@@ -1,15 +1,18 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useSearch } from '@/hooks/useSearch';
 import { DateText } from '@/lib/formatDate';
-import { useRouter } from 'next/navigation';
+import { useArticleContext } from '@/components/providers/ArticleContext';
+import { api } from '@/lib/api';
 
 export function SearchModal({ onClose }: { onClose: () => void }) {
   const { query, setQuery, results, isLoading } = useSearch();
   const inputRef = useRef<HTMLInputElement>(null);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const router = useRouter();
+  const { highlightAndOpen } = useArticleContext();
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -31,12 +34,35 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
         setSelectedIdx((i) => Math.max(i - 1, 0));
       }
       if (e.key === 'Enter' && results[selectedIdx]) {
-        onClose();
+        handleSelect(results[selectedIdx]);
       }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [onClose, results, selectedIdx]);
+
+  async function handleSelect(article: any) {
+    onClose();
+    
+    const view = article.isArchived ? 'archive' : article.isFavorited ? 'favorites' : 'inbox';
+    
+    try {
+      const positionData = await api.getArticlePosition(article.id, view);
+      const targetPage = positionData.page;
+      
+      router.push(`/${view}?page=${targetPage}`);
+      
+      setTimeout(() => {
+        highlightAndOpen(article.id, view);
+      }, 500);
+    } catch (error) {
+      console.error('Failed to find article position:', error);
+      router.push(`/${view}`);
+      setTimeout(() => {
+        highlightAndOpen(article.id, view);
+      }, 300);
+    }
+  }
 
   function highlightMatch(text: string, q: string) {
     const idx = text.toLowerCase().indexOf(q.toLowerCase());
@@ -115,9 +141,7 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
                   transition: 'background var(--transition)',
                 }}
                 onMouseEnter={() => setSelectedIdx(i)}
-                onClick={() => {
-                  onClose();
-                }}
+                onClick={() => handleSelect(a)}
               >
                 <span style={{ fontWeight: 500, fontSize: 'var(--fs-sm)', marginBottom: 2 }}>{highlightMatch(a.title, query)}</span>
                 <span className="flex items-center" style={{ fontSize: 'var(--fs-meta)', color: 'var(--muted)', gap: 'var(--gap-xs)' }}>
@@ -128,6 +152,12 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
                     <>
                       <span className="rounded-full" style={{ width: 2, height: 2, background: 'var(--muted)' }} />
                       <span style={{ color: 'var(--accent)' }}>已归档</span>
+                    </>
+                  )}
+                  {a.isFavorited && !a.isArchived && (
+                    <>
+                      <span className="rounded-full" style={{ width: 2, height: 2, background: 'var(--muted)' }} />
+                      <span style={{ color: 'var(--accent)' }}>已收藏</span>
                     </>
                   )}
                 </span>
