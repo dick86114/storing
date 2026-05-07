@@ -8,13 +8,6 @@ import { ArticleDetailPanel } from '@/components/article/ArticleDetailPanel';
 import { ArticleProvider, useArticleContext } from '@/components/providers/ArticleContext';
 import { useCounts } from '@/hooks/useCounts';
 
-/** 仅客户端渲染 — 避免 SWR / 动态数据的 hydration 不匹配 */
-function ClientOnly({ children }: { children: ReactNode }) {
-  const [ok, setOk] = useState(false);
-  useEffect(() => setOk(true), []);
-  return ok ? <>{children}</> : null;
-}
-
 function MainContent({ children }: { children: ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const counts = useCounts();
@@ -38,16 +31,14 @@ function MainContent({ children }: { children: ReactNode }) {
   return (
     <>
       <TopNav onSearchOpen={() => setSearchOpen(true)} />
-      <ClientOnly>
-        <TabsBar counts={counts} />
-        <main style={{ padding: 'var(--gap-md) 0 var(--gap-xl)', minHeight: '80vh' }}>
-          <div className="mx-auto" style={{ maxWidth: 'var(--container)', paddingInline: 'var(--gutter)', position: 'relative', zIndex: 1 }}>
-            {children}
-          </div>
-        </main>
-        {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} />}
-        <ArticleDetailPanel articleId={selectedId} onClose={closeArticle} onMutate={mutateList} />
-      </ClientOnly>
+      <TabsBar counts={counts} />
+      <main style={{ padding: 'var(--gap-md) 0 var(--gap-xl)', minHeight: '80vh' }}>
+        <div className="mx-auto" style={{ maxWidth: 'var(--container)', paddingInline: 'var(--gutter)', position: 'relative', zIndex: 1 }}>
+          {children}
+        </div>
+      </main>
+      {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} />}
+      <ArticleDetailPanel articleId={selectedId} onClose={closeArticle} onMutate={mutateList} />
     </>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import useSWR, { useSWRConfig } from 'swr';
 import { useToast } from '@/components/ui/Toast';
@@ -11,7 +11,7 @@ import { api } from '@/lib/api';
 
 const PER_PAGE = 18;
 
-export default function InboxPage() {
+function InboxContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const page = parseInt(searchParams.get('page') || '1');
@@ -37,8 +37,7 @@ export default function InboxPage() {
   }
 
   return (
-    <div>
-      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-h2)', marginBottom: 'var(--gap-md)' }}>收件箱</h1>
+    <>
       <MasonryGrid
         articles={articles}
         isLoading={isLoading}
@@ -66,6 +65,17 @@ export default function InboxPage() {
         totalPages={totalPages}
         onPageChange={(p) => router.push(`/inbox?page=${p}`)}
       />
+    </>
+  );
+}
+
+export default function InboxPage() {
+  return (
+    <div>
+      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-h2)', marginBottom: 'var(--gap-md)' }}>收件箱</h1>
+      <Suspense fallback={<div style={{ color: 'var(--muted)', padding: 'var(--gap-2xl) 0', textAlign: 'center' }}>加载中…</div>}>
+        <InboxContent />
+      </Suspense>
     </div>
   );
 }

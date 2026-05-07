@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useSWRConfig } from 'swr';
 import { useArticle } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
@@ -21,14 +21,12 @@ export function ArticleDetailPanel({
   const { mutate: globalMutate } = useSWRConfig();
   const { showToast } = useToast();
 
-  // 刷新全局计数
   function refreshCounts() {
     globalMutate('count:inbox');
     globalMutate('count:favorites');
     globalMutate('count:archive');
   }
 
-  // 面板打开时禁止背景滚动
   useEffect(() => {
     if (articleId) {
       document.body.style.overflow = 'hidden';
@@ -36,51 +34,23 @@ export function ArticleDetailPanel({
     }
   }, [articleId]);
 
+  const memoizedContent = useMemo(() => {
+    if (!article?.contentMd) return null;
+    return <ReactMarkdown>{article.contentMd}</ReactMarkdown>;
+  }, [article?.contentMd]);
+
   if (!articleId) return null;
 
   return (
     <div
-      className="fixed inset-0"
-      style={{
-        zIndex: 200,
-        background: 'color-mix(in oklch, var(--bg) 60%, transparent)',
-        backdropFilter: 'blur(8px)',
-        opacity: 1,
-        pointerEvents: 'auto',
-        transition: 'opacity 0.3s ease',
-      }}
+      className="detail-panel-overlay"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div
-        className="absolute right-0 top-0 bottom-0 overflow-y-auto border-l"
-        style={{
-          width: 'min(680px, 100vw)',
-          background: 'var(--surface)',
-          borderColor: 'var(--border)',
-          transform: 'translateX(0)',
-          transition: 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
-          boxShadow: 'var(--shadow-lg)',
-        }}
-      >
-        {/* Header */}
-        <div
-          className="sticky top-0 flex items-center justify-between border-b"
-          style={{
-            padding: 'var(--gap-md) var(--gap-lg)',
-            background: 'var(--glass)',
-            backdropFilter: 'blur(16px)',
-            borderColor: 'var(--glass-border)',
-            zIndex: 10,
-          }}
-        >
-          <button
-            onClick={onClose}
-            className="grid place-items-center rounded"
-            style={{ width: 36, height: 36, borderRadius: 'var(--radius-sm)', color: 'var(--muted)' }}
-            aria-label="关闭"
-          >
+      <div className="detail-panel">
+        <div className="detail-panel-header">
+          <button onClick={onClose} className="detail-panel-close-btn" aria-label="关闭">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
@@ -95,13 +65,7 @@ export function ArticleDetailPanel({
                   refreshCounts();
                   showToast(article.isFavorited ? '已取消收藏' : '已收藏');
                 }}
-                className="grid place-items-center rounded"
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 'var(--radius-sm)',
-                  color: article.isFavorited ? 'var(--accent)' : 'var(--muted)',
-                }}
+                className={`detail-panel-action-btn ${article.isFavorited ? 'favorited' : ''}`}
                 title={article.isFavorited ? '取消收藏' : '收藏'}
               >
                 <svg viewBox="0 0 24 24" fill={article.isFavorited ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
@@ -118,8 +82,7 @@ export function ArticleDetailPanel({
                     onClose();
                     showToast('已移回收件箱');
                   }}
-                  className="grid place-items-center rounded"
-                  style={{ width: 36, height: 36, borderRadius: 'var(--radius-sm)', color: 'var(--muted)' }}
+                  className="detail-panel-action-btn"
                   title="移回收件箱"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
@@ -138,8 +101,7 @@ export function ArticleDetailPanel({
                     onClose();
                     showToast('已归档 — AI 正在自动分类…');
                   }}
-                  className="grid place-items-center rounded"
-                  style={{ width: 36, height: 36, borderRadius: 'var(--radius-sm)', color: 'var(--muted)' }}
+                  className="detail-panel-action-btn"
                   title="归档"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
@@ -153,19 +115,15 @@ export function ArticleDetailPanel({
           )}
         </div>
 
-        {/* Content */}
         {isLoading ? (
-          <div style={{ padding: 'var(--gap-xl) var(--gap-lg) var(--gap-2xl)' }}>
+          <div className="detail-panel-content">
             <div className="flex flex-col" style={{ gap: 'var(--gap-md)' }}>
-              {/* 骨架屏 - 元信息 */}
               <div className="flex items-center" style={{ gap: 'var(--gap-sm)' }}>
                 <div className="skeleton-line" style={{ width: 48, height: 12 }} />
                 <div className="skeleton-line" style={{ width: 56, height: 12 }} />
               </div>
-              {/* 骨架屏 - 标题 */}
               <div className="skeleton-line" style={{ width: '85%', height: 22 }} />
               <div className="skeleton-line" style={{ width: '60%', height: 22 }} />
-              {/* 骨架屏 - 正文 */}
               <div style={{ marginTop: 'var(--gap-md)' }}>
                 <div className="skeleton-line" style={{ width: '100%', height: 14 }} />
                 <div className="skeleton-line" style={{ width: '95%', height: 14 }} />
@@ -178,7 +136,6 @@ export function ArticleDetailPanel({
                 <div className="skeleton-line" style={{ width: '100%', height: 14 }} />
                 <div className="skeleton-line" style={{ width: '55%', height: 14 }} />
               </div>
-              {/* 骨架屏 - 图片 */}
               <div className="skeleton-line" style={{ width: '100%', height: 180, marginTop: 'var(--gap-sm)' }} />
               <div style={{ marginTop: 'var(--gap-sm)' }}>
                 <div className="skeleton-line" style={{ width: '100%', height: 14 }} />
@@ -188,21 +145,20 @@ export function ArticleDetailPanel({
             </div>
           </div>
         ) : article ? (
-          <div style={{ padding: 'var(--gap-xl) var(--gap-lg) var(--gap-2xl)' }}>
-            {/* Meta */}
-            <div className="flex items-center flex-wrap" style={{ gap: 'var(--gap-sm)', marginBottom: 'var(--gap-md)' }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent)' }}>{article.source}</span>
-              <span className="rounded-full" style={{ width: 2, height: 2, background: 'var(--muted)' }} />
-              <DateText dateStr={article.publishTime} style={{ fontSize: 11, color: 'var(--muted)' }} />
+          <div className="detail-panel-content">
+            <div className="detail-panel-meta">
+              <span className="detail-panel-source">{article.source}</span>
+              <span className="article-card-dot" />
+              <DateText dateStr={article.publishTime} className="article-card-date" />
               {article.author && (
                 <>
-                  <span className="rounded-full" style={{ width: 2, height: 2, background: 'var(--muted)' }} />
-                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>{article.author}</span>
+                  <span className="article-card-dot" />
+                  <span className="article-card-date">{article.author}</span>
                 </>
               )}
               {article.originalUrl && (
                 <>
-                  <span className="rounded-full" style={{ width: 2, height: 2, background: 'var(--muted)' }} />
+                  <span className="article-card-dot" />
                   <a
                     href={article.originalUrl}
                     target="_blank"
@@ -215,133 +171,38 @@ export function ArticleDetailPanel({
               )}
             </div>
 
-            {/* Title */}
-            <h1
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 'var(--fs-h1)',
-                fontWeight: 600,
-                lineHeight: 1.12,
-                letterSpacing: '-0.02em',
-                marginBottom: 'var(--gap-lg)',
-              }}
-            >
-              {article.title}
-            </h1>
+            <h1 className="detail-panel-title">{article.title}</h1>
 
-            {/* AI Tags */}
             {article.aiTags?.length > 0 && (
-              <div className="flex flex-wrap" style={{ gap: 'var(--gap-xs)', marginBottom: 'var(--gap-xl)' }}>
+              <div className="detail-panel-tags">
                 {article.aiTags.map((tag: string) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center border"
-                    style={{
-                      padding: '2px 7px',
-                      borderColor: 'var(--border)',
-                      borderRadius: 999,
-                      fontSize: 10,
-                      letterSpacing: '0.02em',
-                      color: 'var(--muted)',
-                    }}
-                  >
-                    {tag}
-                  </span>
+                  <span key={tag} className="article-card-tag">{tag}</span>
                 ))}
               </div>
             )}
 
-            {/* AI Summary + Article Body */}
-            {/* AI 摘要板块（归档文章显示在正文前） */}
             {article.aiSummary && (
-              <section
-                className="ai-summary-block"
-                style={{
-                  margin: 'var(--gap-lg) 0',
-                  padding: '1.2em 1.5em',
-                  borderRadius: 'var(--radius-lg)',
-                  border: '1px solid var(--glass-border)',
-                  background: 'var(--glass)',
-                  backdropFilter: 'blur(8px)',
-                }}
-              >
-                <h2
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 11,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
-                    color: 'var(--accent)',
-                    margin: '0 0 0.75em',
-                    paddingBottom: '0.5em',
-                    borderBottom: '1px solid var(--border)',
-                  }}
-                >
-                  智能摘要
-                </h2>
-                <p style={{ margin: 0, lineHeight: 1.7, color: 'var(--fg)' }}>
-                  {article.aiSummary}
-                </p>
+              <section className="ai-summary-block">
+                <h2 className="ai-summary-title">智能摘要</h2>
+                <p className="ai-summary-text">{article.aiSummary}</p>
               </section>
             )}
             {article.isArchived && !article.aiSummary && (
-              <div
-                style={{
-                  padding: 'var(--gap-xl)',
-                  textAlign: 'center',
-                  color: 'var(--muted)',
-                  fontSize: 'var(--fs-sm)',
-                  marginBottom: 'var(--gap-lg)',
-                  borderRadius: 'var(--radius-lg)',
-                  background: 'var(--glass)',
-                  border: '1px solid var(--glass-border)',
-                }}
-              >
+              <div className="ai-loading-placeholder">
                 AI 正在生成总结…
               </div>
             )}
 
-            {/* 正文分割线 */}
             {article.isArchived && article.aiSummary && article.contentMd && (
-              <div
-                style={{
-                  margin: 'var(--gap-xl) 0',
-                  borderTop: '1px solid var(--border)',
-                  paddingTop: 'var(--gap-lg)',
-                }}
-              >
-                <span
-                  style={{
-                    display: 'inline-block',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 11,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
-                    color: 'var(--muted)',
-                    marginBottom: 'var(--gap-md)',
-                  }}
-                >
-                  原文
-                </span>
+              <div className="content-divider">
+                <span className="content-divider-label">原文</span>
               </div>
             )}
 
-            {/* 原始正文 */}
             {article.contentMd ? (
-              <div className="article-body">
-                <ReactMarkdown>{article.contentMd}</ReactMarkdown>
-              </div>
+              <div className="article-body">{memoizedContent}</div>
             ) : (
-              <div
-                style={{
-                  padding: 'var(--gap-2xl) var(--gap-lg)',
-                  textAlign: 'center',
-                  color: 'var(--muted)',
-                  fontSize: 'var(--fs-sm)',
-                }}
-              >
-                正在加载正文…
-              </div>
+              <div className="content-loading">正在加载正文…</div>
             )}
           </div>
         ) : null}

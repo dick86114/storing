@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import useSWR, { useSWRConfig } from 'swr';
 import { useToast } from '@/components/ui/Toast';
@@ -8,7 +8,7 @@ import { useArticleContext } from '@/components/providers/ArticleContext';
 import { ArticleList } from '@/components/article/ArticleList';
 import { api } from '@/lib/api';
 
-export default function FavoritesPage() {
+function FavoritesContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const page = parseInt(searchParams.get('page') || '1');
@@ -33,8 +33,7 @@ export default function FavoritesPage() {
   }
 
   return (
-    <div>
-      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-h2)', marginBottom: 'var(--gap-md)' }}>收藏</h1>
+    <>
       {isLoading ? (
         <div style={{ color: 'var(--muted)', padding: 'var(--gap-2xl) 0', textAlign: 'center' }}>加载中…</div>
       ) : (
@@ -62,6 +61,17 @@ export default function FavoritesPage() {
           highlightId={highlightId}
         />
       )}
+    </>
+  );
+}
+
+export default function FavoritesPage() {
+  return (
+    <div>
+      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-h2)', marginBottom: 'var(--gap-md)' }}>收藏</h1>
+      <Suspense fallback={<div style={{ color: 'var(--muted)', padding: 'var(--gap-2xl) 0', textAlign: 'center' }}>加载中…</div>}>
+        <FavoritesContent />
+      </Suspense>
     </div>
   );
 }
