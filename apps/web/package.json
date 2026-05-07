@@ -6,7 +6,7 @@
     "dev": "next dev --port 1050",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
   },
   "dependencies": {
     "@storing/shared": "workspace:*",
@@ -18,10 +18,13 @@
     "swr": "^2.3.0"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
     "@tailwindcss/postcss": "^4.1.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^15.5.16",
     "tailwindcss": "^4.1.0",
     "typescript": "^5.8.0"
   }
