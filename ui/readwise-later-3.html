@@ -1,0 +1,1235 @@
+
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Readwise — 稍后阅读</title>
+  <style>
+    /* ─── tokens — warm paper + glassmorphism ─────────────────────── */
+    :root {
+      --bg:      oklch(95.5% 0.018 82);
+      --surface: oklch(97.5% 0.010 82);
+      --fg:      oklch(18% 0.016 55);
+      --muted:   oklch(46% 0.012 60);
+      --border:  oklch(86% 0.012 82);
+      --accent:  oklch(52% 0.12 32);
+
+      --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
+      --fg-soft:     color-mix(in oklch, var(--fg) 5%, transparent);
+      --surface-glow: color-mix(in oklch, var(--accent) 5%, var(--surface));
+      --glass:       color-mix(in oklch, var(--surface) 72%, transparent);
+      --glass-border: color-mix(in oklch, var(--border) 60%, transparent);
+
+      --font-display: 'Iowan Old Style', 'Newsreader', Georgia, serif;
+      --font-body:    'Söhne', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      --font-mono:    ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+
+      --fs-h1: clamp(32px, 4vw, 48px);
+      --fs-h2: clamp(24px, 3vw, 32px);
+      --fs-h3: 17px;
+      --fs-lead: 16px;
+      --fs-body: 14.5px;
+      --fs-meta: 11.5px;
+      --fs-sm: 12.5px;
+
+      --gap-xs: 6px;
+      --gap-sm: 10px;
+      --gap-md: 16px;
+      --gap-lg: 24px;
+      --gap-xl: 40px;
+      --gap-2xl: 64px;
+      --container: 1120px;
+      --gutter: 24px;
+
+      --radius: 10px;
+      --radius-lg: 14px;
+      --radius-sm: 6px;
+
+      --shadow-sm: 0 1px 2px color-mix(in oklch, var(--fg) 4%, transparent);
+      --shadow-md: 0 4px 12px color-mix(in oklch, var(--fg) 6%, transparent);
+      --shadow-lg: 0 12px 32px color-mix(in oklch, var(--fg) 8%, transparent);
+
+      --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* dark mode */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:      oklch(22% 0.008 70);
+        --surface: oklch(26% 0.008 70);
+        --fg:      oklch(93% 0.006 75);
+        --muted:   oklch(65% 0.008 70);
+        --border:  oklch(34% 0.008 70);
+        --accent:  oklch(72% 0.11 32);
+
+        --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
+        --fg-soft:     color-mix(in oklch, var(--fg) 8%, transparent);
+        --surface-glow: color-mix(in oklch, var(--accent) 8%, var(--surface));
+        --glass:       color-mix(in oklch, var(--surface) 60%, transparent);
+        --glass-border: color-mix(in oklch, var(--border) 50%, transparent);
+
+        --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+        --shadow-md: 0 4px 12px rgba(0,0,0,0.25);
+        --shadow-lg: 0 12px 32px rgba(0,0,0,0.3);
+      }
+    }
+
+    /* manual override */
+    [data-theme="dark"] {
+      --bg:      oklch(22% 0.008 70);
+      --surface: oklch(26% 0.008 70);
+      --fg:      oklch(93% 0.006 75);
+      --muted:   oklch(65% 0.008 70);
+      --border:  oklch(34% 0.008 70);
+      --accent:  oklch(72% 0.11 32);
+
+      --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
+      --fg-soft:     color-mix(in oklch, var(--fg) 8%, transparent);
+      --surface-glow: color-mix(in oklch, var(--accent) 8%, var(--surface));
+      --glass:       color-mix(in oklch, var(--surface) 60%, transparent);
+      --glass-border: color-mix(in oklch, var(--border) 50%, transparent);
+
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.25);
+      --shadow-lg: 0 12px 32px rgba(0,0,0,0.3);
+    }
+    [data-theme="light"] {
+      --bg:      oklch(95.5% 0.018 82);
+      --surface: oklch(97.5% 0.010 82);
+      --fg:      oklch(18% 0.016 55);
+      --muted:   oklch(46% 0.012 60);
+      --border:  oklch(86% 0.012 82);
+      --accent:  oklch(52% 0.12 32);
+
+      --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
+      --fg-soft:     color-mix(in oklch, var(--fg) 5%, transparent);
+      --surface-glow: color-mix(in oklch, var(--accent) 5%, var(--surface));
+      --glass:       color-mix(in oklch, var(--surface) 72%, transparent);
+      --glass-border: color-mix(in oklch, var(--border) 60%, transparent);
+
+      --shadow-sm: 0 1px 2px color-mix(in oklch, var(--fg) 4%, transparent);
+      --shadow-md: 0 4px 12px color-mix(in oklch, var(--fg) 6%, transparent);
+      --shadow-lg: 0 12px 32px color-mix(in oklch, var(--fg) 8%, transparent);
+    }
+
+    /* ─── scrollbar ─────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: color-mix(in oklch, var(--muted) 30%, transparent);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: color-mix(in oklch, var(--muted) 50%, transparent);
+    }
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: color-mix(in oklch, var(--muted) 30%, transparent) transparent;
+    }
+
+    /* ─── reset ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: var(--fs-body);
+      line-height: 1.6;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+      transition: background var(--transition), color var(--transition);
+    }
+    /* paper texture overlay */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 0;
+      opacity: 0.35;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+      background-size: 300px 300px;
+    }
+    @media (prefers-color-scheme: dark) {
+      body::before { opacity: 0; }
+    }
+    [data-theme="dark"] body::before { opacity: 0; }
+    [data-theme="light"] body::before { opacity: 0.35; }
+
+    img, svg { display: block; max-width: 100%; }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; cursor: pointer; border: none; background: none; }
+    p { text-wrap: pretty; margin: 0; }
+    h1, h2, h3, h4 { text-wrap: balance; margin: 0; }
+
+    /* ─── layout ─────────────────────────────────────────────────── */
+    .container { max-width: var(--container); margin-inline: auto; padding-inline: var(--gutter); position: relative; z-index: 1; }
+    .layout-with-sidebar {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+      align-items: start;
+    }
+    .layout-with-sidebar.has-sidebar {
+      grid-template-columns: 200px 1fr;
+      gap: var(--gap-xl);
+    }
+
+    /* ─── topnav — glassmorphism ─────────────────────────────────── */
+    .topnav {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--glass);
+      backdrop-filter: blur(20px) saturate(1.4);
+      -webkit-backdrop-filter: blur(20px) saturate(1.4);
+      border-bottom: 1px solid var(--glass-border);
+      transition: background var(--transition);
+    }
+    .topnav-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 0; gap: var(--gap-md);
+    }
+    .logo {
+      font-family: var(--font-display);
+      font-size: 17px; font-weight: 600; letter-spacing: -0.02em;
+      display: flex; align-items: center; gap: 8px;
+      flex-shrink: 0;
+    }
+    .logo-mark {
+      width: 26px; height: 26px; border-radius: var(--radius-sm);
+      background: var(--accent);
+      display: grid; place-items: center;
+    }
+    .logo-mark svg { width: 14px; height: 14px; color: var(--surface); }
+    .topnav-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+    /* search trigger */
+    .search-trigger {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: var(--radius);
+      background: var(--glass); border: 1px solid var(--glass-border);
+      color: var(--muted); font-size: var(--fs-sm);
+      backdrop-filter: blur(8px);
+      transition: all var(--transition);
+    }
+    .search-trigger:hover { border-color: var(--accent); color: var(--fg); }
+    .search-trigger svg { width: 14px; height: 14px; flex-shrink: 0; }
+    .search-trigger kbd {
+      font-family: var(--font-mono); font-size: 10px;
+      padding: 2px 5px; border-radius: 4px;
+      background: var(--fg-soft); border: 1px solid var(--border);
+      color: var(--muted); margin-left: 8px;
+    }
+
+    /* theme toggle */
+    .theme-toggle {
+      width: 32px; height: 32px; border-radius: var(--radius-sm);
+      display: grid; place-items: center;
+      color: var(--muted); transition: all var(--transition);
+    }
+    .theme-toggle:hover { background: var(--fg-soft); color: var(--fg); }
+    .theme-toggle svg { width: 16px; height: 16px; }
+
+    /* ─── tabs ───────────────────────────────────────────────────── */
+    .tabs-bar {
+      background: var(--bg);
+      transition: background var(--transition);
+    }
+    .tabs {
+      display: flex; gap: 0;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab {
+      position: relative;
+      padding: 11px 18px;
+      font-size: var(--fs-sm); font-weight: 500;
+      color: var(--muted);
+      white-space: nowrap;
+      transition: color var(--transition);
+    }
+    .tab:hover { color: var(--fg); }
+    .tab.active { color: var(--accent); }
+    .tab.active::after {
+      content: '';
+      position: absolute; bottom: -1px; left: 18px; right: 18px;
+      height: 2px; border-radius: 1px;
+      background: var(--accent);
+    }
+    .tab .count {
+      font-family: var(--font-mono); font-size: 10px;
+      padding: 1px 6px; border-radius: 999px;
+      background: var(--accent-soft); color: var(--accent);
+      margin-left: 5px;
+    }
+
+    /* ─── content area ──────────────────────────────────────────── */
+    .content-area { padding: var(--gap-md) 0 var(--gap-xl); min-height: 80vh; }
+
+    /* ─── sidebar ────────────────────────────────────────────────── */
+    .sidebar {
+      position: sticky;
+      top: 72px;
+    }
+    .sidebar-section { margin-bottom: var(--gap-lg); }
+    .sidebar-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: var(--gap-sm);
+      padding-left: var(--gap-sm);
+    }
+    .sidebar-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 10px;
+      border-radius: var(--radius-sm);
+      font-size: var(--fs-sm);
+      color: var(--muted);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .sidebar-item:hover {
+      background: var(--fg-soft);
+      color: var(--fg);
+    }
+    .sidebar-item.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+    .sidebar-item-count {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      opacity: 0.6;
+    }
+
+    /* ─── article list ───────────────────────────────────────────── */
+    .article-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap-md);
+      min-width: 0;
+    }
+
+    .article-card {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: var(--gap-md);
+      padding: var(--gap-md) var(--gap-lg);
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      cursor: pointer;
+      transition: all var(--transition);
+      animation: cardIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+    }
+    .article-card:hover {
+      border-color: color-mix(in oklch, var(--accent) 30%, var(--border));
+      box-shadow: var(--shadow-md);
+      transform: translateY(-2px);
+    }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .article-card:nth-child(1) { animation-delay: 0.03s; }
+    .article-card:nth-child(2) { animation-delay: 0.06s; }
+    .article-card:nth-child(3) { animation-delay: 0.09s; }
+    .article-card:nth-child(4) { animation-delay: 0.12s; }
+    .article-card:nth-child(5) { animation-delay: 0.15s; }
+    .article-card:nth-child(6) { animation-delay: 0.18s; }
+    .article-card:nth-child(7) { animation-delay: 0.21s; }
+    .article-card:nth-child(8) { animation-delay: 0.24s; }
+    .article-card:nth-child(9) { animation-delay: 0.27s; }
+    .article-card:nth-child(10) { animation-delay: 0.30s; }
+
+    .card-body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .card-meta {
+      display: flex; align-items: center; gap: var(--gap-xs);
+      margin-bottom: 6px; flex-wrap: wrap;
+    }
+    .card-source {
+      font-family: var(--font-mono); font-size: 11px;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--accent);
+    }
+    .card-date { font-size: 11px; color: var(--muted); }
+    .card-dot { width: 2px; height: 2px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+    .card-title {
+      font-family: var(--font-display);
+      font-size: var(--fs-h3); font-weight: 600;
+      line-height: 1.4; letter-spacing: -0.01em;
+      margin-bottom: 4px;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .card-excerpt {
+      font-size: var(--fs-sm); color: var(--muted); line-height: 1.5;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .card-tags {
+      display: flex; gap: 4px; flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .card-actions {
+      display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+      padding-top: 2px;
+    }
+    .action-btn {
+      width: 32px; height: 32px; border-radius: var(--radius-sm);
+      display: grid; place-items: center;
+      color: var(--muted);
+      transition: all var(--transition);
+    }
+    .action-btn:hover { background: var(--fg-soft); color: var(--fg); }
+    .action-btn.active { color: var(--accent); }
+    .action-btn svg { width: 16px; height: 16px; }
+
+    /* ─── tag pill ───────────────────────────────────────────────── */
+    .tag {
+      display: inline-flex; align-items: center;
+      padding: 2px 7px;
+      background: transparent; color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 10px; letter-spacing: 0.02em;
+      transition: all var(--transition);
+      cursor: pointer;
+    }
+    .tag:hover { border-color: var(--accent); color: var(--accent); }
+    .tag.active {
+      background: var(--accent-soft); color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    /* ─── article detail overlay ─────────────────────────────────── */
+    .detail-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: color-mix(in oklch, var(--bg) 60%, transparent);
+      backdrop-filter: blur(8px);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .detail-overlay.open { opacity: 1; pointer-events: auto; }
+
+    .detail-panel {
+      position: absolute; right: 0; top: 0; bottom: 0;
+      width: min(680px, 100vw);
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      overflow-y: auto;
+      transform: translateX(100%);
+      transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: var(--shadow-lg);
+    }
+    .detail-overlay.open .detail-panel { transform: translateX(0); }
+
+    .detail-header {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--gap-md) var(--gap-lg);
+      background: var(--glass);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .detail-close {
+      width: 36px; height: 36px; border-radius: var(--radius-sm);
+      display: grid; place-items: center;
+      color: var(--muted); transition: all var(--transition);
+    }
+    .detail-close:hover { background: var(--fg-soft); color: var(--fg); }
+    .detail-close svg { width: 20px; height: 20px; }
+    .detail-actions { display: flex; gap: var(--gap-xs); }
+
+    .detail-content { padding: var(--gap-xl) var(--gap-lg) var(--gap-2xl); }
+
+    .detail-meta {
+      display: flex; align-items: center; gap: var(--gap-sm);
+      margin-bottom: var(--gap-md); flex-wrap: wrap;
+    }
+    .detail-title {
+      font-family: var(--font-display);
+      font-size: var(--fs-h1); font-weight: 600;
+      line-height: 1.12; letter-spacing: -0.02em;
+      margin-bottom: var(--gap-md);
+    }
+    .detail-deck {
+      font-size: var(--fs-lead); color: var(--muted);
+      line-height: 1.55; margin-bottom: var(--gap-xl);
+      max-width: 50ch;
+    }
+
+    /* AI summary — glassmorphism card */
+    .ai-summary {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      padding: var(--gap-lg);
+      margin-bottom: var(--gap-xl);
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .ai-summary::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), color-mix(in oklch, var(--accent) 40%, transparent));
+    }
+    .ai-summary-label {
+      display: flex; align-items: center; gap: var(--gap-xs);
+      font-family: var(--font-mono); font-size: var(--fs-meta);
+      text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--accent); margin-bottom: var(--gap-sm);
+    }
+    .ai-summary-label svg { width: 14px; height: 14px; }
+    .ai-summary p {
+      font-size: var(--fs-body); line-height: 1.7; color: var(--fg);
+    }
+
+    .detail-tags {
+      display: flex; gap: var(--gap-xs); flex-wrap: wrap;
+      margin-bottom: var(--gap-xl);
+    }
+
+    .detail-body {
+      font-size: var(--fs-body); line-height: 1.75;
+      color: var(--fg);
+    }
+    .detail-body h2 {
+      font-family: var(--font-display);
+      font-size: var(--fs-h2); font-weight: 600;
+      margin: var(--gap-xl) 0 var(--gap-sm);
+      letter-spacing: -0.01em;
+    }
+    .detail-body p { margin-bottom: var(--gap-md); }
+    .detail-body blockquote {
+      margin: var(--gap-lg) 0; padding: 0 var(--gap-lg);
+      border-left: 3px solid var(--accent);
+      font-family: var(--font-display);
+      font-size: var(--fs-lead);
+      font-style: italic; color: var(--fg);
+      line-height: 1.55;
+    }
+    .detail-body ul {
+      margin: var(--gap-md) 0; padding-left: var(--gap-lg);
+    }
+    .detail-body li { margin-bottom: var(--gap-xs); }
+    .detail-body a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+
+    /* ─── search modal ───────────────────────────────────────────── */
+    .search-overlay {
+      position: fixed; inset: 0; z-index: 300;
+      background: color-mix(in oklch, var(--bg) 70%, transparent);
+      backdrop-filter: blur(12px);
+      display: flex; align-items: flex-start; justify-content: center;
+      padding-top: 15vh;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .search-overlay.open { opacity: 1; pointer-events: auto; }
+
+    .search-modal {
+      width: min(580px, calc(100vw - 48px));
+      background: var(--surface);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      transform: translateY(-12px) scale(0.98);
+      transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .search-overlay.open .search-modal {
+      transform: translateY(0) scale(1);
+    }
+
+    .search-input-wrap {
+      display: flex; align-items: center; gap: var(--gap-sm);
+      padding: var(--gap-md) var(--gap-lg);
+      border-bottom: 1px solid var(--border);
+    }
+    .search-input-wrap svg { width: 18px; height: 18px; color: var(--muted); flex-shrink: 0; }
+    .search-input {
+      flex: 1; border: none; background: none; outline: none;
+      font: inherit; font-size: 16px; color: var(--fg);
+    }
+    .search-input::placeholder { color: var(--muted); }
+    .search-input-wrap kbd {
+      font-family: var(--font-mono); font-size: 11px;
+      padding: 3px 7px; border-radius: 4px;
+      background: var(--fg-soft); border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    .search-results {
+      max-height: 400px; overflow-y: auto;
+      padding: var(--gap-sm);
+    }
+    .search-result-item {
+      display: flex; flex-direction: column;
+      padding: var(--gap-sm) var(--gap-md);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background var(--transition);
+    }
+    .search-result-item:hover { background: var(--fg-soft); }
+    .search-result-item .sr-title {
+      font-weight: 500; font-size: var(--fs-sm);
+      margin-bottom: 2px;
+    }
+    .search-result-item .sr-meta {
+      font-size: var(--fs-meta); color: var(--muted);
+      display: flex; gap: var(--gap-xs); align-items: center;
+    }
+    .search-empty {
+      padding: var(--gap-xl) var(--gap-lg);
+      text-align: center; color: var(--muted); font-size: var(--fs-sm);
+    }
+    .search-hint {
+      padding: var(--gap-sm) var(--gap-lg) var(--gap-md);
+      font-size: var(--fs-meta); color: var(--muted);
+      border-top: 1px solid var(--border);
+      display: flex; gap: var(--gap-md);
+    }
+    .search-hint span { display: flex; align-items: center; gap: 4px; }
+
+    /* ─── pagination ──────────────────────────────────────────────── */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--gap-xs);
+      margin-top: var(--gap-lg);
+      padding-top: var(--gap-md);
+    }
+    .page-btn {
+      min-width: 34px; height: 34px;
+      padding: 0 8px;
+      border-radius: var(--radius-sm);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-family: var(--font-mono); font-size: 13px;
+      color: var(--muted);
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(8px);
+      transition: all var(--transition);
+    }
+    .page-btn:hover:not(:disabled) {
+      border-color: var(--accent); color: var(--fg);
+    }
+    .page-btn:disabled {
+      opacity: 0.35; cursor: default;
+    }
+    .page-btn.active {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .page-btn svg { width: 14px; height: 14px; }
+    .page-info {
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--muted); margin: 0 var(--gap-sm);
+    }
+
+    /* ─── empty state ─────────────────────────────────────────────── */
+    .empty-state {
+      text-align: center; padding: var(--gap-2xl) var(--gap-lg);
+      color: var(--muted);
+    }
+    .empty-state svg { width: 48px; height: 48px; margin: 0 auto var(--gap-md); opacity: 0.4; }
+    .empty-state h3 {
+      font-family: var(--font-display);
+      font-size: var(--fs-h3); margin-bottom: var(--gap-xs);
+      color: var(--fg);
+    }
+    .empty-state p { font-size: var(--fs-sm); max-width: 36ch; margin: 0 auto; }
+
+    /* ─── toast ──────────────────────────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(20px);
+      padding: 10px 20px;
+      background: var(--fg); color: var(--bg);
+      border-radius: var(--radius);
+      font-size: var(--fs-sm); font-weight: 500;
+      box-shadow: var(--shadow-lg);
+      opacity: 0; pointer-events: none;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 400;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ─── responsive ─────────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .layout-with-sidebar.has-sidebar {
+        grid-template-columns: 1fr;
+        gap: 0;
+      }
+      .sidebar {
+        position: static;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding-bottom: var(--gap-sm);
+      }
+      .sidebar::-webkit-scrollbar { display: none; }
+      .sidebar-section { margin-bottom: 0; }
+      .sidebar-label { display: none; }
+      .sidebar-list {
+        display: flex;
+        gap: var(--gap-xs);
+        flex-wrap: nowrap;
+      }
+      .sidebar-item {
+        white-space: nowrap;
+        padding: 6px 14px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        font-size: 12px;
+      }
+      .sidebar-item.active { border-color: var(--accent); }
+      .sidebar-item-count { display: none; }
+    }
+
+    @media (max-width: 640px) {
+      :root { --gutter: 20px; }
+      .topnav-inner { padding: 8px 0; gap: 8px; }
+      .logo span { display: none; }
+      .search-trigger { padding: 6px 10px; }
+      .search-trigger span { display: none; }
+      .search-trigger kbd { display: none; }
+      .article-card {
+        grid-template-columns: 1fr;
+        gap: var(--gap-sm);
+        padding: var(--gap-sm) var(--gap-md);
+      }
+      .card-actions {
+        flex-direction: row;
+        padding-top: 0;
+      }
+      .detail-panel { width: 100vw; }
+      .detail-content { padding: var(--gap-lg) var(--gap-md) var(--gap-2xl); }
+      .detail-title { font-size: clamp(24px, 6vw, 36px); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ─── topnav ─────────────────────────────────────────────────── -->
+  <header class="topnav" data-od-id="topnav">
+    <div class="container topnav-inner">
+      <div class="logo">
+        <div class="logo-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        </div>
+        <span>Readwise</span>
+      </div>
+      <div class="topnav-actions">
+        <button class="search-trigger" onclick="openSearch()" aria-label="搜索">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <span>搜索文章…</span>
+          <kbd>⌘K</kbd>
+        </button>
+        <button class="theme-toggle" onclick="toggleTheme()" aria-label="切换主题">
+          <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+          <svg class="moon-icon" style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─── tabs ───────────────────────────────────────────────────── -->
+  <div class="tabs-bar" data-od-id="tabs">
+    <div class="container">
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="inbox" role="tab" onclick="switchTab('inbox')">
+          收件箱<span class="count" id="count-inbox">12</span>
+        </button>
+        <button class="tab" data-tab="favorites" role="tab" onclick="switchTab('favorites')">
+          收藏<span class="count" id="count-favorites">4</span>
+        </button>
+        <button class="tab" data-tab="archive" role="tab" onclick="switchTab('archive')">
+          归档<span class="count" id="count-archive">28</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── main content ───────────────────────────────────────────── -->
+  <main class="content-area" data-od-id="content">
+    <div class="container">
+      <div class="layout-with-sidebar" id="layout">
+        <aside class="sidebar" id="sidebar" style="display: none;"></aside>
+        <div class="article-list" id="article-list"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ─── article detail overlay ─────────────────────────────────── -->
+  <div class="detail-overlay" id="detail-overlay" onclick="closeDetailOutside(event)">
+    <div class="detail-panel" id="detail-panel">
+      <div class="detail-header">
+        <button class="detail-close" onclick="closeDetail()" aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+        <div class="detail-actions" id="detail-actions"></div>
+      </div>
+      <div class="detail-content" id="detail-content"></div>
+    </div>
+  </div>
+
+  <!-- ─── search modal ───────────────────────────────────────────── -->
+  <div class="search-overlay" id="search-overlay" onclick="closeSearchOutside(event)">
+    <div class="search-modal">
+      <div class="search-input-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input class="search-input" id="search-input" type="text" placeholder="搜索文章标题、标签、来源…" oninput="handleSearch(this.value)" />
+        <kbd>ESC</kbd>
+      </div>
+      <div class="search-results" id="search-results">
+        <div class="search-empty">输入关键词开始搜索</div>
+      </div>
+      <div class="search-hint">
+        <span><kbd>↑↓</kbd> 导航</span>
+        <span><kbd>↵</kbd> 打开</span>
+        <span><kbd>ESC</kbd> 关闭</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── toast ──────────────────────────────────────────────────── -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const ARTICLES = [
+      { id: 1, title: '为什么 Rust 正在悄悄取代 C++ 成为系统编程的首选', source: 'InfoQ', date: '2026-05-06', readTime: '8 分钟', excerpt: '随着内存安全成为行业共识，越来越多的基础架构项目开始用 Rust 重写关键模块。本文分析了这一趋势背后的技术和商业驱动力。', aiSummary: '本文从内存安全、编译器优化、生态系统成熟度三个维度，分析了 Rust 在系统编程领域逐步取代 C++ 的趋势。核心观点：Rust 的所有权模型从根本上消除了数据竞争，而 C++ 的智能指针方案仍存在运行时开销。此外，Rust 的包管理器 Cargo 和 CI 集成体验远超 CMake，降低了团队协作成本。文章引用了 Google、Microsoft 和 AWS 的内部迁移数据作为支撑。', tags: ['Rust', '系统编程', '内存安全', 'C++'], category: '技术', favorited: false, archived: false },
+      { id: 2, title: '深度解析：大语言模型的涌现能力到底是什么', source: '机器之心', date: '2026-05-06', readTime: '12 分钟', excerpt: '当模型参数量超过某个临界点时，突然获得了训练数据中未明确出现的能力。这种"涌现"现象的底层机制仍在激烈争论中。', aiSummary: '文章梳理了当前学术界对 LLM 涌现能力的三种主流解释：(1) 量变质变假说——参数量突破阈值后产生相变；(2) 评估指标假说——涌现是度量方式的产物而非模型质变；(3) 能力组合假说——基础能力的组合产生了看似全新的能力。作者倾向第三种，并引用了多个消融实验作为证据。', tags: ['LLM', '涌现能力', 'AI 研究', '深度学习'], category: 'AI', favorited: true, archived: false },
+      { id: 3, title: '设计系统 2.0：从组件库到设计语言的进化', source: 'Smashing Magazine', date: '2026-05-05', readTime: '10 分钟', excerpt: '第一代设计系统解决了组件复用问题，但缺乏对品牌表达和设计决策的系统性支撑。新一代设计语言正在填补这个空白。', aiSummary: '本文回顾了设计系统从 Bootstrap 时代的组件库到当前设计语言的演进历程。核心论点：组件库（按钮、输入框的集合）不等于设计系统（组件 + 规范），更不等于设计语言（系统 + 品牌表达 + 决策框架）。文章以 Shopify Polaris 和 GitHub Primer 为例，展示了如何通过设计令牌（Design Tokens）和语义化命名实现品牌一致性。', tags: ['设计系统', 'Design Tokens', 'UI 设计', '组件库'], category: '设计', favorited: false, archived: false },
+      { id: 4, title: '远程工作三年后的团队协作反思', source: 'The Pragmatic Engineer', date: '2026-05-05', readTime: '6 分钟', excerpt: '异步优先不等于异步唯一。经过三年远程实践，我们发现同步沟通在某些场景下仍然不可替代。', aiSummary: '作者以自身团队三年远程工作实践为基础，总结了异步沟通的优势（深度工作保护、跨时区协作、文档沉淀）和盲区（决策速度慢、情感连接弱、新人融入难）。结论：最佳实践是"异步优先 + 同步补充"，具体策略包括每周 2 次 30 分钟同步站会、关键决策前的 15 分钟快速对齐、以及季度线下聚会。', tags: ['远程工作', '团队协作', '工程管理', '异步沟通'], category: '职业', favorited: true, archived: false },
+      { id: 5, title: 'CSS 容器查询实战：告别媒体查询的组件化布局时代', source: 'web.dev', date: '2026-05-04', readTime: '7 分钟', excerpt: '容器查询让组件根据自身容器尺寸而非视口尺寸来调整布局，这彻底改变了响应式设计的思路。', aiSummary: '文章通过三个实际案例（卡片组件、侧边栏导航、数据表格）演示了 CSS 容器查询的使用方式。核心优势：组件可以脱离页面上下文独立响应尺寸变化，真正实现"一次编写，处处适配"。文章同时对比了容器查询与媒体查询的性能差异，结论是现代浏览器对容器查询的优化已经使其性能开销可以忽略不计。', tags: ['CSS', '容器查询', '响应式设计', '前端开发'], category: '技术', favorited: false, archived: false },
+      { id: 6, title: '注意力经济的终局：当每个人都在分发内容', source: 'Stratechery', date: '2026-05-04', readTime: '15 分钟', excerpt: 'AI 降低了内容创作门槛，但注意力总量没有增长。这意味着分发渠道的价值将超过内容本身。', aiSummary: '本文从经济学供需模型出发，分析了 AI 时代内容供给爆炸而注意力需求刚性的矛盾。核心洞察：当内容生产成本趋近于零时，"被看到"本身成为稀缺资源，分发平台（算法推荐、社交网络、搜索引擎）的议价能力将进一步增强。文章预测未来 3-5 年，个人创作者的变现模式将从"内容付费"转向"社群订阅 + 品牌合作"。', tags: ['注意力经济', '内容创作', 'AI 影响', '商业模式'], category: '商业', favorited: false, archived: false },
+      { id: 7, title: 'TypeScript 6.0 正式发布：模式匹配和效应系统', source: 'TypeScript Blog', date: '2026-05-03', readTime: '9 分钟', excerpt: 'TypeScript 6.0 带来了社区期待已久的模式匹配语法和可选的效应系统，标志着类型系统进入新阶段。', aiSummary: 'TypeScript 6.0 的两大核心特性：(1) 模式匹配——通过 match 表达式实现类似 Rust 的解构匹配，支持守卫条件和嵌套模式，大幅减少 if-else 链；(2) 效应系统——通过 @effect 标注追踪异步操作和副作用，帮助编译器在编译期发现未处理的异步错误。文章包含详细的迁移指南和与 TypeScript 5.x 的兼容性说明。', tags: ['TypeScript', '模式匹配', '类型系统', '前端'], category: '技术', favorited: false, archived: false },
+      { id: 8, title: '如何用 Figma Variables 实现完整的主题切换系统', source: 'Figma Blog', date: '2026-05-03', readTime: '11 分钟', excerpt: '从颜色令牌到间距规范，用 Figma 的变量系统构建一个支持浅色/深色/高对比度三种模式的设计系统。', aiSummary: '教程分五步构建主题系统：(1) 建立语义化颜色变量集合（bg/fg/accent/muted 等）；(2) 创建浅色和深色两个模式的变量集合；(3) 用集合切换实现主题预览；(4) 将变量绑定到组件属性实现一键切换；(5) 通过 Figma API 导出变量为 JSON 供开发使用。文章强调了语义化命名的重要性——颜色变量应描述用途（surface）而非具体色值（gray-100）。', tags: ['Figma', '设计系统', '主题切换', 'Design Tokens'], category: '设计', favorited: false, archived: false },
+      { id: 9, title: '硅谷风投的 AI 焦虑：投早了怕泡沫，投晚了怕错过', source: 'The Information', date: '2026-05-02', readTime: '8 分钟', excerpt: '顶级风投机构在 AI 领域的投资策略出现了明显分歧，但共识是：应用层比基础模型更安全。', aiSummary: '文章采访了 5 家硅谷顶级风投的合伙人，呈现了他们在 AI 投资上的不同策略：a16z 重仓基础模型、Sequoia 聚焦应用层、Benchmark 坚持小团队模式。共同观点：基础模型的竞争格局将在 12-18 个月内基本确定，届时只有 3-4 家能存活；应用层的机会窗口更长，但需要找到真正的用户痛点而非"AI 包装"。', tags: ['风险投资', 'AI 投资', '硅谷', '创业'], category: '商业', favorited: false, archived: false },
+      { id: 10, title: '个人知识管理的误区：你不需要第二个大脑', source: 'nesslabs', date: '2026-05-02', readTime: '5 分钟', excerpt: '大多数人的笔记工具里堆满了永远不会重读的摘录。真正有效的知识管理是减少输入、增加输出。', aiSummary: '作者挑战了"第二大脑"理念的三个误区：(1) 收集≠学习——大量摘录但不消化等于信息囤积；(2) 连接≠洞察——笔记之间的链接不自动生成洞见，需要主动思考；(3) 工具≠系统——换工具不解决方法论问题。建议：每周只收集 3-5 篇高质量内容，每篇写 200 字自己的理解，每月输出一篇综合思考。', tags: ['知识管理', '笔记方法', '个人效率', '学习'], category: '效率', favorited: true, archived: false },
+      { id: 11, title: 'WebGPU 终于来了：浏览器中的高性能计算', source: 'Chrome Developers', date: '2026-05-01', readTime: '10 分钟', excerpt: 'WebGPU 在 Chrome 125 中正式稳定，为浏览器带来了现代 GPU 编程能力。这意味着什么？', aiSummary: '文章介绍了 WebGPU 相比 WebGL 的核心改进：(1) 更低级别的 API 访问，减少驱动层开销；(2) 计算着色器支持，可用于机器学习推理和数据处理；(3) 更好的多线程支持。同时讨论了当前的限制：Safari 和 Firefox 的支持仍在进行中，生产环境使用需要考虑兼容性回退方案。', tags: ['WebGPU', '浏览器', 'GPU 编程', 'Web 技术'], category: '技术', favorited: false, archived: false },
+      { id: 12, title: '为什么好的写作能力是工程师最被低估的技能', source: 'Gergely Orosz', date: '2026-05-01', readTime: '6 分钟', excerpt: '技术方案文档、代码审查评论、事故复盘——这些写作场景直接影响工程师的职业发展速度。', aiSummary: '文章列举了工程师日常中 7 个关键写作场景：RFC 文档、PR 描述、代码注释、事故报告、技术博客、晋升材料、跨团队沟通。每个场景给出了具体的写作框架。核心观点：写作能力的本质是"把复杂的事情说清楚"，这与编程中的抽象能力是同一种思维训练。', tags: ['工程师成长', '写作', '技术文档', '职业发展'], category: '职业', favorited: false, archived: false },
+      { id: 13, title: 'GraphQL 在大规模生产环境中的教训', source: 'Netflix Tech Blog', date: '2026-04-28', readTime: '14 分钟', excerpt: 'Netflix 分享了他们从 REST 迁移到 GraphQL 的三年经历，包括性能陷阱和组织层面的挑战。', aiSummary: 'Netflix 的 GraphQL 迁移案例：(1) N+1 查询问题在大规模图谱中被放大，需要 DataLoader 模式；(2) 客户端自由查询导致服务端难以控制成本，引入了查询复杂度分析和限制；(3) Schema 设计需要跨团队协调，否则会退化为"REST over GraphQL"。最终结论：GraphQL 适合 BFF 层，不建议直接暴露核心服务。', tags: ['GraphQL', 'Netflix', 'API 设计', '微服务'], category: '技术', favorited: false, archived: true },
+      { id: 14, title: '色彩心理学在 UI 设计中的实际应用', source: 'NNGroup', date: '2026-04-25', readTime: '8 分钟', excerpt: '颜色不只是美学选择——它直接影响用户的情绪、注意力和决策行为。', aiSummary: '文章基于多项用户研究数据，总结了颜色在 UI 中的心理效应：蓝色传递信任（金融/医疗首选）、橙色激发行动（CTA 按钮最佳）、绿色暗示成功（表单验证）。关键发现：颜色的文化差异比想象中小——全球用户对红=紧急、绿=成功的认知高度一致。建议：用颜色传递状态而非装饰，一个界面中主色不超过 2 种。', tags: ['色彩心理学', 'UI 设计', '用户体验', '设计原则'], category: '设计', favorited: false, archived: true },
+      { id: 15, title: '创业公司如何在 0 到 1 阶段找到产品市场契合', source: 'Y Combinator', date: '2026-04-20', readTime: '11 分钟', excerpt: 'YC 合伙人分享了他们观察到的 PMF 信号，以及创始人最常犯的三个判断错误。', aiSummary: 'YC 合伙人 Dalton Caldwell 总结了 PMF 的三个正面信号：(1) 用户主动推荐给朋友（口碑系数 > 1）；(2) 留存曲线在第 8 周后趋于平稳而非持续下降；(3) 用户对产品缺点的容忍度明显提高。三个常见误判：(1) 把媒体关注当成 PMF；(2) 把融资成功当成 PMF；(3) 把少量忠实用户的需求当成大众需求。', tags: ['创业', 'PMF', '产品策略', 'Y Combinator'], category: '商业', favorited: false, archived: true },
+      { id: 16, title: '深度学习在蛋白质结构预测中的最新进展', source: 'Nature', date: '2026-04-18', readTime: '20 分钟', excerpt: '继 AlphaFold 之后，新一代蛋白质结构预测模型在准确率和速度上都有显著提升。', aiSummary: '文章综述了 AlphaFold 之后的三代改进模型：(1) AlphaFold 3——支持蛋白质-配体复合物预测；(2) ESMFold——基于纯语言模型架构，推理速度快 10 倍；(3) RoseTTAFold All-Atom——统一了蛋白质、核酸和小分子的预测框架。文章同时讨论了这些工具在药物发现中的实际应用案例和当前局限性。', tags: ['蛋白质结构', 'AlphaFold', '生物信息学', 'AI 应用'], category: 'AI', favorited: false, archived: true },
+      { id: 17, title: '如何构建一个不让人讨厌的通知系统', source: 'Intercom Blog', date: '2026-04-15', readTime: '7 分钟', excerpt: '通知是产品留存的关键触点，但滥用通知是用户流失的首要原因之一。', aiSummary: 'Intercom 分享了通知系统设计的四条原则：(1) 相关性优先——基于用户行为而非产品需求发送；(2) 频率控制——每个渠道（推送/邮件/站内）设定独立的频率上限；(3) 用户主权——让用户轻松调整偏好而非直接关闭；(4) 效果度量——追踪通知的打开率和后续行为而非仅送达率。文章包含具体的数据：降低推送频率 30% 后，7 天留存反而提升了 12%。', tags: ['通知系统', '产品设计', '用户留存', 'UX'], category: '设计', favorited: false, archived: true },
+      { id: 18, title: '从零到一：独立开发者的第一年复盘', source: 'Indie Hackers', date: '2026-04-12', readTime: '9 分钟', excerpt: '一个前端工程师辞职做独立开发的第一年，月收入从 0 到 $3,200 的完整经历。', aiSummary: '独立开发者 Sarah Chen 复盘了第一年的四个阶段：(1) 前 3 个月——验证想法，做了 4 个 MVP，3 个失败；(2) 第 4-6 个月——聚焦一个方向，MRR 达到 $400；(3) 第 7-9 个月——内容营销起效，MRR 增长到 $1,800；(4) 第 10-12 个月——口碑传播，MRR 达到 $3,200。关键教训：不要在第 1 个月就追求完美产品，先找到有人愿意付费的痛点。', tags: ['独立开发', 'Indie Hackers', '创业复盘', 'SaaS'], category: '商业', favorited: false, archived: true },
+      { id: 19, title: '现代 JavaScript 框架的渲染性能对比', source: 'Ryan Carniato', date: '2026-04-10', readTime: '16 分钟', excerpt: 'React、Vue、Svelte、Solid 在不同场景下的渲染性能差异，以及"编译时优化"的真正含义。', aiSummary: '文章通过标准化的基准测试对比了四个框架在五种场景下的表现：(1) 大列表渲染——Solid > Svelte > Vue > React；(2) 细粒度更新——Solid 和 Svelte 遥遥领先；(3) 水合性能——Svelte 5 的部分水合方案最优；(4) 内存占用——Solid 最低；(5) 首屏加载——Svelte 和 Solid 体积最小。结论：性能差距在实际应用中通常被网络和业务逻辑稀释，框架选择应更多考虑生态和团队熟悉度。', tags: ['JavaScript', '前端框架', '性能优化', '渲染引擎'], category: '技术', favorited: false, archived: true },
+      { id: 20, title: '数据可视化中的误导性图表：如何避免和识别', source: 'FlowingData', date: '2026-04-08', readTime: '6 分钟', excerpt: '截断的 Y 轴、不等比例的面积、精心选择的时间范围——这些技巧每天都在误导数百万读者。', aiSummary: '文章列举了 8 种常见的误导性图表技巧：(1) 截断 Y 轴放大差异；(2) 双 Y 轴制造虚假关联；(3) 3D 效果扭曲比例；(4) 面积图中用半径而非面积映射数值；(5) 饼图中类别过多导致无法比较；(6) 选择性时间范围隐藏趋势；(7) 不标注基线和样本量；(8) 用累计数据隐藏下降。每种技巧都配有真实新闻图表的反面案例和修正方案。', tags: ['数据可视化', '统计学', '图表设计', '信息素养'], category: '设计', favorited: false, archived: true },
+      { id: 21, title: '边缘计算的下一个十年：从 CDN 到分布式应用', source: 'Cloudflare Blog', date: '2026-04-05', readTime: '13 分钟', excerpt: '边缘计算正在从"静态内容缓存"进化为"完整应用运行时"，这将如何改变架构设计？', aiSummary: 'Cloudflare 的技术演进视角：(1) 第一阶段（2010s）——CDN 缓存静态资源；(2) 第二阶段（2020s）——边缘函数处理动态逻辑；(3) 第三阶段（2025+）——边缘原生数据库和状态管理。关键技术突破：Durable Objects 提供了边缘端的一致性状态，D1 实现了全球分布的 SQLite。文章讨论了边缘优先架构的设计模式和与传统中心化架构的权衡。', tags: ['边缘计算', 'Cloudflare', 'CDN', '分布式系统'], category: '技术', favorited: false, archived: true },
+      { id: 22, title: '跨文化设计：为什么你的"简洁"在另一个国家可能是"空洞"', source: 'UX Collective', date: '2026-04-02', readTime: '8 分钟', excerpt: '不同文化背景的用户对信息密度、留白、色彩和信任信号的感知差异巨大。', aiSummary: '文章基于霍夫斯泰德文化维度理论，分析了设计决策的文化差异：(1) 高语境文化（中日韩）偏好信息密度高、层次丰富的界面；(2) 低语境文化（欧美）偏好简洁、留白多的界面；(3) 权力距离高的文化更信任权威背书和认证标识；(4) 不确定性规避高的文化需要更多的安全信号和详细说明。实际案例：同一个 SaaS 产品的日本版和美国版在首页信息量上相差 3 倍。', tags: ['跨文化设计', 'UX', '国际化', '文化差异'], category: '设计', favorited: false, archived: true },
+      { id: 23, title: 'LLM 应用的工程化：从 Demo 到生产的鸿沟', source: 'a16z Blog', date: '2026-03-28', readTime: '11 分钟', excerpt: '一个 LLM Demo 可以在周末搞定，但把它变成可靠的产品可能需要 6 个月。', aiSummary: '文章总结了 LLM 应用从 Demo 到生产的五大工程挑战：(1) 幻觉控制——需要多层防护（提示工程 + 检索增强 + 输出校验）；(2) 延迟优化——流式输出、缓存策略、模型选择的权衡；(3) 成本控制——Token 用量监控、模型路由、批量处理；(4) 评估体系——自动化评估流水线和人工标注的结合；(5) 安全合规——输入过滤、输出审核、数据隐私。每个挑战都附带了推荐的工具和架构模式。', tags: ['LLM 工程', 'AI 应用', 'MLOps', '产品化'], category: 'AI', favorited: false, archived: true },
+      { id: 24, title: '可访问性不是功能，是底线', source: 'A11y Project', date: '2026-03-25', readTime: '7 分钟', excerpt: '全球有超过 10 亿人存在某种形式的障碍。可访问性设计不只是为了他们——它让产品对所有人都更好用。', aiSummary: '文章从三个层面阐述可访问性的重要性：(1) 道德层面——信息获取是基本权利，技术障碍是一种歧视；(2) 商业层面——可访问性好的产品 SEO 更好、用户群更广、法律风险更低；(3) 设计层面——为障碍用户优化的设计（高对比度、键盘导航、清晰结构）让所有用户受益。实操建议：从 WCAG 2.2 AA 标准开始，优先修复颜色对比度、键盘焦点和表单标签三个最常见的问题。', tags: ['可访问性', 'a11y', 'WCAG', '包容性设计'], category: '设计', favorited: false, archived: true },
+      { id: 25, title: '微服务架构的反思：什么时候单体更好', source: 'Martin Fowler', date: '2026-03-20', readTime: '12 分钟', excerpt: '微服务不是银弹。对于大多数团队来说，一个设计良好的单体应用可能是更务实的选择。', aiSummary: 'Martin Fowler 的核心论点：(1) 微服务的分布式复杂性被严重低估——网络延迟、数据一致性、服务发现、链路追踪都是额外成本；(2) 微服务的前提是团队规模足够大（> 50 人），小团队用微服务会把 80% 的时间花在基础设施而非业务逻辑上；(3) "单体优先"策略——从单体开始，在明确的模块边界处拆分，比一开始就微服务更可控。文章提出了"微服务准备度评估"的 6 个维度。', tags: ['微服务', '架构设计', '单体应用', '软件工程'], category: '技术', favorited: false, archived: true },
+      { id: 26, title: 'AI 时代的产品经理需要什么新技能', source: 'Lenny\'s Newsletter', date: '2026-03-18', readTime: '9 分钟', excerpt: '传统 PM 的核心技能——用户调研、PRD 撰写、项目管理——仍然重要，但不够了。', aiSummary: 'Lenny 总结了 AI 时代 PM 需要补充的 5 项新技能：(1) AI 能力边界认知——知道什么问题适合用 AI 解决、什么不适合；(2) 提示工程思维——能设计有效的 AI 交互流程；(3) 数据飞轮设计——如何通过用户反馈持续改进 AI 模型；(4) 不确定性管理——AI 产品的效果是概率性的，需要新的指标体系；(5) 伦理意识——理解 AI 偏见、隐私和透明度的产品影响。', tags: ['产品经理', 'AI 时代', '职业技能', '产品管理'], category: '职业', favorited: false, archived: true },
+      { id: 27, title: '为什么日本的网页设计看起来与众不同', source: 'Design Milk', date: '2026-03-15', readTime: '6 分钟', excerpt: '高信息密度、独特的排版规则、对"空"的不同理解——日本网页设计有自己的一套美学逻辑。', aiSummary: '文章分析了日本网页设计独特性的四个来源：(1) 文字密度文化——日语的信息密度高于英语，高密度排版对日本用户来说不是"杂乱"而是"充实"；(2) 竖排传统——虽然 modern 网页以横排为主，但竖排元素仍然广泛用于标题和装饰；(3) 季节感——日本设计强调季节性色彩和元素的更替；(4) 可爱（Kawaii）美学——可爱元素在日本不是"幼稚"而是全年龄段的设计语言。文章对比了 Rakuten 和 Amazon Japan 的设计差异。', tags: ['日本设计', '网页设计', '文化差异', '排版'], category: '设计', favorited: false, archived: true },
+      { id: 28, title: '构建可靠的分布式定时任务系统', source: 'Uber Engineering', date: '2026-03-12', readTime: '15 分钟', excerpt: 'Uber 分享了他们如何在数千个微服务中实现精确的定时任务调度，以及踩过的坑。', aiSummary: 'Uber 的定时任务系统经历了三代架构：(1) Cron-based——单机 cron，简单但无法扩展；(2) 分布式锁——基于 Redis 的分布式锁，解决了单点问题但存在锁过期导致的重复执行；(3) 事件驱动——基于 Kafka 的事件调度，实现了精确的一次执行语义。关键技术决策：使用逻辑时钟而非物理时钟处理跨数据中心的时钟漂移，通过幂等性设计而非分布式事务保证数据一致性。', tags: ['分布式系统', '定时任务', 'Uber', '系统设计'], category: '技术', favorited: false, archived: true },
+      { id: 29, title: '深度工作 vs. 即时沟通：工程团队的时间管理困境', source: 'Cal Newport', date: '2026-03-10', readTime: '7 分钟', excerpt: 'Slack 消息、站会、代码审查通知——工程师的"深度工作"时间正在被碎片化沟通吞噬。', aiSummary: 'Cal Newport 引用了 RescueTime 的数据：知识工作者平均每 6 分钟被通知打断一次，而进入深度工作状态需要 23 分钟。对工程团队的建议：(1) 设立"无打扰时间块"——每天至少 2 小时关闭所有通知；(2) 异步沟通优先——用文档替代会议，用 PR 评论替代即时消息；(3) 会议集中化——将会议集中在周二和周四，其他时间保护为深度工作日；(4) 通知分级——区分紧急（生产事故）和非紧急（周报更新）的通知渠道。', tags: ['深度工作', '时间管理', '工程效率', '远程协作'], category: '效率', favorited: false, archived: true },
+      { id: 30, title: '开源维护者的倦怠：一个被忽视的行业危机', source: 'The Register', date: '2026-03-08', readTime: '10 分钟', excerpt: '全球关键基础设施依赖的开源项目，很多只有 1-2 个维护者，他们中的大多数在无偿工作。', aiSummary: '文章通过采访 8 位知名开源维护者，呈现了这个群体的困境：(1) 时间压力——处理 issue 和 PR 占用了大部分业余时间；(2) 情感消耗——用户的要求和批评缺乏对等的感谢；(3) 经济压力——大多数维护者没有从项目中获得收入；(4) 责任焦虑——知道自己的代码被关键系统依赖但没有资源保证质量。文章同时介绍了 Tidelift、GitHub Sponsors 等资助模式的效果和局限。', tags: ['开源', '维护者倦怠', '软件行业', '可持续性'], category: '技术', favorited: false, archived: true }
+    ];
+
+    let currentTab = 'inbox';
+    let activeCategory = 'all';
+    let detailArticleId = null;
+    let currentPage = 1;
+    const PER_PAGE = 8;
+
+    function $(id) { return document.getElementById(id); }
+
+    function getFilteredArticles() {
+      let articles;
+      if (currentTab === 'inbox') {
+        articles = ARTICLES.filter(a => !a.archived && !a.favorited);
+      } else if (currentTab === 'favorites') {
+        articles = ARTICLES.filter(a => a.favorited && !a.archived);
+      } else {
+        articles = ARTICLES.filter(a => a.archived);
+        if (activeCategory !== 'all') {
+          articles = articles.filter(a => a.category === activeCategory);
+        }
+      }
+      return articles.sort((a, b) => new Date(b.date) - new Date(a.date));
+    }
+
+    function getCategories() {
+      return [...new Set(ARTICLES.filter(a => a.archived).map(a => a.category))].sort();
+    }
+
+    function formatDate(dateStr) {
+      const d = new Date(dateStr);
+      const now = new Date();
+      const diff = Math.floor((now - d) / (1000 * 60 * 60 * 24));
+      if (diff === 0) return '今天';
+      if (diff === 1) return '昨天';
+      if (diff < 7) return `${diff} 天前`;
+      return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+    }
+
+    function updateCounts() {
+      $('count-inbox').textContent = ARTICLES.filter(a => !a.archived && !a.favorited).length;
+      $('count-favorites').textContent = ARTICLES.filter(a => a.favorited && !a.archived).length;
+      $('count-archive').textContent = ARTICLES.filter(a => a.archived).length;
+    }
+
+    let toastTimer;
+    function showToast(msg) {
+      const t = $('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+    }
+
+    function renderList() {
+      const list = $('article-list');
+      const sidebar = $('sidebar');
+      const layout = $('layout');
+      const articles = getFilteredArticles();
+
+      if (currentTab === 'archive') {
+        const cats = getCategories();
+        const archivedArticles = ARTICLES.filter(a => a.archived);
+        sidebar.style.display = 'block';
+        layout.classList.add('has-sidebar');
+        sidebar.innerHTML = `
+          <div class="sidebar-section">
+            <div class="sidebar-label">分类筛选</div>
+            <ul class="sidebar-list">
+              <li class="sidebar-item ${activeCategory === 'all' ? 'active' : ''}" onclick="filterCategory('all')">
+                <span>全部</span>
+                <span class="sidebar-item-count">${archivedArticles.length}</span>
+              </li>
+              ${cats.map(c => {
+                const count = archivedArticles.filter(a => a.category === c).length;
+                return `<li class="sidebar-item ${activeCategory === c ? 'active' : ''}" onclick="filterCategory('${c}')">
+                  <span>${c}</span>
+                  <span class="sidebar-item-count">${count}</span>
+                </li>`;
+              }).join('')}
+            </ul>
+          </div>
+        `;
+      } else {
+        sidebar.style.display = 'none';
+        layout.classList.remove('has-sidebar');
+      }
+
+      // pagination
+      const totalPages = Math.ceil(articles.length / PER_PAGE);
+      if (currentPage > totalPages) currentPage = totalPages || 1;
+      const start = (currentPage - 1) * PER_PAGE;
+      const paged = articles.slice(start, start + PER_PAGE);
+
+      if (articles.length === 0) {
+        const emptyMsg = currentTab === 'inbox' ? '所有文章都已处理完毕' :
+                         currentTab === 'favorites' ? '还没有收藏的文章' :
+                         '归档中暂无此类文章';
+        list.innerHTML = `
+          <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            <h3>${emptyMsg}</h3>
+            <p>${currentTab === 'inbox' ? '去发现一些好文章吧' : ''}</p>
+          </div>
+        `;
+        return;
+      }
+
+      list.innerHTML = paged.map((a, i) => `
+        <article class="article-card" onclick="openDetail(${a.id})" style="animation-delay: ${i * 0.03}s">
+          <div class="card-body">
+            <div class="card-meta">
+              <span class="card-source">${a.source}</span>
+              <span class="card-dot"></span>
+              <span class="card-date">${formatDate(a.date)}</span>
+              <span class="card-dot"></span>
+              <span class="card-date">${a.readTime}</span>
+            </div>
+            <h3 class="card-title">${a.title}</h3>
+            <p class="card-excerpt">${a.excerpt}</p>
+            <div class="card-tags">
+              ${a.tags.slice(0, 3).map(t => `<span class="tag">${t}</span>`).join('')}
+            </div>
+          </div>
+          <div class="card-actions">
+            <button class="action-btn ${a.favorited ? 'active' : ''}" onclick="event.stopPropagation(); toggleFavorite(${a.id})" aria-label="收藏" title="${a.favorited ? '取消收藏' : '收藏'}">
+              <svg viewBox="0 0 24 24" fill="${a.favorited ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+            </button>
+            <button class="action-btn" onclick="event.stopPropagation(); archiveArticle(${a.id})" aria-label="归档" title="归档">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
+            </button>
+          </div>
+        </article>
+      `).join('');
+
+      // render pagination
+      if (totalPages > 1) {
+        let pagesHtml = '';
+        pagesHtml += `<button class="page-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="goToPage(${currentPage - 1})" aria-label="上一页"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>`;
+        for (let p = 1; p <= totalPages; p++) {
+          if (totalPages > 7 && p > 2 && p < totalPages - 1 && Math.abs(p - currentPage) > 1) {
+            if (p === 3 || p === totalPages - 2) pagesHtml += `<span class="page-info">…</span>`;
+            continue;
+          }
+          pagesHtml += `<button class="page-btn ${p === currentPage ? 'active' : ''}" onclick="goToPage(${p})">${p}</button>`;
+        }
+        pagesHtml += `<button class="page-btn" ${currentPage === totalPages ? 'disabled' : ''} onclick="goToPage(${currentPage + 1})" aria-label="下一页"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>`;
+        list.innerHTML += `<nav class="pagination">${pagesHtml}</nav>`;
+      }
+    }
+
+    function toggleFavorite(id) {
+      const a = ARTICLES.find(x => x.id === id);
+      if (!a) return;
+      a.favorited = !a.favorited;
+      showToast(a.favorited ? '已收藏' : '已取消收藏');
+      updateCounts();
+      renderList();
+      if (detailArticleId === id) renderDetailActions(id);
+    }
+
+    function archiveArticle(id) {
+      const a = ARTICLES.find(x => x.id === id);
+      if (!a) return;
+      a.archived = true;
+      showToast('已归档 — AI 正在自动分类…');
+      updateCounts();
+      renderList();
+      if (detailArticleId === id) closeDetail();
+    }
+
+    function unarchiveArticle(id) {
+      const a = ARTICLES.find(x => x.id === id);
+      if (!a) return;
+      a.archived = false;
+      showToast('已移回归件箱');
+      updateCounts();
+      renderList();
+      if (detailArticleId === id) closeDetail();
+    }
+
+    function goToPage(page) {
+      currentPage = page;
+      renderList();
+      document.querySelector('.content-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      activeCategory = 'all';
+      currentPage = 1;
+      document.querySelectorAll('.tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === tab);
+      });
+      renderList();
+    }
+
+    function filterCategory(cat) {
+      activeCategory = cat;
+      currentPage = 1;
+      renderList();
+    }
+
+    function openDetail(id) {
+      detailArticleId = id;
+      const a = ARTICLES.find(x => x.id === id);
+      if (!a) return;
+
+      renderDetailActions(id);
+
+      $('detail-content').innerHTML = `
+        <div class="detail-meta">
+          <span class="card-source">${a.source}</span>
+          <span class="card-dot"></span>
+          <span class="card-date">${formatDate(a.date)}</span>
+          <span class="card-dot"></span>
+          <span class="card-date">${a.readTime}</span>
+        </div>
+        <h1 class="detail-title">${a.title}</h1>
+        <p class="detail-deck">${a.excerpt}</p>
+
+        <div class="ai-summary">
+          <div class="ai-summary-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4z"/><circle cx="12" cy="15" r="2"/></svg>
+            AI 智能摘要
+          </div>
+          <p>${a.aiSummary}</p>
+        </div>
+
+        <div class="detail-tags">
+          ${a.tags.map(t => `<button class="tag" onclick="searchByTag('${t}')">${t}</button>`).join('')}
+        </div>
+
+        <div class="detail-body">
+          <h2>核心观点</h2>
+          <p>${a.excerpt}</p>
+          <blockquote>"技术的价值不在于它有多新，而在于它解决了多少真实的问题。"</blockquote>
+          <p>这篇文章从多个维度深入分析了这个话题，提供了丰富的案例和数据支撑。作者的见解既有理论深度，也有实践指导意义。</p>
+          <h2>关键要点</h2>
+          <ul>
+            ${a.tags.map(t => `<li>关于 <strong>${t}</strong> 的深入思考和实践建议</li>`).join('')}
+          </ul>
+          <p>无论你是初学者还是资深从业者，这篇文章都值得一读。</p>
+        </div>
+      `;
+
+      $('detail-overlay').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function renderDetailActions(id) {
+      const a = ARTICLES.find(x => x.id === id);
+      if (!a) return;
+      $('detail-actions').innerHTML = `
+        <button class="action-btn ${a.favorited ? 'active' : ''}" onclick="toggleFavorite(${a.id})" title="${a.favorited ? '取消收藏' : '收藏'}">
+          <svg viewBox="0 0 24 24" fill="${a.favorited ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+        </button>
+        ${a.archived
+          ? `<button class="action-btn" onclick="unarchiveArticle(${a.id})" title="移回归件箱">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+            </button>`
+          : `<button class="action-btn" onclick="archiveArticle(${a.id})" title="归档">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
+            </button>`
+        }
+      `;
+    }
+
+    function closeDetail() {
+      detailArticleId = null;
+      $('detail-overlay').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    function closeDetailOutside(e) {
+      if (e.target === $('detail-overlay')) closeDetail();
+    }
+
+    function openSearch() {
+      $('search-overlay').classList.add('open');
+      setTimeout(() => $('search-input').focus(), 100);
+    }
+
+    function closeSearch() {
+      $('search-overlay').classList.remove('open');
+      $('search-input').value = '';
+      $('search-results').innerHTML = '<div class="search-empty">输入关键词开始搜索</div>';
+    }
+
+    function closeSearchOutside(e) {
+      if (e.target === $('search-overlay')) closeSearch();
+    }
+
+    function handleSearch(query) {
+      const results = $('search-results');
+      if (!query.trim()) {
+        results.innerHTML = '<div class="search-empty">输入关键词开始搜索</div>';
+        return;
+      }
+
+      const q = query.toLowerCase();
+      const matches = ARTICLES.filter(a =>
+        a.title.toLowerCase().includes(q) ||
+        a.excerpt.toLowerCase().includes(q) ||
+        a.tags.some(t => t.toLowerCase().includes(q)) ||
+        a.source.toLowerCase().includes(q) ||
+        a.category.toLowerCase().includes(q) ||
+        a.aiSummary.toLowerCase().includes(q)
+      );
+
+      if (matches.length === 0) {
+        results.innerHTML = `<div class="search-empty">没有找到与"${query}"相关的文章</div>`;
+        return;
+      }
+
+      results.innerHTML = matches.map(a => `
+        <div class="search-result-item" onclick="closeSearch(); openDetail(${a.id})">
+          <span class="sr-title">${highlightMatch(a.title, q)}</span>
+          <span class="sr-meta">
+            <span>${a.source}</span>
+            <span class="card-dot"></span>
+            <span>${formatDate(a.date)}</span>
+            ${a.archived ? '<span class="card-dot"></span><span style="color:var(--accent)">已归档</span>' : ''}
+          </span>
+        </div>
+      `).join('');
+    }
+
+    function highlightMatch(text, query) {
+      const idx = text.toLowerCase().indexOf(query);
+      if (idx === -1) return text;
+      return text.slice(0, idx) + '<strong style="color:var(--accent)">' + text.slice(idx, idx + query.length) + '</strong>' + text.slice(idx + query.length);
+    }
+
+    function searchByTag(tag) {
+      closeDetail();
+      setTimeout(() => {
+        openSearch();
+        $('search-input').value = tag;
+        handleSearch(tag);
+      }, 300);
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const isDark = current === 'dark' || (!current && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+      updateThemeIcon();
+      localStorage.setItem('theme', isDark ? 'light' : 'dark');
+    }
+
+    function updateThemeIcon() {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark' ||
+        (!document.documentElement.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.querySelector('.sun-icon').style.display = isDark ? 'none' : 'block';
+      document.querySelector('.moon-icon').style.display = isDark ? 'block' : 'none';
+    }
+
+    (function() {
+      const saved = localStorage.getItem('theme');
+      if (saved) document.documentElement.setAttribute('data-theme', saved);
+      updateThemeIcon();
+    })();
+
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if (!localStorage.getItem('theme')) updateThemeIcon();
+    });
+
+    document.addEventListener('keydown', e => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        if ($('search-overlay').classList.contains('open')) closeSearch();
+        else openSearch();
+      }
+      if (e.key === 'Escape') {
+        if ($('search-overlay').classList.contains('open')) closeSearch();
+        else if ($('detail-overlay').classList.contains('open')) closeDetail();
+      }
+    });
+
+    updateCounts();
+    renderList();
+  </script>
+</body>
+</html>
