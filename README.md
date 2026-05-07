@@ -3,7 +3,7 @@
 AI驱动的个人稍后阅读平台，让你的文章收藏变成真正的知识资产。
 
 ## 项目介绍
-
+![alt text](ui/logo.png)
 乾坤戒是一个现代化的稍后阅读应用，集成了AI智能摘要和分类功能，帮助你更好地管理和阅读收藏的文章。
 
 ## 技术栈
@@ -62,7 +62,7 @@ pnpm dev
 #### 使用DockerHub镜像
 ```bash
 # 拉取镜像
-docker pull 86114/storing:latest
+docker pull dick86114/storing:latest
 
 # 运行容器
 docker run -d \
@@ -70,7 +70,7 @@ docker run -d \
   -p 1050:1050 \
   -p 1052:1052 \
   --env-file .env \
-  86114/storing:latest
+  dick86114/storing:latest
 ```
 
 #### 使用docker-compose
@@ -87,7 +87,7 @@ docker-compose -f docker-compose.dev.yml up -d
 ### 1. Docker部署（推荐）
 - 支持多平台：linux/amd64, linux/arm64
 - 自动化构建和部署
-- 镜像地址：`86114/storing`
+- 镜像地址：`dick86114/storing`
 
 ### 2. 本地开发部署
 - 使用pnpm管理依赖
@@ -174,4 +174,4 @@ MIT License
 ## 联系方式
 
 - GitHub: https://github.com/dick86114/storing
-- DockerHub: https://hub.docker.com/r/86114/storing
+- DockerHub: https://hub.docker.com/r/dick86114/storing
