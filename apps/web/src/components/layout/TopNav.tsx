@@ -23,33 +23,21 @@ export function TopNav({ onSearchOpen }: { onSearchOpen: () => void }) {
         }}
       >
         <div className="flex items-center shrink-0" style={{ gap: 8 }}>
-          <div
-            className="grid place-items-center"
+          <img
+            src="/logo.png"
+            alt="乾坤戒"
             style={{
               width: 26,
               height: 26,
               borderRadius: 'var(--radius-sm)',
-              background: 'var(--accent)',
+              objectFit: 'contain',
             }}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ width: 14, height: 14, color: 'var(--surface)' }}
-            >
-              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-            </svg>
-          </div>
+          />
           <span
             className="font-semibold tracking-tight hidden sm:inline"
             style={{ fontFamily: 'var(--font-display)', fontSize: 17 }}
           >
-            Storing
+            乾坤戒
           </span>
         </div>
 

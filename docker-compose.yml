@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  storing:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: storing:latest
+    container_name: storing
+    restart: unless-stopped
+    ports:
+      - "1050:1050"  # 前端
+      - "1052:1052"  # API
+    environment:
+      # 数据库连接
+      - DATABASE_URL=${DATABASE_URL}
+
+      # AI 配置
+      - AI_PROVIDER=${AI_PROVIDER:-deepseek}
+      - AI_MODEL=${AI_MODEL:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ZHIPU_API_KEY=${ZHIPU_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - CUSTOM_AI_BASE_URL=${CUSTOM_AI_BASE_URL}
+      - CUSTOM_AI_API_KEY=${CUSTOM_AI_API_KEY}
+      - CUSTOM_AI_MODEL=${CUSTOM_AI_MODEL}
+
+      # 文章抓取服务
+      - READER_API_BASE=${READER_API_BASE}
+
+      # 图片上传服务
+      - IMG_HOST=${IMG_HOST}
+      - IMG_API_KEY=${IMG_API_KEY}
+
+      # 运行时配置
+      - NODE_ENV=production
+    volumes:
+      # 可选：持久化日志
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:1052/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# 可选：如果需要本地 PostgreSQL
+# services:
+#   postgres:
+#     image: postgres:16-alpine
+#     container_name: storing-db
+#     restart: unless-stopped
+#     environment:
+#       POSTGRES_DB: storing
+#       POSTGRES_USER: storing
+#       POSTGRES_PASSWORD: storing123
+#     volumes:
+#       - postgres_data:/var/lib/postgresql/data
+#     ports:
+#       - "5432:5432"

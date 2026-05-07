@@ -1,0 +1,45 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+.next
+dist
+*.tsbuildinfo
+
+# Environment files (敏感信息)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+api.log
+web.log
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Documentation
+docs
+ui
+*.md
+!README.md
+
+# Temporary files
+*.tmp
+*.temp
+.cache
+logs
