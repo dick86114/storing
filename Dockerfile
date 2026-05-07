@@ -30,9 +30,6 @@ COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_module
 
 COPY . .
 
-# 构建共享包
-RUN cd packages/shared && pnpm run build
-
 # 构建前端
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN cd apps/web && pnpm run build
@@ -50,8 +47,8 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 storing
 
 # 复制构建产物
-# 共享包
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+# 共享包（源码，无需构建）
+COPY --from=builder /app/packages/shared/src ./packages/shared/src
 COPY --from=builder /app/packages/shared/package.json ./packages/shared/
 
 # API 后端
@@ -73,7 +70,7 @@ COPY --from=builder /app/node_modules ./node_modules
 # 创建启动脚本
 RUN echo '#!/bin/sh' > /app/start.sh && \
     echo 'cd /app/apps/api && node --import tsx src/index.ts &' >> /app/start.sh && \
-    echo 'cd /app/apps/web/.next/standalone && node server.js &' >> /app/start.sh && \
+    echo 'cd /app/apps/web/.next/standalone/apps/web && node server.js &' >> /app/start.sh && \
     echo 'wait' >> /app/start.sh && \
     chmod +x /app/start.sh
 
