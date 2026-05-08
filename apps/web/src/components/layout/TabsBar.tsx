@@ -50,7 +50,7 @@ export function TabsBar({ counts }: { counts: { inbox: number; favorites: number
                   marginLeft: 5,
                 }}
               >
-                {counts[tab.key] ?? 0}
+                {counts[tab.key as keyof typeof counts] ?? 0}
               </span>
               {active && (
                 <span
