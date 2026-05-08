@@ -21,6 +21,32 @@ fi
 echo "=== 服务重启脚本 ==="
 echo ""
 
+# 检查并安装依赖
+check_dependencies() {
+  local root_dir="$SCRIPT_DIR"
+
+  echo "检查依赖安装状态..."
+
+  # 检查根目录 node_modules
+  if [ ! -d "$root_dir/node_modules" ]; then
+    echo "❌ 根目录缺少 node_modules"
+    echo "正在安装依赖..."
+    cd "$root_dir"
+    pnpm install
+    if [ $? -ne 0 ]; then
+      echo "❌ 依赖安装失败，请手动运行: pnpm install"
+      exit 1
+    fi
+    echo "✓ 依赖安装完成"
+  else
+    echo "✓ 依赖已安装"
+  fi
+}
+
+# 检查依赖
+check_dependencies
+echo ""
+
 # 检查服务是否正常运行
 check_service_health() {
   local port=$1
