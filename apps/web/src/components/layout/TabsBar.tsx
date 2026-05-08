@@ -10,7 +10,7 @@ const allTabs = [
   { key: 'archive', label: '归档', href: '/archive', requireAuth: false },
 ];
 
-export function TabsBar({ counts }: { counts: Record<string, number> }) {
+export function TabsBar({ counts }: { counts: { inbox: number; favorites: number; archive: number } }) {
   const pathname = usePathname();
   const { isAuthenticated } = useAuth();
 
