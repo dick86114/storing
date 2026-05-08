@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 
 interface ArticleContextValue {
   selectedId: number | null;
@@ -20,8 +20,41 @@ export function ArticleProvider({ children }: { children: ReactNode }) {
   const [highlightId, setHighlightId] = useState<number | null>(null);
   const [mutateFn, setMutateFnState] = useState<(() => void) | null>(null);
 
-  const openArticle = useCallback((id: number) => setSelectedId(id), []);
-  const closeArticle = useCallback(() => setSelectedId(null), []);
+  // 用于跟踪是否是通过 popstate 触发的关闭
+  const isPopstateClose = useRef(false);
+
+  // 打开文章时添加历史记录，支持物理返回键关闭
+  const openArticle = useCallback((id: number) => {
+    setSelectedId(id);
+    // 添加历史记录条目，方便返回键关闭
+    history.pushState({ articlePanel: true }, '');
+  }, []);
+
+  const closeArticle = useCallback(() => {
+    setSelectedId(null);
+    // 如果不是通过 popstate 触发的关闭，需要主动返回历史
+    if (!isPopstateClose.current && history.state?.articlePanel) {
+      history.back();
+    }
+    isPopstateClose.current = false;
+  }, []);
+
+  // 监听 popstate 事件（物理返回键）
+  useEffect(() => {
+    const handlePopstate = () => {
+      if (history.state?.articlePanel) {
+        // 用户按返回键，但历史状态还有 articlePanel，说明是其他操作触发的
+        // 这里不做处理，让 history 自然处理
+      } else if (selectedId) {
+        // 返回键触发，历史状态已无 articlePanel，关闭面板
+        isPopstateClose.current = true;
+        setSelectedId(null);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopstate);
+    return () => window.removeEventListener('popstate', handlePopstate);
+  }, [selectedId]);
   const clearHighlight = useCallback(() => setHighlightId(null), []);
   const mutateList = useCallback(() => mutateFn?.(), [mutateFn]);
   const setMutateFn = useCallback((fn: () => void) => setMutateFnState(() => fn), []);
@@ -29,6 +62,8 @@ export function ArticleProvider({ children }: { children: ReactNode }) {
   const highlightAndOpen = useCallback((id: number, view: 'inbox' | 'favorites' | 'archive') => {
     setHighlightId(id);
     setSelectedId(id);
+    // 添加历史记录条目
+    history.pushState({ articlePanel: true }, '');
     setTimeout(() => {
       const card = document.querySelector(`[data-article-id="${id}"]`);
       if (card) {
