@@ -1,9 +1,29 @@
 'use client';
 
+import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '@/components/providers/ThemeProvider';
+import { useAuth } from '@/components/providers/AuthContext';
+import { LoginModal } from '@/components/auth/LoginModal';
+import { ChangePasswordModal } from '@/components/auth/ChangePasswordModal';
 
 export function TopNav({ onSearchOpen }: { onSearchOpen: () => void }) {
   const { resolved, toggle } = useTheme();
+  const { isAuthenticated, user, logout } = useAuth();
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // 点击外部关闭用户菜单
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, []);
 
   return (
     <header
@@ -42,6 +62,103 @@ export function TopNav({ onSearchOpen }: { onSearchOpen: () => void }) {
         </div>
 
         <div className="flex items-center shrink-0" style={{ gap: 6 }}>
+          {/* 登录/用户菜单 */}
+          {isAuthenticated ? (
+            <div ref={userMenuRef} style={{ position: 'relative' }}>
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="flex items-center rounded"
+                style={{
+                  gap: 6,
+                  padding: '6px 10px',
+                  background: 'var(--glass)',
+                  border: '1px solid var(--glass-border)',
+                  borderRadius: 'var(--radius)',
+                  cursor: 'pointer',
+                }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 16, height: 16, color: 'var(--muted)' }}>
+                  <circle cx="12" cy="8" r="4" />
+                  <path d="M20 21a8 8 0 1 0-16 0" />
+                </svg>
+                <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--fg)' }}>{user?.username}</span>
+              </button>
+
+              {/* 下拉菜单 */}
+              {userMenuOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    marginTop: 4,
+                    minWidth: 140,
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
+                    boxShadow: 'var(--shadow-lg)',
+                    padding: 4,
+                  }}
+                >
+                  <button
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      setChangePasswordOpen(true);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      textAlign: 'left',
+                      background: 'transparent',
+                      border: 'none',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: 'var(--fs-sm)',
+                      color: 'var(--fg)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    修改密码
+                  </button>
+                  <button
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      logout();
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      textAlign: 'left',
+                      background: 'transparent',
+                      border: 'none',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: 'var(--fs-sm)',
+                      color: 'var(--fg)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    登出
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={() => setLoginOpen(true)}
+              className="flex items-center rounded border"
+              style={{
+                padding: '6px 12px',
+                borderRadius: 'var(--radius)',
+                background: 'var(--glass)',
+                borderColor: 'var(--glass-border)',
+                color: 'var(--accent)',
+                fontSize: 'var(--fs-sm)',
+                fontWeight: 500,
+              }}
+            >
+              登录
+            </button>
+          )}
+
           <button
             onClick={onSearchOpen}
             className="flex items-center rounded border"
@@ -109,6 +226,11 @@ export function TopNav({ onSearchOpen }: { onSearchOpen: () => void }) {
           </button>
         </div>
       </div>
+
+      {/* 登录弹窗 */}
+      {loginOpen && <LoginModal onClose={() => setLoginOpen(false)} />}
+      {/* 修改密码弹窗 */}
+      {changePasswordOpen && <ChangePasswordModal onClose={() => setChangePasswordOpen(false)} />}
     </header>
   );
 }

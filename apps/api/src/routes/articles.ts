@@ -4,6 +4,7 @@ import { articles, articleMetadata } from '../db/schema.js';
 import { eq, and, desc, count, sql, or, isNull } from 'drizzle-orm';
 import { classifyAndTag } from '../services/ai.service.js';
 import { getArticleContent } from '../services/reader.service.js';
+import { requireAuth, optionalAuth, isAuthenticated } from '../middleware/auth.js';
 
 export const articlesRoutes = new Hono();
 
@@ -28,12 +29,18 @@ async function ensureMetadata(articleId: number) {
 
 /**
  * GET /articles — 文章列表
+ * 游客只能访问 archive 视图
  */
-articlesRoutes.get('/articles', async (c) => {
+articlesRoutes.get('/articles', optionalAuth, async (c) => {
   const view = c.req.query('view') || 'inbox';
   const category = c.req.query('category');
   const page = parseInt(c.req.query('page') || '1');
   const perPage = parseInt(c.req.query('perPage') || '8');
+
+  // 游客只能访问 archive 视图
+  if (!isAuthenticated(c) && view !== 'archive') {
+    return c.json({ error: { code: 'FORBIDDEN', message: '请登录后访问' } }, 403);
+  }
 
   // 构建查询：LEFT JOIN article_metadata
   let whereCondition;
@@ -108,8 +115,9 @@ articlesRoutes.get('/articles', async (c) => {
 
 /**
  * GET /articles/:id — 单篇文章详情
+ * 游客只能查看归档文章
  */
-articlesRoutes.get('/articles/:id', async (c) => {
+articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
   const id = parseInt(c.req.param('id'));
   const [article] = await db
     .select({
@@ -137,6 +145,11 @@ articlesRoutes.get('/articles/:id', async (c) => {
 
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
+  // 游客只能查看归档文章
+  if (!isAuthenticated(c) && !article.isArchived) {
+    return c.json({ error: { code: 'FORBIDDEN', message: '请登录后访问' } }, 403);
+  }
+
   // 获取 markdown 正文（首次抓取并缓存，后续读库）
   const contentMd = await getArticleContent(id).catch((e) => {
     console.error('Fetch markdown failed:', e.message);
@@ -154,8 +167,9 @@ articlesRoutes.get('/articles/:id', async (c) => {
 
 /**
  * POST /articles/:id/favorite — 切换收藏状态
+ * 需要登录
  */
-articlesRoutes.post('/articles/:id/favorite', async (c) => {
+articlesRoutes.post('/articles/:id/favorite', requireAuth, async (c) => {
   const id = parseInt(c.req.param('id'));
 
   // 验证文章存在
@@ -176,8 +190,9 @@ articlesRoutes.post('/articles/:id/favorite', async (c) => {
 
 /**
  * POST /articles/:id/archive — 归档（触发 AI 分类）
+ * 需要登录
  */
-articlesRoutes.post('/articles/:id/archive', async (c) => {
+articlesRoutes.post('/articles/:id/archive', requireAuth, async (c) => {
   const id = parseInt(c.req.param('id'));
 
   const [article] = await db.select().from(articles).where(eq(articles.id, id));
@@ -199,8 +214,9 @@ articlesRoutes.post('/articles/:id/archive', async (c) => {
 
 /**
  * POST /articles/:id/unarchive — 取消归档
+ * 需要登录
  */
-articlesRoutes.post('/articles/:id/unarchive', async (c) => {
+articlesRoutes.post('/articles/:id/unarchive', requireAuth, async (c) => {
   const id = parseInt(c.req.param('id'));
 
   await ensureMetadata(id);
@@ -228,12 +244,18 @@ articlesRoutes.get('/categories', async (c) => {
 
 /**
  * GET /articles/:id/position — 查找文章在某个视图中的页码位置
+ * 游客只能查询 archive 视图
  */
-articlesRoutes.get('/articles/:id/position', async (c) => {
+articlesRoutes.get('/articles/:id/position', optionalAuth, async (c) => {
   const id = parseInt(c.req.param('id'));
   const view = c.req.query('view') || 'inbox';
   const category = c.req.query('category');
   const perPage = parseInt(c.req.query('perPage') || '18');
+
+  // 游客只能查询 archive 视图
+  if (!isAuthenticated(c) && view !== 'archive') {
+    return c.json({ error: { code: 'FORBIDDEN', message: '请登录后访问' } }, 403);
+  }
 
   let whereCondition;
 

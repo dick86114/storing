@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSearch } from '@/hooks/useSearch';
 import { DateText } from '@/lib/formatDate';
 import { useArticleContext } from '@/components/providers/ArticleContext';
+import { useAuth } from '@/components/providers/AuthContext';
 import { api } from '@/lib/api';
 
 export function SearchModal({ onClose }: { onClose: () => void }) {
@@ -13,6 +14,7 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const router = useRouter();
   const { highlightAndOpen } = useArticleContext();
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -111,7 +113,7 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
             ref={inputRef}
             className="flex-1 outline-none"
             style={{ border: 'none', background: 'none', font: 'inherit', fontSize: 16, color: 'var(--fg)' }}
-            placeholder="搜索文章标题、标签、来源…"
+            placeholder={isAuthenticated ? '搜索文章标题、标签、来源…' : '搜索归档文章标题、标签、来源…'}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />

@@ -6,6 +6,11 @@ import { logger } from 'hono/logger';
 import { articlesRoutes } from './routes/articles.js';
 import { searchRoutes } from './routes/search.js';
 import { healthRoutes } from './routes/health.js';
+import { authRoutes } from './routes/auth.js';
+import { db } from './db/index.js';
+import { users } from './db/schema.js';
+import { eq } from 'drizzle-orm';
+import bcrypt from 'bcrypt';
 
 const app = new Hono();
 
@@ -13,6 +18,7 @@ app.use('*', logger());
 app.use('*', cors({ origin: 'http://localhost:1050' }));
 
 app.route('/api/v1', healthRoutes);
+app.route('/api/v1', authRoutes);
 app.route('/api/v1', articlesRoutes);
 app.route('/api/v1', searchRoutes);
 
@@ -21,6 +27,42 @@ app.onError((err, c) => {
   return c.json({ error: { code: 'INTERNAL_ERROR', message: err.message } }, 500);
 });
 
-serve({ fetch: app.fetch, port: 1052 }, (info) => {
-  console.log(`API server running on http://localhost:${info.port}`);
-});
+/**
+ * 初始化管理员账号
+ */
+async function initAdmin() {
+  const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+
+  try {
+    // 检查管理员是否存在
+    const [existing] = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, adminUsername));
+
+    if (!existing) {
+      // 创建管理员
+      const passwordHash = await bcrypt.hash(adminPassword, 10);
+      await db.insert(users).values({
+        username: adminUsername,
+        passwordHash,
+      });
+      console.log(`管理员账号已创建: ${adminUsername}`);
+    } else {
+      console.log(`管理员账号已存在: ${adminUsername}`);
+    }
+  } catch (err) {
+    console.error('初始化管理员失败:', err);
+  }
+}
+
+// 启动服务
+async function startServer() {
+  await initAdmin();
+  serve({ fetch: app.fetch, port: 1052 }, (info) => {
+    console.log(`API server running on http://localhost:${info.port}`);
+  });
+}
+
+startServer();
