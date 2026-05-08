@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import useSWR, { useSWRConfig } from 'swr';
 import { useToast } from '@/components/ui/Toast';
 import { useArticleContext } from '@/components/providers/ArticleContext';
+import { useAuth } from '@/components/providers/AuthContext';
 import { ArticleList } from '@/components/article/ArticleList';
 import { api } from '@/lib/api';
 
@@ -12,14 +13,23 @@ function FavoritesContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const page = parseInt(searchParams.get('page') || '1');
-  const { data, isLoading, mutate } = useSWR(
-    `articles:favorites:${page}`,
-    () => api.getArticles('favorites', page),
-    { revalidateOnFocus: false }
-  );
   const { mutate: globalMutate } = useSWRConfig();
   const { showToast } = useToast();
   const { openArticle, highlightId, setMutateFn } = useArticleContext();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+
+  // 游客跳转到归档页
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.replace('/archive');
+    }
+  }, [isAuthenticated, authLoading, router]);
+
+  const { data, isLoading, mutate } = useSWR(
+    isAuthenticated ? `articles:favorites:${page}` : null,
+    () => api.getArticles('favorites', page),
+    { revalidateOnFocus: false }
+  );
 
   const articles = data?.articles ?? [];
   const totalPages = data?.totalPages ?? 1;

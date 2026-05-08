@@ -1,6 +1,17 @@
 import { pgTable, serial, integer, text, boolean, timestamp, jsonb } from 'drizzle-orm/pg-core';
 
 /**
+ * 用户表 - 存储管理员账号
+ */
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  username: text('username').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+/**
  * 已有 articles 表的映射（只读，不修改）
  * 对应 weread 数据库中的 articles 表
  */

@@ -1,18 +1,44 @@
 const BASE = '/api/v1';
 
 async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = localStorage.getItem('token');
   const res = await fetch(`${BASE}${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...init?.headers,
+    },
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    // 401 或 403 时清除 token
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem('token');
+    }
     throw new Error(body?.error?.message || `Request failed: ${res.status}`);
   }
   return res.json();
 }
 
 export const api = {
+  // 认证相关
+  login: (username: string, password: string) =>
+    fetchJSON<{ token: string; user: { id: number; username: string } }>('/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    }),
+
+  verifyToken: () =>
+    fetchJSON<{ valid: boolean; user?: { id: number; username: string } }>('/verify'),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    fetchJSON<{ message: string }>('/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+
+  // 文章相关
   getArticles: (view: string, page = 1, category?: string, perPage = 8) => {
     const params = new URLSearchParams({ view, page: String(page), perPage: String(perPage) });
     if (category && category !== 'all') params.set('category', category);

@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import useSWR, { useSWRConfig } from 'swr';
 import { useToast } from '@/components/ui/Toast';
 import { useArticleContext } from '@/components/providers/ArticleContext';
+import { useAuth } from '@/components/providers/AuthContext';
 import { MasonryGrid } from '@/components/article/MasonryGrid';
 import { Pagination } from '@/components/ui/Pagination';
 import { api } from '@/lib/api';
@@ -18,9 +19,17 @@ function InboxContent() {
   const { mutate: globalMutate } = useSWRConfig();
   const { showToast } = useToast();
   const { openArticle, highlightId, setMutateFn } = useArticleContext();
+  const { isAuthenticated, isLoading } = useAuth();
 
-  const { data, isLoading, mutate } = useSWR(
-    `articles:inbox:${page}`,
+  // 游客跳转到归档页
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace('/archive');
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  const { data, isLoading: dataLoading, mutate } = useSWR(
+    isAuthenticated ? `articles:inbox:${page}` : null,
     () => api.getArticles('inbox', page, undefined, PER_PAGE),
     { revalidateOnFocus: false }
   );
@@ -40,7 +49,7 @@ function InboxContent() {
     <>
       <MasonryGrid
         articles={articles}
-        isLoading={isLoading}
+        isLoading={dataLoading}
         emptyTitle="所有文章都已处理完毕"
         emptyDescription="去发现一些好文章吧"
         onArticleClick={(id) => openArticle(id)}

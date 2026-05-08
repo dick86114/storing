@@ -4,6 +4,7 @@ import { useEffect, useMemo } from 'react';
 import { useSWRConfig } from 'swr';
 import { useArticle } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
+import { useAuth } from '@/components/providers/AuthContext';
 import { DateText } from '@/lib/formatDate';
 import { api } from '@/lib/api';
 import ReactMarkdown from 'react-markdown';
@@ -20,6 +21,7 @@ export function ArticleDetailPanel({
   const { data: article, isLoading, mutate: mutateArticle } = useArticle(articleId);
   const { mutate: globalMutate } = useSWRConfig();
   const { showToast } = useToast();
+  const { isAuthenticated } = useAuth();
 
   function refreshCounts() {
     globalMutate('count:inbox');
@@ -55,7 +57,7 @@ export function ArticleDetailPanel({
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
-          {article && (
+          {article && isAuthenticated && (
             <div className="flex" style={{ gap: 'var(--gap-xs)' }}>
               <button
                 onClick={async () => {

@@ -2,15 +2,20 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/components/providers/AuthContext';
 
-const tabs = [
-  { key: 'inbox', label: '收件箱', href: '/inbox' },
-  { key: 'favorites', label: '收藏', href: '/favorites' },
-  { key: 'archive', label: '归档', href: '/archive' },
+const allTabs = [
+  { key: 'inbox', label: '收件箱', href: '/inbox', requireAuth: true },
+  { key: 'favorites', label: '收藏', href: '/favorites', requireAuth: true },
+  { key: 'archive', label: '归档', href: '/archive', requireAuth: false },
 ];
 
 export function TabsBar({ counts }: { counts: Record<string, number> }) {
   const pathname = usePathname();
+  const { isAuthenticated } = useAuth();
+
+  // 游客只显示 archive 标签
+  const visibleTabs = allTabs.filter(tab => !tab.requireAuth || isAuthenticated);
 
   return (
     <div style={{ background: 'var(--bg)' }}>
@@ -18,7 +23,7 @@ export function TabsBar({ counts }: { counts: Record<string, number> }) {
         className="mx-auto flex overflow-x-auto hide-scrollbar"
         style={{ maxWidth: 'var(--container)', paddingInline: 'var(--gutter)' }}
       >
-        {tabs.map((tab) => {
+        {visibleTabs.map((tab) => {
           const active = pathname === tab.href;
           return (
             <Link
