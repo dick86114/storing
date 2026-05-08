@@ -118,7 +118,9 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
  * 游客只能查看归档文章
  */
 articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
-  const id = parseInt(c.req.param('id'));
+  const idParam = c.req.param('id');
+  if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
+  const id = parseInt(idParam);
   const [article] = await db
     .select({
       id: articles.id,
@@ -170,7 +172,9 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
  * 需要登录
  */
 articlesRoutes.post('/articles/:id/favorite', requireAuth, async (c) => {
-  const id = parseInt(c.req.param('id'));
+  const idParam = c.req.param('id');
+  if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
+  const id = parseInt(idParam);
 
   // 验证文章存在
   const [article] = await db.select().from(articles).where(eq(articles.id, id));
@@ -193,7 +197,9 @@ articlesRoutes.post('/articles/:id/favorite', requireAuth, async (c) => {
  * 需要登录
  */
 articlesRoutes.post('/articles/:id/archive', requireAuth, async (c) => {
-  const id = parseInt(c.req.param('id'));
+  const idParam = c.req.param('id');
+  if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
+  const id = parseInt(idParam);
 
   const [article] = await db.select().from(articles).where(eq(articles.id, id));
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
@@ -217,7 +223,9 @@ articlesRoutes.post('/articles/:id/archive', requireAuth, async (c) => {
  * 需要登录
  */
 articlesRoutes.post('/articles/:id/unarchive', requireAuth, async (c) => {
-  const id = parseInt(c.req.param('id'));
+  const idParam = c.req.param('id');
+  if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
+  const id = parseInt(idParam);
 
   await ensureMetadata(id);
 
@@ -247,10 +255,13 @@ articlesRoutes.get('/categories', async (c) => {
  * 游客只能查询 archive 视图
  */
 articlesRoutes.get('/articles/:id/position', optionalAuth, async (c) => {
-  const id = parseInt(c.req.param('id'));
+  const idParam = c.req.param('id');
+  if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
+  const id = parseInt(idParam);
   const view = c.req.query('view') || 'inbox';
   const category = c.req.query('category');
-  const perPage = parseInt(c.req.query('perPage') || '18');
+  const perPageParam = c.req.query('perPage') || '18';
+  const perPage = parseInt(perPageParam);
 
   // 游客只能查询 archive 视图
   if (!isAuthenticated(c) && view !== 'archive') {
