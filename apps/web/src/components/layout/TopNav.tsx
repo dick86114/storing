@@ -7,18 +7,23 @@ import { LoginModal } from '@/components/auth/LoginModal';
 import { ChangePasswordModal } from '@/components/auth/ChangePasswordModal';
 
 export function TopNav({ onSearchOpen }: { onSearchOpen: () => void }) {
-  const { resolved, toggle } = useTheme();
+  const { theme, resolved, setTheme } = useTheme();
   const { isAuthenticated, user, logout } = useAuth();
   const [loginOpen, setLoginOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const themeMenuRef = useRef<HTMLDivElement>(null);
 
-  // 点击外部关闭用户菜单
+  // 点击外部关闭菜单
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setUserMenuOpen(false);
+      }
+      if (themeMenuRef.current && !themeMenuRef.current.contains(e.target as Node)) {
+        setThemeMenuOpen(false);
       }
     };
     document.addEventListener('click', handler);
@@ -202,28 +207,106 @@ export function TopNav({ onSearchOpen }: { onSearchOpen: () => void }) {
               ⌘K
             </kbd>
           </button>
-          <button
-            onClick={toggle}
-            className="grid place-items-center rounded"
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 'var(--radius-sm)',
-              color: 'var(--muted)',
-            }}
-            aria-label="切换主题"
-          >
-            {resolved === 'dark' ? (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
-                <circle cx="12" cy="12" r="4" />
-                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
-                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
-              </svg>
+          {/* 主题切换 */}
+          <div ref={themeMenuRef} style={{ position: 'relative' }}>
+            <button
+              onClick={() => setThemeMenuOpen(!themeMenuOpen)}
+              className="grid place-items-center rounded"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--muted)',
+              }}
+              aria-label="切换主题"
+            >
+              {resolved === 'dark' ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                  <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+                </svg>
+              )}
+            </button>
+
+            {themeMenuOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: 4,
+                  minWidth: 120,
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
+                  boxShadow: 'var(--shadow-lg)',
+                  padding: 4,
+                }}
+              >
+                <button
+                  onClick={() => {
+                    setTheme('light');
+                    setThemeMenuOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    textAlign: 'left',
+                    background: theme === 'light' ? 'var(--fg-soft)' : 'transparent',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: 'var(--fs-sm)',
+                    color: 'var(--fg)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  浅色模式
+                </button>
+                <button
+                  onClick={() => {
+                    setTheme('dark');
+                    setThemeMenuOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    textAlign: 'left',
+                    background: theme === 'dark' ? 'var(--fg-soft)' : 'transparent',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: 'var(--fs-sm)',
+                    color: 'var(--fg)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  深色模式
+                </button>
+                <button
+                  onClick={() => {
+                    setTheme('system');
+                    setThemeMenuOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    textAlign: 'left',
+                    background: theme === 'system' ? 'var(--fg-soft)' : 'transparent',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: 'var(--fs-sm)',
+                    color: 'var(--fg)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  跟随系统
+                </button>
+              </div>
             )}
-          </button>
+          </div>
         </div>
       </div>
 
