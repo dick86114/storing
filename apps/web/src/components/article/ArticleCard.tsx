@@ -37,6 +37,22 @@ export function ArticleCard({
   const cardContent = (
     <>
       <div className="article-card-meta">
+        {/* 归档文章显示分类 */}
+        {article.isArchived && article.aiCategory && (
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 500,
+              color: 'var(--accent)',
+              background: 'var(--accent-soft)',
+              padding: '2px 6px',
+              borderRadius: 4,
+              marginRight: 6,
+            }}
+          >
+            {article.aiCategory}
+          </span>
+        )}
         <span className="article-card-source">{article.source}</span>
         <span className="article-card-dot" />
         <DateText dateStr={article.publishTime} className="article-card-date" />
