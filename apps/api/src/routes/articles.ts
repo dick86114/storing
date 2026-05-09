@@ -72,7 +72,7 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
       source: articles.source,
       originalUrl: articles.originalUrl,
       publishTime: articles.publishTime,
-      coverImage: sql<string>`COALESCE(${articleMetadata.coverImage}, ${articles.coverImage})`,
+      coverImage: articleMetadata.coverImage,
       summary: articles.summary,
       tags: articles.tags,
       readStatus: articles.readStatus,
@@ -121,6 +121,13 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
   const idParam = c.req.param('id');
   if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
   const id = parseInt(idParam);
+
+  // 先查询 metadata 看是否已有图床封面图
+  const [meta] = await db
+    .select({ coverImage: articleMetadata.coverImage })
+    .from(articleMetadata)
+    .where(eq(articleMetadata.articleId, id));
+
   const [article] = await db
     .select({
       id: articles.id,
@@ -129,7 +136,7 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
       source: articles.source,
       originalUrl: articles.originalUrl,
       publishTime: articles.publishTime,
-      coverImage: sql<string>`COALESCE(${articleMetadata.coverImage}, ${articles.coverImage})`,
+      coverImage: articles.coverImage,
       summary: articles.summary,
       commentary: articles.commentary,
       tags: articles.tags,
@@ -152,14 +159,23 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
     return c.json({ error: { code: 'FORBIDDEN', message: '请登录后访问' } }, 403);
   }
 
+  // 登录用户首次访问时，异步处理封面图（如果 metadata 尚无封面图）
+  if (isAuthenticated(c) && !meta?.coverImage) {
+    processCoverImage(id).catch((e) => console.error('Cover image process failed:', e.message));
+  }
+
   // 获取 markdown 正文（首次抓取并缓存，后续读库）
   const contentMd = await getArticleContent(id).catch((e) => {
     console.error('Fetch markdown failed:', e.message);
     return null;
   });
 
+  // 封面图优先使用图床 URL（如果有）
+  const finalCoverImage = meta?.coverImage || article.coverImage;
+
   return c.json({
     ...article,
+    coverImage: finalCoverImage,
     contentMd,
     isFavorited: article.isFavorited ?? false,
     isArchived: article.isArchived ?? false,
