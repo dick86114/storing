@@ -38,6 +38,7 @@ export function ArticleList({
         <ArticleCard
           key={a.id}
           article={a}
+          variant="list"
           onClick={() => onArticleClick(a.id)}
           onToggleFavorite={(e) => onToggleFavorite(a.id, e)}
           onArchive={(e) => onArchive(a.id, e)}
