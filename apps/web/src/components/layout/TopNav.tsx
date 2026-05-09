@@ -59,7 +59,7 @@ export function TopNav({ onSearchOpen }: { onSearchOpen: () => void }) {
             }}
           />
           <span
-            className="font-semibold tracking-tight hidden sm:inline"
+            className="font-semibold tracking-tight"
             style={{ fontFamily: 'var(--font-display)', fontSize: 17 }}
           >
             乾坤戒
