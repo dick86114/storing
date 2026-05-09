@@ -30,6 +30,7 @@ export interface ArticleListItem {
   createdAt: string;
   summary: string;
   aiTags: string[];
+  aiCategory?: string | null;  // AI 分类
   isFavorited: boolean;
   isArchived?: boolean;
   coverImage?: string | null;  // 新增：封面图 URL（可选）
