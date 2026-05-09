@@ -23,23 +23,26 @@ export function HorizontalScrollContainer({
   const pathname = usePathname();
   const [isScrolling, setIsScrolling] = useState(false);
   const rafRef = useRef<number | null>(null);
+  const isInitialized = useRef(false); // 标记是否已初始化
 
-  // 滚动到指定 tab
-  const scrollToIndex = useCallback((index: number) => {
+  // 滚动到指定 tab（smooth 表示用户操作，instant 表示初始化）
+  const scrollToIndex = useCallback((index: number, smooth: boolean = true) => {
     if (!containerRef.current) return;
     const container = containerRef.current;
     const scrollLeft = index * container.offsetWidth;
     container.scrollTo({
       left: scrollLeft,
-      behavior: 'smooth',
+      behavior: smooth ? 'smooth' : 'instant',
     });
   }, []);
 
-  // 初始化滚动位置（只在首次挂载时）
-  const initialIndex = useRef(activeIndex);
+  // 初始化滚动位置（瞬间定位，无动画）
   useEffect(() => {
-    scrollToIndex(initialIndex.current);
-  }, [scrollToIndex]);
+    if (!isInitialized.current && containerRef.current) {
+      scrollToIndex(activeIndex, false); // 初始化使用 instant
+      isInitialized.current = true;
+    }
+  }, [activeIndex, scrollToIndex]);
 
   // 监听滚动，使用 requestAnimationFrame 优化性能
   useEffect(() => {
@@ -100,10 +103,10 @@ export function HorizontalScrollContainer({
     };
   }, [activeIndex, onIndexChange, onScrollProgress, router, pathname]);
 
-  // 点击 tab 时滚动
+  // 点击 tab 时滚动（smooth 动画）
   useEffect(() => {
-    if (!isScrolling) {
-      scrollToIndex(activeIndex);
+    if (isInitialized.current && !isScrolling) {
+      scrollToIndex(activeIndex, true); // 用户操作使用 smooth
     }
   }, [activeIndex, isScrolling, scrollToIndex]);
 

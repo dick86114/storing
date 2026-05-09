@@ -2,42 +2,55 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
-type Theme = 'light' | 'dark' | 'system';
+type ThemeMode = 'light' | 'dark' | 'system';
+type ColorScheme = 'default' | 'spring' | 'summer' | 'autumn' | 'winter';
 
 interface ThemeContextValue {
-  theme: Theme;
+  theme: ThemeMode;
   resolved: 'light' | 'dark';
-  setTheme: (t: Theme) => void;
+  setTheme: (t: ThemeMode) => void;
   toggle: () => void;
+  colorScheme: ColorScheme;
+  setColorScheme: (c: ColorScheme) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('system');
+  const [theme, setThemeState] = useState<ThemeMode>('system');
+  const [colorScheme, setColorSchemeState] = useState<ColorScheme>('default');
   const [resolved, setResolved] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
-    const saved = localStorage.getItem('theme') as Theme | null;
-    if (saved) setThemeState(saved);
+    const savedTheme = localStorage.getItem('theme') as ThemeMode | null;
+    const savedScheme = localStorage.getItem('colorScheme') as ColorScheme | null;
+    if (savedTheme) setThemeState(savedTheme);
+    if (savedScheme) setColorSchemeState(savedScheme);
   }, []);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const update = () => {
-      const r =
-        theme === 'system' ? (mq.matches ? 'dark' : 'light') : theme;
+      const r = theme === 'system' ? (mq.matches ? 'dark' : 'light') : theme;
       setResolved(r);
+      // 同时设置 theme 和 colorScheme
       document.documentElement.setAttribute('data-theme', r);
+      document.documentElement.setAttribute('data-color-scheme', colorScheme);
     };
     update();
     mq.addEventListener('change', update);
     return () => mq.removeEventListener('change', update);
-  }, [theme]);
+  }, [theme, colorScheme]);
 
-  const setTheme = (t: Theme) => {
+  const setTheme = (t: ThemeMode) => {
     setThemeState(t);
     localStorage.setItem('theme', t);
+  };
+
+  const setColorScheme = (c: ColorScheme) => {
+    setColorSchemeState(c);
+    localStorage.setItem('colorScheme', c);
+    document.documentElement.setAttribute('data-color-scheme', c);
   };
 
   const toggle = () => {
@@ -45,7 +58,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, resolved, setTheme, toggle }}>
+    <ThemeContext.Provider value={{ theme, resolved, setTheme, toggle, colorScheme, setColorScheme }}>
       {children}
     </ThemeContext.Provider>
   );
