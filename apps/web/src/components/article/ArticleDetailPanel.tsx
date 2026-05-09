@@ -242,12 +242,6 @@ export function ArticleDetailPanel({
               </div>
             )}
 
-            {article.isArchived && article.aiSummary && article.contentMd && (
-              <div className="content-divider">
-                <span className="content-divider-label">原文</span>
-              </div>
-            )}
-
             {article.contentMd ? (
               <div className="article-body">{memoizedContent}</div>
             ) : (

@@ -44,7 +44,11 @@ function ArchiveContentInner() {
         categories={categories}
         activeCategory={activeCat}
         totalCount={totalCount}
-        onSelect={(cat) => { setActiveCategory(cat); router.push('/archive?page=1'); }}
+        onSelect={(cat) => {
+          setActiveCategory(cat);
+          router.push('/archive?page=1');
+          window.scrollTo({ top: 0, behavior: 'instant' });
+        }}
       />
       <div className="archive-layout" style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 'var(--gap-xl)', alignItems: 'start' }}>
         <div className="archive-sidebar">
@@ -52,7 +56,11 @@ function ArchiveContentInner() {
             categories={categories}
             activeCategory={activeCat}
             totalCount={totalCount}
-            onSelect={(cat) => { setActiveCategory(cat); router.push('/archive?page=1'); }}
+            onSelect={(cat) => {
+              setActiveCategory(cat);
+              router.push('/archive?page=1');
+              window.scrollTo({ top: 0, behavior: 'instant' });
+            }}
           />
         </div>
         {isLoading ? (
