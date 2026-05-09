@@ -35,12 +35,11 @@ export function ArticleDetailPanel({
 
     const shareData = {
       title: article.title || '文章分享',
-      text: article.aiSummary || article.summary || '',
       url: article.originalUrl || window.location.href,
     };
 
     // 尝试使用原生分享 API（移动端微信等支持）
-    if (navigator.share && navigator.canShare(shareData)) {
+    if (navigator.share) {
       try {
         await navigator.share(shareData);
       } catch (err) {
