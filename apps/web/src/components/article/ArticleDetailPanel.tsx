@@ -33,9 +33,13 @@ export function ArticleDetailPanel({
   async function handleShare() {
     if (!article) return;
 
+    const title = article.title || '文章分享';
+    const url = article.originalUrl || window.location.href;
+
     const shareData = {
-      title: article.title || '文章分享',
-      url: article.originalUrl || window.location.href,
+      title,
+      text: title,  // 标题作为文本内容，确保在某些平台也能显示
+      url,
     };
 
     // 尝试使用原生分享 API（移动端微信等支持）
@@ -48,7 +52,7 @@ export function ArticleDetailPanel({
     } else {
       // 不支持原生分享，复制链接
       try {
-        await navigator.clipboard.writeText(article.originalUrl || window.location.href);
+        await navigator.clipboard.writeText(url);
         showToast('链接已复制');
       } catch {
         showToast('复制失败，请手动复制');
