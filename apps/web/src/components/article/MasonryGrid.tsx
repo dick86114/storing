@@ -50,6 +50,7 @@ export function MasonryGrid({
           <ArticleCard
             key={a.id}
             article={a}
+            variant="masonry"
             onClick={() => onArticleClick(a.id)}
             onToggleFavorite={(e) => onToggleFavorite(a.id, e)}
             onArchive={(e) => onArchive(a.id, e)}
