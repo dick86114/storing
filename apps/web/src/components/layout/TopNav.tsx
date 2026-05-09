@@ -6,8 +6,16 @@ import { useAuth } from '@/components/providers/AuthContext';
 import { LoginModal } from '@/components/auth/LoginModal';
 import { ChangePasswordModal } from '@/components/auth/ChangePasswordModal';
 
+const COLOR_SCHEMES = [
+  { key: 'default', label: '默认', icon: '◐' },
+  { key: 'spring', label: '春', icon: '🌸' },
+  { key: 'summer', label: '夏', icon: '☀️' },
+  { key: 'autumn', label: '秋', icon: '🍂' },
+  { key: 'winter', label: '冬', icon: '❄' },
+];
+
 export function TopNav({ onSearchOpen }: { onSearchOpen: () => void }) {
-  const { theme, resolved, setTheme } = useTheme();
+  const { theme, resolved, setTheme, colorScheme, setColorScheme } = useTheme();
   const { isAuthenticated, user, logout } = useAuth();
   const [loginOpen, setLoginOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
@@ -239,7 +247,7 @@ export function TopNav({ onSearchOpen }: { onSearchOpen: () => void }) {
                   top: '100%',
                   right: 0,
                   marginTop: 4,
-                  minWidth: 120,
+                  minWidth: 160,
                   background: 'var(--surface)',
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)',
@@ -247,6 +255,10 @@ export function TopNav({ onSearchOpen }: { onSearchOpen: () => void }) {
                   padding: 4,
                 }}
               >
+                {/* 主题模式 */}
+                <div style={{ fontSize: 10, color: 'var(--muted)', padding: '6px 12px 4px', fontFamily: 'var(--font-mono)' }}>
+                  主题模式
+                </div>
                 <button
                   onClick={() => {
                     setTheme('light');
@@ -304,6 +316,40 @@ export function TopNav({ onSearchOpen }: { onSearchOpen: () => void }) {
                 >
                   跟随系统
                 </button>
+
+                {/* 分隔线 */}
+                <div style={{ height: 1, background: 'var(--border)', margin: '6px 4px' }} />
+
+                {/* 配色方案 */}
+                <div style={{ fontSize: 10, color: 'var(--muted)', padding: '6px 12px 4px', fontFamily: 'var(--font-mono)' }}>
+                  配色方案
+                </div>
+                {COLOR_SCHEMES.map((scheme) => (
+                  <button
+                    key={scheme.key}
+                    onClick={() => {
+                      setColorScheme(scheme.key as any);
+                      setThemeMenuOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      textAlign: 'left',
+                      background: colorScheme === scheme.key ? 'var(--fg-soft)' : 'transparent',
+                      border: 'none',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: 'var(--fs-sm)',
+                      color: 'var(--fg)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <span style={{ fontSize: 14 }}>{scheme.icon}</span>
+                    {scheme.label}
+                  </button>
+                ))}
               </div>
             )}
           </div>
