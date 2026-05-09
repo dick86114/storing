@@ -288,21 +288,25 @@ h4 {
 }
 
 .masonry-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--gap-md);
+  column-count: 3;
+  column-gap: var(--gap-md);
   width: 100%;
+}
+
+.masonry-grid > * {
+  break-inside: avoid;
+  margin-bottom: var(--gap-md);
 }
 
 @media (max-width: 960px) {
   .masonry-grid {
-    grid-template-columns: repeat(2, 1fr);
+    column-count: 2;
   }
 }
 
 @media (max-width: 640px) {
   .masonry-grid {
-    grid-template-columns: 1fr;
+    column-count: 1;
   }
 }
 
