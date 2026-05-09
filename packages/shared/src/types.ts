@@ -32,6 +32,7 @@ export interface ArticleListItem {
   aiTags: string[];
   isFavorited: boolean;
   isArchived?: boolean;
+  coverImage?: string | null;  // 新增：封面图 URL（可选）
 }
 
 export interface PaginatedResponse<T> {
