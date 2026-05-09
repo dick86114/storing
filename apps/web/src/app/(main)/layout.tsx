@@ -1,26 +1,49 @@
 'use client';
 
 import { useState, useEffect, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { TopNav } from '@/components/layout/TopNav';
 import { TabsBar } from '@/components/layout/TabsBar';
+import { HorizontalScrollContainer, TAB_KEYS } from '@/components/layout/HorizontalScrollContainer';
 import { SearchModal } from '@/components/search/SearchModal';
 import { ArticleDetailPanel } from '@/components/article/ArticleDetailPanel';
 import { ArticleProvider, useArticleContext } from '@/components/providers/ArticleContext';
 import { AuthProvider, useAuth } from '@/components/providers/AuthContext';
 import { useCounts } from '@/hooks/useCounts';
+import { useDoubleBackExit } from '@/hooks/useDoubleBackExit';
+import { InboxContent } from '@/components/content/InboxContent';
+import { FavoritesContent } from '@/components/content/FavoritesContent';
+import { ArchiveContent } from '@/components/content/ArchiveContent';
 
 function MainContent({ children }: { children: ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const counts = useCounts();
   const { selectedId, closeArticle, mutateList } = useArticleContext();
   const { isLoading, isAuthenticated } = useAuth();
+  const pathname = usePathname();
+
+  // 移动端双击返回退出
+  useDoubleBackExit();
+
+  // 当前 tab 索引
+  const activeIndex = TAB_KEYS.findIndex(key => pathname === `/${key}`);
+  const [currentTabIndex, setCurrentTabIndex] = useState(activeIndex >= 0 ? activeIndex : 0);
+  const [scrollProgress, setScrollProgress] = useState<number | undefined>(undefined); // 滚动进度
 
   // 登录成功后刷新 counts
   useEffect(() => {
     if (isAuthenticated) {
       counts.refreshCounts();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, counts]);
+
+  // 监听路由变化同步 tab 索引
+  useEffect(() => {
+    const index = TAB_KEYS.findIndex(key => pathname === `/${key}`);
+    if (index >= 0) {
+      setCurrentTabIndex(index);
+    }
+  }, [pathname]);
 
   // 键盘事件监听 - 必须在条件返回之前调用
   useEffect(() => {
@@ -47,13 +70,31 @@ function MainContent({ children }: { children: ReactNode }) {
     );
   }
 
+  // 检测是否为移动端（< 640px）
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+
   return (
     <>
       <TopNav onSearchOpen={() => setSearchOpen(true)} />
-      <TabsBar counts={counts} />
-      <main style={{ padding: 'var(--gap-md) 0 var(--gap-xl)', minHeight: '80vh' }}>
-        <div className="mx-auto" style={{ maxWidth: 'var(--container)', paddingInline: 'var(--gutter)', position: 'relative', zIndex: 1 }}>
-          {children}
+      <TabsBar counts={counts} activeIndex={currentTabIndex} onTabChange={setCurrentTabIndex} scrollProgress={scrollProgress} />
+      <main style={{ minHeight: '80vh' }}>
+        {/* 移动端：使用滑动容器 */}
+        <div className="mobile-swipe-view" style={{ display: 'block' }}>
+          <HorizontalScrollContainer
+            activeIndex={currentTabIndex}
+            onIndexChange={setCurrentTabIndex}
+            onScrollProgress={setScrollProgress}
+          >
+            <InboxContent />
+            <FavoritesContent />
+            <ArchiveContent />
+          </HorizontalScrollContainer>
+        </div>
+        {/* 桌面端：保持原有布局 */}
+        <div className="desktop-view" style={{ display: 'none', padding: 'var(--gap-md) 0 var(--gap-xl)' }}>
+          <div className="mx-auto" style={{ maxWidth: 'var(--container)', paddingInline: 'var(--gutter)', position: 'relative', zIndex: 1 }}>
+            {children}
+          </div>
         </div>
       </main>
       {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} />}

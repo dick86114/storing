@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { DateText } from '@/lib/formatDate';
+import { getCategoryColor } from '@/lib/categoryColors';
 import type { ArticleListItem } from '@storing/shared';
 
 export function ArticleCard({
@@ -43,8 +44,8 @@ export function ArticleCard({
             style={{
               fontSize: 10,
               fontWeight: 500,
-              color: 'var(--accent)',
-              background: 'var(--accent-soft)',
+              color: getCategoryColor(article.aiCategory).text,
+              background: getCategoryColor(article.aiCategory).bg,
               padding: '2px 6px',
               borderRadius: 4,
               marginRight: 6,
