@@ -29,6 +29,34 @@ export function ArticleDetailPanel({
     globalMutate('count:archive');
   }
 
+  // 分享功能
+  async function handleShare() {
+    if (!article) return;
+
+    const shareData = {
+      title: article.title || '文章分享',
+      text: article.aiSummary || article.summary || '',
+      url: article.originalUrl || window.location.href,
+    };
+
+    // 尝试使用原生分享 API（移动端微信等支持）
+    if (navigator.share && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        // 用户取消分享，不做处理
+      }
+    } else {
+      // 不支持原生分享，复制链接
+      try {
+        await navigator.clipboard.writeText(article.originalUrl || window.location.href);
+        showToast('链接已复制');
+      } catch {
+        showToast('复制失败，请手动复制');
+      }
+    }
+  }
+
   useEffect(() => {
     if (articleId) {
       document.body.style.overflow = 'hidden';
@@ -59,6 +87,22 @@ export function ArticleDetailPanel({
           </button>
           {article && isAuthenticated && (
             <div className="flex" style={{ gap: 'var(--gap-xs)' }}>
+              {/* 分享按钮（归档文章才显示） */}
+              {article.isArchived && (
+                <button
+                  onClick={handleShare}
+                  className="detail-panel-action-btn"
+                  title="分享"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
+                    <circle cx="18" cy="5" r="3" />
+                    <circle cx="6" cy="12" r="3" />
+                    <circle cx="18" cy="19" r="3" />
+                    <line x1="8.59" x2="15.42" y1="13.51" y2="17.49" />
+                    <line x1="15.41" x2="8.59" y1="6.51" y2="10.49" />
+                  </svg>
+                </button>
+              )}
               <button
                 onClick={async () => {
                   await api.toggleFavorite(article.id);
