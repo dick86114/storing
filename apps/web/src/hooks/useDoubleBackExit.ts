@@ -1,17 +1,19 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { useToast } from '@/components/ui/Toast';
+import { useArticleContext } from '@/components/providers/ArticleContext';
 
 /**
  * 移动端双击返回退出功能
  * 第一次按返回显示提示，第二次（2秒内）退出页面
+ * 只在列表页（无文章详情页）时生效
  */
 export function useDoubleBackExit() {
-  const router = useRouter();
   const pathname = usePathname();
   const { showToast } = useToast();
+  const { selectedId } = useArticleContext();
   const lastBackTime = useRef(0);
   const exitTimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -22,6 +24,9 @@ export function useDoubleBackExit() {
     if (!isMobile) return;
 
     const handlePopState = (e: PopStateEvent) => {
+      // 如果有文章详情页打开，不拦截返回，让 ArticleContext 处理
+      if (selectedId) return;
+
       const now = Date.now();
       const timeDiff = now - lastBackTime.current;
 
@@ -32,12 +37,10 @@ export function useDoubleBackExit() {
           clearTimeout(exitTimeout.current);
           exitTimeout.current = null;
         }
-        // 退出：关闭页面或跳转到首页
+        // 退出
         showToast('正在退出...');
-        // 延迟一点点让 toast 显示
         setTimeout(() => {
           window.close();
-          // 如果 window.close 不生效（大部分浏览器会阻止），跳转到空白页
           if (!window.closed) {
             window.location.href = 'about:blank';
           }
@@ -59,8 +62,10 @@ export function useDoubleBackExit() {
       }
     };
 
-    // 初始化：推一个历史记录，确保 popstate 能触发
-    window.history.pushState(null, '', pathname);
+    // 只在列表页（无文章详情页）时推历史记录
+    if (!selectedId) {
+      window.history.pushState(null, '', pathname);
+    }
 
     window.addEventListener('popstate', handlePopState);
 
@@ -70,5 +75,5 @@ export function useDoubleBackExit() {
         clearTimeout(exitTimeout.current);
       }
     };
-  }, [isMobile, pathname, showToast]);
+  }, [isMobile, pathname, showToast, selectedId]);
 }
