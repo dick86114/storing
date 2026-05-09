@@ -465,6 +465,58 @@ h4 {
   color: var(--muted);
 }
 
+/* 瀑布流卡片图片 */
+.article-card--masonry {
+  padding-top: 0;
+}
+
+.article-card--masonry .article-card__image {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  margin-bottom: var(--gap-md);
+}
+
+@media (max-width: 960px) {
+  .article-card--masonry .article-card__image {
+    height: 180px;
+  }
+}
+
+@media (max-width: 640px) {
+  .article-card--masonry .article-card__image {
+    height: 160px;
+  }
+}
+
+/* 列表卡片布局 */
+.article-card--list {
+  display: flex;
+  gap: var(--gap-md);
+  padding: var(--gap-md);
+}
+
+.article-card--list .article-card__thumbnail {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+
+.article-card--list .article-card__content {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .article-card--list .article-card__thumbnail {
+    width: 64px;
+    height: 64px;
+  }
+}
+
 @media (max-width: 640px) {
   .archive-layout {
     grid-template-columns: 1fr !important;
@@ -625,4 +677,23 @@ h4 {
   text-align: center;
   color: var(--muted);
   font-size: var(--fs-sm);
+}
+
+/* 移动端滑动视图 vs 桌面端视图 */
+@media (max-width: 639px) {
+  .mobile-swipe-view {
+    display: block !important;
+  }
+  .desktop-view {
+    display: none !important;
+  }
+}
+
+@media (min-width: 640px) {
+  .mobile-swipe-view {
+    display: none !important;
+  }
+  .desktop-view {
+    display: block !important;
+  }
 }
