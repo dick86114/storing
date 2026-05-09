@@ -10,15 +10,18 @@ export function ArticleCard({
   onToggleFavorite,
   onArchive,
   isHighlighted = false,
+  variant = 'list',
 }: {
   article: ArticleListItem;
   onClick: () => void;
   onToggleFavorite: (e: React.MouseEvent) => void;
   onArchive: (e: React.MouseEvent) => void;
   isHighlighted?: boolean;
+  variant?: 'masonry' | 'list';
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const hasImage = article.coverImage && article.coverImage.trim() !== '';
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -31,11 +34,8 @@ export function ArticleCard({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [menuOpen]);
 
-  return (
-    <article
-      onClick={onClick}
-      className={`article-card ${isHighlighted ? 'highlighted' : ''}`}
-    >
+  const cardContent = (
+    <>
       <div className="article-card-meta">
         <span className="article-card-source">{article.source}</span>
         <span className="article-card-dot" />
@@ -115,6 +115,52 @@ export function ArticleCard({
           </span>
         ))}
       </div>
+    </>
+  );
+
+  // 瀑布流布局：图片在顶部
+  if (variant === 'masonry' && hasImage) {
+    return (
+      <article
+        onClick={onClick}
+        className={`article-card article-card--masonry ${isHighlighted ? 'highlighted' : ''}`}
+      >
+        <img
+          src={article.coverImage!}
+          alt={article.title || '文章封面'}
+          className="article-card__image"
+        />
+        {cardContent}
+      </article>
+    );
+  }
+
+  // 列表布局：图片在左侧
+  if (variant === 'list' && hasImage) {
+    return (
+      <article
+        onClick={onClick}
+        className={`article-card article-card--list ${isHighlighted ? 'highlighted' : ''}`}
+      >
+        <img
+          src={article.coverImage!}
+          alt={article.title || '文章封面'}
+          className="article-card__thumbnail"
+        />
+        <div className="article-card__content">
+          {cardContent}
+        </div>
+      </article>
+    );
+  }
+
+  // 无封面图或默认：纯文字布局
+  return (
+    <article
+      onClick={onClick}
+      className={`article-card ${isHighlighted ? 'highlighted' : ''}`}
+    >
+      {cardContent}
     </article>
   );
 }
