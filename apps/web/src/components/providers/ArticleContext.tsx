@@ -53,12 +53,16 @@ export function ArticleProvider({ children }: { children: ReactNode }) {
         // 返回键触发，历史状态已无 articlePanel，关闭面板
         isPopstateClose.current = true;
         setSelectedId(null);
+        // 延迟刷新列表
+        setTimeout(() => {
+          mutateFn?.();
+        }, 2000);
       }
     };
 
     window.addEventListener('popstate', handlePopstate);
     return () => window.removeEventListener('popstate', handlePopstate);
-  }, [selectedId]);
+  }, [selectedId, mutateFn]);
   const clearHighlight = useCallback(() => setHighlightId(null), []);
   const mutateList = useCallback(() => mutateFn?.(), [mutateFn]);
   const setMutateFn = useCallback((fn: () => void) => setMutateFnState(() => fn), []);
