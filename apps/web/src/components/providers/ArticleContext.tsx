@@ -37,7 +37,11 @@ export function ArticleProvider({ children }: { children: ReactNode }) {
       history.back();
     }
     isPopstateClose.current = false;
-  }, []);
+    // 延迟刷新列表（给封面图上传一些时间）
+    setTimeout(() => {
+      mutateFn?.();
+    }, 2000);
+  }, [mutateFn]);
 
   // 监听 popstate 事件（物理返回键）
   useEffect(() => {
