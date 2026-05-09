@@ -289,3 +289,65 @@ export async function getArticleContent(articleId: number): Promise<string | nul
 
   return md;
 }
+
+/** 从 markdown 中提取第一张图片 URL */
+function extractFirstImageUrl(md: string): string | null {
+  const match = md.match(/!\[.*?\]\(([^)]+)\)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * 处理封面图：上传到图床，如果没有则从正文取第一张图
+ * 保存到 article_metadata.cover_image
+ */
+export async function processCoverImage(articleId: number): Promise<string | null> {
+  // 查询文章的封面图和原始链接
+  const [article] = await db
+    .select({
+      coverImage: articles.coverImage,
+      originalUrl: articles.originalUrl,
+    })
+    .from(articles)
+    .where(eq(articles.id, articleId));
+
+  if (!article) return null;
+
+  let coverImageUrl: string | null = null;
+
+  // 优先使用源数据的封面图
+  if (article.coverImage) {
+    coverImageUrl = article.coverImage;
+  } else {
+    // 没有封面图，从正文提取第一张图片
+    const content = await getArticleContent(articleId);
+    if (content) {
+      coverImageUrl = extractFirstImageUrl(content);
+    }
+  }
+
+  if (!coverImageUrl) return null;
+
+  // 上传到图床
+  const uploadedUrl = await uploadImage(coverImageUrl);
+  if (!uploadedUrl) {
+    console.error(`Cover image upload failed for article ${articleId}: ${coverImageUrl}`);
+    return null;
+  }
+
+  // 确保 metadata 记录存在并保存封面图
+  const [existingMeta] = await db
+    .select({ id: articleMetadata.id })
+    .from(articleMetadata)
+    .where(eq(articleMetadata.articleId, articleId));
+
+  if (existingMeta) {
+    await db.update(articleMetadata)
+      .set({ coverImage: uploadedUrl, updatedAt: new Date() })
+      .where(eq(articleMetadata.articleId, articleId));
+  } else {
+    await db.insert(articleMetadata)
+      .values({ articleId, coverImage: uploadedUrl });
+  }
+
+  return uploadedUrl;
+}
