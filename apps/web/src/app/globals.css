@@ -726,6 +726,8 @@ h4 {
   --shadow-sm: 0 1px 2px color-mix(in oklch, var(--fg) 4%, transparent);
   --shadow-md: 0 4px 12px color-mix(in oklch, var(--fg) 6%, transparent);
   --shadow-lg: 0 12px 32px color-mix(in oklch, var(--fg) 8%, transparent);
+  --radius: 10px;
+  --radius-lg: 14px;
 }
 
 /* 默认配色 - 深色模式 */
@@ -746,150 +748,275 @@ h4 {
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.3);
 }
 
-/* 春季配色 - 浅色模式（嫩绿、樱花粉） */
+/* ===== 春季配色：自然生机 ===== */
+/* 嫩绿色系 + 自然纹理感 + 较细字体 + 生机勃勃 */
+
 [data-color-scheme='spring'][data-theme='light'],
 [data-color-scheme='spring']:not([data-theme='dark']) {
-  --bg: oklch(96% 0.015 145);
-  --surface: oklch(98% 0.008 145);
-  --fg: oklch(20% 0.012 140);
-  --muted: oklch(48% 0.010 140);
-  --border: oklch(87% 0.010 145);
-  --accent: oklch(55% 0.14 350); /* 樱花粉 */
-  --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
-  --fg-soft: color-mix(in oklch, var(--fg) 5%, transparent);
-  --surface-glow: color-mix(in oklch, oklch(55% 0.10 145) 5%, var(--surface));
-  --glass: color-mix(in oklch, var(--surface) 85%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 70%, transparent);
-  --shadow-sm: 0 1px 2px color-mix(in oklch, var(--fg) 4%, transparent);
-  --shadow-md: 0 4px 12px color-mix(in oklch, var(--fg) 6%, transparent);
-  --shadow-lg: 0 12px 32px color-mix(in oklch, var(--fg) 8%, transparent);
+  --bg: oklch(96% 0.025 145);
+  --surface: oklch(98% 0.015 145);
+  --surface-alt: oklch(94% 0.030 130);
+  --fg: oklch(25% 0.020 140);
+  --fg-title: oklch(35% 0.025 130);
+  --muted: oklch(50% 0.018 140);
+  --border: oklch(85% 0.020 145);
+  --accent: oklch(58% 0.18 145);
+  --accent-alt: oklch(55% 0.15 350);
+  --accent-soft: color-mix(in oklch, var(--accent) 15%, transparent);
+  --fg-soft: color-mix(in oklch, var(--fg) 6%, transparent);
+  --surface-glow: linear-gradient(135deg, oklch(98% 0.015 145), oklch(95% 0.025 130));
+  --glass: color-mix(in oklch, var(--surface) 80%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 50%, oklch(58% 0.10 145));
+  --shadow-sm: 0 2px 4px oklch(40% 0.015 145 0.08);
+  --shadow-md: 0 6px 16px oklch(40% 0.015 145 0.12);
+  --shadow-lg: 0 16px 40px oklch(40% 0.015 145 0.16);
+  --radius: 12px;
+  --radius-lg: 18px;
+  --fs-h1: clamp(34px, 4.5vw, 52px);
+  --fs-h2: clamp(26px, 3.2vw, 36px);
+  --fs-h3: 18px;
+  --fs-body: 15px;
+  --fs-meta: 12px;
+  --font-display: 'Iowan Old Style', 'Newsreader', Georgia, serif;
+  --letter-spacing-title: -0.005em;
+  --line-height: 1.65;
 }
 
-/* 春季配色 - 深色模式 */
 [data-color-scheme='spring'][data-theme='dark'] {
-  --bg: oklch(24% 0.010 145);
-  --surface: oklch(28% 0.010 145);
-  --fg: oklch(94% 0.006 145);
-  --muted: oklch(68% 0.008 145);
-  --border: oklch(36% 0.010 145);
-  --accent: oklch(75% 0.12 350); /* 樱花粉 */
-  --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
-  --fg-soft: color-mix(in oklch, var(--fg) 8%, transparent);
-  --surface-glow: color-mix(in oklch, oklch(70% 0.08 145) 8%, var(--surface));
-  --glass: color-mix(in oklch, var(--surface) 75%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 60%, transparent);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.3);
+  --bg: oklch(20% 0.020 145);
+  --surface: oklch(25% 0.018 145);
+  --surface-alt: oklch(28% 0.022 130);
+  --fg: oklch(92% 0.012 145);
+  --fg-title: oklch(96% 0.015 130);
+  --muted: oklch(70% 0.012 145);
+  --border: oklch(32% 0.018 145);
+  --accent: oklch(70% 0.20 145);
+  --accent-alt: oklch(72% 0.16 350);
+  --accent-soft: color-mix(in oklch, var(--accent) 20%, transparent);
+  --fg-soft: color-mix(in oklch, var(--fg) 10%, transparent);
+  --surface-glow: linear-gradient(135deg, oklch(25% 0.018 145), oklch(28% 0.022 130));
+  --glass: color-mix(in oklch, var(--surface) 70%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 40%, oklch(70% 0.12 145));
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.45);
 }
 
-/* 夏季配色 - 浅色模式（海洋蓝、阳光橙） */
+/* ===== 夏季配色：海洋活力 ===== */
+/* 海洋蓝系 + 流动感 + 较大字号 + 活力四射 */
+
 [data-color-scheme='summer'][data-theme='light'],
 [data-color-scheme='summer']:not([data-theme='dark']) {
-  --bg: oklch(96% 0.012 220);
-  --surface: oklch(98% 0.006 220);
-  --fg: oklch(18% 0.010 220);
-  --muted: oklch(44% 0.008 220);
-  --border: oklch(86% 0.008 220);
-  --accent: oklch(58% 0.16 50); /* 阳光橙 */
-  --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
-  --fg-soft: color-mix(in oklch, var(--fg) 5%, transparent);
-  --surface-glow: color-mix(in oklch, oklch(55% 0.12 220) 5%, var(--surface));
-  --glass: color-mix(in oklch, var(--surface) 85%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 70%, transparent);
-  --shadow-sm: 0 1px 2px color-mix(in oklch, var(--fg) 4%, transparent);
-  --shadow-md: 0 4px 12px color-mix(in oklch, var(--fg) 6%, transparent);
-  --shadow-lg: 0 12px 32px color-mix(in oklch, var(--fg) 8%, transparent);
-}
-
-/* 夏季配色 - 深色模式 */
-[data-color-scheme='summer'][data-theme='dark'] {
-  --bg: oklch(22% 0.008 220);
-  --surface: oklch(26% 0.008 220);
-  --fg: oklch(92% 0.006 220);
-  --muted: oklch(64% 0.008 220);
-  --border: oklch(34% 0.008 220);
-  --accent: oklch(72% 0.14 50); /* 阳光橙 */
+  --bg: oklch(96% 0.030 230);
+  --surface: oklch(98% 0.020 230);
+  --surface-alt: oklch(94% 0.035 220);
+  --fg: oklch(22% 0.025 230);
+  --fg-title: oklch(15% 0.030 220);
+  --muted: oklch(48% 0.020 230);
+  --border: oklch(82% 0.025 230);
+  --accent: oklch(60% 0.22 220);
+  --accent-alt: oklch(58% 0.20 50);
   --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
   --fg-soft: color-mix(in oklch, var(--fg) 8%, transparent);
-  --surface-glow: color-mix(in oklch, oklch(68% 0.10 220) 8%, var(--surface));
+  --surface-glow: linear-gradient(160deg, oklch(98% 0.020 230), oklch(95% 0.035 220));
   --glass: color-mix(in oklch, var(--surface) 75%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 60%, transparent);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.3);
+  --glass-border: color-mix(in oklch, var(--border) 40%, oklch(60% 0.15 220));
+  --shadow-sm: 0 3px 6px oklch(30% 0.020 230 0.1);
+  --shadow-md: 0 8px 20px oklch(30% 0.020 230 0.15);
+  --shadow-lg: 0 20px 50px oklch(30% 0.020 230 0.2);
+  --radius: 14px;
+  --radius-lg: 22px;
+  --fs-h1: clamp(38px, 5vw, 56px);
+  --fs-h2: clamp(28px, 3.5vw, 40px);
+  --fs-h3: 19px;
+  --fs-body: 16px;
+  --fs-meta: 13px;
+  --font-display: 'Söhne', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --letter-spacing-title: -0.02em;
+  --line-height: 1.6;
 }
 
-/* 秋季配色 - 浅色模式（枫叶橙、金黄） */
+[data-color-scheme='summer'][data-theme='dark'] {
+  --bg: oklch(18% 0.025 230);
+  --surface: oklch(23% 0.020 230);
+  --surface-alt: oklch(26% 0.030 220);
+  --fg: oklch(94% 0.015 230);
+  --fg-title: oklch(98% 0.018 220);
+  --muted: oklch(68% 0.015 230);
+  --border: oklch(30% 0.020 230);
+  --accent: oklch(72% 0.24 220);
+  --accent-alt: oklch(70% 0.22 50);
+  --accent-soft: color-mix(in oklch, var(--accent) 22%, transparent);
+  --fg-soft: color-mix(in oklch, var(--fg) 12%, transparent);
+  --surface-glow: linear-gradient(160deg, oklch(23% 0.020 230), oklch(26% 0.030 220));
+  --glass: color-mix(in oklch, var(--surface) 65%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 35%, oklch(72% 0.15 220));
+  --shadow-sm: 0 3px 6px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+/* ===== 秋季配色：渐变暖阳 ===== */
+/* 渐变橙红 + 玻璃模糊 + 现代感字体 + 温暖时尚 */
+
 [data-color-scheme='autumn'][data-theme='light'],
 [data-color-scheme='autumn']:not([data-theme='dark']) {
-  --bg: oklch(95% 0.020 70);
-  --surface: oklch(97% 0.012 70);
-  --fg: oklch(18% 0.014 60);
-  --muted: oklch(45% 0.012 60);
-  --border: oklch(85% 0.014 70);
-  --accent: oklch(55% 0.18 35); /* 枫叶红 */
-  --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
-  --fg-soft: color-mix(in oklch, var(--fg) 5%, transparent);
-  --surface-glow: color-mix(in oklch, oklch(60% 0.14 70) 5%, var(--surface));
-  --glass: color-mix(in oklch, var(--surface) 85%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 70%, transparent);
-  --shadow-sm: 0 1px 2px color-mix(in oklch, var(--fg) 4%, transparent);
-  --shadow-md: 0 4px 12px color-mix(in oklch, var(--fg) 6%, transparent);
-  --shadow-lg: 0 12px 32px color-mix(in oklch, var(--fg) 8%, transparent);
-}
-
-/* 秋季配色 - 深色模式 */
-[data-color-scheme='autumn'][data-theme='dark'] {
-  --bg: oklch(22% 0.010 60);
-  --surface: oklch(26% 0.010 60);
-  --fg: oklch(92% 0.008 60);
-  --muted: oklch(66% 0.010 60);
-  --border: oklch(34% 0.010 60);
-  --accent: oklch(70% 0.16 35); /* 枫叶红 */
+  --bg: linear-gradient(180deg, oklch(97% 0.025 70), oklch(95% 0.030 50));
+  --surface: oklch(98% 0.018 70);
+  --surface-alt: oklch(94% 0.035 40);
+  --fg: oklch(20% 0.022 60);
+  --fg-title: oklch(28% 0.028 35);
+  --muted: oklch(45% 0.018 60);
+  --border: oklch(85% 0.022 70);
+  --accent: oklch(55% 0.22 35);
+  --accent-alt: oklch(52% 0.20 60);
   --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
   --fg-soft: color-mix(in oklch, var(--fg) 8%, transparent);
-  --surface-glow: color-mix(in oklch, oklch(65% 0.12 60) 8%, var(--surface));
-  --glass: color-mix(in oklch, var(--surface) 75%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 60%, transparent);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.3);
+  --surface-glow: linear-gradient(145deg, oklch(98% 0.018 70), oklch(95% 0.030 40));
+  --glass: color-mix(in oklch, oklch(98% 0.018 70) 60%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 30%, oklch(55% 0.12 35));
+  --shadow-sm: 0 2px 5px oklch(35% 0.020 50 0.12);
+  --shadow-md: 0 6px 18px oklch(35% 0.020 50 0.18);
+  --shadow-lg: 0 18px 45px oklch(35% 0.020 50 0.24);
+  --radius: 12px;
+  --radius-lg: 20px;
+  --fs-h1: clamp(36px, 4.8vw, 54px);
+  --fs-h2: clamp(27px, 3.3vw, 38px);
+  --fs-h3: 18px;
+  --fs-body: 15px;
+  --fs-meta: 12px;
+  --font-display: 'Iowan Old Style', 'Newsreader', Georgia, serif;
+  --letter-spacing-title: -0.01em;
+  --line-height: 1.7;
 }
 
-/* 冬季配色 - 浅色模式（冰雪蓝、深蓝） */
+[data-color-scheme='autumn'][data-theme='dark'] {
+  --bg: linear-gradient(180deg, oklch(22% 0.022 60), oklch(20% 0.025 40));
+  --surface: oklch(26% 0.018 60);
+  --surface-alt: oklch(30% 0.028 35);
+  --fg: oklch(92% 0.014 60);
+  --fg-title: oklch(96% 0.018 35);
+  --muted: oklch(66% 0.014 60);
+  --border: oklch(34% 0.018 60);
+  --accent: oklch(70% 0.24 35);
+  --accent-alt: oklch(68% 0.22 60);
+  --accent-soft: color-mix(in oklch, var(--accent) 22%, transparent);
+  --fg-soft: color-mix(in oklch, var(--fg) 10%, transparent);
+  --surface-glow: linear-gradient(145deg, oklch(26% 0.018 60), oklch(30% 0.028 35));
+  --glass: color-mix(in oklch, oklch(26% 0.018 60) 55%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 35%, oklch(70% 0.14 35));
+  --shadow-sm: 0 2px 5px rgba(0, 0, 0, 0.28);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.38);
+  --shadow-lg: 0 18px 45px rgba(0, 0, 0, 0.48);
+}
+
+/* ===== 冬季配色：极简冰雪 ===== */
+/* 冰雪蓝白 + 极细线条 + 大间距 + 纯净空灵 */
+
 [data-color-scheme='winter'][data-theme='light'],
 [data-color-scheme='winter']:not([data-theme='dark']) {
-  --bg: oklch(97% 0.006 250);
-  --surface: oklch(98.5% 0.003 250);
-  --fg: oklch(20% 0.012 250);
-  --muted: oklch(50% 0.008 250);
-  --border: oklch(88% 0.006 250);
-  --accent: oklch(50% 0.16 250); /* 冰雪蓝 */
-  --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
-  --fg-soft: color-mix(in oklch, var(--fg) 5%, transparent);
-  --surface-glow: color-mix(in oklch, var(--accent) 5%, var(--surface));
-  --glass: color-mix(in oklch, var(--surface) 85%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 70%, transparent);
-  --shadow-sm: 0 1px 2px color-mix(in oklch, var(--fg) 4%, transparent);
-  --shadow-md: 0 4px 12px color-mix(in oklch, var(--fg) 6%, transparent);
-  --shadow-lg: 0 12px 32px color-mix(in oklch, var(--fg) 8%, transparent);
+  --bg: oklch(98% 0.005 250);
+  --surface: oklch(99% 0.002 250);
+  --surface-alt: oklch(96% 0.008 240);
+  --fg: oklch(18% 0.010 250);
+  --fg-title: oklch(12% 0.012 240);
+  --muted: oklch(52% 0.008 250);
+  --border: oklch(90% 0.005 250);
+  --accent: oklch(50% 0.18 250);
+  --accent-alt: oklch(48% 0.16 220);
+  --accent-soft: color-mix(in oklch, var(--accent) 10%, transparent);
+  --fg-soft: color-mix(in oklch, var(--fg) 4%, transparent);
+  --surface-glow: oklch(99% 0.002 250);
+  --glass: color-mix(in oklch, var(--surface) 90%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 60%, oklch(50% 0.08 250));
+  --shadow-sm: 0 1px 3px oklch(20% 0.008 250 0.06);
+  --shadow-md: 0 4px 12px oklch(20% 0.008 250 0.08);
+  --shadow-lg: 0 12px 32px oklch(20% 0.008 250 0.1);
+  --radius: 8px;
+  --radius-lg: 12px;
+  --fs-h1: clamp(32px, 4vw, 48px);
+  --fs-h2: clamp(24px, 3vw, 34px);
+  --fs-h3: 17px;
+  --fs-body: 14px;
+  --fs-meta: 11px;
+  --font-display: 'Söhne', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --letter-spacing-title: 0.02em;
+  --line-height: 1.8;
 }
 
-/* 冬季配色 - 深色模式 */
 [data-color-scheme='winter'][data-theme='dark'] {
-  --bg: oklch(18% 0.012 250);
-  --surface: oklch(22% 0.012 250);
-  --fg: oklch(95% 0.004 250);
-  --muted: oklch(68% 0.010 250);
-  --border: oklch(30% 0.012 250);
-  --accent: oklch(70% 0.14 250); /* 冰雪蓝 */
-  --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
-  --fg-soft: color-mix(in oklch, var(--fg) 8%, transparent);
-  --surface-glow: color-mix(in oklch, var(--accent) 8%, var(--surface));
-  --glass: color-mix(in oklch, var(--surface) 75%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 60%, transparent);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.35);
+  --bg: oklch(16% 0.012 250);
+  --surface: oklch(20% 0.010 250);
+  --surface-alt: oklch(24% 0.014 240);
+  --fg: oklch(96% 0.006 250);
+  --fg-title: oklch(98% 0.008 240);
+  --muted: oklch(70% 0.008 250);
+  --border: oklch(28% 0.010 250);
+  --accent: oklch(68% 0.20 250);
+  --accent-alt: oklch(66% 0.18 220);
+  --accent-soft: color-mix(in oklch, var(--accent) 15%, transparent);
+  --fg-soft: color-mix(in oklch, var(--fg) 6%, transparent);
+  --surface-glow: oklch(20% 0.010 250);
+  --glass: color-mix(in oklch, var(--surface) 80%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 50%, oklch(68% 0.10 250));
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* 主题特定样式覆盖 */
+[data-color-scheme='spring'] .detail-panel-title,
+[data-color-scheme='spring'] .article-card-title {
+  font-family: var(--font-display);
+  letter-spacing: var(--letter-spacing-title);
+}
+
+[data-color-scheme='summer'] .detail-panel-title,
+[data-color-scheme='summer'] .article-card-title {
+  font-weight: 600;
+  letter-spacing: var(--letter-spacing-title);
+}
+
+[data-color-scheme='autumn'] .detail-panel-title,
+[data-color-scheme='autumn'] .article-card-title {
+  font-family: var(--font-display);
+  letter-spacing: var(--letter-spacing-title);
+}
+
+[data-color-scheme='winter'] .detail-panel-title,
+[data-color-scheme='winter'] .article-card-title {
+  font-weight: 400;
+  letter-spacing: var(--letter-spacing-title);
+}
+
+/* 冬季主题的细线条风格 */
+[data-color-scheme='winter'] .article-card {
+  border-width: 0.5px;
+}
+
+[data-color-scheme='winter'] .detail-panel {
+  border-left-width: 0.5px;
+}
+
+/* 春季主题的圆润风格 */
+[data-color-scheme='spring'] .article-card-tag {
+  border-radius: 12px;
+  padding: 3px 8px;
+}
+
+/* 夏季主题的大圆角 */
+[data-color-scheme='summer'] .article-card-tag {
+  border-radius: 14px;
+  font-size: 11px;
+  padding: 4px 10px;
+}
+
+/* 秋季渐变背景 */
+[data-color-scheme='autumn'][data-theme='light'] body,
+[data-color-scheme='autumn']:not([data-theme='dark']) body {
+  background: var(--bg);
+}
+
+[data-color-scheme='autumn'][data-theme='dark'] body {
+  background: var(--bg);
 }
