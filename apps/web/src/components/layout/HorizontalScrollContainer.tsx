@@ -124,7 +124,8 @@ export function HorizontalScrollContainer({
       }}
       className="hide-scrollbar"
     >
-      {children.map((child, index) => (
+      {/* 过滤掉 null/false children，只渲染有效内容 */}
+      {children.filter(Boolean).map((child, index) => (
         <div
           key={index}
           style={{
