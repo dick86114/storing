@@ -80,20 +80,20 @@ function MainContent({ children }: { children: ReactNode }) {
       <main style={{ minHeight: '80vh' }}>
         {/* 移动端：使用滑动容器 */}
         <div className="mobile-swipe-view" style={{ display: 'block' }}>
-          {isAuthenticated ? (
-            <HorizontalScrollContainer
-              activeIndex={currentTabIndex}
-              onIndexChange={setCurrentTabIndex}
-              onScrollProgress={setScrollProgress}
-            >
-              <InboxContent />
-              <FavoritesContent />
-              <ArchiveContent />
-            </HorizontalScrollContainer>
-          ) : (
-            // 游客只能看到归档页面，禁用滑动
+          <HorizontalScrollContainer
+            activeIndex={isAuthenticated ? currentTabIndex : 0} // 游客只有一个页面，索引为 0
+            onIndexChange={(index) => {
+              // 游客不允许切换 tab
+              if (isAuthenticated) {
+                setCurrentTabIndex(index);
+              }
+            }}
+            onScrollProgress={isAuthenticated ? setScrollProgress : undefined}
+          >
+            {isAuthenticated && <InboxContent />}
+            {isAuthenticated && <FavoritesContent />}
             <ArchiveContent />
-          )}
+          </HorizontalScrollContainer>
         </div>
         {/* 桌面端：保持原有布局 */}
         <div className="desktop-view" style={{ display: 'none', padding: 'var(--gap-md) 0 var(--gap-xl)' }}>
