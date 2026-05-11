@@ -133,7 +133,7 @@ export function HorizontalScrollContainer({
             flexShrink: 0,
             scrollSnapAlign: 'start',
             scrollSnapStop: 'always',
-            overflowY: 'auto',
+            minHeight: '60vh',
             willChange: 'transform',
           }}
         >

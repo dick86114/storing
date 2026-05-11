@@ -77,7 +77,7 @@ function MainContent({ children }: { children: ReactNode }) {
     <>
       <TopNav onSearchOpen={() => setSearchOpen(true)} />
       <TabsBar counts={counts} activeIndex={currentTabIndex} onTabChange={setCurrentTabIndex} scrollProgress={scrollProgress} />
-      <main style={{ minHeight: '80vh' }}>
+      <main>
         {/* 移动端：使用滑动容器 */}
         <div className="mobile-swipe-view" style={{ display: 'block' }}>
           <HorizontalScrollContainer
