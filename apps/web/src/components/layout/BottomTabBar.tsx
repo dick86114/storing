@@ -37,19 +37,20 @@ export function BottomTabBar({ counts, activeIndex, onTabChange, scrollProgress 
       aria-label="底部导航"
       style={{
         position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
+        bottom: 8,
+        left: 16,
+        right: 16,
         display: 'flex',
-        justifyContent: 'space-around',
+        justifyContent: 'center',
         alignItems: 'center',
-        height: 64,
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        padding: '6px 8px',
+        paddingBottom: 'calc(6px + env(safe-area-inset-bottom, 0px))',
         background: 'var(--glass)',
         backdropFilter: 'blur(20px) saturate(1.4)',
         WebkitBackdropFilter: 'blur(20px) saturate(1.4)',
-        borderTop: '1px solid var(--glass-border)',
-        zIndex: 50,
+        borderRadius: 24,
+        boxShadow: 'var(--shadow-md)',
+        zIndex: 100,
       }}
     >
       {tabs.map((tab, index) => {
@@ -59,64 +60,41 @@ export function BottomTabBar({ counts, activeIndex, onTabChange, scrollProgress 
         return (
           <button
             key={tab.key}
-            onClick={() => handleTabClick(index, tab.href)}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleTabClick(index, tab.href);
+            }}
             aria-label={tab.label}
             style={{
-              flex: 1,
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 4,
-              height: 64,
-              padding: '8px 0',
-              background: isActive ? 'var(--accent-soft)' : 'transparent',
+              gap: 6,
+              padding: '8px 14px',
+              background: isActive ? 'var(--accent)' : 'transparent',
               border: 'none',
-              borderRadius: 0,
+              borderRadius: 16,
               cursor: 'pointer',
-              position: 'relative',
-              transition: 'background 0.15s ease',
+              transition: 'background 0.15s ease, color 0.15s ease',
+              color: isActive ? 'white' : 'var(--muted)',
             }}
           >
             {/* 图标 */}
             <tab.Icon
-              size={26}
+              size={22}
               filled={isActive}
-              color={isActive ? 'var(--accent)' : 'var(--muted)'}
+              color={isActive ? 'white' : 'var(--muted)'}
             />
 
-            {/* 文字标签 */}
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: isActive ? 500 : 400,
-                color: isActive ? 'var(--accent)' : 'var(--muted)',
-                fontFamily: 'var(--font-body)',
-              }}
-            >
-              {tab.label}
-            </span>
-
-            {/* 数字徽章 */}
+            {/* 数字 - 直接放在图标右侧 */}
             {count > 0 && (
               <span
                 style={{
-                  position: 'absolute',
-                  top: 6,
-                  right: '50%',
-                  transform: 'translateX(14px)',
-                  minWidth: 20,
-                  height: 20,
-                  padding: '0 6px',
-                  fontSize: 12,
-                  fontWeight: 600,
+                  fontSize: 13,
+                  fontWeight: 500,
                   fontFamily: 'var(--font-body)',
-                  color: 'var(--fg)',
-                  background: 'var(--accent)',
-                  borderRadius: 10,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  color: isActive ? 'rgba(255,255,255,0.85)' : 'var(--accent)',
                 }}
               >
                 {count > 99 ? '99+' : count}

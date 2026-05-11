@@ -1303,27 +1303,32 @@ h4 {
 
 /* 玻璃主题适配 - 强化玻璃效果 */
 [data-color-scheme='glass'] .bottom-tab-bar {
-  background: color-mix(in oklch, var(--surface) 70%, transparent);
-  backdrop-filter: blur(24px) saturate(1.5);
-  -webkit-backdrop-filter: blur(24px) saturate(1.5);
-  border-top: 1px solid color-mix(in oklch, var(--accent) 12%, var(--glass-border));
+  background: color-mix(in oklch, var(--surface) 65%, transparent);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: 0 4px 16px color-mix(in oklch, var(--accent) 8%, transparent),
+              0 0 0 1px color-mix(in oklch, var(--border) 30%, transparent);
 }
 
 /* 各季节主题的底部 Tab 栏样式 */
 [data-color-scheme='spring'] .bottom-tab-bar {
-  background: linear-gradient(to top, color-mix(in oklch, var(--surface) 85%, transparent), color-mix(in oklch, var(--surface) 70%, transparent));
+  background: color-mix(in oklch, var(--surface) 75%, transparent);
+  box-shadow: 0 4px 12px oklch(40% 0.015 145 0.1);
 }
 
 [data-color-scheme='summer'] .bottom-tab-bar {
-  background: linear-gradient(to top, color-mix(in oklch, var(--surface) 85%, transparent), color-mix(in oklch, var(--surface) 65%, transparent));
+  background: color-mix(in oklch, var(--surface) 70%, transparent);
+  box-shadow: 0 4px 12px oklch(40% 0.02 220 0.1);
 }
 
 [data-color-scheme='autumn'] .bottom-tab-bar {
-  background: linear-gradient(to top, color-mix(in oklch, var(--surface) 85%, transparent), color-mix(in oklch, var(--surface) 70%, transparent));
+  background: color-mix(in oklch, var(--surface) 75%, transparent);
+  box-shadow: 0 4px 12px oklch(40% 0.02 35 0.1);
 }
 
 [data-color-scheme='winter'] .bottom-tab-bar {
-  background: linear-gradient(to top, color-mix(in oklch, var(--surface) 90%, transparent), color-mix(in oklch, var(--surface) 75%, transparent));
+  background: color-mix(in oklch, var(--surface) 80%, transparent);
+  box-shadow: 0 4px 12px oklch(40% 0.01 280 0.08);
 }
 
 /* 隐藏桌面端移动端视图 */
