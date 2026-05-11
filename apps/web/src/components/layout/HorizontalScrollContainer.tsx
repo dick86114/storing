@@ -8,6 +8,7 @@ interface HorizontalScrollContainerProps {
   activeIndex: number;
   onIndexChange: (index: number) => void;
   onScrollProgress?: (progress: number) => void; // 实时滚动进度回调
+  isMobile?: boolean; // 移动端标识，用于正确计算高度
 }
 
 const TAB_KEYS = ['inbox', 'favorites', 'archive'];
@@ -17,6 +18,7 @@ export function HorizontalScrollContainer({
   activeIndex,
   onIndexChange,
   onScrollProgress,
+  isMobile = false,
 }: HorizontalScrollContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -116,7 +118,11 @@ export function HorizontalScrollContainer({
       style={{
         display: 'flex',
         width: '100vw',
-        height: 'calc(100vh - 104px)', // 固定高度：100vh - TopNav(56px) - TabsBar(48px)
+        // 移动端：TopNav(56px) + BottomTabBar(56px + safe-area-inset-bottom)
+        // 桌面端：TopNav(56px) + TabsBar(48px) = 104px
+        height: isMobile
+          ? 'calc(100vh - 56px - 56px - env(safe-area-inset-bottom, 0px))'
+          : 'calc(100vh - 104px)',
         overflowX: 'auto',
         scrollSnapType: 'x mandatory',
         scrollbarWidth: 'none',
