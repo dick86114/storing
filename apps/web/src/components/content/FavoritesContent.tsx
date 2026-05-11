@@ -77,7 +77,7 @@ function FavoritesContentInner() {
 
 export function FavoritesContent() {
   return (
-    <div style={{ padding: 'var(--gap-md) var(--gutter)', minHeight: '80vh' }}>
+    <div style={{ padding: 'var(--gap-md) var(--gutter)' }}>
       <Suspense fallback={<div style={{ color: 'var(--muted)', padding: 'var(--gap-2xl) 0', textAlign: 'center' }}>加载中…</div>}>
         <FavoritesContentInner />
       </Suspense>
