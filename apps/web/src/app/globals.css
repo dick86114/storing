@@ -1298,3 +1298,28 @@ h4 {
   border-color: var(--glass-border-glow);
   box-shadow: 0 0 16px 2px color-mix(in oklch, var(--accent) 25%, transparent);
 }
+
+/* ===== 底部 Tab 栏样式 ===== */
+
+/* 玻璃主题适配 */
+[data-color-scheme='glass'] .bottom-tab-bar {
+  background: color-mix(in oklch, var(--surface) 85%, transparent);
+  border-top: 1px solid var(--glass-border-glow);
+}
+
+/* 隐藏桌面端移动端视图 */
+@media (min-width: 640px) {
+  .mobile-swipe-view {
+    display: none !important;
+  }
+  .bottom-tab-bar {
+    display: none !important;
+  }
+}
+
+/* 移动端隐藏桌面端视图 */
+@media (max-width: 639px) {
+  .desktop-view {
+    display: none !important;
+  }
+}
