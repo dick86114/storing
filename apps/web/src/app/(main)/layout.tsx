@@ -29,7 +29,8 @@ function MainContent({ children }: { children: ReactNode }) {
   // 当前 tab 索引
   const activeIndex = TAB_KEYS.findIndex(key => pathname === `/${key}`);
   const [currentTabIndex, setCurrentTabIndex] = useState(activeIndex >= 0 ? activeIndex : 0);
-  const [scrollProgress, setScrollProgress] = useState<number | undefined>(undefined); // 滚动进度
+  const [scrollProgress, setScrollProgress] = useState<number | undefined>(undefined);
+  const [isScrolling, setIsScrolling] = useState(false); // 是否正在滚动
 
   // 登录成功后刷新 counts
   useEffect(() => {
@@ -100,6 +101,7 @@ function MainContent({ children }: { children: ReactNode }) {
               }
             }}
             onScrollProgress={isAuthenticated ? setScrollProgress : undefined}
+            onScrollingChange={setIsScrolling}
           >
             {isAuthenticated && <InboxContent />}
             {isAuthenticated && <FavoritesContent />}
@@ -115,7 +117,13 @@ function MainContent({ children }: { children: ReactNode }) {
       </main>
       {/* 移动端：显示底部 BottomTabBar */}
       {isMobile && (
-        <BottomTabBar counts={counts} activeIndex={currentTabIndex} onTabChange={setCurrentTabIndex} scrollProgress={scrollProgress} />
+        <BottomTabBar
+          counts={counts}
+          activeIndex={currentTabIndex}
+          onTabChange={setCurrentTabIndex}
+          scrollProgress={scrollProgress}
+          isScrolling={isScrolling}
+        />
       )}
       {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} />}
       <ArticleDetailPanel articleId={selectedId} onClose={closeArticle} onMutate={mutateList} />

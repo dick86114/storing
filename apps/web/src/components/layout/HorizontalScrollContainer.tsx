@@ -8,6 +8,7 @@ interface HorizontalScrollContainerProps {
   activeIndex: number;
   onIndexChange: (index: number) => void;
   onScrollProgress?: (progress: number) => void;
+  onScrollingChange?: (isScrolling: boolean) => void; // 滚动状态回调
   isMobile?: boolean;
 }
 
@@ -18,32 +19,27 @@ export function HorizontalScrollContainer({
   activeIndex,
   onIndexChange,
   onScrollProgress,
+  onScrollingChange,
   isMobile = false,
 }: HorizontalScrollContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const pathname = usePathname();
-  const isProgrammaticScroll = useRef(false); // 是否是程序触发的滚动
+  const isProgrammaticScroll = useRef(false);
   const lastActiveIndex = useRef(activeIndex);
 
   // 监听 activeIndex 变化，程序触发滚动
   useEffect(() => {
     if (!containerRef.current) return;
-
-    // 跳过初始化
     if (lastActiveIndex.current === activeIndex) return;
 
     const container = containerRef.current;
     const targetScroll = activeIndex * container.offsetWidth;
 
-    // 设置标记，表示这是程序触发的滚动
     isProgrammaticScroll.current = true;
-
-    // 直接设置 scrollLeft，绕过 scroll snap 的强制锁定
-    container.style.scrollSnapType = 'none'; // 临时禁用 scroll snap
+    container.style.scrollSnapType = 'none';
     container.scrollLeft = targetScroll;
 
-    // 恢复 scroll snap
     requestAnimationFrame(() => {
       container.style.scrollSnapType = 'x mandatory';
       isProgrammaticScroll.current = false;
@@ -52,7 +48,7 @@ export function HorizontalScrollContainer({
     lastActiveIndex.current = activeIndex;
   }, [activeIndex]);
 
-  // 初始化滚动位置
+  // 初始化
   useEffect(() => {
     if (!containerRef.current) return;
     const container = containerRef.current;
@@ -60,7 +56,7 @@ export function HorizontalScrollContainer({
     lastActiveIndex.current = activeIndex;
   }, []);
 
-  // 监听用户手势滚动（只在非程序滚动时响应）
+  // 监听用户滚动
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -69,9 +65,10 @@ export function HorizontalScrollContainer({
     let scrollEndTimer: NodeJS.Timeout;
 
     const handleScroll = () => {
-      // 如果是程序触发的滚动，跳过处理
       if (isProgrammaticScroll.current) return;
 
+      // 滚动开始，通知正在滚动
+      if (onScrollingChange) onScrollingChange(true);
       clearTimeout(scrollEndTimer);
 
       scrollEndTimer = setTimeout(() => {
@@ -79,23 +76,22 @@ export function HorizontalScrollContainer({
         const width = container.offsetWidth;
         const progress = scrollLeft / width;
 
-        // 实时通知进度
-        if (onScrollProgress) {
-          onScrollProgress(progress);
-        }
+        if (onScrollProgress) onScrollProgress(progress);
 
         const newIndex = Math.round(progress);
         if (newIndex !== lastIndex && newIndex >= 0 && newIndex < TAB_KEYS.length) {
           lastIndex = newIndex;
           onIndexChange(newIndex);
 
-          // 更新 URL
           const newPath = `/${TAB_KEYS[newIndex]}`;
           if (pathname !== newPath) {
             router.replace(newPath, { scroll: false });
           }
         }
-      }, 100);
+
+        // 滚动结束，通知停止滚动
+        if (onScrollingChange) onScrollingChange(false);
+      }, 150);
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
@@ -103,7 +99,7 @@ export function HorizontalScrollContainer({
       container.removeEventListener('scroll', handleScroll);
       clearTimeout(scrollEndTimer);
     };
-  }, [activeIndex, onIndexChange, onScrollProgress, router, pathname]);
+  }, [activeIndex, onIndexChange, onScrollProgress, onScrollingChange, router, pathname]);
 
   return (
     <div
