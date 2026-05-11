@@ -116,6 +116,7 @@ export function HorizontalScrollContainer({
       style={{
         display: 'flex',
         width: '100vw',
+        height: 'calc(100vh - 104px)', // 固定高度：100vh - TopNav(56px) - TabsBar(48px)
         overflowX: 'auto',
         scrollSnapType: 'x mandatory',
         scrollbarWidth: 'none',
@@ -130,10 +131,11 @@ export function HorizontalScrollContainer({
           key={index}
           style={{
             width: '100vw',
+            height: '100%',
             flexShrink: 0,
             scrollSnapAlign: 'start',
             scrollSnapStop: 'always',
-            minHeight: '60vh',
+            overflowY: 'auto',
             willChange: 'transform',
           }}
         >
