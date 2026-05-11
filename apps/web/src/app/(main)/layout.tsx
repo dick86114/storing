@@ -93,6 +93,7 @@ function MainContent({ children }: { children: ReactNode }) {
         <div className="mobile-swipe-view" style={{ display: isMobile ? 'block' : 'none' }}>
           <HorizontalScrollContainer
             activeIndex={isAuthenticated ? currentTabIndex : 0}
+            isMobile={isMobile}
             onIndexChange={(index) => {
               if (isAuthenticated) {
                 setCurrentTabIndex(index);
