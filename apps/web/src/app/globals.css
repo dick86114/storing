@@ -1178,3 +1178,56 @@ h4 {
   color: var(--accent);
   font-size: 11px;
 }
+
+/* 按钮液态玻璃效果 */
+[data-color-scheme='glass'] button {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-color-scheme='glass'] button:not([class*='article-card']):not(.detail-panel-close-btn):not(.detail-panel-action-btn) {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-inner-glow);
+  backdrop-filter: blur(8px);
+}
+
+[data-color-scheme='glass'] button:not([class*='article-card']):not(.detail-panel-close-btn):not(.detail-panel-action-btn):hover {
+  border-color: var(--glass-border-glow);
+  filter: brightness(1.1);
+  box-shadow: var(--glass-inner-glow), 0 4px 12px oklch(55% 0.25 270 0.15);
+}
+
+/* 详情面板液态玻璃效果 */
+[data-color-scheme='glass'] .detail-panel {
+  background: var(--glass);
+  border-left: 1px solid var(--glass-border-glow);
+  box-shadow: var(--shadow-lg), inset 4px 0 0 var(--glass-border-glow);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+}
+
+[data-color-scheme='glass'] .detail-panel-header {
+  background: var(--glass);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: var(--glass-inner-glow);
+}
+
+[data-color-scheme='glass'] .detail-panel-title {
+  font-family: var(--font-display);
+  letter-spacing: var(--letter-spacing-title);
+  color: var(--fg-title);
+}
+
+/* 详情面板关闭/操作按钮 */
+[data-color-scheme='glass'] .detail-panel-close-btn,
+[data-color-scheme='glass'] .detail-panel-action-btn {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-inner-glow);
+  transition: all 0.2s ease;
+}
+
+[data-color-scheme='glass'] .detail-panel-close-btn:hover,
+[data-color-scheme='glass'] .detail-panel-action-btn:hover {
+  background: color-mix(in oklch, var(--accent) 15%, var(--glass));
+  border-color: var(--glass-border-glow);
+}
