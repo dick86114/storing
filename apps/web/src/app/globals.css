@@ -964,6 +964,63 @@ h4 {
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
 }
 
+/* ===== 玻璃配色：macOS Tahoe 液态玻璃 ===== */
+/* 蓝紫冷色调 + 多层半透明 + 边缘光晕 + 内部高光折射 */
+
+[data-color-scheme='glass'][data-theme='light'],
+[data-color-scheme='glass']:not([data-theme='dark']) {
+  /* 基础配色 */
+  --bg: oklch(97% 0.015 280);
+  --surface: oklch(98% 0.010 280);
+  --surface-alt: oklch(96% 0.018 275);
+  --fg: oklch(20% 0.015 270);
+  --fg-title: oklch(15% 0.018 270);
+  --muted: oklch(48% 0.012 280);
+  --border: oklch(88% 0.012 280);
+  --accent: oklch(55% 0.25 270);
+  --accent-alt: oklch(52% 0.22 290);
+
+  /* 衍生配色 */
+  --accent-soft: color-mix(in oklch, var(--accent) 15%, transparent);
+  --fg-soft: color-mix(in oklch, var(--fg) 6%, transparent);
+
+  /* 液态玻璃核心参数 */
+  --glass-blur: 24px;
+  --glass-saturate: 1.6;
+  --glass-opacity: 0.72;
+  --glass: color-mix(in oklch, var(--surface) var(--glass-opacity), transparent);
+  --glass-border: color-mix(in oklch, var(--border) 60%, transparent);
+
+  /* 高光与光晕 */
+  --glass-inner-glow: inset 0 1px 1px oklch(100% 0 0 0.15);
+  --glass-specular: linear-gradient(180deg, oklch(100% 0 0 0.08), transparent 50%);
+  --glass-border-glow: color-mix(in oklch, var(--accent) 25%, transparent);
+  --surface-glow: oklch(98% 0.010 280);
+
+  /* 阴影系统（带紫色调） */
+  --shadow-sm: 0 2px 4px oklch(30% 0.015 280 0.08);
+  --shadow-md: 0 6px 16px oklch(30% 0.018 280 0.12);
+  --shadow-lg: 0 16px 40px oklch(30% 0.020 280 0.16);
+  --shadow-glass: 0 8px 24px oklch(25% 0.018 270 0.15);
+  --shadow-elevated: 0 12px 32px oklch(55% 0.25 270 0.20);
+
+  /* 圆角系统（Tahoe 风格更大圆角） */
+  --radius: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  --radius-sm: 10px;
+
+  /* 字体与排版 */
+  --fs-h1: clamp(34px, 4.5vw, 52px);
+  --fs-h2: clamp(26px, 3.2vw, 36px);
+  --fs-h3: 18px;
+  --fs-body: 15px;
+  --fs-meta: 12px;
+  --font-display: 'Söhne', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --letter-spacing-title: -0.02em;
+  --line-height: 1.6;
+}
+
 /* 主题特定样式覆盖 */
 [data-color-scheme='spring'] .detail-panel-title,
 [data-color-scheme='spring'] .article-card-title {
