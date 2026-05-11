@@ -1021,6 +1021,59 @@ h4 {
   --line-height: 1.6;
 }
 
+[data-color-scheme='glass'][data-theme='dark'] {
+  /* 基础配色 */
+  --bg: oklch(18% 0.020 280);
+  --surface: oklch(24% 0.018 280);
+  --surface-alt: oklch(28% 0.022 275);
+  --fg: oklch(94% 0.010 280);
+  --fg-title: oklch(98% 0.012 270);
+  --muted: oklch(70% 0.010 280);
+  --border: oklch(32% 0.015 280);
+  --accent: oklch(72% 0.28 270);
+  --accent-alt: oklch(70% 0.25 290);
+
+  /* 衍生配色 */
+  --accent-soft: color-mix(in oklch, var(--accent) 22%, transparent);
+  --fg-soft: color-mix(in oklch, var(--fg) 10%, transparent);
+
+  /* 液态玻璃核心参数（深色模式更强模糊） */
+  --glass-blur: 28px;
+  --glass-saturate: 1.8;
+  --glass-opacity: 0.68;
+  --glass: color-mix(in oklch, var(--surface) var(--glass-opacity), transparent);
+  --glass-border: color-mix(in oklch, var(--border) 50%, transparent);
+
+  /* 高光与光晕（深色模式光晕更明显） */
+  --glass-inner-glow: inset 0 1px 2px oklch(100% 0 0 0.08);
+  --glass-specular: linear-gradient(180deg, oklch(100% 0 0 0.06), transparent 40%);
+  --glass-border-glow: color-mix(in oklch, var(--accent) 35%, transparent);
+  --surface-glow: oklch(24% 0.018 280);
+
+  /* 阴影系统（深色模式更重） */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.45);
+  --shadow-glass: 0 8px 24px oklch(72% 0.28 270 0.18);
+  --shadow-elevated: 0 12px 32px oklch(72% 0.28 270 0.25);
+
+  /* 圆角系统 */
+  --radius: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  --radius-sm: 10px;
+
+  /* 字体与排版 */
+  --fs-h1: clamp(34px, 4.5vw, 52px);
+  --fs-h2: clamp(26px, 3.2vw, 36px);
+  --fs-h3: 18px;
+  --fs-body: 15px;
+  --fs-meta: 12px;
+  --font-display: 'Söhne', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --letter-spacing-title: -0.02em;
+  --line-height: 1.6;
+}
+
 /* 主题特定样式覆盖 */
 [data-color-scheme='spring'] .detail-panel-title,
 [data-color-scheme='spring'] .article-card-title {
