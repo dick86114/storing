@@ -96,11 +96,12 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
         className="overflow-hidden border"
         style={{
           width: 'min(580px, calc(100vw - 48px))',
-          background: 'var(--surface)',
+          background: 'var(--glass)',
           borderColor: 'var(--glass-border)',
           borderRadius: 'var(--radius-lg)',
           boxShadow: 'var(--shadow-lg)',
-          backdropFilter: 'blur(16px)',
+          backdropFilter: 'blur(20px) saturate(1.4)',
+          WebkitBackdropFilter: 'blur(20px) saturate(1.4)',
           animation: 'cardIn 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >

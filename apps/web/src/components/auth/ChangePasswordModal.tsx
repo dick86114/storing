@@ -65,7 +65,9 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'rgba(0, 0, 0, 0.5)',
+        background: 'color-mix(in oklch, var(--bg) 60%, transparent)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -75,9 +77,12 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
         style={{
           width: 380,
           maxWidth: 'calc(100vw - 48px)',
-          background: 'var(--surface)',
+          background: 'var(--glass)',
+          backdropFilter: 'blur(20px) saturate(1.4)',
+          WebkitBackdropFilter: 'blur(20px) saturate(1.4)',
+          border: '1px solid var(--glass-border)',
           borderRadius: 16,
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          boxShadow: 'var(--shadow-lg)',
           padding: 32,
           position: 'relative',
         }}
