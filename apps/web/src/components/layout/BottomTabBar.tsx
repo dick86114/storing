@@ -60,24 +60,22 @@ export function BottomTabBar({ counts, activeIndex, onTabChange, scrollProgress 
         return (
           <button
             key={tab.key}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleTabClick(index, tab.href);
-            }}
+            onClick={() => handleTabClick(index, tab.href)}
             aria-label={tab.label}
+            type="button"
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: 6,
-              padding: '8px 14px',
+              padding: '10px 16px',
               background: isActive ? 'var(--accent)' : 'transparent',
               border: 'none',
               borderRadius: 16,
               cursor: 'pointer',
               transition: 'background 0.15s ease, color 0.15s ease',
               color: isActive ? 'white' : 'var(--muted)',
+              outline: 'none',
             }}
           >
             {/* 图标 */}

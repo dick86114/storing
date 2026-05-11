@@ -118,16 +118,15 @@ export function HorizontalScrollContainer({
       style={{
         display: 'flex',
         width: '100vw',
-        // 移动端：TopNav(56px) + BottomTabBar(底部悬浮 8px + 胶囊高度 44px + safe-area)
+        // 移动端：只减去 TopNav(56px)，底部空间通过子元素的 paddingBottom 处理
         // 桌面端：TopNav(56px) + TabsBar(48px) = 104px
         height: isMobile
-          ? 'calc(100vh - 56px - 8px - 44px - env(safe-area-inset-bottom, 0px) - 16px)'
+          ? 'calc(100vh - 56px)'
           : 'calc(100vh - 104px)',
         overflowX: 'auto',
         scrollSnapType: 'x mandatory',
         scrollbarWidth: 'none',
         WebkitOverflowScrolling: 'touch',
-        willChange: 'scroll-position',
       }}
       className="hide-scrollbar"
     >
@@ -142,7 +141,9 @@ export function HorizontalScrollContainer({
             scrollSnapAlign: 'start',
             scrollSnapStop: 'always',
             overflowY: 'auto',
-            willChange: 'transform',
+            // 移动端：底部留空给悬浮胶囊 Tab（约 72px）
+            paddingBottom: isMobile ? '72px' : '0',
+            boxSizing: 'border-box',
           }}
         >
           {child}
