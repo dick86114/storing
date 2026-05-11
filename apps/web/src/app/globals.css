@@ -1130,3 +1130,51 @@ h4 {
 [data-color-scheme='autumn'][data-theme='dark'] body {
   background: var(--bg);
 }
+
+/* ===== 玻璃主题组件样式覆盖 ===== */
+
+/* 导航栏液态玻璃效果 */
+[data-color-scheme='glass'] header,
+[data-color-scheme='glass'] .sticky.top-0 {
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  background: var(--glass);
+  border-bottom: 1px solid var(--glass-border-glow);
+  box-shadow: var(--glass-inner-glow), var(--shadow-sm);
+}
+
+[data-color-scheme='glass'] header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--glass-specular);
+  opacity: 0.6;
+}
+
+/* 文章卡片液态玻璃效果 */
+[data-color-scheme='glass'] .article-card {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-inner-glow), var(--shadow-glass);
+  backdrop-filter: blur(12px) saturate(1.4);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-color-scheme='glass'] .article-card:hover {
+  border-color: var(--glass-border-glow);
+  box-shadow: var(--glass-inner-glow), var(--shadow-elevated);
+  transform: scale(1.02);
+  filter: brightness(1.05);
+}
+
+/* 卡片标签玻璃胶囊样式 */
+[data-color-scheme='glass'] .article-card-tag {
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+  border: 1px solid var(--glass-border-glow);
+  border-radius: 12px;
+  padding: 3px 10px;
+  color: var(--accent);
+  font-size: 11px;
+}
