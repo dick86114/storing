@@ -1,14 +1,14 @@
 'use client';
 
-import { useRef, useEffect, useCallback, useState, type ReactNode } from 'react';
+import { useRef, useEffect, type ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 
 interface HorizontalScrollContainerProps {
   children: ReactNode[];
   activeIndex: number;
   onIndexChange: (index: number) => void;
-  onScrollProgress?: (progress: number) => void; // 实时滚动进度回调
-  isMobile?: boolean; // 移动端标识，用于正确计算高度
+  onScrollProgress?: (progress: number) => void;
+  isMobile?: boolean;
 }
 
 const TAB_KEYS = ['inbox', 'favorites', 'archive'];
@@ -23,94 +23,87 @@ export function HorizontalScrollContainer({
   const containerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const pathname = usePathname();
-  const [isScrolling, setIsScrolling] = useState(false);
-  const rafRef = useRef<number | null>(null);
-  const isInitialized = useRef(false); // 标记是否已初始化
+  const isProgrammaticScroll = useRef(false); // 是否是程序触发的滚动
+  const lastActiveIndex = useRef(activeIndex);
 
-  // 滚动到指定 tab（smooth 表示用户操作，instant 表示初始化）
-  const scrollToIndex = useCallback((index: number, smooth: boolean = true) => {
+  // 监听 activeIndex 变化，程序触发滚动
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    // 跳过初始化
+    if (lastActiveIndex.current === activeIndex) return;
+
+    const container = containerRef.current;
+    const targetScroll = activeIndex * container.offsetWidth;
+
+    // 设置标记，表示这是程序触发的滚动
+    isProgrammaticScroll.current = true;
+
+    // 直接设置 scrollLeft，绕过 scroll snap 的强制锁定
+    container.style.scrollSnapType = 'none'; // 临时禁用 scroll snap
+    container.scrollLeft = targetScroll;
+
+    // 恢复 scroll snap
+    requestAnimationFrame(() => {
+      container.style.scrollSnapType = 'x mandatory';
+      isProgrammaticScroll.current = false;
+    });
+
+    lastActiveIndex.current = activeIndex;
+  }, [activeIndex]);
+
+  // 初始化滚动位置
+  useEffect(() => {
     if (!containerRef.current) return;
     const container = containerRef.current;
-    const scrollLeft = index * container.offsetWidth;
-    container.scrollTo({
-      left: scrollLeft,
-      behavior: smooth ? 'smooth' : 'instant',
-    });
+    container.scrollLeft = activeIndex * container.offsetWidth;
+    lastActiveIndex.current = activeIndex;
   }, []);
 
-  // 初始化滚动位置（瞬间定位，无动画）
-  useEffect(() => {
-    if (!isInitialized.current && containerRef.current) {
-      scrollToIndex(activeIndex, false); // 初始化使用 instant
-      isInitialized.current = true;
-    }
-  }, [activeIndex, scrollToIndex]);
-
-  // 监听滚动，使用 requestAnimationFrame 优化性能
+  // 监听用户手势滚动（只在非程序滚动时响应）
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    let scrollTimeout: NodeJS.Timeout;
     let lastIndex = activeIndex;
-
-    const updateScroll = () => {
-      const scrollLeft = container.scrollLeft;
-      const width = container.offsetWidth;
-      const progress = scrollLeft / width; // 0~2 的连续值
-
-      // 实时通知进度（用于指示器动画）
-      if (onScrollProgress) {
-        onScrollProgress(progress);
-      }
-
-      // 计算当前索引
-      const newIndex = Math.round(progress);
-
-      // 只在索引变化时更新 state（减少重渲染）
-      if (newIndex !== lastIndex && newIndex >= 0 && newIndex < TAB_KEYS.length) {
-        lastIndex = newIndex;
-        onIndexChange(newIndex);
-      }
-    };
+    let scrollEndTimer: NodeJS.Timeout;
 
     const handleScroll = () => {
-      setIsScrolling(true);
-      clearTimeout(scrollTimeout);
+      // 如果是程序触发的滚动，跳过处理
+      if (isProgrammaticScroll.current) return;
 
-      // 使用 requestAnimationFrame 节流，避免卡顿
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-      }
-      rafRef.current = requestAnimationFrame(updateScroll);
+      clearTimeout(scrollEndTimer);
 
-      // URL 更新保持延迟
-      scrollTimeout = setTimeout(() => {
-        setIsScrolling(false);
-        const finalIndex = Math.round(container.scrollLeft / container.offsetWidth);
-        if (finalIndex >= 0 && finalIndex < TAB_KEYS.length) {
-          const newPath = `/${TAB_KEYS[finalIndex]}`;
+      scrollEndTimer = setTimeout(() => {
+        const scrollLeft = container.scrollLeft;
+        const width = container.offsetWidth;
+        const progress = scrollLeft / width;
+
+        // 实时通知进度
+        if (onScrollProgress) {
+          onScrollProgress(progress);
+        }
+
+        const newIndex = Math.round(progress);
+        if (newIndex !== lastIndex && newIndex >= 0 && newIndex < TAB_KEYS.length) {
+          lastIndex = newIndex;
+          onIndexChange(newIndex);
+
+          // 更新 URL
+          const newPath = `/${TAB_KEYS[newIndex]}`;
           if (pathname !== newPath) {
             router.replace(newPath, { scroll: false });
           }
         }
-      }, 150);
+      }, 100);
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
       container.removeEventListener('scroll', handleScroll);
-      clearTimeout(scrollTimeout);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      clearTimeout(scrollEndTimer);
     };
   }, [activeIndex, onIndexChange, onScrollProgress, router, pathname]);
-
-  // 点击 tab 时滚动（smooth 动画）
-  useEffect(() => {
-    if (isInitialized.current && !isScrolling) {
-      scrollToIndex(activeIndex, true); // 用户操作使用 smooth
-    }
-  }, [activeIndex, isScrolling, scrollToIndex]);
 
   return (
     <div
@@ -118,11 +111,7 @@ export function HorizontalScrollContainer({
       style={{
         display: 'flex',
         width: '100vw',
-        // 移动端：只减去 TopNav(56px)，底部空间通过子元素的 paddingBottom 处理
-        // 桌面端：TopNav(56px) + TabsBar(48px) = 104px
-        height: isMobile
-          ? 'calc(100vh - 56px)'
-          : 'calc(100vh - 104px)',
+        height: isMobile ? 'calc(100vh - 56px)' : 'calc(100vh - 104px)',
         overflowX: 'auto',
         scrollSnapType: 'x mandatory',
         scrollbarWidth: 'none',
@@ -130,7 +119,6 @@ export function HorizontalScrollContainer({
       }}
       className="hide-scrollbar"
     >
-      {/* 过滤掉 null/false children，只渲染有效内容 */}
       {children.filter(Boolean).map((child, index) => (
         <div
           key={index}
@@ -139,9 +127,7 @@ export function HorizontalScrollContainer({
             height: '100%',
             flexShrink: 0,
             scrollSnapAlign: 'start',
-            scrollSnapStop: 'always',
             overflowY: 'auto',
-            // 移动端：底部留空给悬浮胶囊 Tab（约 72px）
             paddingBottom: isMobile ? '72px' : '0',
             boxSizing: 'border-box',
           }}
