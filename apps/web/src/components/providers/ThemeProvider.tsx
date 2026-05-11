@@ -18,7 +18,7 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>('system');
-  const [colorScheme, setColorSchemeState] = useState<ColorScheme>('default');
+  const [colorScheme, setColorSchemeState] = useState<ColorScheme>('glass');
   const [resolved, setResolved] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {

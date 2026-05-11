@@ -38,13 +38,12 @@ export function HorizontalScrollContainer({
     const targetScroll = activeIndex * container.offsetWidth;
 
     isProgrammaticScroll.current = true;
-    container.style.scrollSnapType = 'none';
-    container.scrollLeft = targetScroll;
+    container.scrollTo({ left: targetScroll, behavior: 'smooth' });
 
-    requestAnimationFrame(() => {
-      container.style.scrollSnapType = 'x mandatory';
+    // 滚动结束后重置标志
+    setTimeout(() => {
       isProgrammaticScroll.current = false;
-    });
+    }, 300);
 
     lastActiveIndex.current = activeIndex;
     lastReportedIndex.current = activeIndex;
@@ -59,7 +58,7 @@ export function HorizontalScrollContainer({
     lastReportedIndex.current = activeIndex;
   }, []);
 
-  // 监听用户滚动 - 即时响应
+  // 监听用户滚动 - 即时响应 + 滚动结束后吸附
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -98,17 +97,32 @@ export function HorizontalScrollContainer({
       if (rafId) cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(updateProgress);
 
-      // 滚动结束后更新 URL 并通知停止滚动
+      // 滚动结束后吸附到最近的页面
       scrollEndTimer = setTimeout(() => {
-        const finalIndex = Math.round(container.scrollLeft / container.offsetWidth);
-        if (finalIndex >= 0 && finalIndex < TAB_KEYS.length) {
-          const newPath = `/${TAB_KEYS[finalIndex]}`;
+        const scrollLeft = container.scrollLeft;
+        const width = container.offsetWidth;
+        const currentIndex = scrollLeft / width;
+        const targetIndex = Math.round(currentIndex);
+        const targetScroll = targetIndex * width;
+
+        // 如果当前位置不是整数页面，吸附过去
+        if (Math.abs(scrollLeft - targetScroll) > 10) {
+          isProgrammaticScroll.current = true;
+          container.scrollTo({ left: targetScroll, behavior: 'smooth' });
+          setTimeout(() => {
+            isProgrammaticScroll.current = false;
+          }, 300);
+        }
+
+        // 更新 URL
+        if (targetIndex >= 0 && targetIndex < TAB_KEYS.length) {
+          const newPath = `/${TAB_KEYS[targetIndex]}`;
           if (pathname !== newPath) {
             router.replace(newPath, { scroll: false });
           }
         }
         if (onScrollingChange) onScrollingChange(false);
-      }, 80); // 减少延迟
+      }, 150); // 增加延迟，让滚动有更多时间稳定
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
@@ -127,7 +141,7 @@ export function HorizontalScrollContainer({
         width: '100vw',
         height: isMobile ? 'calc(100vh - 56px)' : 'calc(100vh - 104px)',
         overflowX: 'auto',
-        scrollSnapType: 'x mandatory',
+        scrollBehavior: 'smooth', // 平滑滚动
         scrollbarWidth: 'none',
         WebkitOverflowScrolling: 'touch',
       }}
@@ -140,7 +154,6 @@ export function HorizontalScrollContainer({
             width: '100vw',
             height: '100%',
             flexShrink: 0,
-            scrollSnapAlign: 'start',
             overflowY: 'auto',
             paddingBottom: isMobile ? '72px' : '0',
             boxSizing: 'border-box',
