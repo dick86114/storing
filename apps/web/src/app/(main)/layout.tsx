@@ -14,6 +14,7 @@ import { useDoubleBackExit } from '@/hooks/useDoubleBackExit';
 import { InboxContent } from '@/components/content/InboxContent';
 import { FavoritesContent } from '@/components/content/FavoritesContent';
 import { ArchiveContent } from '@/components/content/ArchiveContent';
+import { BottomTabBar } from '@/components/layout/BottomTabBar';
 
 function MainContent({ children }: { children: ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -61,6 +62,16 @@ function MainContent({ children }: { children: ReactNode }) {
     return () => document.removeEventListener('keydown', handler);
   }, [searchOpen, selectedId, closeArticle]);
 
+  // 检测是否为移动端（< 640px）
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   // 等待认证状态加载完成
   if (isLoading) {
     return (
@@ -70,20 +81,19 @@ function MainContent({ children }: { children: ReactNode }) {
     );
   }
 
-  // 检测是否为移动端（< 640px）
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
-
   return (
     <>
       <TopNav onSearchOpen={() => setSearchOpen(true)} />
-      <TabsBar counts={counts} activeIndex={currentTabIndex} onTabChange={setCurrentTabIndex} scrollProgress={scrollProgress} />
+      {/* 桌面端：显示顶部 TabsBar */}
+      {!isMobile && (
+        <TabsBar counts={counts} activeIndex={currentTabIndex} onTabChange={setCurrentTabIndex} scrollProgress={scrollProgress} />
+      )}
       <main>
         {/* 移动端：使用滑动容器 */}
-        <div className="mobile-swipe-view" style={{ display: 'block' }}>
+        <div className="mobile-swipe-view" style={{ display: isMobile ? 'block' : 'none' }}>
           <HorizontalScrollContainer
-            activeIndex={isAuthenticated ? currentTabIndex : 0} // 游客只有一个页面，索引为 0
+            activeIndex={isAuthenticated ? currentTabIndex : 0}
             onIndexChange={(index) => {
-              // 游客不允许切换 tab
               if (isAuthenticated) {
                 setCurrentTabIndex(index);
               }
@@ -96,12 +106,16 @@ function MainContent({ children }: { children: ReactNode }) {
           </HorizontalScrollContainer>
         </div>
         {/* 桌面端：保持原有布局 */}
-        <div className="desktop-view" style={{ display: 'none', padding: 'var(--gap-md) 0 var(--gap-xl)' }}>
+        <div className="desktop-view" style={{ display: isMobile ? 'none' : 'block', padding: 'var(--gap-md) 0 var(--gap-xl)' }}>
           <div className="mx-auto" style={{ maxWidth: 'var(--container)', paddingInline: 'var(--gutter)', position: 'relative', zIndex: 1 }}>
             {children}
           </div>
         </div>
       </main>
+      {/* 移动端：显示底部 BottomTabBar */}
+      {isMobile && (
+        <BottomTabBar counts={counts} activeIndex={currentTabIndex} onTabChange={setCurrentTabIndex} scrollProgress={scrollProgress} />
+      )}
       {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} />}
       <ArticleDetailPanel articleId={selectedId} onClose={closeArticle} onMutate={mutateList} />
     </>
