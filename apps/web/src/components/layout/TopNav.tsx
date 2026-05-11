@@ -12,6 +12,7 @@ const COLOR_SCHEMES = [
   { key: 'summer', label: '夏', icon: '☀️' },
   { key: 'autumn', label: '秋', icon: '🍂' },
   { key: 'winter', label: '冬', icon: '❄' },
+  { key: 'glass', label: '玻璃', icon: '💎' },
 ];
 
 export function TopNav({ onSearchOpen }: { onSearchOpen: () => void }) {
