@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 type ThemeMode = 'light' | 'dark' | 'system';
-type ColorScheme = 'default' | 'spring' | 'summer' | 'autumn' | 'winter';
+type ColorScheme = 'default' | 'spring' | 'summer' | 'autumn' | 'winter' | 'glass';
 
 interface ThemeContextValue {
   theme: ThemeMode;
