@@ -95,15 +95,14 @@ export function BottomTabBar({ counts, activeIndex, onTabChange, scrollProgress,
               color={isActive ? 'var(--accent)' : 'var(--muted)'}
             />
 
-            {/* 数字 - 激活时点亮 */}
+            {/* 数字 - 使用白色确保清晰可见 */}
             {count > 0 && (
               <span
                 style={{
                   fontSize: 13,
-                  fontWeight: 500,
+                  fontWeight: 600,
                   fontFamily: 'var(--font-body)',
-                  // 激活时用 accent 色，未激活用 muted 色
-                  color: isActive ? 'var(--accent)' : 'var(--muted)',
+                  color: 'white',
                 }}
               >
                 {count > 99 ? '99+' : count}
