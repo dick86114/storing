@@ -15,16 +15,20 @@ interface BottomTabBarProps {
   activeIndex: number;
   onTabChange: (index: number) => void;
   scrollProgress?: number;
+  isScrolling?: boolean; // 是否正在滚动
 }
 
-export function BottomTabBar({ counts, activeIndex, onTabChange, scrollProgress }: BottomTabBarProps) {
+export function BottomTabBar({ counts, activeIndex, onTabChange, scrollProgress, isScrolling }: BottomTabBarProps) {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
 
   // 游客模式隐藏
   if (!isAuthenticated) return null;
 
-  const currentIndex = scrollProgress !== undefined ? Math.round(scrollProgress) : activeIndex;
+  // 正在滚动时用 scrollProgress，否则用 activeIndex
+  const currentIndex = (isScrolling && scrollProgress !== undefined)
+    ? Math.round(scrollProgress)
+    : activeIndex;
 
   const handleTabClick = (index: number, href: string) => {
     onTabChange(index);
