@@ -41,10 +41,11 @@ export function BottomTabBar({ counts, activeIndex, onTabChange, scrollProgress 
         left: 16,
         right: 16,
         display: 'flex',
-        justifyContent: 'center',
+        justifyContent: 'space-around',
         alignItems: 'center',
-        padding: '6px 8px',
-        paddingBottom: 'calc(6px + env(safe-area-inset-bottom, 0px))',
+        padding: '8px 12px',
+        paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))',
+        // 半透明背景 - 使用 CSS 变量适配浅色/深色模式
         background: 'var(--glass)',
         backdropFilter: 'blur(20px) saturate(1.4)',
         WebkitBackdropFilter: 'blur(20px) saturate(1.4)',
@@ -64,35 +65,41 @@ export function BottomTabBar({ counts, activeIndex, onTabChange, scrollProgress 
             aria-label={tab.label}
             type="button"
             style={{
+              // 每个 tab 占据等宽，图标居中
+              flex: 1,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: 6,
-              padding: '10px 16px',
-              background: isActive ? 'var(--accent)' : 'transparent',
+              padding: '10px 0',
+              // 激活的 tab 多一层半透明背景
+              background: isActive
+                ? 'var(--accent-soft)'
+                : 'transparent',
               border: 'none',
-              borderRadius: 16,
+              borderRadius: 14,
               cursor: 'pointer',
-              transition: 'background 0.15s ease, color 0.15s ease',
-              color: isActive ? 'white' : 'var(--muted)',
+              transition: 'background 0.15s ease',
               outline: 'none',
+              maxWidth: 120,
             }}
           >
-            {/* 图标 */}
+            {/* 图标 - 激活时点亮 */}
             <tab.Icon
               size={22}
               filled={isActive}
-              color={isActive ? 'white' : 'var(--muted)'}
+              color={isActive ? 'var(--accent)' : 'var(--muted)'}
             />
 
-            {/* 数字 - 直接放在图标右侧 */}
+            {/* 数字 - 激活时点亮 */}
             {count > 0 && (
               <span
                 style={{
                   fontSize: 13,
                   fontWeight: 500,
                   fontFamily: 'var(--font-body)',
-                  color: isActive ? 'rgba(255,255,255,0.85)' : 'var(--accent)',
+                  // 激活时用 accent 色，未激活用 muted 色
+                  color: isActive ? 'var(--accent)' : 'var(--muted)',
                 }}
               >
                 {count > 99 ? '99+' : count}
