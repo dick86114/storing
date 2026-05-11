@@ -118,10 +118,10 @@ export function HorizontalScrollContainer({
       style={{
         display: 'flex',
         width: '100vw',
-        // 移动端：TopNav(56px) + BottomTabBar(56px + safe-area-inset-bottom)
+        // 移动端：TopNav(56px) + BottomTabBar(64px + safe-area-inset-bottom)
         // 桌面端：TopNav(56px) + TabsBar(48px) = 104px
         height: isMobile
-          ? 'calc(100vh - 56px - 56px - env(safe-area-inset-bottom, 0px))'
+          ? 'calc(100vh - 56px - 64px - env(safe-area-inset-bottom, 0px))'
           : 'calc(100vh - 104px)',
         overflowX: 'auto',
         scrollSnapType: 'x mandatory',
