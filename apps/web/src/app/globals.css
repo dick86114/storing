@@ -1133,13 +1133,13 @@ h4 {
 
 /* ===== 玻璃主题组件样式覆盖 ===== */
 
-/* 导航栏液态玻璃效果 */
+/* 导航栏液态玻璃效果（仅导航栏保留 blur，使用 will-change 优化） */
 [data-color-scheme='glass'] header,
 [data-color-scheme='glass'] .sticky.top-0 {
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  background: var(--glass);
+  backdrop-filter: blur(20px) saturate(1.4);
+  background: color-mix(in oklch, var(--surface) 88%, transparent);
   border-bottom: 1px solid var(--glass-border-glow);
-  box-shadow: var(--glass-inner-glow), var(--shadow-sm);
+  will-change: transform;
 }
 
 [data-color-scheme='glass'] header::before {
@@ -1149,24 +1149,21 @@ h4 {
   left: 0;
   right: 0;
   height: 1px;
-  background: var(--glass-specular);
-  opacity: 0.6;
+  background: linear-gradient(180deg, oklch(100% 0 0 0.06), transparent);
 }
 
-/* 文章卡片液态玻璃效果 */
+/* 文章卡片液态玻璃效果（性能优化：移除 backdrop-filter） */
 [data-color-scheme='glass'] .article-card {
-  background: var(--glass);
+  background: color-mix(in oklch, var(--surface) 88%, transparent);
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-inner-glow), var(--shadow-glass);
-  backdrop-filter: blur(12px) saturate(1.4);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-glass);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  will-change: box-shadow;
 }
 
 [data-color-scheme='glass'] .article-card:hover {
   border-color: var(--glass-border-glow);
-  box-shadow: var(--glass-inner-glow), var(--shadow-elevated);
-  transform: scale(1.02);
-  filter: brightness(1.05);
+  box-shadow: var(--shadow-elevated);
 }
 
 /* 卡片标签玻璃胶囊样式 */
@@ -1179,36 +1176,31 @@ h4 {
   font-size: 11px;
 }
 
-/* 按钮液态玻璃效果 */
+/* 按钮液态玻璃效果（性能优化：简化样式） */
 [data-color-scheme='glass'] button {
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color 0.2s ease, background 0.2s ease;
 }
 
 [data-color-scheme='glass'] button:not([class*='article-card']):not(.detail-panel-close-btn):not(.detail-panel-action-btn) {
-  background: var(--glass);
+  background: color-mix(in oklch, var(--surface) 85%, transparent);
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-inner-glow);
-  backdrop-filter: blur(8px);
 }
 
 [data-color-scheme='glass'] button:not([class*='article-card']):not(.detail-panel-close-btn):not(.detail-panel-action-btn):hover {
   border-color: var(--glass-border-glow);
-  filter: brightness(1.1);
-  box-shadow: var(--glass-inner-glow), 0 4px 12px oklch(55% 0.25 270 0.15);
+  background: color-mix(in oklch, var(--surface) 90%, transparent);
 }
 
-/* 详情面板液态玻璃效果 */
+/* 详情面板液态玻璃效果（仅面板保留 blur，内部元素简化） */
 [data-color-scheme='glass'] .detail-panel {
-  background: var(--glass);
+  background: color-mix(in oklch, var(--surface) 92%, transparent);
   border-left: 1px solid var(--glass-border-glow);
-  box-shadow: var(--shadow-lg), inset 4px 0 0 var(--glass-border-glow);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--shadow-lg);
 }
 
 [data-color-scheme='glass'] .detail-panel-header {
-  background: var(--glass);
+  background: color-mix(in oklch, var(--surface) 88%, transparent);
   border-bottom: 1px solid var(--glass-border);
-  box-shadow: var(--glass-inner-glow);
 }
 
 [data-color-scheme='glass'] .detail-panel-title {
@@ -1220,25 +1212,23 @@ h4 {
 /* 详情面板关闭/操作按钮 */
 [data-color-scheme='glass'] .detail-panel-close-btn,
 [data-color-scheme='glass'] .detail-panel-action-btn {
-  background: var(--glass);
+  background: color-mix(in oklch, var(--surface) 85%, transparent);
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-inner-glow);
-  transition: all 0.2s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 [data-color-scheme='glass'] .detail-panel-close-btn:hover,
 [data-color-scheme='glass'] .detail-panel-action-btn:hover {
-  background: color-mix(in oklch, var(--accent) 15%, var(--glass));
+  background: color-mix(in oklch, var(--accent) 20%, transparent);
   border-color: var(--glass-border-glow);
 }
 
-/* 弹窗/菜单液态玻璃效果 */
+/* 弹窗/菜单液态玻璃效果（仅菜单保留 blur） */
 [data-color-scheme='glass'] .article-card-menu,
 [data-color-scheme='glass'] [style*="position: absolute"][style*="min-width"] {
-  background: var(--glass);
+  background: color-mix(in oklch, var(--surface) 95%, transparent);
   border: 1px solid var(--glass-border-glow);
   box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(32px) saturate(2);
 }
 
 [data-color-scheme='glass'] .article-card-menu-item,
@@ -1254,23 +1244,19 @@ h4 {
 
 /* 搜索按钮玻璃效果 */
 [data-color-scheme='glass'] button[aria-label="搜索"] {
-  background: var(--glass);
+  background: color-mix(in oklch, var(--surface) 85%, transparent);
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-inner-glow);
-  backdrop-filter: blur(12px);
 }
 
 [data-color-scheme='glass'] button[aria-label="搜索"]:hover {
   border-color: var(--glass-border-glow);
-  filter: brightness(1.08);
 }
 
 /* AI 摘要块玻璃效果 */
 [data-color-scheme='glass'] .ai-summary-block {
-  background: var(--glass);
+  background: color-mix(in oklch, var(--surface) 90%, transparent);
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-inner-glow), var(--shadow-md);
-  backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-md);
 }
 
 [data-color-scheme='glass'] .ai-summary-title {
@@ -1280,11 +1266,9 @@ h4 {
 
 /* 加载占位符玻璃效果 */
 [data-color-scheme='glass'] .ai-loading-placeholder,
-[data-color-scheme='glass'] .skeleton-card,
 [data-color-scheme='glass'] .skeleton-line {
-  background: var(--glass);
+  background: color-mix(in oklch, var(--surface) 88%, transparent);
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-inner-glow);
 }
 
 /* 分隔线玻璃风格 */
@@ -1304,14 +1288,13 @@ h4 {
   animation: shimmer 1.5s ease-in-out infinite;
 }
 
-/* 详情面板遮罩玻璃效果 */
+/* 详情面板遮罩 */
 [data-color-scheme='glass'] .detail-panel-overlay {
-  background: color-mix(in oklch, var(--bg) 50%, transparent);
-  backdrop-filter: blur(4px);
+  background: color-mix(in oklch, var(--bg) 60%, transparent);
 }
 
 /* 高亮卡片发光效果 */
 [data-color-scheme='glass'] .article-card.highlighted {
   border-color: var(--glass-border-glow);
-  box-shadow: var(--glass-inner-glow), 0 0 20px 4px color-mix(in oklch, var(--accent) 30%, transparent);
+  box-shadow: 0 0 16px 2px color-mix(in oklch, var(--accent) 25%, transparent);
 }
