@@ -6,7 +6,8 @@ import useSWR, { useSWRConfig } from 'swr';
 import { useToast } from '@/components/ui/Toast';
 import { useArticleContext } from '@/components/providers/ArticleContext';
 import { ArticleList } from '@/components/article/ArticleList';
-import { CategorySidebar, CategoryPills } from '@/components/archive/CategorySidebar';
+import { WechatCategorySidebar } from '@/components/archive/WechatCategorySidebar';
+import { WechatCategoryPills } from '@/components/archive/WechatCategoryPills';
 import { api } from '@/lib/api';
 
 function ArchiveContentInner() {
@@ -14,6 +15,15 @@ function ArchiveContentInner() {
   const router = useRouter();
   const page = parseInt(searchParams.get('page') || '1');
   const [activeCat, setActiveCategory] = useState('all');
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   const { data, isLoading, mutate } = useSWR(
     `articles:archive:${page}:${activeCat}`,
     () => api.getArticles('archive', page, activeCat),
@@ -39,68 +49,104 @@ function ArchiveContentInner() {
   const totalCount = categories.reduce((sum: number, c: any) => sum + c.count, 0);
 
   return (
-    <>
-      <CategoryPills
-        categories={categories}
-        activeCategory={activeCat}
-        totalCount={totalCount}
-        onSelect={(cat) => {
-          setActiveCategory(cat);
-          router.push('/archive?page=1');
-          window.scrollTo({ top: 0, behavior: 'instant' });
-        }}
-      />
-      <div className="archive-layout" style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 'var(--gap-xl)', alignItems: 'start' }}>
-        <div className="archive-sidebar">
-          <CategorySidebar
+    <div style={{ padding: '0' }}>
+      {/* 移动端：药丸筛选 */}
+      {isMobile && (
+        <WechatCategoryPills
+          categories={categories}
+          activeCategory={activeCat}
+          totalCount={totalCount}
+          onSelect={(cat) => {
+            setActiveCategory(cat);
+            router.push('/archive?page=1');
+          }}
+        />
+      )}
+
+      {/* 桌面端：侧边栏 + 内容 */}
+      {!isMobile && (
+        <div style={{ display: 'flex', gap: '24px' }}>
+          <WechatCategorySidebar
             categories={categories}
             activeCategory={activeCat}
             totalCount={totalCount}
             onSelect={(cat) => {
               setActiveCategory(cat);
               router.push('/archive?page=1');
-              window.scrollTo({ top: 0, behavior: 'instant' });
             }}
           />
+          <div style={{ flex: 1 }}>
+            {isLoading ? (
+              <div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>
+            ) : (
+              <ArticleList
+                articles={articles}
+                currentPage={page}
+                totalPages={totalPages}
+                emptyTitle="归档中暂无此类文章"
+                onPageChange={(p) => router.push(`/archive?page=${p}`)}
+                onArticleClick={(id) => openArticle(id)}
+                onToggleFavorite={async (id, e) => {
+                  e.stopPropagation();
+                  await api.toggleFavorite(id);
+                  mutate();
+                  refreshCounts();
+                  showToast('已收藏');
+                }}
+                onArchive={async (id, e) => {
+                  e.stopPropagation();
+                  await api.unarchive(id);
+                  mutate();
+                  refreshCounts();
+                  showToast('已移回收件箱');
+                }}
+                highlightId={highlightId}
+              />
+            )}
+          </div>
         </div>
-        {isLoading ? (
-          <div style={{ color: 'var(--muted)', padding: 'var(--gap-2xl) 0', textAlign: 'center' }}>加载中…</div>
-        ) : (
-          <ArticleList
-            articles={articles}
-            currentPage={page}
-            totalPages={totalPages}
-            emptyTitle="归档中暂无此类文章"
-            onPageChange={(p) => router.push(`/archive?page=${p}`)}
-            onArticleClick={(id) => openArticle(id)}
-            onToggleFavorite={async (id, e) => {
-              e.stopPropagation();
-              await api.toggleFavorite(id);
-              mutate();
-              refreshCounts();
-              showToast('已收藏');
-            }}
-            onArchive={async (id, e) => {
-              e.stopPropagation();
-              await api.unarchive(id);
-              mutate();
-              refreshCounts();
-              showToast('已移回收件箱');
-            }}
-            highlightId={highlightId}
-          />
-        )}
-      </div>
-    </>
+      )}
+
+      {/* 移动端：内容列表 */}
+      {isMobile && (
+        <div style={{ padding: '8px 16px' }}>
+          {isLoading ? (
+            <div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>
+          ) : (
+            <ArticleList
+              articles={articles}
+              currentPage={page}
+              totalPages={totalPages}
+              emptyTitle="归档中暂无此类文章"
+              onPageChange={(p) => router.push(`/archive?page=${p}`)}
+              onArticleClick={(id) => openArticle(id)}
+              onToggleFavorite={async (id, e) => {
+                e.stopPropagation();
+                await api.toggleFavorite(id);
+                mutate();
+                refreshCounts();
+                showToast('已收藏');
+              }}
+              onArchive={async (id, e) => {
+                e.stopPropagation();
+                await api.unarchive(id);
+                mutate();
+                refreshCounts();
+                showToast('已移回收件箱');
+              }}
+              highlightId={highlightId}
+            />
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
 export function ArchiveContent() {
   return (
-    <div style={{ padding: 'var(--gap-md) var(--gutter)' }}>
-      <Suspense fallback={<div style={{ color: 'var(--muted)', padding: 'var(--gap-2xl) 0', textAlign: 'center' }}>加载中…</div>}>
-        <ArchiveContentInner />
-      </Suspense>
-    </div>
+    <Suspense fallback={<div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>}>
+      <ArchiveContentInner />
+    </Suspense>
   );
 }
