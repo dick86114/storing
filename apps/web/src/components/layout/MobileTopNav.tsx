@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons';
 import { SearchModal } from '@/components/search/SearchModal';
 
@@ -11,6 +11,19 @@ interface MobileTopNavProps {
 export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // 点击外部关闭菜单
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
 
   return (
     <>
@@ -64,10 +77,11 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
         </div>
 
         {/* 右侧：搜索 + 加号 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button
             onClick={() => setSearchOpen(true)}
             type="button"
+            aria-label="搜索"
             style={{
               background: 'transparent',
               border: 'none',
@@ -80,6 +94,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
           <button
             onClick={() => setMenuOpen(!menuOpen)}
             type="button"
+            aria-label="添加"
             style={{
               background: 'transparent',
               border: 'none',
@@ -93,6 +108,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
           {/* 下拉菜单 */}
           {menuOpen && (
             <div
+              ref={menuRef}
               style={{
                 position: 'absolute',
                 top: '44px',
