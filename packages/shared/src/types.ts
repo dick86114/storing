@@ -25,6 +25,7 @@ export interface Article {
 export interface ArticleListItem {
   id: number;
   title: string;
+  author: string | null;
   source: string;
   publishTime: string | null;
   createdAt: string;
@@ -33,7 +34,7 @@ export interface ArticleListItem {
   aiCategory?: string | null;  // AI 分类
   isFavorited: boolean;
   isArchived?: boolean;
-  coverImage?: string | null;  // 新增：封面图 URL（可选）
+  coverImage?: string | null;  // 封面图 URL（可选）
 }
 
 export interface PaginatedResponse<T> {
