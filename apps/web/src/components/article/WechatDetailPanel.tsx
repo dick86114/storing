@@ -133,6 +133,7 @@ function DetailContent({
   showToast,
   isAuthenticated,
   memoizedContent,
+  refreshCounts,
 }: {
   article: any;
   isLoading: boolean;
