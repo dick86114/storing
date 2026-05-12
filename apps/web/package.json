@@ -9,6 +9,7 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.2.2",
     "@storing/shared": "workspace:*",
     "clsx": "^2.1.0",
     "next": "^15.3.0",
