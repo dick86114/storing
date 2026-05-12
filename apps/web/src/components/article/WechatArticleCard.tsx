@@ -43,20 +43,6 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
         opacity: highlight ? 0.6 : 1,
       }}
     >
-      {/* 封面图 */}
-      {article.coverImage && (
-        <img
-          src={article.coverImage}
-          alt=""
-          style={{
-            width: '100%',
-            height: '120px',
-            objectFit: 'cover',
-            borderRadius: '4px 4px 0 0',
-          }}
-        />
-      )}
-
       {/* 内容区域 */}
       <div style={{ padding: '12px 16px' }}>
         {/* 第一行：标题 + 三点菜单 */}
@@ -90,9 +76,24 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
           </button>
         </div>
 
-        {/* 第三行：作者 + 时间 */}
+        {/* 第二行：封面图 */}
+        {article.coverImage && (
+          <img
+            src={article.coverImage}
+            alt=""
+            style={{
+              width: '100%',
+              height: '120px',
+              objectFit: 'cover',
+              borderRadius: '4px',
+              marginBottom: '8px',
+            }}
+          />
+        )}
+
+        {/* 第三行：来源 + 发布时间 */}
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
-          <span>{article.author || article.source || '未知来源'}</span>
+          <span>{article.source || article.author || '未知来源'}</span>
           <DateText dateStr={article.publishTime} />
         </div>
       </div>
