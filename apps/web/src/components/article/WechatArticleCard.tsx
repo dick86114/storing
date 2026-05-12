@@ -48,12 +48,19 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
         {/* 第一行：标题 + 三点菜单 */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
           <div
+            title={article.title}
             style={{
               fontSize: '15px',
               fontWeight: 500,
               color: 'var(--text)',
               lineHeight: 1.4,
               flex: 1,
+              height: '2.8em',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
             }}
           >
             {article.title}

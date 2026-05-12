@@ -24,17 +24,18 @@ echo ""
 # 检查并安装依赖
 check_dependencies() {
   local root_dir="$SCRIPT_DIR"
+  local web_modules="$WEB_DIR/node_modules"
+  local api_modules="$API_DIR/node_modules"
 
   echo "检查依赖安装状态..."
 
-  # 检查根目录 node_modules
-  if [ ! -d "$root_dir/node_modules" ]; then
-    echo "❌ 根目录缺少 node_modules"
-    echo "正在安装依赖..."
+  # 检查根目录和子项目的 node_modules（pnpm monorepo 需要子项目也有）
+  if [ ! -d "$root_dir/node_modules" ] || [ ! -d "$web_modules/.bin" ] || [ ! -d "$api_modules/.bin" ]; then
+    echo "❌ 依赖不完整，正在安装..."
     cd "$root_dir"
     pnpm install
     if [ $? -ne 0 ]; then
-      echo "❌ 依赖安装失败，请手动运行: pnpm install"
+      echo "❌ 依赖安装失败，请检查网络代理设置或手动运行: pnpm install"
       exit 1
     fi
     echo "✓ 依赖安装完成"
@@ -52,9 +53,9 @@ check_service_health() {
   local port=$1
   local name=$2
   local health_url=$3
-  
+
   echo "检查 $name 服务健康状态..."
-  
+
   if curl -s --max-time 3 "$health_url" > /dev/null 2>&1; then
     echo "✅ $name 服务正常运行，无需重启"
     return 0
@@ -68,7 +69,7 @@ check_service_health() {
 if [ "$FORCE_RESTART" = false ]; then
   BACKEND_HEALTH=$(check_service_health $BACKEND_PORT "后端" "http://localhost:$BACKEND_PORT/api/v1/health")
   FRONTEND_HEALTH=$(check_service_health $FRONTEND_PORT "前端" "http://localhost:$FRONTEND_PORT")
-  
+
   if [ $? -eq 0 ]; then
     echo ""
     echo "=== 所有服务正常运行，无需重启 ==="
@@ -90,20 +91,20 @@ kill_port() {
   local name=$2
 
   echo "检查 $name 端口 $port..."
-  
+
   # 使用 fuser 强制关闭所有占用该端口的进程
   if fuser $port/tcp &>/dev/null; then
     echo "端口 $port 被占用，正在关闭所有相关进程..."
     fuser -k $port/tcp 2>/dev/null
     sleep 2
-    
+
     # 再次检查并强制关闭残留进程
     if fuser $port/tcp &>/dev/null; then
       echo "仍有进程占用，强制关闭..."
       fuser -k -9 $port/tcp 2>/dev/null
       sleep 2
     fi
-    
+
     # 最终检查
     if fuser $port/tcp &>/dev/null; then
       echo "❌ 无法关闭端口 $port"
@@ -122,14 +123,14 @@ wait_for_port() {
   local name=$2
   local max_wait=10
   local count=0
-  
+
   echo "等待 $name 端口 $port 完全释放..."
   while ss -tln | grep -q ":$port" && [ $count -lt $max_wait ]; do
     sleep 1
     count=$((count + 1))
     echo "  等待中... ($count/$max_wait)"
   done
-  
+
   if ss -tln | grep -q ":$port"; then
     echo "⚠️  端口 $port 仍显示为LISTEN状态，但可能已无进程占用"
     echo "  尝试继续启动服务..."

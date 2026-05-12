@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
+import { useSWRConfig } from 'swr';
 import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, ShareAltOutlined, LinkOutlined } from '@ant-design/icons';
 import { useArticle } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
@@ -18,8 +19,15 @@ interface WechatDetailPanelProps {
 
 export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: WechatDetailPanelProps) {
   const { data: article, isLoading, mutate: mutateArticle } = useArticle(articleId);
+  const { mutate: globalMutate } = useSWRConfig();
   const { showToast } = useToast();
   const { isAuthenticated } = useAuth();
+
+  function refreshCounts() {
+    globalMutate('count:inbox');
+    globalMutate('count:favorites');
+    globalMutate('count:archive');
+  }
 
   useEffect(() => {
     if (articleId && !isDesktop) {
@@ -46,7 +54,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
             position: 'fixed',
             top: 0,
             left: 0,
-            right: '420px',
+            right: '750px',
             bottom: 0,
             background: 'rgba(0, 0, 0, 0.3)',
             backdropFilter: 'blur(2px)',
@@ -59,7 +67,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
             position: 'fixed',
             top: 0,
             right: 0,
-            width: '420px',
+            width: '750px',
             height: '100vh',
             background: 'var(--card-bg)',
             borderLeft: '1px solid var(--divider)',
@@ -76,6 +84,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
             showToast={showToast}
             isAuthenticated={isAuthenticated}
             memoizedContent={memoizedContent}
+            refreshCounts={refreshCounts}
           />
         </div>
       </>
@@ -108,6 +117,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
         showToast={showToast}
         isAuthenticated={isAuthenticated}
         memoizedContent={memoizedContent}
+        refreshCounts={refreshCounts}
       />
     </div>
   );
@@ -132,6 +142,7 @@ function DetailContent({
   showToast: (msg: string) => void;
   isAuthenticated: boolean;
   memoizedContent: React.ReactNode;
+  refreshCounts: () => void;
 }) {
   // 分享功能
   async function handleShare() {
@@ -153,6 +164,7 @@ function DetailContent({
     await api.toggleFavorite(article.id);
     mutateArticle();
     onMutate();
+    refreshCounts();
     showToast(article.isFavorited ? '已取消收藏' : '已收藏');
   }
 
@@ -168,6 +180,7 @@ function DetailContent({
     }
     mutateArticle();
     onMutate();
+    refreshCounts();
   }
 
   return (
