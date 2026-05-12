@@ -6,8 +6,7 @@ import useSWR, { useSWRConfig } from 'swr';
 import { useToast } from '@/components/ui/Toast';
 import { useArticleContext } from '@/components/providers/ArticleContext';
 import { useAuth } from '@/components/providers/AuthContext';
-import { MasonryGrid } from '@/components/article/MasonryGrid';
-import { Pagination } from '@/components/ui/Pagination';
+import { ArticleList } from '@/components/article/ArticleList';
 import { api } from '@/lib/api';
 
 const PER_PAGE = 18;
@@ -47,41 +46,41 @@ function InboxContentInner() {
 
   return (
     <>
-      <MasonryGrid
-        articles={articles}
-        isLoading={dataLoading}
-        emptyTitle="所有文章都已处理完毕"
-        emptyDescription="去发现一些好文章吧"
-        onArticleClick={(id) => openArticle(id)}
-        onToggleFavorite={async (id, e) => {
-          e.stopPropagation();
-          await api.toggleFavorite(id);
-          mutate();
-          refreshCounts();
-          showToast('已收藏');
-        }}
-        onArchive={async (id, e) => {
-          e.stopPropagation();
-          await api.archive(id);
-          mutate();
-          refreshCounts();
-          showToast('已归档');
-        }}
-        highlightId={highlightId}
-      />
-      <Pagination
-        currentPage={page}
-        totalPages={totalPages}
-        onPageChange={(p) => router.push(`/inbox?page=${p}`)}
-      />
+      {dataLoading ? (
+        <div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>
+      ) : (
+        <ArticleList
+          articles={articles}
+          currentPage={page}
+          totalPages={totalPages}
+          emptyTitle="所有文章都已处理完毕"
+          onPageChange={(p) => router.push(`/inbox?page=${p}`)}
+          onArticleClick={(id) => openArticle(id)}
+          onToggleFavorite={async (id, e) => {
+            e.stopPropagation();
+            await api.toggleFavorite(id);
+            mutate();
+            refreshCounts();
+            showToast('已收藏');
+          }}
+          onArchive={async (id, e) => {
+            e.stopPropagation();
+            await api.archive(id);
+            mutate();
+            refreshCounts();
+            showToast('已归档');
+          }}
+          highlightId={highlightId}
+        />
+      )}
     </>
   );
 }
 
 export function InboxContent() {
   return (
-    <div style={{ padding: 'var(--gap-md) var(--gutter)' }}>
-      <Suspense fallback={<div style={{ color: 'var(--muted)', padding: 'var(--gap-2xl) 0', textAlign: 'center' }}>加载中…</div>}>
+    <div style={{ padding: '8px 16px' }}>
+      <Suspense fallback={<div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>}>
         <InboxContentInner />
       </Suspense>
     </div>
