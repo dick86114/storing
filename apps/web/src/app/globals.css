@@ -719,6 +719,100 @@ h4 {
 
 /* ===== 配色方案 ===== */
 
+/* ===== 微信风格配色 ===== */
+/* 微信绿为主色调 + 简洁实用风格 */
+
+[data-color-scheme='wechat'][data-theme='light'],
+[data-color-scheme='wechat']:not([data-theme='dark']) {
+  --bg: #ededed;
+  --card-bg: #fff;
+  --nav-bg: #f7f7f7;
+  --surface: #fff;
+  --surface-alt: #f5f5f5;
+  --fg: #000;
+  --fg-title: #000;
+  --text: #000;
+  --text-secondary: #191919;
+  --muted: #888;
+  --text-muted: #888;
+  --border: #d6d6d6;
+  --divider: #e5e5e5;
+  --accent: #07c160;
+  --accent-alt: #06ad56;
+  --accent-soft: #e8f8e8;
+  --tag-bg: #f5f5f5;
+  --fg-soft: rgba(0, 0, 0, 0.05);
+  --surface-glow: #fff;
+  --glass: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(214, 214, 214, 0.7);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12);
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-sm: 4px;
+  --fs-h1: clamp(32px, 4vw, 48px);
+  --fs-h2: clamp(24px, 3vw, 32px);
+  --fs-h3: 17px;
+  --fs-body: 14.5px;
+  --fs-meta: 11.5px;
+  --font-display: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --letter-spacing-title: 0;
+  --line-height: 1.6;
+}
+
+[data-color-scheme='wechat'][data-theme='dark'] {
+  --bg: #1f1f1f;
+  --card-bg: #2c2c2c;
+  --nav-bg: #2c2c2c;
+  --surface: #2c2c2c;
+  --surface-alt: #3a3a3a;
+  --fg: #fff;
+  --fg-title: #fff;
+  --text: #fff;
+  --text-secondary: #b2b2b2;
+  --muted: #888;
+  --text-muted: #888;
+  --border: #3a3a3a;
+  --divider: #3a3a3a;
+  --accent: #07c160;
+  --accent-alt: #06ad56;
+  --accent-soft: #1a3a1a;
+  --tag-bg: #3a3a3a;
+  --fg-soft: rgba(255, 255, 255, 0.08);
+  --surface-glow: #2c2c2c;
+  --glass: rgba(44, 44, 44, 0.85);
+  --glass-border: rgba(58, 58, 58, 0.7);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+/* 微信主题组件样式覆盖 */
+[data-color-scheme='wechat'] .article-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+
+[data-color-scheme='wechat'] .article-card:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-color-scheme='wechat'] .article-card-tag {
+  background: var(--tag-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+}
+
+[data-color-scheme='wechat'] .bottom-tab-bar {
+  background: var(--nav-bg);
+  box-shadow: 0 -1px 0 var(--border);
+}
+
 /* 默认配色 - 浅色模式 */
 [data-color-scheme='default'][data-theme='light'],
 [data-color-scheme='default']:not([data-theme='dark']) {
