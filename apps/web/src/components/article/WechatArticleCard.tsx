@@ -4,21 +4,10 @@ import { useState, useRef, useEffect } from 'react';
 import { MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled } from '@ant-design/icons';
 import { DateText } from '@/lib/formatDate';
 import { getCategoryColor } from '@/lib/categoryColors';
-
-interface Article {
-  id: number;
-  title: string;
-  author: string | null;
-  source: string | null;
-  publishTime: string;
-  coverImage: string | null;
-  isFavorited: boolean;
-  isArchived: boolean;
-  aiCategory?: string;
-}
+import type { ArticleListItem } from '@storing/shared';
 
 interface WechatArticleCardProps {
-  article: Article;
+  article: ArticleListItem;
   onClick: () => void;
   onToggleFavorite: (e: React.MouseEvent) => void;
   onArchive: (e: React.MouseEvent) => void;
