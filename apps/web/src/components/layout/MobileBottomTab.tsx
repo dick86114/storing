@@ -66,12 +66,32 @@ export function MobileBottomTab({ counts, activeIndex, onTabChange }: MobileBott
               cursor: 'pointer',
             }}
           >
-            <tab.Icon
-              style={{
-                fontSize: '24px',
-                color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
-              }}
-            />
+            <div style={{ position: 'relative', display: 'inline-flex' }}>
+              <tab.Icon
+                style={{
+                  fontSize: '24px',
+                  color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+                }}
+              />
+              {count > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '-4px',
+                    right: '-8px',
+                    padding: '1px 5px',
+                    background: isActive ? 'var(--accent-soft)' : 'var(--tag-bg)',
+                    color: isActive ? 'var(--accent)' : 'var(--text-muted)',
+                    fontSize: '10px',
+                    borderRadius: '10px',
+                    fontWeight: 500,
+                    lineHeight: '14px',
+                  }}
+                >
+                  {count > 99 ? '99+' : count}
+                </span>
+              )}
+            </div>
             <span
               style={{
                 fontSize: '10px',
@@ -81,25 +101,6 @@ export function MobileBottomTab({ counts, activeIndex, onTabChange }: MobileBott
             >
               {tab.label}
             </span>
-            {count > 0 && (
-              <span
-                style={{
-                  position: 'absolute',
-                  top: '4px',
-                  right: 'calc(50% - 20px)',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  color: '#fff',
-                  background: 'var(--accent)',
-                  padding: '2px 6px',
-                  borderRadius: '10px',
-                  minWidth: '18px',
-                  textAlign: 'center',
-                }}
-              >
-                {count > 99 ? '99+' : count}
-              </span>
-            )}
           </button>
         );
       })}

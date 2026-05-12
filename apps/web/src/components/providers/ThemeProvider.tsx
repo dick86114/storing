@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 type ThemeMode = 'light' | 'dark' | 'system';
-type ColorScheme = 'default' | 'spring' | 'summer' | 'autumn' | 'winter' | 'glass';
+type ColorScheme = 'default' | 'wechat' | 'spring' | 'summer' | 'autumn' | 'winter' | 'glass';
 
 interface ThemeContextValue {
   theme: ThemeMode;
@@ -18,14 +18,20 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>('system');
-  const [colorScheme, setColorSchemeState] = useState<ColorScheme>('glass');
+  const [colorScheme, setColorSchemeState] = useState<ColorScheme>('wechat');
   const [resolved, setResolved] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as ThemeMode | null;
     const savedScheme = localStorage.getItem('colorScheme') as ColorScheme | null;
     if (savedTheme) setThemeState(savedTheme);
-    if (savedScheme) setColorSchemeState(savedScheme);
+    if (savedScheme && savedScheme !== 'glass') {
+      setColorSchemeState(savedScheme);
+    } else if (savedScheme === 'glass') {
+      // 自动迁移旧主题到微信主题
+      setColorSchemeState('wechat');
+      localStorage.setItem('colorScheme', 'wechat');
+    }
   }, []);
 
   useEffect(() => {

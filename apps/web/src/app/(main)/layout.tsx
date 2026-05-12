@@ -8,7 +8,7 @@ import { SwipeableContainer } from '@/components/layout/SwipeableContainer';
 import { DesktopTopNav } from '@/components/layout/DesktopTopNav';
 import { DesktopTabsBar } from '@/components/layout/DesktopTabsBar';
 import { SearchModal } from '@/components/search/SearchModal';
-import { ArticleDetailPanel } from '@/components/article/ArticleDetailPanel';
+import { WechatDetailPanel } from '@/components/article/WechatDetailPanel';
 import { ArticleProvider, useArticleContext } from '@/components/providers/ArticleContext';
 import { AuthProvider, useAuth } from '@/components/providers/AuthContext';
 import { useCounts } from '@/hooks/useCounts';
@@ -97,7 +97,7 @@ function MainContent({ children }: { children: ReactNode }) {
       {!isMobile && (
         <>
           <DesktopTopNav onSearchOpen={() => setSearchOpen(true)} />
-          <DesktopTabsBar counts={counts} activeIndex={currentTabIndex} onTabChange={setCurrentTabIndex} />
+          {isAuthenticated && <DesktopTabsBar counts={counts} activeIndex={currentTabIndex} onTabChange={setCurrentTabIndex} />}
           <main style={{ padding: '24px 0', background: 'var(--bg)' }}>
             <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px' }}>
               {children}
@@ -107,7 +107,7 @@ function MainContent({ children }: { children: ReactNode }) {
       )}
 
       {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} />}
-      <ArticleDetailPanel articleId={selectedId} onClose={closeArticle} onMutate={mutateList} />
+      <WechatDetailPanel articleId={selectedId} onClose={closeArticle} onMutate={mutateList} isDesktop={!isMobile} />
     </>
   );
 }
