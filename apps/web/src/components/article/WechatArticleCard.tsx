@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled } from '@ant-design/icons';
 import { DateText } from '@/lib/formatDate';
 import { getCategoryColor } from '@/lib/categoryColors';
@@ -27,12 +27,26 @@ interface WechatArticleCardProps {
 
 export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchive, highlight }: WechatArticleCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const catColor = article.aiCategory ? getCategoryColor(article.aiCategory) : null;
+
+  // 点击外部关闭下拉菜单
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
 
   return (
     <div
       onClick={onClick}
       style={{
+        position: 'relative',
         background: 'var(--card-bg)',
         borderRadius: '4px',
         cursor: 'pointer',
@@ -75,6 +89,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
               setMenuOpen(!menuOpen);
             }}
             type="button"
+            aria-expanded={menuOpen}
             style={{
               background: 'transparent',
               border: 'none',
@@ -96,6 +111,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
       {/* 下拉菜单 */}
       {menuOpen && (
         <div
+          ref={menuRef}
           onClick={(e) => e.stopPropagation()}
           style={{
             position: 'absolute',
