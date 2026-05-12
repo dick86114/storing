@@ -54,6 +54,7 @@ export function MobileBottomTab({ counts, activeIndex, onTabChange }: MobileBott
             onClick={() => handleTabClick(index, tab.href)}
             type="button"
             style={{
+              position: 'relative',
               flex: 1,
               display: 'flex',
               flexDirection: 'column',
