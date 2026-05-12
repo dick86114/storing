@@ -25,7 +25,7 @@ export function DesktopTabsBar({ counts, activeIndex, onTabChange }: DesktopTabs
 
   return (
     <div style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--divider)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', padding: '0 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 24px' }}>
         {tabs.map((tab, index) => {
           const isActive = activeIndex === index;
           const count = counts[tab.key as keyof typeof counts] ?? 0;

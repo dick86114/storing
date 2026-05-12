@@ -49,7 +49,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
           <div
             style={{
-              fontSize: '17px',
+              fontSize: '15px',
               fontWeight: 500,
               color: 'var(--text)',
               lineHeight: 1.4,
