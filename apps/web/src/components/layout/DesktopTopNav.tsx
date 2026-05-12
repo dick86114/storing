@@ -42,7 +42,10 @@ export function DesktopTopNav({ onSearchOpen }: DesktopTopNavProps) {
           borderBottom: '1px solid var(--divider)',
         }}
       >
-        {/* 左侧：Logo + Storing */}
+        {/* 左侧占位 */}
+        <div style={{ width: '120px' }} />
+
+        {/* 中间：Logo + Storing */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <img
             src="/logo.png"
@@ -66,26 +69,15 @@ export function DesktopTopNav({ onSearchOpen }: DesktopTopNavProps) {
           </span>
         </div>
 
-        {/* 中间：搜索框 */}
-        <div
-          onClick={onSearchOpen}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            background: 'var(--card-bg)',
-            borderRadius: '8px',
-            padding: '8px 16px',
-            width: '300px',
-            border: '1px solid var(--border)',
-            cursor: 'pointer',
-          }}
-        >
-          <SearchOutlined style={{ fontSize: '16px', color: 'var(--text-muted)' }} />
-          <span style={{ fontSize: '14px', color: 'var(--text-muted)', marginLeft: '8px' }}>搜索文章...</span>
-        </div>
-
-        {/* 右侧：用户 + 主题 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        {/* 右侧：搜索图标 + 用户菜单 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', width: '120px', justifyContent: 'flex-end' }}>
+          <button
+            onClick={onSearchOpen}
+            type="button"
+            style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer' }}
+          >
+            <SearchOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
+          </button>
           {isAuthenticated ? (
             <div ref={userMenuRef} style={{ position: 'relative' }}>
               <button
