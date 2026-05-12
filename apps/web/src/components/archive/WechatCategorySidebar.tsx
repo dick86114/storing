@@ -36,6 +36,10 @@ export function WechatCategorySidebar({
         {/* 全部 */}
         <li
           onClick={() => onSelect('all')}
+          tabIndex={0}
+          role="button"
+          aria-selected={activeCategory === 'all'}
+          onKeyDown={(e) => e.key === 'Enter' && onSelect('all')}
           style={{
             padding: '10px 12px',
             borderRadius: '6px',
@@ -62,6 +66,10 @@ export function WechatCategorySidebar({
             <li
               key={cat.category}
               onClick={() => onSelect(cat.category)}
+              tabIndex={0}
+              role="button"
+              aria-selected={isActive}
+              onKeyDown={(e) => e.key === 'Enter' && onSelect(cat.category)}
               style={{
                 padding: '10px 12px',
                 borderRadius: '6px',

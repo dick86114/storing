@@ -45,6 +45,7 @@ export function WechatCategoryPills({
             key={cat.category}
             onClick={() => onSelect(cat.category)}
             type="button"
+            aria-pressed={isActive}
             style={{
               padding: '6px 14px',
               borderRadius: '999px',
