@@ -48,6 +48,64 @@ function ArchiveContentInner() {
   const categories = catData ?? [];
   const totalCount = categories.reduce((sum: number, c: any) => sum + c.count, 0);
 
+  // 切换分类时滚动到顶部
+  const handleCategorySelect = (cat: string) => {
+    setActiveCategory(cat);
+    router.push('/archive?page=1');
+    window.scrollTo(0, 0);
+  };
+
+  // 切换页面时滚动到顶部
+  const handlePageChange = (p: number) => {
+    router.push(`/archive?page=${p}`);
+    window.scrollTo(0, 0);
+  };
+
+  // 收藏操作（带错误处理）
+  const handleToggleFavorite = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await api.toggleFavorite(id);
+      mutate();
+      refreshCounts();
+      showToast('已收藏');
+    } catch (error) {
+      showToast('操作失败，请重试');
+      console.error('Failed to toggle favorite:', error);
+    }
+  };
+
+  // 取消归档操作（带错误处理）
+  const handleUnarchive = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await api.unarchive(id);
+      mutate();
+      refreshCounts();
+      showToast('已移回收件箱');
+    } catch (error) {
+      showToast('操作失败，请重试');
+      console.error('Failed to unarchive:', error);
+    }
+  };
+
+  // 统一的 ArticleList 组件
+  const articleListContent = isLoading ? (
+    <div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>
+  ) : (
+    <ArticleList
+      articles={articles}
+      currentPage={page}
+      totalPages={totalPages}
+      emptyTitle="归档中暂无此类文章"
+      onPageChange={handlePageChange}
+      onArticleClick={(id) => openArticle(id)}
+      onToggleFavorite={handleToggleFavorite}
+      onArchive={handleUnarchive}
+      highlightId={highlightId}
+    />
+  );
+
   return (
     <div style={{ padding: '0' }}>
       {/* 移动端：药丸筛选 */}
@@ -56,10 +114,7 @@ function ArchiveContentInner() {
           categories={categories}
           activeCategory={activeCat}
           totalCount={totalCount}
-          onSelect={(cat) => {
-            setActiveCategory(cat);
-            router.push('/archive?page=1');
-          }}
+          onSelect={handleCategorySelect}
         />
       )}
 
@@ -70,39 +125,10 @@ function ArchiveContentInner() {
             categories={categories}
             activeCategory={activeCat}
             totalCount={totalCount}
-            onSelect={(cat) => {
-              setActiveCategory(cat);
-              router.push('/archive?page=1');
-            }}
+            onSelect={handleCategorySelect}
           />
           <div style={{ flex: 1 }}>
-            {isLoading ? (
-              <div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>
-            ) : (
-              <ArticleList
-                articles={articles}
-                currentPage={page}
-                totalPages={totalPages}
-                emptyTitle="归档中暂无此类文章"
-                onPageChange={(p) => router.push(`/archive?page=${p}`)}
-                onArticleClick={(id) => openArticle(id)}
-                onToggleFavorite={async (id, e) => {
-                  e.stopPropagation();
-                  await api.toggleFavorite(id);
-                  mutate();
-                  refreshCounts();
-                  showToast('已收藏');
-                }}
-                onArchive={async (id, e) => {
-                  e.stopPropagation();
-                  await api.unarchive(id);
-                  mutate();
-                  refreshCounts();
-                  showToast('已移回收件箱');
-                }}
-                highlightId={highlightId}
-              />
-            )}
+            {articleListContent}
           </div>
         </div>
       )}
@@ -110,33 +136,7 @@ function ArchiveContentInner() {
       {/* 移动端：内容列表 */}
       {isMobile && (
         <div style={{ padding: '8px 16px' }}>
-          {isLoading ? (
-            <div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>
-          ) : (
-            <ArticleList
-              articles={articles}
-              currentPage={page}
-              totalPages={totalPages}
-              emptyTitle="归档中暂无此类文章"
-              onPageChange={(p) => router.push(`/archive?page=${p}`)}
-              onArticleClick={(id) => openArticle(id)}
-              onToggleFavorite={async (id, e) => {
-                e.stopPropagation();
-                await api.toggleFavorite(id);
-                mutate();
-                refreshCounts();
-                showToast('已收藏');
-              }}
-              onArchive={async (id, e) => {
-                e.stopPropagation();
-                await api.unarchive(id);
-                mutate();
-                refreshCounts();
-                showToast('已移回收件箱');
-              }}
-              highlightId={highlightId}
-            />
-          )}
+          {articleListContent}
         </div>
       )}
     </div>
