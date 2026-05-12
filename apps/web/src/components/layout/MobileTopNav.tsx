@@ -51,19 +51,16 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
             gap: '6px',
           }}
         >
-          <div
+          <img
+            src="/logo.png"
+            alt="Storing"
             style={{
               width: '28px',
               height: '28px',
               borderRadius: '50%',
-              background: 'var(--accent)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              objectFit: 'cover',
             }}
-          >
-            <span style={{ color: '#fff', fontSize: '14px', fontWeight: 'bold' }}>S</span>
-          </div>
+          />
           <span
             style={{
               fontSize: '20px',

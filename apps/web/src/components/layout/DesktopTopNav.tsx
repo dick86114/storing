@@ -21,19 +21,16 @@ export function DesktopTopNav({ onSearchOpen }: DesktopTopNavProps) {
     >
       {/* 左侧：Logo + Storing */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <div
+        <img
+          src="/logo.png"
+          alt="Storing"
           style={{
             width: '32px',
             height: '32px',
             borderRadius: '6px',
-            background: 'var(--accent)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            objectFit: 'cover',
           }}
-        >
-          <span style={{ color: '#fff', fontSize: '16px', fontWeight: 'bold' }}>S</span>
-        </div>
+        />
         <span
           style={{
             fontSize: '18px',
