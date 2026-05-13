@@ -38,7 +38,7 @@ export function WechatCategoryPills({
         const isActive = activeCategory === cat.category;
         // "全部"用 accent，其他分类用彩色圆点颜色
         const catColor = cat.category === 'all'
-          ? { text: 'var(--accent)', bg: 'var(--accent-soft)' }
+          ? { text: 'var(--accent)' }
           : getCategoryColor(cat.category);
 
         return (
@@ -53,10 +53,9 @@ export function WechatCategoryPills({
               fontSize: '12px',
               border: `1px solid ${isActive ? catColor.text : 'var(--border)'}`,
               color: isActive ? catColor.text : 'var(--text-secondary)',
-              background: isActive ? catColor.bg : 'transparent',
+              background: 'transparent',
               whiteSpace: 'nowrap',
               cursor: 'pointer',
-              boxShadow: isActive ? `0 0 8px ${catColor.text}40` : 'none',
             }}
           >
             {cat.category === 'all' ? '全部' : cat.category}
