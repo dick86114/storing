@@ -19,16 +19,23 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
   const menuRef = useRef<HTMLDivElement>(null);
   const catColor = article.aiCategory ? getCategoryColor(article.aiCategory) : null;
 
-  // 点击外部关闭下拉菜单
+  // 点击外部或滑动关闭下拉菜单
   useEffect(() => {
     if (!menuOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
       }
     };
+    const handleScroll = () => setMenuOpen(false);
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside, { passive: true });
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+      window.removeEventListener('scroll', handleScroll);
+    };
   }, [menuOpen]);
 
   return (
@@ -68,7 +75,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setMenuOpen(!menuOpen);
+              setMenuOpen((prev) => !prev);
             }}
             type="button"
             aria-expanded={menuOpen}
@@ -123,7 +130,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
           }}
         >
           <button
-            onClick={onToggleFavorite}
+            onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onToggleFavorite(e); }}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -145,7 +152,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
             {article.isFavorited ? '取消收藏' : '收藏'}
           </button>
           <button
-            onClick={onArchive}
+            onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onArchive(e); }}
             style={{
               display: 'flex',
               alignItems: 'center',

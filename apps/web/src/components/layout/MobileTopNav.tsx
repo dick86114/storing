@@ -21,16 +21,23 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // 点击外部关闭菜单
+  // 点击外部或滑动关闭菜单
   useEffect(() => {
     if (!menuOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
       }
     };
+    const handleScroll = () => setMenuOpen(false);
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside, { passive: true });
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+      window.removeEventListener('scroll', handleScroll);
+    };
   }, [menuOpen]);
 
   return (
