@@ -45,7 +45,7 @@ export function ArticleList({
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, loadingMore, onLoadMore]);
+  }, [hasMore, loadingMore, onLoadMore, articles.length]);
 
   if (articles.length === 0 && !loadingMore) {
     return (

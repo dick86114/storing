@@ -74,10 +74,10 @@ function ArchiveContentInner() {
   }, [mutate]);
 
   const handleLoadMore = useCallback(() => {
-    if (!isValidating && page < totalPages) {
+    if (page < totalPages) {
       setPage((p) => p + 1);
     }
-  }, [isValidating, page, totalPages]);
+  }, [page, totalPages]);
 
   // 收藏操作
   const handleToggleFavorite = async (id: number, e: React.MouseEvent) => {
