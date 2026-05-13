@@ -72,22 +72,23 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
           >
             {article.title}
           </div>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setMenuOpen((prev) => !prev);
-            }}
-            type="button"
-            aria-expanded={menuOpen}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              padding: '4px',
-              cursor: 'pointer',
-            }}
-          >
-            <MoreOutlined style={{ fontSize: '20px', color: 'var(--text-muted)' }} />
-          </button>
+          <div ref={menuRef} style={{ position: 'relative' }}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen((prev) => !prev);
+              }}
+              type="button"
+              aria-expanded={menuOpen}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              <MoreOutlined style={{ fontSize: '20px', color: 'var(--text-muted)' }} />
+            </button>
         </div>
 
         {/* 第二行：封面图 */}
@@ -115,12 +116,11 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
       {/* 下拉菜单 */}
       {menuOpen && (
         <div
-          ref={menuRef}
           onClick={(e) => e.stopPropagation()}
           style={{
             position: 'absolute',
             top: '40px',
-            right: '16px',
+            right: '0',
             background: 'var(--card-bg)',
             borderRadius: '8px',
             boxShadow: 'var(--shadow-md)',
@@ -175,6 +175,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
           </button>
         </div>
       )}
+          </div>
     </div>
   );
 }

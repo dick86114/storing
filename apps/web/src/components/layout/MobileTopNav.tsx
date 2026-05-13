@@ -81,7 +81,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
         </span>
 
         {/* 右侧：搜索 + 加号/用户菜单 */}
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div ref={menuRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button
             onClick={() => setSearchOpen(true)}
             type="button"
@@ -128,7 +128,6 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
           {/* 下拉菜单 */}
           {menuOpen && (
             <div
-              ref={menuRef}
               style={{
                 position: 'absolute',
                 top: '44px',
