@@ -63,10 +63,10 @@ function InboxContentInner() {
   }, [mutate]);
 
   const handleLoadMore = useCallback(() => {
-    if (!isValidating && page < totalPages) {
+    if (page < totalPages) {
       setPage((p) => p + 1);
     }
-  }, [isValidating, page, totalPages]);
+  }, [page, totalPages]);
 
   return (
     <>
