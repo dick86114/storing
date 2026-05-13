@@ -78,12 +78,13 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
                 <>
                   {/* 遮罩层：拦截点击，只关闭菜单 */}
                   <div
-                    onClick={(e) => { e.stopPropagation(); setMenuOpen(false); }}
-                    onTouchStart={(e) => { e.stopPropagation(); setMenuOpen(false); }}
-                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9 }}
+                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); setMenuOpen(false); }}
+                    onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setMenuOpen(false); }}
+                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}
                   />
                   <div
                     onClick={(e) => e.stopPropagation()}
+                    onTouchEnd={(e) => e.stopPropagation()}
                     style={{
                       position: 'absolute',
                       top: '28px',
@@ -93,7 +94,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
                       boxShadow: 'var(--shadow-md)',
                       padding: '8px 0',
                       minWidth: '120px',
-                      zIndex: 10,
+                      zIndex: 1000,
                     }}
                   >
                     <button
