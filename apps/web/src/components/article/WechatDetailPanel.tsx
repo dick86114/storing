@@ -313,65 +313,67 @@ function DetailContent({
           </div>
 
           {/* 底部操作栏 */}
-          {isAuthenticated && (
-            <footer
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                height: '56px',
-                padding: '12px 16px',
-                background: 'var(--nav-bg)',
-                borderTop: '0.5px solid var(--divider)',
-                position: 'sticky',
-                bottom: 0,
-              }}
-            >
-              {/* 左侧：阅读原文 */}
-              {article.originalUrl && (
-                <a
-                  href={article.originalUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    color: 'var(--accent)',
-                    textDecoration: 'none',
-                    fontSize: '14px',
-                  }}
-                >
-                  <LinkOutlined style={{ fontSize: '18px' }} />
-                  阅读原文
-                </a>
-              )}
+          <footer
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              height: '56px',
+              padding: '12px 16px',
+              background: 'var(--nav-bg)',
+              borderTop: '0.5px solid var(--divider)',
+              position: 'sticky',
+              bottom: 0,
+            }}
+          >
+            {/* 左侧：阅读原文 */}
+            {article.originalUrl && (
+              <a
+                href={article.originalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  color: 'var(--accent)',
+                  textDecoration: 'none',
+                  fontSize: '14px',
+                }}
+              >
+                <LinkOutlined style={{ fontSize: '18px' }} />
+                阅读原文
+              </a>
+            )}
 
-              {/* 右侧：操作按钮 */}
-              <div style={{ display: 'flex', gap: '24px' }}>
-                <button onClick={handleArchive} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
-                  {article.isArchived ? (
-                    <FolderFilled style={{ fontSize: '20px', color: 'var(--accent)' }} />
-                  ) : (
-                    <FolderOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
-                  )}
-                  <span style={{ fontSize: '11px', color: article.isArchived ? 'var(--accent)' : 'var(--text-muted)' }}>{article.isArchived ? '取消归档' : '归档'}</span>
-                </button>
-                <button onClick={handleShare} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
-                  <ShareAltOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>分享</span>
-                </button>
-                <button onClick={handleFavorite} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
-                  {article.isFavorited ? (
-                    <HeartFilled style={{ fontSize: '20px', color: 'var(--accent)' }} />
-                  ) : (
-                    <HeartOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
-                  )}
-                  <span style={{ fontSize: '11px', color: article.isFavorited ? 'var(--accent)' : 'var(--text-muted)' }}>收藏</span>
-                </button>
-              </div>
-            </footer>
-          )}
+            {/* 右侧：操作按钮 —— 游客只显示分享 */}
+            <div style={{ display: 'flex', gap: '24px' }}>
+              {isAuthenticated && (
+                <>
+                  <button onClick={handleArchive} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                    {article.isArchived ? (
+                      <FolderFilled style={{ fontSize: '20px', color: 'var(--accent)' }} />
+                    ) : (
+                      <FolderOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
+                    )}
+                    <span style={{ fontSize: '11px', color: article.isArchived ? 'var(--accent)' : 'var(--text-muted)' }}>{article.isArchived ? '取消归档' : '归档'}</span>
+                  </button>
+                  <button onClick={handleFavorite} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                    {article.isFavorited ? (
+                      <HeartFilled style={{ fontSize: '20px', color: 'var(--accent)' }} />
+                    ) : (
+                      <HeartOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
+                    )}
+                    <span style={{ fontSize: '11px', color: article.isFavorited ? 'var(--accent)' : 'var(--text-muted)' }}>收藏</span>
+                  </button>
+                </>
+              )}
+              <button onClick={handleShare} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                <ShareAltOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>分享</span>
+              </button>
+            </div>
+          </footer>
         </>
       ) : null}
     </>

@@ -70,7 +70,11 @@ function MainContent({ children }: { children: ReactNode }) {
       {isMobile && (
         <>
           <MobileTopNav />
-          <main style={{ height: 'calc(100vh - 100px)', overflowY: 'auto', paddingBottom: '56px' }}>
+          <main style={{
+            height: isAuthenticated ? 'calc(100vh - 100px)' : 'calc(100vh - 44px)',
+            overflowY: 'auto',
+            paddingBottom: isAuthenticated ? '56px' : '0',
+          }}>
             {children}
           </main>
           <MobileBottomTab
