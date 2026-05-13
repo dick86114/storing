@@ -37,7 +37,7 @@ export function MobileBottomTab({ counts, activeIndex, onTabChange }: MobileBott
         display: 'flex',
         justifyContent: 'space-around',
         alignItems: 'center',
-        height: '72px',
+        height: '56px',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         background: 'var(--nav-bg)',
         borderTop: '0.5px solid var(--border)',
