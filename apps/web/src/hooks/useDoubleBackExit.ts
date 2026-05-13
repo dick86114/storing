@@ -16,16 +16,23 @@ export function useDoubleBackExit() {
   const { selectedId } = useArticleContext();
   const lastBackTime = useRef(0);
   const exitTimeout = useRef<NodeJS.Timeout | null>(null);
+  // 追踪上一次的 selectedId，判断是否刚从详情页关闭
+  const prevSelectedIdRef = useRef(selectedId);
+
+  // 同步更新 ref
+  useEffect(() => {
+    prevSelectedIdRef.current = selectedId;
+  }, [selectedId]);
 
   useEffect(() => {
-    // 如果有文章详情页打开，不设置 popstate 拦截，让 ArticleContext 处理返回
-    if (selectedId) return;
-
     // 是否为移动端
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
     if (!isMobile) return;
 
     const handlePopState = (e: PopStateEvent) => {
+      // 如果刚从详情页关闭（popstate 前 selectedId 有值），不拦截这次返回
+      if (prevSelectedIdRef.current) return;
+
       const now = Date.now();
       const timeDiff = now - lastBackTime.current;
 
@@ -61,10 +68,11 @@ export function useDoubleBackExit() {
       }
     };
 
-    // 列表页推历史记录，支持拦截返回
-    window.history.pushState(null, '', pathname);
-
-    window.addEventListener('popstate', handlePopState);
+    // 只在列表页（无详情页打开）时注册监听器和推历史记录
+    if (!selectedId) {
+      window.history.pushState(null, '', pathname);
+      window.addEventListener('popstate', handlePopState);
+    }
 
     return () => {
       window.removeEventListener('popstate', handlePopState);

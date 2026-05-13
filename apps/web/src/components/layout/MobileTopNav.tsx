@@ -35,8 +35,8 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
           zIndex: 99,
         }}
       >
-        {/* 左侧：Logo */}
-        <div style={{ width: '44px', display: 'flex', alignItems: 'center' }}>
+        {/* 左侧：Logo + 站点名 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <img
             src="/logo.png"
             alt="乾坤戒"
@@ -47,18 +47,13 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
               objectFit: 'cover',
             }}
           />
+          <span style={{ fontSize: '16px', fontWeight: 500, color: 'var(--text)' }}>
+            乾坤戒
+          </span>
         </div>
 
-        {/* 中间：乾坤戒 */}
-        <span
-          style={{
-            fontSize: '16px',
-            fontWeight: 500,
-            color: 'var(--text)',
-          }}
-        >
-          乾坤戒
-        </span>
+        {/* 中间：空 */}
+        <div />
 
         {/* 右侧：搜索 + 加号/用户菜单 */}
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>

@@ -1,7 +1,5 @@
 'use client';
 
-import { getCategoryColor } from '@/lib/categoryColors';
-
 interface CategoryCount {
   category: string;
   count: number;
@@ -36,9 +34,6 @@ export function WechatCategoryPills({
     >
       {allCategories.map((cat) => {
         const isActive = activeCategory === cat.category;
-        const catColor = cat.category === 'all'
-          ? { bg: 'var(--accent-soft)', text: 'var(--accent)' }
-          : getCategoryColor(cat.category);
 
         return (
           <button
@@ -50,9 +45,9 @@ export function WechatCategoryPills({
               padding: '6px 14px',
               borderRadius: '999px',
               fontSize: '12px',
-              border: `1px solid ${isActive ? catColor.text : 'var(--border)'}`,
-              color: isActive ? catColor.text : 'var(--text-secondary)',
-              background: isActive ? catColor.bg : 'transparent',
+              border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`,
+              color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+              background: isActive ? 'var(--accent-soft)' : 'transparent',
               whiteSpace: 'nowrap',
               cursor: 'pointer',
             }}
