@@ -111,10 +111,12 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
               {/* 遮罩层：拦截点击，只关闭菜单 */}
               <div
                 onClick={() => setMenuOpen(false)}
-                onTouchStart={() => setMenuOpen(false)}
-                style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 199 }}
+                onTouchEnd={(e) => { e.preventDefault(); setMenuOpen(false); }}
+                style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}
               />
               <div
+                onClick={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
                 style={{
                   position: 'absolute',
                   top: '44px',
@@ -124,7 +126,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                   boxShadow: 'var(--shadow-md)',
                   padding: '4px 0',
                   minWidth: '140px',
-                  zIndex: 200,
+                  zIndex: 1000,
                 }}
               >
                 {/* 已登录：显示用户名 */}

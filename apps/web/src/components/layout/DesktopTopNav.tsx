@@ -167,9 +167,12 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
               <>
                 <div
                   onClick={() => setMenuOpen(false)}
-                  style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 199 }}
+                  onTouchEnd={(e) => { e.preventDefault(); setMenuOpen(false); }}
+                  style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}
                 />
                 <div
+                  onClick={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
                   style={{
                     position: 'absolute',
                     top: '100%',
@@ -180,7 +183,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
                     borderRadius: '8px',
                     boxShadow: 'var(--shadow-md)',
                     padding: '4px 0',
-                    zIndex: 200,
+                    zIndex: 1000,
                   }}
                 >
                   {themeMenuItems}
