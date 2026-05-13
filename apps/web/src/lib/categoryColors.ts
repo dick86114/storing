@@ -1,13 +1,13 @@
-// 预设色板（微信风格配色）
+// 预设色板（荧光风格配色，高饱和度）
 const COLOR_PALETTE = [
-  { bg: '#e6f7ff', text: '#1890ff' }, // 蓝
-  { bg: '#f6ffed', text: '#52c41a' }, // 绿
-  { bg: '#fff7e6', text: '#fa8c16' }, // 橙
-  { bg: '#f9f0ff', text: '#722ed1' }, // 紫
-  { bg: '#fff1f0', text: '#f5222d' }, // 红
-  { bg: '#e6fffb', text: '#13c2c2' }, // 青
-  { bg: '#fcffe6', text: '#fadb14' }, // 黄
-  { bg: '#f0f5ff', text: '#2f54eb' }, // 深蓝
+  { bg: 'oklch(92% 0.15 240)', text: 'oklch(65% 0.20 240)' }, // 蓝色荧光
+  { bg: 'oklch(93% 0.15 140)', text: 'oklch(65% 0.20 140)' }, // 绿色荧光
+  { bg: 'oklch(92% 0.15 60)', text: 'oklch(68% 0.18 60)' },   // 橙色荧光
+  { bg: 'oklch(91% 0.15 300)', text: 'oklch(60% 0.22 300)' }, // 紫色荧光
+  { bg: 'oklch(91% 0.15 20)', text: 'oklch(60% 0.22 20)' },   // 红色荧光
+  { bg: 'oklch(93% 0.12 180)', text: 'oklch(60% 0.18 180)' }, // 青色荧光
+  { bg: 'oklch(94% 0.14 95)', text: 'oklch(75% 0.18 95)' },   // 黄色荧光
+  { bg: 'oklch(90% 0.15 255)', text: 'oklch(55% 0.25 255)' }, // 深蓝荧光
 ];
 
 // 分类名称到颜色的映射缓存

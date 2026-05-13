@@ -62,13 +62,14 @@ function ArchiveContentInner() {
     globalMutate('categories');
   }
 
-  // 切换分类时重置列表
+  // 切换分类时重置列表（仅在切换到不同分类时）
   const handleCategorySelect = useCallback((cat: string) => {
+    if (cat === activeCat) return; // 点击相同分类不重置
     setActiveCategory(cat);
     setPage(1);
     setAllArticles([]);
     window.scrollTo(0, 0);
-  }, []);
+  }, [activeCat]);
 
   const refreshList = useCallback(async () => {
     setPage(1);
