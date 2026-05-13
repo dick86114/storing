@@ -44,6 +44,8 @@
   --shadow-md: 0 4px 12px color-mix(in oklch, var(--fg) 6%, transparent);
   --shadow-lg: 0 12px 32px color-mix(in oklch, var(--fg) 8%, transparent);
 
+  --menu-bg: oklch(85% 0.012 82); /* 浅色模式：深一点的灰色 */
+
   --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -81,6 +83,7 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.3);
+  --menu-bg: oklch(32% 0.008 70); /* 深色模式：浅一点的灰色 */
 }
 
 [data-theme='light'] {
@@ -98,6 +101,7 @@
   --shadow-sm: 0 1px 2px color-mix(in oklch, var(--fg) 4%, transparent);
   --shadow-md: 0 4px 12px color-mix(in oklch, var(--fg) 6%, transparent);
   --shadow-lg: 0 12px 32px color-mix(in oklch, var(--fg) 8%, transparent);
+  --menu-bg: oklch(85% 0.012 82); /* 浅色模式：深一点的灰色 */
 }
 
 ::-webkit-scrollbar {
@@ -853,6 +857,7 @@ h4 {
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.3);
+  --menu-bg: oklch(32% 0.008 70); /* 深色模式：浅一点的灰色 */
 }
 
 /* ===== 春季配色：自然生机 ===== */

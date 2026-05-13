@@ -56,6 +56,7 @@ export function WechatCategoryPills({
               background: isActive ? catColor.bg : 'transparent',
               whiteSpace: 'nowrap',
               cursor: 'pointer',
+              boxShadow: isActive ? `0 0 8px ${catColor.text}40` : 'none',
             }}
           >
             {cat.category === 'all' ? '全部' : cat.category}

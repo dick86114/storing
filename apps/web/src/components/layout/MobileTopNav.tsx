@@ -116,7 +116,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                   position: 'absolute',
                   top: '44px',
                   right: '16px',
-                  background: 'var(--card-bg)',
+                  background: 'var(--menu-bg)',
                   borderRadius: '8px',
                   boxShadow: 'var(--shadow-md)',
                   padding: '4px 0',

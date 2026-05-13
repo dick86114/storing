@@ -179,7 +179,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
                     right: 0,
                     marginTop: '4px',
                     minWidth: '160px',
-                    background: 'var(--card-bg)',
+                    background: 'var(--menu-bg)',
                     borderRadius: '8px',
                     boxShadow: 'var(--shadow-md)',
                     padding: '4px 0',
