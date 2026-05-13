@@ -4,7 +4,6 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { MobileTopNav } from '@/components/layout/MobileTopNav';
 import { MobileBottomTab } from '@/components/layout/MobileBottomTab';
-import { SwipeableContainer } from '@/components/layout/SwipeableContainer';
 import { DesktopTopNav } from '@/components/layout/DesktopTopNav';
 import { DesktopTabsBar } from '@/components/layout/DesktopTabsBar';
 import { SearchModal } from '@/components/search/SearchModal';
@@ -72,19 +71,9 @@ function MainContent({ children }: { children: ReactNode }) {
       {isMobile && (
         <>
           <MobileTopNav />
-          <SwipeableContainer
-            activeIndex={isAuthenticated ? currentTabIndex : 2}
-            onIndexChange={(index) => {
-              if (isAuthenticated) {
-                setCurrentTabIndex(index);
-              }
-            }}
-            tabKeys={TAB_KEYS}
-          >
-            {isAuthenticated && <InboxContent />}
-            {isAuthenticated && <FavoritesContent />}
-            <ArchiveContent />
-          </SwipeableContainer>
+          <main style={{ height: 'calc(100vh - 100px)', overflowY: 'auto', paddingBottom: '56px' }}>
+            {children}
+          </main>
           <MobileBottomTab
             counts={counts}
             activeIndex={currentTabIndex}
