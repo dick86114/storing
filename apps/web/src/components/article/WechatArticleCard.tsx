@@ -12,10 +12,11 @@ interface WechatArticleCardProps {
   onArchive: (e: React.MouseEvent) => void;
   onReclassify?: (e: React.MouseEvent) => void;
   showReclassify?: boolean;
+  showMenu?: boolean;
   highlight?: boolean;
 }
 
-export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchive, onReclassify, showReclassify, highlight }: WechatArticleCardProps) {
+export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchive, onReclassify, showReclassify, showMenu = true, highlight }: WechatArticleCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -52,94 +53,51 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
           >
             {article.title}
           </div>
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setMenuOpen((prev) => !prev);
-              }}
-              type="button"
-              aria-expanded={menuOpen}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                padding: '4px',
-                cursor: 'pointer',
-              }}
-            >
-              <MoreOutlined style={{ fontSize: '20px', color: 'var(--text-muted)' }} />
-            </button>
+          {/* 三点菜单 —— 游客不显示 */}
+          {showMenu && (
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen((prev) => !prev);
+                }}
+                type="button"
+                aria-expanded={menuOpen}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                <MoreOutlined style={{ fontSize: '20px', color: 'var(--text-muted)' }} />
+              </button>
 
-            {/* 下拉菜单 */}
-            {menuOpen && (
-              <>
-                {/* 遮罩层：拦截点击，只关闭菜单 */}
-                <div
-                  onClick={(e) => { e.stopPropagation(); setMenuOpen(false); }}
-                  onTouchStart={(e) => { e.stopPropagation(); setMenuOpen(false); }}
-                  style={{ position: 'fixed', inset: 0, zIndex: 9 }}
-                />
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  style={{
-                    position: 'absolute',
-                    top: '28px',
-                    right: '0',
-                    background: 'var(--card-bg)',
-                    borderRadius: '8px',
-                    boxShadow: 'var(--shadow-md)',
-                    padding: '8px 0',
-                    minWidth: '120px',
-                    zIndex: 10,
-                  }}
-                >
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onToggleFavorite(e); }}
+              {/* 下拉菜单 */}
+              {menuOpen && (
+                <>
+                  {/* 遮罩层：拦截点击，只关闭菜单 */}
+                  <div
+                    onClick={(e) => { e.stopPropagation(); setMenuOpen(false); }}
+                    onTouchStart={(e) => { e.stopPropagation(); setMenuOpen(false); }}
+                    style={{ position: 'fixed', inset: 0, zIndex: 9 }}
+                  />
+                  <div
+                    onClick={(e) => e.stopPropagation()}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '12px 16px',
-                      width: '100%',
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      color: 'var(--text)',
+                      position: 'absolute',
+                      top: '28px',
+                      right: '0',
+                      background: 'var(--card-bg)',
+                      borderRadius: '8px',
+                      boxShadow: 'var(--shadow-md)',
+                      padding: '8px 0',
+                      minWidth: '120px',
+                      zIndex: 10,
                     }}
                   >
-                    {article.isFavorited ? (
-                      <HeartFilled style={{ fontSize: '16px', color: 'var(--accent)' }} />
-                    ) : (
-                      <HeartOutlined style={{ fontSize: '16px' }} />
-                    )}
-                    {article.isFavorited ? '取消收藏' : '收藏'}
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onArchive(e); }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '12px 16px',
-                      width: '100%',
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      color: 'var(--text)',
-                    }}
-                  >
-                    {article.isArchived ? (
-                      <FolderFilled style={{ fontSize: '16px', color: 'var(--accent)' }} />
-                    ) : (
-                      <FolderOutlined style={{ fontSize: '16px' }} />
-                    )}
-                    {article.isArchived ? '取消归档' : '归档'}
-                  </button>
-                  {showReclassify && onReclassify && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onReclassify(e); }}
+                      onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onToggleFavorite(e); }}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -153,14 +111,60 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
                         color: 'var(--text)',
                       }}
                     >
-                      <SyncOutlined style={{ fontSize: '16px' }} />
-                      重新分类
+                      {article.isFavorited ? (
+                        <HeartFilled style={{ fontSize: '16px', color: 'var(--accent)' }} />
+                      ) : (
+                        <HeartOutlined style={{ fontSize: '16px' }} />
+                      )}
+                      {article.isFavorited ? '取消收藏' : '收藏'}
                     </button>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onArchive(e); }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '12px 16px',
+                        width: '100%',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        color: 'var(--text)',
+                      }}
+                    >
+                      {article.isArchived ? (
+                        <FolderFilled style={{ fontSize: '16px', color: 'var(--accent)' }} />
+                      ) : (
+                        <FolderOutlined style={{ fontSize: '16px' }} />
+                      )}
+                      {article.isArchived ? '取消归档' : '归档'}
+                    </button>
+                    {showReclassify && onReclassify && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onReclassify(e); }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '12px 16px',
+                          width: '100%',
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          color: 'var(--text)',
+                        }}
+                      >
+                        <SyncOutlined style={{ fontSize: '16px' }} />
+                        重新分类
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 第二行：封面图 */}
