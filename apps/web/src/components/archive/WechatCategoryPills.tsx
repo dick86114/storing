@@ -1,5 +1,7 @@
 'use client';
 
+import { getCategoryColor } from '@/lib/categoryColors';
+
 interface CategoryCount {
   category: string;
   count: number;
@@ -25,7 +27,7 @@ export function WechatCategoryPills({
       style={{
         display: 'flex',
         gap: '8px',
-        padding: '12px 16px',
+        padding: '12px 8px',
         background: 'var(--card-bg)',
         overflowX: 'auto',
         scrollbarWidth: 'none',
@@ -34,6 +36,10 @@ export function WechatCategoryPills({
     >
       {allCategories.map((cat) => {
         const isActive = activeCategory === cat.category;
+        // "全部"用 accent，其他分类用彩色圆点颜色
+        const catColor = cat.category === 'all'
+          ? { text: 'var(--accent)', bg: 'var(--accent-soft)' }
+          : getCategoryColor(cat.category);
 
         return (
           <button
@@ -45,9 +51,9 @@ export function WechatCategoryPills({
               padding: '6px 14px',
               borderRadius: '999px',
               fontSize: '12px',
-              border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`,
-              color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
-              background: isActive ? 'var(--accent-soft)' : 'transparent',
+              border: `1px solid ${isActive ? catColor.text : 'var(--border)'}`,
+              color: isActive ? catColor.text : 'var(--text-secondary)',
+              background: isActive ? catColor.bg : 'transparent',
               whiteSpace: 'nowrap',
               cursor: 'pointer',
             }}
