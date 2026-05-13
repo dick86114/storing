@@ -17,7 +17,6 @@ interface WechatArticleCardProps {
 export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchive, highlight }: WechatArticleCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const catColor = article.aiCategory ? getCategoryColor(article.aiCategory) : null;
 
   // 点击外部或滑动关闭下拉菜单
   useEffect(() => {
@@ -72,7 +71,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
           >
             {article.title}
           </div>
-          <div ref={menuRef} style={{ position: 'relative' }}>
+          <div ref={menuRef} style={{ position: 'relative', flexShrink: 0 }}>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -89,6 +88,70 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
             >
               <MoreOutlined style={{ fontSize: '20px', color: 'var(--text-muted)' }} />
             </button>
+
+            {/* 下拉菜单 */}
+            {menuOpen && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  position: 'absolute',
+                  top: '28px',
+                  right: '0',
+                  background: 'var(--card-bg)',
+                  borderRadius: '8px',
+                  boxShadow: 'var(--shadow-md)',
+                  padding: '8px 0',
+                  minWidth: '120px',
+                  zIndex: 10,
+                }}
+              >
+                <button
+                  onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onToggleFavorite(e); }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '12px 16px',
+                    width: '100%',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    color: 'var(--text)',
+                  }}
+                >
+                  {article.isFavorited ? (
+                    <HeartFilled style={{ fontSize: '16px', color: 'var(--accent)' }} />
+                  ) : (
+                    <HeartOutlined style={{ fontSize: '16px' }} />
+                  )}
+                  {article.isFavorited ? '取消收藏' : '收藏'}
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onArchive(e); }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '12px 16px',
+                    width: '100%',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    color: 'var(--text)',
+                  }}
+                >
+                  {article.isArchived ? (
+                    <FolderFilled style={{ fontSize: '16px', color: 'var(--accent)' }} />
+                  ) : (
+                    <FolderOutlined style={{ fontSize: '16px' }} />
+                  )}
+                  {article.isArchived ? '移回收件箱' : '归档'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* 第二行：封面图 */}
@@ -112,70 +175,6 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
           <DateText dateStr={article.publishTime} />
         </div>
       </div>
-
-      {/* 下拉菜单 */}
-      {menuOpen && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            position: 'absolute',
-            top: '40px',
-            right: '0',
-            background: 'var(--card-bg)',
-            borderRadius: '8px',
-            boxShadow: 'var(--shadow-md)',
-            padding: '8px 0',
-            minWidth: '120px',
-            zIndex: 10,
-          }}
-        >
-          <button
-            onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onToggleFavorite(e); }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '12px 16px',
-              width: '100%',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '14px',
-              color: 'var(--text)',
-            }}
-          >
-            {article.isFavorited ? (
-              <HeartFilled style={{ fontSize: '16px', color: 'var(--accent)' }} />
-            ) : (
-              <HeartOutlined style={{ fontSize: '16px' }} />
-            )}
-            {article.isFavorited ? '取消收藏' : '收藏'}
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onArchive(e); }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '12px 16px',
-              width: '100%',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '14px',
-              color: 'var(--text)',
-            }}
-          >
-            {article.isArchived ? (
-              <FolderFilled style={{ fontSize: '16px', color: 'var(--accent)' }} />
-            ) : (
-              <FolderOutlined style={{ fontSize: '16px' }} />
-            )}
-            {article.isArchived ? '移回收件箱' : '归档'}
-          </button>
-        </div>
-      )}
-          </div>
     </div>
   );
 }
