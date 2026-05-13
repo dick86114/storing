@@ -80,7 +80,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
                   <div
                     onClick={(e) => { e.stopPropagation(); setMenuOpen(false); }}
                     onTouchStart={(e) => { e.stopPropagation(); setMenuOpen(false); }}
-                    style={{ position: 'fixed', inset: 0, zIndex: 9 }}
+                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9 }}
                   />
                   <div
                     onClick={(e) => e.stopPropagation()}
