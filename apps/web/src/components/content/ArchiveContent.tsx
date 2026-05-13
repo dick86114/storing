@@ -157,6 +157,7 @@ function ArchiveContentInner() {
       onArchive={handleUnarchive}
       onReclassify={handleReclassify}
       showReclassify={isAuthenticated}
+      showMenu={isAuthenticated}
       highlightId={highlightId}
     />
   );

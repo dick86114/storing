@@ -15,6 +15,7 @@ interface ArticleListProps {
   onArchive: (id: number, e: React.MouseEvent) => void;
   onReclassify?: (id: number, e: React.MouseEvent) => void;
   showReclassify?: boolean;
+  showMenu?: boolean;
   highlightId?: number | null;
 }
 
@@ -29,6 +30,7 @@ export function ArticleList({
   onArchive,
   onReclassify,
   showReclassify,
+  showMenu = true,
   highlightId,
 }: ArticleListProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -78,6 +80,7 @@ export function ArticleList({
             onArchive={(e) => onArchive(article.id, e)}
             onReclassify={onReclassify ? (e) => onReclassify(article.id, e) : undefined}
             showReclassify={showReclassify}
+            showMenu={showMenu}
             highlight={highlightId === article.id}
           />
         ))}
