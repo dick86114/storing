@@ -280,9 +280,9 @@ function DetailContent({
             </div>
             {/* AI标签 */}
             {article.aiTags?.length > 0 && (
-              <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {article.aiTags.map((tag: string) => (
-                  <span key={tag} style={{ padding: '4px 10px', background: 'var(--tag-bg)', color: 'var(--text-muted)', fontSize: '12px', borderRadius: '4px', flexShrink: 0 }}>
+                  <span key={tag} style={{ padding: '4px 10px', background: 'var(--tag-bg)', color: 'var(--text-muted)', fontSize: '12px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
                     #{tag}
                   </span>
                 ))}
