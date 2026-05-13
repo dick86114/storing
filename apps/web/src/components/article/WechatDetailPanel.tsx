@@ -318,7 +318,7 @@ function DetailContent({
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              height: '56px',
+              height: '66px',
               padding: '12px 16px',
               background: 'var(--nav-bg)',
               borderTop: '0.5px solid var(--divider)',
