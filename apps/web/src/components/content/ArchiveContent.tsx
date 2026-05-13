@@ -193,7 +193,7 @@ function ArchiveContentInner() {
 
       {/* 移动端：内容列表 */}
       {isMobile && (
-        <div style={{ padding: '8px 16px' }}>
+        <div style={{ padding: '8px 8px' }}>
           {articleListContent}
         </div>
       )}

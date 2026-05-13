@@ -16,12 +16,15 @@ export function useDoubleBackExit() {
   const { selectedId } = useArticleContext();
   const lastBackTime = useRef(0);
   const exitTimeout = useRef<NodeJS.Timeout | null>(null);
-  // 追踪上一次的 selectedId，判断是否刚从详情页关闭
-  const prevSelectedIdRef = useRef(selectedId);
+  // 记录详情页关闭的时间，500ms 内不拦截返回
+  const lastCloseTime = useRef(0);
 
-  // 同步更新 ref
+  // 监听 selectedId 变化，记录关闭时间
   useEffect(() => {
-    prevSelectedIdRef.current = selectedId;
+    if (!selectedId) {
+      // selectedId 从有值变为 null，表示刚关闭详情页
+      lastCloseTime.current = Date.now();
+    }
   }, [selectedId]);
 
   useEffect(() => {
@@ -30,8 +33,9 @@ export function useDoubleBackExit() {
     if (!isMobile) return;
 
     const handlePopState = (e: PopStateEvent) => {
-      // 如果刚从详情页关闭（popstate 前 selectedId 有值），不拦截这次返回
-      if (prevSelectedIdRef.current) return;
+      // 如果刚从详情页关闭（500ms 内），不拦截这次返回
+      const timeSinceClose = Date.now() - lastCloseTime.current;
+      if (timeSinceClose < 500) return;
 
       const now = Date.now();
       const timeDiff = now - lastBackTime.current;
