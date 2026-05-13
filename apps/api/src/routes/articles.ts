@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { db } from '../db/index.js';
 import { articles, articleMetadata } from '../db/schema.js';
 import { eq, and, desc, count, sql, or, isNull } from 'drizzle-orm';
-import { classifyAndTag } from '../services/ai.service.js';
+import { classifyAndTag, reclassifyArticle, reclassifyAllArticles } from '../services/ai.service.js';
 import { getArticleContent, processCoverImage } from '../services/reader.service.js';
 import { requireAuth, optionalAuth, isAuthenticated } from '../middleware/auth.js';
 
@@ -329,4 +329,31 @@ articlesRoutes.get('/articles/:id/position', optionalAuth, async (c) => {
     total: allArticles.length,
     totalPages: Math.ceil(allArticles.length / perPage),
   });
+});
+
+// 全量重新分类（必须在 :id 路由之前注册）
+articlesRoutes.post('/articles/reclassify-all', requireAuth, async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const regenerateTags = body.regenerateTags === true;
+
+  // 后台异步执行，立即返回
+  reclassifyAllArticles(regenerateTags)
+    .then((result) => console.log(`Reclassify all done: ${result.processed}/${result.total}`))
+    .catch((e) => console.error('Reclassify all failed:', e.message));
+
+  return c.json({ status: 'started' });
+});
+
+// 单篇文章重新分类
+articlesRoutes.post('/articles/:id/reclassify', requireAuth, async (c) => {
+  const id = Number(c.req.param('id'));
+  const body = await c.req.json().catch(() => ({}));
+  const regenerateTags = body.regenerateTags === true;
+
+  try {
+    const category = await reclassifyArticle(id, regenerateTags);
+    return c.json({ articleId: id, category });
+  } catch (e: any) {
+    return c.json({ error: { code: 'RECLASSIFY_FAILED', message: e.message } }, 500);
+  }
 });

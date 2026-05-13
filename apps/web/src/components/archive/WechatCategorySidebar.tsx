@@ -1,5 +1,6 @@
 'use client';
 
+import { SyncOutlined } from '@ant-design/icons';
 import { getCategoryColor } from '@/lib/categoryColors';
 
 interface CategoryCount {
@@ -12,6 +13,8 @@ interface WechatCategorySidebarProps {
   activeCategory: string;
   totalCount: number;
   onSelect: (category: string) => void;
+  onReclassifyAll?: () => void;
+  reclassifyingAll?: boolean;
 }
 
 export function WechatCategorySidebar({
@@ -19,6 +22,8 @@ export function WechatCategorySidebar({
   activeCategory,
   totalCount,
   onSelect,
+  onReclassifyAll,
+  reclassifyingAll,
 }: WechatCategorySidebarProps) {
   return (
     <aside
@@ -99,6 +104,36 @@ export function WechatCategorySidebar({
           );
         })}
       </ul>
+
+      {/* 重新分类所有 */}
+      {onReclassifyAll && (
+        <button
+          onClick={onReclassifyAll}
+          disabled={reclassifyingAll}
+          style={{
+            marginTop: '16px',
+            width: '100%',
+            padding: '10px 12px',
+            borderRadius: '6px',
+            fontSize: '13px',
+            color: 'var(--text-secondary)',
+            background: 'transparent',
+            border: '1px solid var(--border)',
+            cursor: reclassifyingAll ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            opacity: reclassifyingAll ? 0.6 : 1,
+            transition: 'background 0.2s',
+          }}
+          onMouseEnter={(e) => { if (!reclassifyingAll) e.currentTarget.style.background = 'var(--accent-soft)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+        >
+          <SyncOutlined spin={reclassifyingAll} />
+          {reclassifyingAll ? '分类中...' : '重新分类所有'}
+        </button>
+      )}
     </aside>
   );
 }

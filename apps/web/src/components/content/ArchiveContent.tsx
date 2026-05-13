@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import useSWR, { useSWRConfig } from 'swr';
 import { useToast } from '@/components/ui/Toast';
 import { useArticleContext } from '@/components/providers/ArticleContext';
+import { useAuth } from '@/components/providers/AuthContext';
 import { ArticleList } from '@/components/article/ArticleList';
 import { WechatCategorySidebar } from '@/components/archive/WechatCategorySidebar';
 import { WechatCategoryPills } from '@/components/archive/WechatCategoryPills';
@@ -13,6 +14,7 @@ import type { ArticleListItem } from '@storing/shared';
 
 function ArchiveContentInner() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const [activeCat, setActiveCategory] = useState('all');
   const [page, setPage] = useState(1);
   const [allArticles, setAllArticles] = useState<ArticleListItem[]>([]);
@@ -110,6 +112,37 @@ function ArchiveContentInner() {
     }
   };
 
+  // 重新分类
+  const handleReclassify = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await api.reclassify(id);
+      refreshList();
+      refreshCounts();
+      showToast('已重新分类');
+    } catch (error) {
+      showToast('重新分类失败，请重试');
+      console.error('Failed to reclassify:', error);
+    }
+  };
+
+  // 重新分类所有（后台异步执行，点击后按钮保持禁用）
+  const [reclassifyingAll, setReclassifyingAll] = useState(false);
+  const handleReclassifyAll = async () => {
+    if (reclassifyingAll) return;
+    setReclassifyingAll(true);
+    try {
+      await api.reclassifyAll();
+      showToast('已开始后台重新分类，稍后刷新查看结果');
+      // 10 秒后自动刷新一次列表
+      setTimeout(() => { refreshList(); refreshCounts(); }, 10000);
+    } catch (error) {
+      showToast('批量重新分类失败');
+      console.error('Failed to reclassify all:', error);
+      setReclassifyingAll(false); // 只有失败时才恢复
+    }
+  };
+
   const articleListContent = isLoading && page === 1 ? (
     <div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>
   ) : (
@@ -122,6 +155,8 @@ function ArchiveContentInner() {
       onArticleClick={(id) => openArticle(id)}
       onToggleFavorite={handleToggleFavorite}
       onArchive={handleUnarchive}
+      onReclassify={handleReclassify}
+      showReclassify={isAuthenticated}
       highlightId={highlightId}
     />
   );
@@ -146,6 +181,8 @@ function ArchiveContentInner() {
             activeCategory={activeCat}
             totalCount={totalCount}
             onSelect={handleCategorySelect}
+            onReclassifyAll={isAuthenticated ? handleReclassifyAll : undefined}
+            reclassifyingAll={reclassifyingAll}
           />
           <div style={{ flex: 1 }}>
             {articleListContent}
