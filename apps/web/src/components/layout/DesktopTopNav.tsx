@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, AppstoreOutlined, HeartOutlined, FolderOutlined } from '@ant-design/icons';
+import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, PlusCircleOutlined, AppstoreOutlined, HeartOutlined, FolderOutlined } from '@ant-design/icons';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { LoginModal } from '@/components/auth/LoginModal';
