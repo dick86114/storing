@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSWRConfig } from 'swr';
 import { useArticle } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/providers/AuthContext';
 import { DateText } from '@/lib/formatDate';
 import { api } from '@/lib/api';
+import { useArticleOperations } from '@/hooks/useArticleOperations';
 import ReactMarkdown from 'react-markdown';
+import type { ArticleListItem } from '@storing/shared';
 
 export function ArticleDetailPanel({
   articleId,
@@ -22,35 +24,21 @@ export function ArticleDetailPanel({
   const { mutate: globalMutate } = useSWRConfig();
   const { showToast } = useToast();
   const { isAuthenticated } = useAuth();
-
-  function refreshCounts() {
-    globalMutate('count:inbox');
-    globalMutate('count:favorites');
-    globalMutate('count:archive');
-  }
+  const { archive, unarchive, toggleFavorite, updateArticleInView, removeArticleFromView } = useArticleOperations();
 
   // 分享功能
   async function handleShare() {
     if (!article) return;
-
     const title = article.title || '文章分享';
     const url = article.originalUrl || window.location.href;
 
-    const shareData = {
-      title,
-      text: title,  // 标题作为文本内容，确保在某些平台也能显示
-      url,
-    };
-
-    // 尝试使用原生分享 API（移动端微信等支持）
     if (navigator.share) {
       try {
-        await navigator.share(shareData);
-      } catch (err) {
-        // 用户取消分享，不做处理
+        await navigator.share({ title, text: title, url });
+      } catch {
+        // 用户取消
       }
     } else {
-      // 不支持原生分享，复制链接
       try {
         await navigator.clipboard.writeText(url);
         showToast('链接已复制');
@@ -77,9 +65,7 @@ export function ArticleDetailPanel({
   return (
     <div
       className="detail-panel-overlay"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="detail-panel">
         <div className="detail-panel-header">
@@ -90,13 +76,8 @@ export function ArticleDetailPanel({
           </button>
           {article && isAuthenticated && (
             <div className="flex" style={{ gap: 'var(--gap-xs)' }}>
-              {/* 分享按钮（归档文章才显示） */}
               {article.isArchived && (
-                <button
-                  onClick={handleShare}
-                  className="detail-panel-action-btn"
-                  title="分享"
-                >
+                <button onClick={handleShare} className="detail-panel-action-btn" title="分享">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
                     <circle cx="18" cy="5" r="3" />
                     <circle cx="6" cy="12" r="3" />
@@ -108,11 +89,18 @@ export function ArticleDetailPanel({
               )}
               <button
                 onClick={async () => {
-                  await api.toggleFavorite(article.id);
-                  mutateArticle();
-                  onMutate();
-                  refreshCounts();
-                  showToast(article.isFavorited ? '已取消收藏' : '已收藏');
+                  const wasFavorited = article.isFavorited;
+                  // 乐观更新详情页状态
+                  mutateArticle({ ...article, isFavorited: !wasFavorited }, false);
+
+                  const success = await toggleFavorite(article.id, wasFavorited);
+                  if (success) {
+                    showToast(wasFavorited ? '已取消收藏' : '已收藏');
+                  } else {
+                    // 失败时回滚详情页状态
+                    mutateArticle({ ...article, isFavorited: wasFavorited }, false);
+                    showToast('操作失败，请重试');
+                  }
                 }}
                 className={`detail-panel-action-btn ${article.isFavorited ? 'favorited' : ''}`}
                 title={article.isFavorited ? '取消收藏' : '收藏'}
@@ -124,12 +112,14 @@ export function ArticleDetailPanel({
               {article.isArchived ? (
                 <button
                   onClick={async () => {
-                    await api.unarchive(article.id);
-                    mutateArticle();
-                    onMutate();
-                    refreshCounts();
-                    onClose();
-                    showToast('已移回收件箱');
+                    const success = await unarchive(article.id);
+                    if (success) {
+                      mutateArticle();
+                      onClose();
+                      showToast('已移回收件箱');
+                    } else {
+                      showToast('操作失败，请重试');
+                    }
                   }}
                   className="detail-panel-action-btn"
                   title="移回收件箱"
@@ -143,12 +133,14 @@ export function ArticleDetailPanel({
               ) : (
                 <button
                   onClick={async () => {
-                    await api.archive(article.id);
-                    mutateArticle();
-                    onMutate();
-                    refreshCounts();
-                    onClose();
-                    showToast('已归档 — AI 正在自动分类…');
+                    const success = await archive(article.id);
+                    if (success) {
+                      mutateArticle();
+                      onClose();
+                      showToast('已归档 — AI 正在自动分类…');
+                    } else {
+                      showToast('归档失败，请重试');
+                    }
                   }}
                   className="detail-panel-action-btn"
                   title="归档"
@@ -179,18 +171,6 @@ export function ArticleDetailPanel({
                 <div className="skeleton-line" style={{ width: '100%', height: 14 }} />
                 <div className="skeleton-line" style={{ width: '70%', height: 14 }} />
               </div>
-              <div style={{ marginTop: 'var(--gap-sm)' }}>
-                <div className="skeleton-line" style={{ width: '100%', height: 14 }} />
-                <div className="skeleton-line" style={{ width: '88%', height: 14 }} />
-                <div className="skeleton-line" style={{ width: '100%', height: 14 }} />
-                <div className="skeleton-line" style={{ width: '55%', height: 14 }} />
-              </div>
-              <div className="skeleton-line" style={{ width: '100%', height: 180, marginTop: 'var(--gap-sm)' }} />
-              <div style={{ marginTop: 'var(--gap-sm)' }}>
-                <div className="skeleton-line" style={{ width: '100%', height: 14 }} />
-                <div className="skeleton-line" style={{ width: '92%', height: 14 }} />
-                <div className="skeleton-line" style={{ width: '75%', height: 14 }} />
-              </div>
             </div>
           </div>
         ) : article ? (
@@ -208,12 +188,7 @@ export function ArticleDetailPanel({
               {article.originalUrl && (
                 <>
                   <span className="article-card-dot" />
-                  <a
-                    href={article.originalUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ fontSize: 11, color: 'var(--accent)', textDecoration: 'none' }}
-                  >
+                  <a href={article.originalUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--accent)', textDecoration: 'none' }}>
                     阅读原文
                   </a>
                 </>
@@ -237,9 +212,7 @@ export function ArticleDetailPanel({
               </section>
             )}
             {article.isArchived && !article.aiSummary && (
-              <div className="ai-loading-placeholder">
-                AI 正在生成总结…
-              </div>
+              <div className="ai-loading-placeholder">AI 正在生成总结…</div>
             )}
 
             {article.contentMd ? (
