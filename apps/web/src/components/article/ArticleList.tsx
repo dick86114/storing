@@ -1,15 +1,15 @@
 'use client';
 
-import { Pagination } from '@/components/ui/Pagination';
+import { useRef, useEffect } from 'react';
 import { WechatArticleCard } from '@/components/article/WechatArticleCard';
 import type { ArticleListItem } from '@storing/shared';
 
 interface ArticleListProps {
   articles: ArticleListItem[];
-  currentPage: number;
-  totalPages: number;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
   emptyTitle?: string;
-  onPageChange: (page: number) => void;
   onArticleClick: (id: number) => void;
   onToggleFavorite: (id: number, e: React.MouseEvent) => void;
   onArchive: (id: number, e: React.MouseEvent) => void;
@@ -18,16 +18,36 @@ interface ArticleListProps {
 
 export function ArticleList({
   articles,
-  currentPage,
-  totalPages,
+  hasMore,
+  loadingMore,
+  onLoadMore,
   emptyTitle = '暂无文章',
-  onPageChange,
   onArticleClick,
   onToggleFavorite,
   onArchive,
   highlightId,
 }: ArticleListProps) {
-  if (articles.length === 0) {
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // IntersectionObserver 监听哨兵元素
+  useEffect(() => {
+    if (!hasMore || loadingMore) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          onLoadMore();
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, onLoadMore]);
+
+  if (articles.length === 0 && !loadingMore) {
     return (
       <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)' }}>
         {emptyTitle}
@@ -57,8 +77,10 @@ export function ArticleList({
         ))}
       </div>
 
-      {/* 分页 */}
-      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={onPageChange} />
+      {/* 底部哨兵 + 加载状态 */}
+      <div ref={sentinelRef} style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: '13px' }}>
+        {loadingMore ? '加载中...' : !hasMore && articles.length > 0 ? '没有更多了' : ''}
+      </div>
     </>
   );
 }

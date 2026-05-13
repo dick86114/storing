@@ -1,7 +1,7 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import useSWR, { useSWRConfig } from 'swr';
 import { useToast } from '@/components/ui/Toast';
 import { useArticleContext } from '@/components/providers/ArticleContext';
@@ -9,12 +9,13 @@ import { ArticleList } from '@/components/article/ArticleList';
 import { WechatCategorySidebar } from '@/components/archive/WechatCategorySidebar';
 import { WechatCategoryPills } from '@/components/archive/WechatCategoryPills';
 import { api } from '@/lib/api';
+import type { ArticleListItem } from '@storing/shared';
 
 function ArchiveContentInner() {
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const page = parseInt(searchParams.get('page') || '1');
   const [activeCat, setActiveCategory] = useState('all');
+  const [page, setPage] = useState(1);
+  const [allArticles, setAllArticles] = useState<ArticleListItem[]>([]);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -24,7 +25,7 @@ function ArchiveContentInner() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const { data, isLoading, mutate } = useSWR(
+  const { data, isLoading, isValidating, mutate } = useSWR(
     `articles:archive:${page}:${activeCat}`,
     () => api.getArticles('archive', page, activeCat),
     { revalidateOnFocus: false }
@@ -34,7 +35,22 @@ function ArchiveContentInner() {
   const { showToast } = useToast();
   const { openArticle, highlightId, setMutateFn } = useArticleContext();
 
+  const totalPages = data?.totalPages ?? 1;
+  const categories = catData ?? [];
+  const totalCount = categories.reduce((sum: number, c: any) => sum + c.count, 0);
+
   useEffect(() => { setMutateFn(mutate); }, [setMutateFn, mutate]);
+
+  // 新数据追加到列表
+  useEffect(() => {
+    if (data?.articles) {
+      if (page === 1) {
+        setAllArticles(data.articles);
+      } else {
+        setAllArticles((prev) => [...prev, ...data.articles]);
+      }
+    }
+  }, [data, page]);
 
   function refreshCounts() {
     globalMutate('count:inbox');
@@ -43,30 +59,32 @@ function ArchiveContentInner() {
     globalMutate('categories');
   }
 
-  const articles = data?.articles ?? [];
-  const totalPages = data?.totalPages ?? 1;
-  const categories = catData ?? [];
-  const totalCount = categories.reduce((sum: number, c: any) => sum + c.count, 0);
-
-  // 切换分类时滚动到顶部
-  const handleCategorySelect = (cat: string) => {
+  // 切换分类时重置列表
+  const handleCategorySelect = useCallback((cat: string) => {
     setActiveCategory(cat);
-    router.push('/archive?page=1');
+    setPage(1);
+    setAllArticles([]);
     window.scrollTo(0, 0);
-  };
+  }, []);
 
-  // 切换页面时滚动到顶部
-  const handlePageChange = (p: number) => {
-    router.push(`/archive?page=${p}`);
-    window.scrollTo(0, 0);
-  };
+  const refreshList = useCallback(async () => {
+    setPage(1);
+    setAllArticles([]);
+    await mutate();
+  }, [mutate]);
 
-  // 收藏操作（带错误处理）
+  const handleLoadMore = useCallback(() => {
+    if (!isValidating && page < totalPages) {
+      setPage((p) => p + 1);
+    }
+  }, [isValidating, page, totalPages]);
+
+  // 收藏操作
   const handleToggleFavorite = async (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
       await api.toggleFavorite(id);
-      mutate();
+      refreshList();
       refreshCounts();
       showToast('已收藏');
     } catch (error) {
@@ -75,12 +93,12 @@ function ArchiveContentInner() {
     }
   };
 
-  // 取消归档操作（带错误处理）
+  // 取消归档操作
   const handleUnarchive = async (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
       await api.unarchive(id);
-      mutate();
+      refreshList();
       refreshCounts();
       showToast('已移回收件箱');
     } catch (error) {
@@ -89,16 +107,15 @@ function ArchiveContentInner() {
     }
   };
 
-  // 统一的 ArticleList 组件
-  const articleListContent = isLoading ? (
+  const articleListContent = isLoading && page === 1 ? (
     <div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>
   ) : (
     <ArticleList
-      articles={articles}
-      currentPage={page}
-      totalPages={totalPages}
+      articles={allArticles}
+      hasMore={page < totalPages}
+      loadingMore={isValidating && page > 1}
+      onLoadMore={handleLoadMore}
       emptyTitle="归档中暂无此类文章"
-      onPageChange={handlePageChange}
       onArticleClick={(id) => openArticle(id)}
       onToggleFavorite={handleToggleFavorite}
       onArchive={handleUnarchive}
