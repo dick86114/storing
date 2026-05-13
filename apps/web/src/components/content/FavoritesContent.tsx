@@ -40,12 +40,13 @@ function FavoritesContentInner() {
       if (page === 1) {
         setAllArticles(data.articles);
       } else {
-        setAllArticles((prev) => [...prev, ...data.articles]);
+        setAllArticles((prev) => {
+          const ids = new Set(prev.map(a => a.id));
+          return [...prev, ...data.articles.filter((a: ArticleListItem) => !ids.has(a.id))];
+        });
       }
     }
   }, [data, page]);
-
-  useEffect(() => { setMutateFn(mutate); }, [setMutateFn, mutate]);
 
   function refreshCounts() {
     globalMutate('count:inbox');
@@ -57,6 +58,8 @@ function FavoritesContentInner() {
     setPage(1);
     await mutate();
   }, [mutate]);
+
+  useEffect(() => { setMutateFn(refreshList); }, [setMutateFn, refreshList]);
 
   const handleLoadMore = useCallback(() => {
     if (page < totalPages) {

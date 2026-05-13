@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 export function SearchModal({ onClose }: { onClose: () => void }) {
   const { query, setQuery, results, isLoading } = useSearch();
   const inputRef = useRef<HTMLInputElement>(null);
+  const isComposing = useRef(false);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const router = useRouter();
   const { highlightAndOpen } = useArticleContext();
@@ -18,11 +19,19 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     inputRef.current?.focus();
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
   }, []);
 
   useEffect(() => {
     setSelectedIdx(0);
   }, [results]);
+
+  // 键盘导航时自动滚动到选中项
+  useEffect(() => {
+    const el = document.querySelector(`[data-search-idx="${selectedIdx}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [selectedIdx]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -35,7 +44,7 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
         e.preventDefault();
         setSelectedIdx((i) => Math.max(i - 1, 0));
       }
-      if (e.key === 'Enter' && results[selectedIdx]) {
+      if (e.key === 'Enter' && !isComposing.current && results[selectedIdx]) {
         handleSelect(results[selectedIdx]);
       }
     };
@@ -117,6 +126,8 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
             placeholder={isAuthenticated ? '搜索文章标题、标签、来源…' : '搜索归档文章标题、标签、来源…'}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onCompositionStart={() => { isComposing.current = true; }}
+            onCompositionEnd={() => { isComposing.current = false; }}
           />
           <kbd
             className="rounded border"
@@ -136,6 +147,7 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
             results.map((a: any, i: number) => (
               <div
                 key={a.id}
+                data-search-idx={i}
                 className="flex flex-col cursor-pointer"
                 style={{
                   padding: 'var(--gap-sm) var(--gap-md)',

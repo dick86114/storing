@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo } from 'react';
 import { useSWRConfig } from 'swr';
-import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, ShareAltOutlined, LinkOutlined } from '@ant-design/icons';
+import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, LinkOutlined } from '@ant-design/icons';
 import { useArticle } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/providers/AuthContext';
@@ -172,16 +172,17 @@ function DetailContent({
   // 归档功能
   async function handleArchive() {
     if (!article) return;
-    if (article.isArchived) {
+    const wasArchived = article.isArchived;
+    if (wasArchived) {
       await api.unarchive(article.id);
       showToast('已移回收件箱');
     } else {
       await api.archive(article.id);
       showToast('已归档');
     }
-    mutateArticle();
     onMutate();
     refreshCounts();
+    onClose();
   }
 
   return (
@@ -211,7 +212,54 @@ function DetailContent({
 
       {/* 文章内容 */}
       {isLoading ? (
-        <div style={{ padding: '16px', color: 'var(--text-muted)' }}>加载中...</div>
+        <div style={{ padding: '16px' }}>
+          {/* 标题骨架 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '12px' }}>
+            <div className="skeleton-line" style={{ width: '85%', height: 24, borderRadius: '6px' }} />
+            <div className="skeleton-line" style={{ width: '55%', height: 24, borderRadius: '6px' }} />
+          </div>
+          {/* 来源/作者/日期骨架 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+            <div className="skeleton-line" style={{ width: 48, height: 14 }} />
+            <div className="skeleton-line" style={{ width: 1, height: 14 }} />
+            <div className="skeleton-line" style={{ width: 40, height: 14 }} />
+            <div className="skeleton-line" style={{ width: 1, height: 14 }} />
+            <div className="skeleton-line" style={{ width: 64, height: 14 }} />
+          </div>
+          {/* AI标签骨架 */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+            <div className="skeleton-line" style={{ width: 56, height: 24, borderRadius: '4px' }} />
+            <div className="skeleton-line" style={{ width: 72, height: 24, borderRadius: '4px' }} />
+            <div className="skeleton-line" style={{ width: 48, height: 24, borderRadius: '4px' }} />
+          </div>
+          {/* AI摘要骨架 */}
+          <div style={{ padding: '14px 16px', margin: '8px 0', borderRadius: '8px', background: 'var(--tag-bg)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+              <div className="skeleton-line" style={{ width: 16, height: 16, borderRadius: '50%' }} />
+              <div className="skeleton-line" style={{ width: 64, height: 14 }} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div className="skeleton-line" style={{ width: '100%', height: 14 }} />
+              <div className="skeleton-line" style={{ width: '90%', height: 14 }} />
+              <div className="skeleton-line" style={{ width: '75%', height: 14 }} />
+            </div>
+          </div>
+          {/* 正文骨架 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' }}>
+            <div className="skeleton-line" style={{ width: '100%', height: 14 }} />
+            <div className="skeleton-line" style={{ width: '95%', height: 14 }} />
+            <div className="skeleton-line" style={{ width: '100%', height: 14 }} />
+            <div className="skeleton-line" style={{ width: '80%', height: 14 }} />
+            <div className="skeleton-line" style={{ width: '100%', height: 14 }} />
+            <div className="skeleton-line" style={{ width: '92%', height: 14 }} />
+            <div className="skeleton-line" style={{ width: '100%', height: 14 }} />
+            <div className="skeleton-line" style={{ width: '60%', height: 14 }} />
+            <div className="skeleton-line" style={{ width: '100%', height: 14 }} />
+            <div className="skeleton-line" style={{ width: '88%', height: 14 }} />
+            <div className="skeleton-line" style={{ width: '100%', height: 14 }} />
+            <div className="skeleton-line" style={{ width: '70%', height: 14 }} />
+          </div>
+        </div>
       ) : article ? (
         <>
           {/* 文章头部 */}
@@ -302,8 +350,12 @@ function DetailContent({
               {/* 右侧：操作按钮 */}
               <div style={{ display: 'flex', gap: '24px' }}>
                 <button onClick={handleArchive} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
-                  <FolderOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{article.isArchived ? '取消归档' : '归档'}</span>
+                  {article.isArchived ? (
+                    <FolderFilled style={{ fontSize: '20px', color: 'var(--accent)' }} />
+                  ) : (
+                    <FolderOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
+                  )}
+                  <span style={{ fontSize: '11px', color: article.isArchived ? 'var(--accent)' : 'var(--text-muted)' }}>{article.isArchived ? '取消归档' : '归档'}</span>
                 </button>
                 <button onClick={handleShare} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
                   <ShareAltOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />

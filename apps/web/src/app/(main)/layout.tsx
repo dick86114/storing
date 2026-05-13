@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import { MobileTopNav } from '@/components/layout/MobileTopNav';
 import { MobileBottomTab } from '@/components/layout/MobileBottomTab';
 import { DesktopTopNav } from '@/components/layout/DesktopTopNav';
-import { DesktopTabsBar } from '@/components/layout/DesktopTabsBar';
 import { SearchModal } from '@/components/search/SearchModal';
 import { WechatDetailPanel } from '@/components/article/WechatDetailPanel';
 import { ArticleProvider, useArticleContext } from '@/components/providers/ArticleContext';
@@ -85,8 +84,7 @@ function MainContent({ children }: { children: ReactNode }) {
       {/* 桌面端布局 */}
       {!isMobile && (
         <>
-          <DesktopTopNav onSearchOpen={() => setSearchOpen(true)} />
-          {isAuthenticated && <DesktopTabsBar counts={counts} activeIndex={currentTabIndex} onTabChange={setCurrentTabIndex} />}
+          <DesktopTopNav onSearchOpen={() => setSearchOpen(true)} counts={counts} activeIndex={currentTabIndex} onTabChange={setCurrentTabIndex} />
           <main style={{ padding: '24px 0', background: 'var(--bg)' }}>
             <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px' }}>
               {children}
