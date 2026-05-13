@@ -24,7 +24,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
       onClick={onClick}
       style={{
         position: 'relative',
-        background: 'var(--menu-bg)',
+        background: 'var(--card-bg)',
         borderRadius: '4px',
         cursor: 'pointer',
         transition: 'opacity 0.2s',
