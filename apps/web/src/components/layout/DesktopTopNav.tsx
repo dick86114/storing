@@ -87,7 +87,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
 
         {/* 中间：胶囊 Tab（居中） */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, justifyContent: 'center' }}>
-          {tabs.map((tab, index) => {
+          {tabs.filter(t => isAuthenticated || t.key === 'archive').map((tab, index) => {
             const isActive = activeIndex === index;
             const count = counts[tab.key as keyof typeof counts] ?? 0;
 
