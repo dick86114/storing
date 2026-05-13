@@ -1,8 +1,7 @@
 'use client';
 
-import { Suspense, useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import useSWR, { useSWRConfig } from 'swr';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
+import useSWR from 'swr';
 import { useToast } from '@/components/ui/Toast';
 import { useArticleContext } from '@/components/providers/ArticleContext';
 import { useAuth } from '@/components/providers/AuthContext';
@@ -10,15 +9,20 @@ import { ArticleList } from '@/components/article/ArticleList';
 import { WechatCategorySidebar } from '@/components/archive/WechatCategorySidebar';
 import { WechatCategoryPills } from '@/components/archive/WechatCategoryPills';
 import { api } from '@/lib/api';
+import { useArticleOperations } from '@/hooks/useArticleOperations';
 import type { ArticleListItem } from '@storing/shared';
 
 function ArchiveContentInner() {
-  const router = useRouter();
   const { isAuthenticated } = useAuth();
-  const [activeCat, setActiveCategory] = useState('all');
+  const { showToast } = useToast();
+  const { openArticle, highlightId, setMutateFn } = useArticleContext();
+  const { unarchive, toggleFavorite } = useArticleOperations();
+
+  const [activeCat, setActiveCat] = useState('all');
   const [page, setPage] = useState(1);
   const [allArticles, setAllArticles] = useState<ArticleListItem[]>([]);
   const [isMobile, setIsMobile] = useState(false);
+  const removingIdsRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -27,89 +31,85 @@ function ArchiveContentInner() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const { data, isLoading, isValidating, mutate } = useSWR(
+  const { data, isLoading, isValidating } = useSWR(
     `articles:archive:${page}:${activeCat}`,
     () => api.getArticles('archive', page, activeCat),
     { revalidateOnFocus: false }
   );
+
   const { data: catData } = useSWR('categories', () => api.getCategories(), { revalidateOnFocus: false });
-  const { mutate: globalMutate } = useSWRConfig();
-  const { showToast } = useToast();
-  const { openArticle, highlightId, setMutateFn } = useArticleContext();
 
   const totalPages = data?.totalPages ?? 1;
   const categories = catData ?? [];
   const totalCount = categories.reduce((sum: number, c: any) => sum + c.count, 0);
 
-  // 新数据追加到列表（去重防止分页偏移导致重复）
   useEffect(() => {
     if (data?.articles) {
       if (page === 1) {
-        setAllArticles(data.articles);
+        setAllArticles(data.articles.filter((a: ArticleListItem) => !removingIdsRef.current.has(a.id)));
       } else {
         setAllArticles((prev) => {
           const ids = new Set(prev.map(a => a.id));
-          return [...prev, ...data.articles.filter((a: ArticleListItem) => !ids.has(a.id))];
+          return [...prev, ...data.articles.filter((a: ArticleListItem) => !ids.has(a.id) && !removingIdsRef.current.has(a.id))];
         });
       }
     }
   }, [data, page]);
 
-  function refreshCounts() {
-    globalMutate('count:inbox');
-    globalMutate('count:favorites');
-    globalMutate('count:archive');
-    globalMutate('categories');
-  }
-
-  // 切换分类时重置列表（仅在切换到不同分类时）
   const handleCategorySelect = useCallback((cat: string) => {
-    if (cat === activeCat) return; // 点击相同分类不重置
-    setActiveCategory(cat);
+    if (cat === activeCat) return;
+    setActiveCat(cat);
     setPage(1);
-    setAllArticles([]);
+    removingIdsRef.current.clear();
     window.scrollTo(0, 0);
   }, [activeCat]);
 
-  const refreshList = useCallback(async () => {
+  const refreshList = useCallback(() => {
     setPage(1);
-    setAllArticles([]);
-    await mutate();
-  }, [mutate]);
+    removingIdsRef.current.clear();
+  }, []);
 
   useEffect(() => { setMutateFn(refreshList); }, [setMutateFn, refreshList]);
 
   const handleLoadMore = useCallback(() => {
-    if (page < totalPages) {
-      setPage((p) => p + 1);
-    }
+    if (page < totalPages) setPage((p) => p + 1);
   }, [page, totalPages]);
 
-  // 收藏操作
+  // 收藏/取消收藏：立即更新卡片状态
   const handleToggleFavorite = async (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    try {
-      await api.toggleFavorite(id);
-      refreshList();
-      refreshCounts();
-      showToast('已收藏');
-    } catch (error) {
+    const article = allArticles.find(a => a.id === id);
+    if (!article) return;
+
+    const wasFavorited = article.isFavorited;
+    // 乐观更新：立即改变收藏状态
+    setAllArticles((prev) => prev.map(a => a.id === id ? { ...a, isFavorited: !wasFavorited } : a));
+
+    const success = await toggleFavorite(id, wasFavorited);
+    if (success) {
+      showToast(wasFavorited ? '已取消收藏' : '已收藏');
+    } else {
+      // 失败时回滚
+      setAllArticles((prev) => prev.map(a => a.id === id ? { ...a, isFavorited: wasFavorited } : a));
       showToast('操作失败，请重试');
-      console.error('Failed to toggle favorite:', error);
     }
   };
 
-  // 取消归档操作
+  // 取消归档：文章从归档页消失
   const handleUnarchive = async (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    try {
-      await api.unarchive(id);
-      refreshList();
-      refreshCounts();
+
+    removingIdsRef.current.add(id);
+    setAllArticles((prev) => prev.filter((a) => a.id !== id));
+
+    const success = await unarchive(id);
+    if (success) {
+      removingIdsRef.current.delete(id);
       showToast('已移回收件箱');
-    } catch (error) {
+    } else {
+      removingIdsRef.current.delete(id);
+      refreshList();
       showToast('操作失败，请重试');
-      console.error('Failed to unarchive:', error);
     }
   };
 
@@ -118,8 +118,7 @@ function ArchiveContentInner() {
     e.stopPropagation();
     try {
       await api.reclassify(id);
-      refreshList();
-      refreshCounts();
+      setPage(1);
       showToast('已重新分类');
     } catch (error) {
       showToast('重新分类失败，请重试');
@@ -127,7 +126,6 @@ function ArchiveContentInner() {
     }
   };
 
-  // 重新分类所有（后台异步执行，点击后按钮保持禁用）
   const [reclassifyingAll, setReclassifyingAll] = useState(false);
   const handleReclassifyAll = async () => {
     if (reclassifyingAll) return;
@@ -135,12 +133,11 @@ function ArchiveContentInner() {
     try {
       await api.reclassifyAll();
       showToast('已开始后台重新分类，稍后刷新查看结果');
-      // 10 秒后自动刷新一次列表
-      setTimeout(() => { refreshList(); refreshCounts(); }, 10000);
+      setTimeout(() => { setPage(1); }, 10000);
     } catch (error) {
       showToast('批量重新分类失败');
       console.error('Failed to reclassify all:', error);
-      setReclassifyingAll(false); // 只有失败时才恢复
+      setReclassifyingAll(false);
     }
   };
 
@@ -165,7 +162,6 @@ function ArchiveContentInner() {
 
   return (
     <div style={{ padding: '0' }}>
-      {/* 移动端：药丸筛选 */}
       {isMobile && (
         <WechatCategoryPills
           categories={categories}
@@ -175,7 +171,6 @@ function ArchiveContentInner() {
         />
       )}
 
-      {/* 桌面端：侧边栏 + 内容 */}
       {!isMobile && (
         <div style={{ display: 'flex', gap: '24px' }}>
           <WechatCategorySidebar
@@ -186,18 +181,11 @@ function ArchiveContentInner() {
             onReclassifyAll={isAuthenticated ? handleReclassifyAll : undefined}
             reclassifyingAll={reclassifyingAll}
           />
-          <div style={{ flex: 1 }}>
-            {articleListContent}
-          </div>
+          <div style={{ flex: 1 }}>{articleListContent}</div>
         </div>
       )}
 
-      {/* 移动端：内容列表 */}
-      {isMobile && (
-        <div style={{ padding: '8px 8px' }}>
-          {articleListContent}
-        </div>
-      )}
+      {isMobile && <div style={{ padding: '8px 8px' }}>{articleListContent}</div>}
     </div>
   );
 }

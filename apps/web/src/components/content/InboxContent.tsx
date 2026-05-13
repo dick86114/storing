@@ -1,35 +1,34 @@
 'use client';
 
-import { Suspense, useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import useSWR, { useSWRConfig } from 'swr';
+import useSWR from 'swr';
 import { useToast } from '@/components/ui/Toast';
 import { useArticleContext } from '@/components/providers/ArticleContext';
 import { useAuth } from '@/components/providers/AuthContext';
 import { ArticleList } from '@/components/article/ArticleList';
 import { api } from '@/lib/api';
+import { useArticleOperations } from '@/hooks/useArticleOperations';
 import type { ArticleListItem } from '@storing/shared';
 
 const PER_PAGE = 18;
 
 function InboxContentInner() {
   const router = useRouter();
-  const { mutate: globalMutate } = useSWRConfig();
   const { showToast } = useToast();
   const { openArticle, highlightId, setMutateFn } = useArticleContext();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { archive, toggleFavorite, removeArticleFromView } = useArticleOperations();
 
-  // 游客跳转到归档页
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.replace('/archive');
-    }
+    if (!authLoading && !isAuthenticated) router.replace('/archive');
   }, [isAuthenticated, authLoading, router]);
 
   const [page, setPage] = useState(1);
   const [allArticles, setAllArticles] = useState<ArticleListItem[]>([]);
+  const removingIdsRef = useRef<Set<number>>(new Set());
 
-  const { data, isLoading: dataLoading, isValidating, mutate } = useSWR(
+  const { data, isLoading: dataLoading, isValidating } = useSWR(
     isAuthenticated ? `articles:inbox:${page}` : null,
     () => api.getArticles('inbox', page, undefined, PER_PAGE),
     { revalidateOnFocus: false }
@@ -37,38 +36,28 @@ function InboxContentInner() {
 
   const totalPages = data?.totalPages ?? 1;
 
-  // 新数据追加到列表（去重防止分页偏移导致重复）
   useEffect(() => {
     if (data?.articles) {
       if (page === 1) {
-        setAllArticles(data.articles);
+        setAllArticles(data.articles.filter((a: ArticleListItem) => !removingIdsRef.current.has(a.id)));
       } else {
         setAllArticles((prev) => {
           const ids = new Set(prev.map(a => a.id));
-          return [...prev, ...data.articles.filter((a: ArticleListItem) => !ids.has(a.id))];
+          return [...prev, ...data.articles.filter((a: ArticleListItem) => !ids.has(a.id) && !removingIdsRef.current.has(a.id))];
         });
       }
     }
   }, [data, page]);
 
-  function refreshCounts() {
-    globalMutate('count:inbox');
-    globalMutate('count:favorites');
-    globalMutate('count:archive');
-  }
-
-  // 刷新时重置到第一页
-  const refreshList = useCallback(async () => {
+  const refreshList = useCallback(() => {
     setPage(1);
-    await mutate();
-  }, [mutate]);
+    removingIdsRef.current.clear();
+  }, []);
 
   useEffect(() => { setMutateFn(refreshList); }, [setMutateFn, refreshList]);
 
   const handleLoadMore = useCallback(() => {
-    if (page < totalPages) {
-      setPage((p) => p + 1);
-    }
+    if (page < totalPages) setPage((p) => p + 1);
   }, [page, totalPages]);
 
   return (
@@ -85,17 +74,39 @@ function InboxContentInner() {
           onArticleClick={(id) => openArticle(id)}
           onToggleFavorite={async (id, e) => {
             e.stopPropagation();
-            await api.toggleFavorite(id);
-            refreshList();
-            refreshCounts();
-            showToast('已收藏');
+            const article = allArticles.find(a => a.id === id);
+            if (!article) return;
+
+            // 乐观更新：立即从收件箱移除
+            removingIdsRef.current.add(id);
+            setAllArticles((prev) => prev.filter((a) => a.id !== id));
+
+            const success = await toggleFavorite(id, false);
+            if (success) {
+              removingIdsRef.current.delete(id);
+              showToast('已收藏');
+            } else {
+              removingIdsRef.current.delete(id);
+              refreshList();
+              showToast('收藏失败，请重试');
+            }
           }}
           onArchive={async (id, e) => {
             e.stopPropagation();
-            await api.archive(id);
-            refreshList();
-            refreshCounts();
-            showToast('已归档');
+
+            // 乐观更新：立即从收件箱移除
+            removingIdsRef.current.add(id);
+            setAllArticles((prev) => prev.filter((a) => a.id !== id));
+
+            const success = await archive(id);
+            if (success) {
+              removingIdsRef.current.delete(id);
+              showToast('已归档');
+            } else {
+              removingIdsRef.current.delete(id);
+              refreshList();
+              showToast('归档失败，请重试');
+            }
           }}
           highlightId={highlightId}
         />
