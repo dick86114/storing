@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled } from '@ant-design/icons';
+import { MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, SyncOutlined } from '@ant-design/icons';
 import { DateText } from '@/lib/formatDate';
 import type { ArticleListItem } from '@storing/shared';
 
@@ -10,10 +10,12 @@ interface WechatArticleCardProps {
   onClick: () => void;
   onToggleFavorite: (e: React.MouseEvent) => void;
   onArchive: (e: React.MouseEvent) => void;
+  onReclassify?: (e: React.MouseEvent) => void;
+  showReclassify?: boolean;
   highlight?: boolean;
 }
 
-export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchive, highlight }: WechatArticleCardProps) {
+export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchive, onReclassify, showReclassify, highlight }: WechatArticleCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -135,6 +137,26 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
                     )}
                     {article.isArchived ? '取消归档' : '归档'}
                   </button>
+                  {showReclassify && onReclassify && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onReclassify(e); }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '12px 16px',
+                        width: '100%',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        color: 'var(--text)',
+                      }}
+                    >
+                      <SyncOutlined style={{ fontSize: '16px' }} />
+                      重新分类
+                    </button>
+                  )}
                 </div>
               </>
             )}

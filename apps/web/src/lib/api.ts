@@ -68,4 +68,10 @@ export const api = {
   },
 
   getCategories: () => fetchJSON<any>(`/categories`),
+
+  reclassify: (id: number, regenerateTags = false) =>
+    fetchJSON<any>(`/articles/${id}/reclassify`, { method: 'POST', body: JSON.stringify({ regenerateTags }) }),
+
+  reclassifyAll: (regenerateTags = false) =>
+    fetchJSON<any>('/articles/reclassify-all', { method: 'POST', body: JSON.stringify({ regenerateTags }) }),
 };

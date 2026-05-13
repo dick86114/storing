@@ -85,9 +85,9 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
         {/* 竖线分隔 */}
         <div style={{ width: '1px', height: '20px', background: 'var(--divider)', margin: '0 20px', flexShrink: 0 }} />
 
-        {/* 中间：胶囊 Tab（居中） */}
+        {/* 中间：胶囊 Tab（居中）—— 游客不显示但保留占位 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, justifyContent: 'center' }}>
-          {tabs.filter(t => isAuthenticated || t.key === 'archive').map((tab, index) => {
+          {isAuthenticated && tabs.map((tab, index) => {
             const isActive = activeIndex === index;
             const count = counts[tab.key as keyof typeof counts] ?? 0;
 
