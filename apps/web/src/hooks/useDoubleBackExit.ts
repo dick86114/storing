@@ -17,16 +17,15 @@ export function useDoubleBackExit() {
   const lastBackTime = useRef(0);
   const exitTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  // 是否为移动端
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
-
   useEffect(() => {
+    // 如果有文章详情页打开，不设置 popstate 拦截，让 ArticleContext 处理返回
+    if (selectedId) return;
+
+    // 是否为移动端
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
     if (!isMobile) return;
 
     const handlePopState = (e: PopStateEvent) => {
-      // 如果有文章详情页打开，不拦截返回，让 ArticleContext 处理
-      if (selectedId) return;
-
       const now = Date.now();
       const timeDiff = now - lastBackTime.current;
 
@@ -62,10 +61,8 @@ export function useDoubleBackExit() {
       }
     };
 
-    // 只在列表页（无文章详情页）时推历史记录
-    if (!selectedId) {
-      window.history.pushState(null, '', pathname);
-    }
+    // 列表页推历史记录，支持拦截返回
+    window.history.pushState(null, '', pathname);
 
     window.addEventListener('popstate', handlePopState);
 
@@ -75,5 +72,5 @@ export function useDoubleBackExit() {
         clearTimeout(exitTimeout.current);
       }
     };
-  }, [isMobile, pathname, showToast, selectedId]);
+  }, [pathname, showToast, selectedId]);
 }
