@@ -125,13 +125,13 @@ wait_for_port() {
   local count=0
 
   echo "等待 $name 端口 $port 完全释放..."
-  while ss -tln | grep -q ":$port" && [ $count -lt $max_wait ]; do
+  while lsof -i :$port -sTCP:LISTEN >/dev/null 2>&1 && [ $count -lt $max_wait ]; do
     sleep 1
     count=$((count + 1))
     echo "  等待中... ($count/$max_wait)"
   done
 
-  if ss -tln | grep -q ":$port"; then
+  if lsof -i :$port -sTCP:LISTEN >/dev/null 2>&1; then
     echo "⚠️  端口 $port 仍显示为LISTEN状态，但可能已无进程占用"
     echo "  尝试继续启动服务..."
   else
