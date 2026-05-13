@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { SearchOutlined, PlusOutlined, PlusCircleOutlined } from '@ant-design/icons';
 import { SearchModal } from '@/components/search/SearchModal';
 import { useAuth } from '@/components/providers/AuthContext';
@@ -19,26 +19,6 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // 点击外部或滑动关闭菜单
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    const handleScroll = () => setMenuOpen(false);
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside, { passive: true });
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, [menuOpen]);
 
   return (
     <>
@@ -81,7 +61,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
         </span>
 
         {/* 右侧：搜索 + 加号/用户菜单 */}
-        <div ref={menuRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button
             onClick={() => setSearchOpen(true)}
             type="button"
@@ -127,66 +107,95 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
 
           {/* 下拉菜单 */}
           {menuOpen && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '44px',
-                right: '16px',
-                background: 'var(--card-bg)',
-                borderRadius: '8px',
-                boxShadow: 'var(--shadow-md)',
-                padding: '4px 0',
-                minWidth: '140px',
-                zIndex: 200,
-              }}
-            >
-              {/* 已登录：显示用户名 */}
-              {isAuthenticated && (
-                <>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '8px 12px 4px', fontWeight: 500 }}>
-                    {user?.username}
-                  </div>
-                  <div style={{ height: '1px', background: 'var(--divider)', margin: '4px 8px' }} />
-                </>
-              )}
+            <>
+              {/* 遮罩层：拦截点击，只关闭菜单 */}
+              <div
+                onClick={() => setMenuOpen(false)}
+                onTouchStart={() => setMenuOpen(false)}
+                style={{ position: 'fixed', inset: 0, zIndex: 199 }}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '44px',
+                  right: '16px',
+                  background: 'var(--card-bg)',
+                  borderRadius: '8px',
+                  boxShadow: 'var(--shadow-md)',
+                  padding: '4px 0',
+                  minWidth: '140px',
+                  zIndex: 200,
+                }}
+              >
+                {/* 已登录：显示用户名 */}
+                {isAuthenticated && (
+                  <>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '8px 12px 4px', fontWeight: 500 }}>
+                      {user?.username}
+                    </div>
+                    <div style={{ height: '1px', background: 'var(--divider)', margin: '4px 8px' }} />
+                  </>
+                )}
 
-              {/* 主题切换 */}
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)', padding: '8px 12px 4px', fontWeight: 500 }}>
-                主题模式
-              </div>
-              {(['light', 'dark', 'system'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => {
-                    setTheme(mode);
-                    setMenuOpen(false);
-                  }}
-                  type="button"
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    textAlign: 'left',
-                    background: theme === mode ? 'var(--accent-soft)' : 'transparent',
-                    border: 'none',
-                    fontSize: '14px',
-                    color: theme === mode ? 'var(--accent)' : 'var(--text)',
-                    cursor: 'pointer',
-                    borderRadius: '4px',
-                  }}
-                >
-                  {mode === 'light' ? '浅色模式' : mode === 'dark' ? '深色模式' : '跟随系统'}
-                </button>
-              ))}
+                {/* 主题切换 */}
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', padding: '8px 12px 4px', fontWeight: 500 }}>
+                  主题模式
+                </div>
+                {(['light', 'dark', 'system'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => {
+                      setTheme(mode);
+                      setMenuOpen(false);
+                    }}
+                    type="button"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      textAlign: 'left',
+                      background: theme === mode ? 'var(--accent-soft)' : 'transparent',
+                      border: 'none',
+                      fontSize: '14px',
+                      color: theme === mode ? 'var(--accent)' : 'var(--text)',
+                      cursor: 'pointer',
+                      borderRadius: '4px',
+                    }}
+                  >
+                    {mode === 'light' ? '浅色模式' : mode === 'dark' ? '深色模式' : '跟随系统'}
+                  </button>
+                ))}
 
-              <div style={{ height: '1px', background: 'var(--divider)', margin: '4px 8px' }} />
+                <div style={{ height: '1px', background: 'var(--divider)', margin: '4px 8px' }} />
 
-              {isAuthenticated ? (
-                <>
-                  {onAddClick && (
+                {isAuthenticated ? (
+                  <>
+                    {onAddClick && (
+                      <button
+                        onClick={() => {
+                          onAddClick();
+                          setMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 12px',
+                          width: '100%',
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          color: 'var(--text)',
+                        }}
+                      >
+                        <PlusOutlined style={{ fontSize: '14px' }} />
+                        添加文章
+                      </button>
+                    )}
                     <button
                       onClick={() => {
-                        onAddClick();
                         setMenuOpen(false);
+                        setChangePasswordOpen(true);
                       }}
                       style={{
                         display: 'flex',
@@ -201,14 +210,34 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                         color: 'var(--text)',
                       }}
                     >
-                      <PlusOutlined style={{ fontSize: '14px' }} />
-                      添加文章
+                      修改密码
                     </button>
-                  )}
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        logout();
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '8px 12px',
+                        width: '100%',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        color: 'var(--text)',
+                      }}
+                    >
+                      登出
+                    </button>
+                  </>
+                ) : (
                   <button
                     onClick={() => {
                       setMenuOpen(false);
-                      setChangePasswordOpen(true);
+                      setLoginOpen(true);
                     }}
                     style={{
                       display: 'flex',
@@ -223,52 +252,11 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                       color: 'var(--text)',
                     }}
                   >
-                    修改密码
+                    登录
                   </button>
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false);
-                      logout();
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '8px 12px',
-                      width: '100%',
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      color: 'var(--text)',
-                    }}
-                  >
-                    登出
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setLoginOpen(true);
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '8px 12px',
-                    width: '100%',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    color: 'var(--text)',
-                  }}
-                >
-                  登录
-                </button>
-              )}
-            </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       </header>

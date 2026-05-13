@@ -39,15 +39,16 @@ function ArchiveContentInner() {
   const categories = catData ?? [];
   const totalCount = categories.reduce((sum: number, c: any) => sum + c.count, 0);
 
-  useEffect(() => { setMutateFn(mutate); }, [setMutateFn, mutate]);
-
-  // 新数据追加到列表
+  // 新数据追加到列表（去重防止分页偏移导致重复）
   useEffect(() => {
     if (data?.articles) {
       if (page === 1) {
         setAllArticles(data.articles);
       } else {
-        setAllArticles((prev) => [...prev, ...data.articles]);
+        setAllArticles((prev) => {
+          const ids = new Set(prev.map(a => a.id));
+          return [...prev, ...data.articles.filter((a: ArticleListItem) => !ids.has(a.id))];
+        });
       }
     }
   }, [data, page]);
@@ -72,6 +73,8 @@ function ArchiveContentInner() {
     setAllArticles([]);
     await mutate();
   }, [mutate]);
+
+  useEffect(() => { setMutateFn(refreshList); }, [setMutateFn, refreshList]);
 
   const handleLoadMore = useCallback(() => {
     if (page < totalPages) {

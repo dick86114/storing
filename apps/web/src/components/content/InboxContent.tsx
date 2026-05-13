@@ -37,18 +37,19 @@ function InboxContentInner() {
 
   const totalPages = data?.totalPages ?? 1;
 
-  // 新数据追加到列表
+  // 新数据追加到列表（去重防止分页偏移导致重复）
   useEffect(() => {
     if (data?.articles) {
       if (page === 1) {
         setAllArticles(data.articles);
       } else {
-        setAllArticles((prev) => [...prev, ...data.articles]);
+        setAllArticles((prev) => {
+          const ids = new Set(prev.map(a => a.id));
+          return [...prev, ...data.articles.filter((a: ArticleListItem) => !ids.has(a.id))];
+        });
       }
     }
   }, [data, page]);
-
-  useEffect(() => { setMutateFn(mutate); }, [setMutateFn, mutate]);
 
   function refreshCounts() {
     globalMutate('count:inbox');
@@ -61,6 +62,8 @@ function InboxContentInner() {
     setPage(1);
     await mutate();
   }, [mutate]);
+
+  useEffect(() => { setMutateFn(refreshList); }, [setMutateFn, refreshList]);
 
   const handleLoadMore = useCallback(() => {
     if (page < totalPages) {
