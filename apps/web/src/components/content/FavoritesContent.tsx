@@ -43,13 +43,16 @@ function FavoritesContentInner() {
     openArticle(bookmarkPrompt.articleId);
     setBookmarkPrompt(null);
 
-    // 延迟滚动到保存位置
-    setTimeout(() => {
+    // 等待详情面板渲染完成后再滚动
+    const scrollToPosition = () => {
       const content = document.querySelector('[data-scroll-container="detail"]');
       if (content) {
         content.scrollTop = bookmarkPrompt.scrollPosition;
+      } else {
+        requestAnimationFrame(scrollToPosition);
       }
-    }, 200);
+    };
+    requestAnimationFrame(scrollToPosition);
   };
 
   const handleDismissBookmark = () => {

@@ -97,13 +97,19 @@ function ArchiveContentInner() {
     openArticle(bookmarkPrompt.articleId);
     setBookmarkPrompt(null);
 
-    // 延迟滚动到保存位置
-    setTimeout(() => {
+    // 等待详情面板渲染完成后再滚动
+    const scrollToPosition = () => {
       const content = document.querySelector('[data-scroll-container="detail"]');
       if (content) {
         content.scrollTop = bookmarkPrompt.scrollPosition;
+      } else {
+        // 元素还没渲染，继续等待
+        requestAnimationFrame(scrollToPosition);
       }
-    }, 200);
+    };
+
+    // 开始尝试滚动
+    requestAnimationFrame(scrollToPosition);
   };
 
   const handleDismissBookmark = () => {

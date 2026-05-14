@@ -1,5 +1,7 @@
 'use client';
 
+import { useCallback } from 'react';
+
 const BOOKMARK_KEY = 'reading_bookmark';
 
 export interface ReadingBookmark {
@@ -24,12 +26,12 @@ function isValidBookmark(obj: unknown): obj is ReadingBookmark {
 
 export function useBookmark() {
   // 保存书签
-  const saveBookmark = (bookmark: ReadingBookmark) => {
+  const saveBookmark = useCallback((bookmark: ReadingBookmark) => {
     localStorage.setItem(BOOKMARK_KEY, JSON.stringify(bookmark));
-  };
+  }, []);
 
   // 获取书签
-  const getBookmark = (): ReadingBookmark | null => {
+  const getBookmark = useCallback((): ReadingBookmark | null => {
     const data = localStorage.getItem(BOOKMARK_KEY);
     if (!data) return null;
     try {
@@ -39,12 +41,12 @@ export function useBookmark() {
       console.error('Failed to parse bookmark:', error);
       return null;
     }
-  };
+  }, []);
 
   // 清除书签
-  const clearBookmark = () => {
+  const clearBookmark = useCallback(() => {
     localStorage.removeItem(BOOKMARK_KEY);
-  };
+  }, []);
 
   return { saveBookmark, getBookmark, clearBookmark };
 }
