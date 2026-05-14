@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useSWRConfig } from 'swr';
-import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, LinkOutlined, BookOutlined } from '@ant-design/icons';
+import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, LinkOutlined } from '@ant-design/icons';
 import { useArticle } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/providers/AuthContext';
 import { DateText } from '@/lib/formatDate';
 import { api } from '@/lib/api';
 import { useBookmark } from '@/hooks/useBookmark';
+import { BookmarkButton } from '@/components/ui/BookmarkButton';
 import ReactMarkdown from 'react-markdown';
 
 interface WechatDetailPanelProps {
@@ -174,7 +175,7 @@ function DetailContent({
   memoizedContent: React.ReactNode;
   refreshCounts: () => void;
   scrollPosition: number;
-  saveBookmark: (bookmark: { view: 'inbox' | 'archive' | 'favorites'; articleId: number; scrollPosition: number; articleTitle?: string; timestamp: number }) => void;
+  saveBookmark: (bookmark: { view: 'inbox' | 'archive' | 'favorites'; articleId: number; scrollPosition: number; listScrollPosition?: number; articleTitle?: string; timestamp: number }) => void;
 }) {
   // 保存书签
   const handleSaveBookmark = () => {
@@ -186,15 +187,18 @@ function DetailContent({
       : path.includes('favorites') ? 'favorites'
       : 'archive';
 
+    // 获取文章列表的滚动位置（main 元素的滚动）
+    const mainElement = document.querySelector('main');
+    const listScrollPosition = mainElement?.scrollTop || 0;
+
     saveBookmark({
       view,
       articleId: article.id,
       scrollPosition,
+      listScrollPosition,
       articleTitle: article.title,
       timestamp: Date.now(),
     });
-
-    showToast('已保存书签');
   };
   // 分享功能
   async function handleShare() {
@@ -400,10 +404,7 @@ function DetailContent({
             {/* 右侧：操作按钮 —— 游客只显示分享 */}
             <div style={{ display: 'flex', gap: '24px' }}>
               {/* 书签按钮 —— 所有用户可用 */}
-              <button onClick={handleSaveBookmark} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
-                <BookOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>书签</span>
-              </button>
+              <BookmarkButton onClick={handleSaveBookmark} />
               {isAuthenticated && (
                 <>
                   <button onClick={handleArchive} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>

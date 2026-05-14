@@ -94,6 +94,15 @@ function ArchiveContentInner() {
 
   const handleContinueReading = () => {
     if (!bookmarkPrompt) return;
+
+    // 先恢复列表滚动位置
+    if (bookmarkPrompt.listScrollPosition) {
+      const mainElement = document.querySelector('main');
+      if (mainElement) {
+        mainElement.scrollTop = bookmarkPrompt.listScrollPosition;
+      }
+    }
+
     openArticle(bookmarkPrompt.articleId);
     setBookmarkPrompt(null);
 
