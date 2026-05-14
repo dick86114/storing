@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { db } from '../db/index.js';
 import { articles, articleMetadata } from '../db/schema.js';
 import { eq, and, desc, count, sql, or, isNull } from 'drizzle-orm';
-import { classifyAndTag } from '../services/ai.service.js';
+import { generateSummaryAndTags } from '../services/ai.service.js';
 import { getArticleContent, processCoverImage } from '../services/reader.service.js';
 import { requireAuth, optionalAuth, isAuthenticated } from '../middleware/auth.js';
 
@@ -228,8 +228,8 @@ articlesRoutes.post('/articles/:id/archive', requireAuth, async (c) => {
     .where(eq(articleMetadata.articleId, id))
     .returning();
 
-  // 异步触发 AI 分类和标签、封面图处理
-  classifyAndTag(id).catch((e) => console.error('AI classify/tag failed:', e.message));
+  // 异步触发 AI 摘要和标签生成、封面图处理
+  generateSummaryAndTags(id).catch((e) => console.error('AI summary/tags failed:', e.message));
   processCoverImage(id).catch((e) => console.error('Cover image process failed:', e.message));
 
   return c.json({ ...updated, articleId: id });

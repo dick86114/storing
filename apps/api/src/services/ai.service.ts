@@ -113,34 +113,7 @@ ${content.slice(0, 8000)}`;
   await db.update(articleMetadata).set({ aiSummary: digest, updatedAt: new Date() }).where(eq(articleMetadata.articleId, articleId));
 }
 
-export async function classifyArticle(articleId: number, title: string, summary: string, aiSummary: string | null, existingCategories: string[] = []): Promise<string> {
-  const catList = existingCategories.length > 0
-    ? `现有分类：${existingCategories.join('、')}\n\n`
-    : '';
-
-  const system = `你是一位文章分类专家。你需要为文章选择最合适的分类。
-
-规则：
-1. 优先从「现有分类」列表中选择最匹配的分类
-2. 如果现有分类都不合适，你可以创建一个新的分类名
-3. 新分类必须是 2-4 个字的中文短语，简洁、通用
-4. 不要创建与现有分类含义相近的新分类
-5. 直接输出分类名，不要输出任何其他内容`;
-
-  const user = `${catList}文章标题：${title}
-文章摘要：${summary}
-AI 摘要：${aiSummary || '无'}
-
-请为这篇文章选择或创建一个分类。只输出分类名。`;
-
-  const raw = (await callAI(system, user, 512)).trim();
-  if (!raw) throw new Error('AI returned empty category');
-  const category = raw.split('\n')[0].trim();
-  await db.update(articleMetadata).set({ aiCategory: category, updatedAt: new Date() }).where(eq(articleMetadata.articleId, articleId));
-  return category;
-}
-
-export async function generateTags(articleId: number, title: string, summary: string, category: string | null): Promise<void> {
+export async function generateTags(articleId: number, title: string, summary: string): Promise<void> {
   const system = 'You are a tag generator. Respond with ONLY a JSON array of strings, e.g. ["tag1", "tag2", "tag3"]. Nothing else.';
   const user = `Generate 3-5 concise tags for this article. Tags should be:
 - In the same language as the article
@@ -149,7 +122,6 @@ export async function generateTags(articleId: number, title: string, summary: st
 
 Title: ${title}
 Summary: ${summary}
-Category: ${category || 'N/A'}
 
 Respond with ONLY a JSON array.`;
 
@@ -165,9 +137,9 @@ Respond with ONLY a JSON array.`;
 }
 
 /**
- * 归档时触发：生成摘要 + 分类 + 标签
+ * 归档时触发：生成摘要 + 标签（移除分类）
  */
-export async function classifyAndTag(articleId: number): Promise<void> {
+export async function generateSummaryAndTags(articleId: number): Promise<void> {
   const [article] = await db
     .select({
       id: articles.id,
@@ -183,82 +155,20 @@ export async function classifyAndTag(articleId: number): Promise<void> {
   const title = article.title || '';
   const summary = article.summary || '';
 
-  // 先抓取 markdown 正文（首次会从 Reader API 抓取并缓存）
+  // 先抓取 markdown 正文
   const contentMd = await getArticleContent(articleId).catch((e) => {
     console.error('Fetch markdown failed:', e.message);
     return null;
   });
 
-  // 优先用抓取的 markdown，其次用数据库已有的字段
   const content = contentMd || article.contentMarkdown || article.contentHtml || summary;
 
-  // 生成 AI 摘要（DeepSeek 推理模型可能需要较长时间）
+  // 生成 AI 摘要
   await generateArticleDigest(articleId, title, content).catch((e) =>
     console.error('AI digest failed:', e.message)
   );
 
-  // 重新查询获取刚生成的 aiSummary
-  const [metaWithSummary] = await db.select({ aiSummary: articleMetadata.aiSummary }).from(articleMetadata).where(eq(articleMetadata.articleId, articleId));
-
-  // 查询已有分类列表，传给分类函数以复用
-  const existingCatRows = await db
-    .select({ category: articleMetadata.aiCategory })
-    .from(articleMetadata)
-    .where(sql`${articleMetadata.aiCategory} IS NOT NULL`)
-    .groupBy(articleMetadata.aiCategory);
-  const existingCategories = existingCatRows.map(r => r.category!);
-
-  await classifyArticle(articleId, title, summary, metaWithSummary?.aiSummary || null, existingCategories);
-
-  const [meta] = await db.select().from(articleMetadata).where(eq(articleMetadata.articleId, articleId));
-  if (meta) {
-    await generateTags(articleId, title, summary, meta.aiCategory);
-  }
+  // 生成标签（不传分类）
+  await generateTags(articleId, title, summary);
 }
 
-/** 单篇文章重新分类 */
-export async function reclassifyArticle(articleId: number, regenerateTags = false): Promise<string> {
-  const [row] = await db
-    .select({ title: articles.title, summary: articles.summary, aiSummary: articleMetadata.aiSummary })
-    .from(articles)
-    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
-    .where(eq(articles.id, articleId));
-  if (!row) throw new Error('Article not found');
-
-  const existingCatRows = await db
-    .select({ category: articleMetadata.aiCategory })
-    .from(articleMetadata)
-    .where(sql`${articleMetadata.aiCategory} IS NOT NULL`)
-    .groupBy(articleMetadata.aiCategory);
-  const existingCategories = existingCatRows.map(r => r.category!);
-
-  const category = await classifyArticle(articleId, row.title || '', row.summary || '', row.aiSummary || null, existingCategories);
-
-  if (regenerateTags) {
-    await generateTags(articleId, row.title || '', row.summary || '', category);
-  }
-
-  return category;
-}
-
-/** 批量重新分类所有归档文章 */
-export async function reclassifyAllArticles(regenerateTags = false): Promise<{ processed: number; total: number }> {
-  const archived = await db
-    .select({ articleId: articleMetadata.articleId })
-    .from(articleMetadata)
-    .where(eq(articleMetadata.isArchived, true));
-
-  let processed = 0;
-  for (const { articleId } of archived) {
-    try {
-      await reclassifyArticle(articleId, regenerateTags);
-      processed++;
-    } catch (e: any) {
-      console.error(`Reclassify article ${articleId} failed:`, e.message);
-    }
-    // 防止限流
-    await new Promise(r => setTimeout(r, 200));
-  }
-
-  return { processed, total: archived.length };
-}
