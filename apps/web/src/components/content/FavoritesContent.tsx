@@ -9,6 +9,7 @@ import { useAuth } from '@/components/providers/AuthContext';
 import { ArticleList } from '@/components/article/ArticleList';
 import { api } from '@/lib/api';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
+import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
 import type { ArticleListItem } from '@storing/shared';
 
 function FavoritesContentInner() {
@@ -17,14 +18,44 @@ function FavoritesContentInner() {
   const { openArticle, highlightId, setMutateFn } = useArticleContext();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { archive, toggleFavorite } = useArticleOperations();
+  const { getBookmark, clearBookmark } = useBookmark();
+  const [bookmarkPrompt, setBookmarkPrompt] = useState<ReadingBookmark | null>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.replace('/archive');
   }, [isAuthenticated, authLoading, router]);
 
+  // 页面加载时检测书签（仅 favorites 视图的书签）
+  useEffect(() => {
+    const bookmark = getBookmark();
+    // 只处理 favorites 视图的书签，其他视图由对应页面处理
+    if (bookmark && bookmark.view === 'favorites') {
+      setBookmarkPrompt(bookmark);
+    }
+  }, [getBookmark]);
+
   const [page, setPage] = useState(1);
   const [allArticles, setAllArticles] = useState<ArticleListItem[]>([]);
   const removingIdsRef = useRef<Set<number>>(new Set());
+
+  const handleContinueReading = () => {
+    if (!bookmarkPrompt) return;
+    openArticle(bookmarkPrompt.articleId);
+    setBookmarkPrompt(null);
+
+    // 延迟滚动到保存位置
+    setTimeout(() => {
+      const content = document.querySelector('.detail-panel-content');
+      if (content) {
+        content.scrollTop = bookmarkPrompt.scrollPosition;
+      }
+    }, 200);
+  };
+
+  const handleDismissBookmark = () => {
+    clearBookmark();
+    setBookmarkPrompt(null);
+  };
 
   const { data, isLoading, isValidating } = useSWR(
     isAuthenticated ? `articles:favorites:${page}` : null,
@@ -60,6 +91,67 @@ function FavoritesContentInner() {
 
   return (
     <>
+      {/* 书签提示弹窗 */}
+      {bookmarkPrompt && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 300,
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--card-bg)',
+              padding: '24px',
+              borderRadius: '12px',
+              maxWidth: '320px',
+              textAlign: 'center',
+            }}
+          >
+            <p style={{ marginBottom: '16px', color: 'var(--text)' }}>
+              检测到上次的书签「{bookmarkPrompt.articleTitle || '未命名文章'}」，是否继续阅读？
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button
+                onClick={handleContinueReading}
+                style={{
+                  padding: '10px 20px',
+                  background: 'var(--accent)',
+                  color: '#fff',
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                继续阅读
+              </button>
+              <button
+                onClick={handleDismissBookmark}
+                style={{
+                  padding: '10px 20px',
+                  background: 'transparent',
+                  color: 'var(--text-muted)',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  cursor: 'pointer',
+                }}
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isLoading && page === 1 ? (
         <div style={{ color: 'var(--muted)', padding: 'var(--gap-2xl) 0', textAlign: 'center' }}>加载中…</div>
       ) : (
