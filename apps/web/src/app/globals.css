@@ -1481,39 +1481,81 @@ h4 {
 
 /* ===== 图片查看器样式 ===== */
 
-/* 图片查看器背景 */
-[data-color-scheme='default'] .react-medium-image-zoom-overlay,
-[data-color-scheme='wechat'] .react-medium-image-zoom-overlay,
-:root .react-medium-image-zoom-overlay {
-  background-color: oklch(0.15 0 0 / 0.9);
+/* 浅色模式：深色半透明背景 */
+[data-theme='light'] [data-rmiz-modal-overlay="visible"],
+[data-color-scheme='default'][data-theme='light'] [data-rmiz-modal-overlay="visible"],
+[data-color-scheme='wechat'][data-theme='light'] [data-rmiz-modal-overlay="visible"] {
+  background-color: oklch(0.15 0 0 / 0.9) !important;
+}
+
+/* 深色模式：更深的背景 */
+[data-theme='dark'] [data-rmiz-modal-overlay="visible"],
+[data-color-scheme='default'][data-theme='dark'] [data-rmiz-modal-overlay="visible"],
+[data-color-scheme='wechat'][data-theme='dark'] [data-rmiz-modal-overlay="visible"] {
+  background-color: oklch(0.08 0 0 / 0.95) !important;
+}
+
+/* 系统默认（无 data-theme 时，跟随 prefers-color-scheme） */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) [data-rmiz-modal-overlay="visible"] {
+    background-color: oklch(0.15 0 0 / 0.9) !important;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) [data-rmiz-modal-overlay="visible"] {
+    background-color: oklch(0.08 0 0 / 0.95) !important;
+  }
 }
 
 /* 查看器图片样式 */
-.react-medium-image-zoom-zoomed {
+[data-rmiz-modal-content] {
   border-radius: var(--radius);
 }
 
-/* 玻璃主题适配 */
-[data-color-scheme='glass'] .react-medium-image-zoom-overlay {
-  background-color: oklch(18% 0.020 280 / 0.92);
+/* 各配色方案浅色模式 */
+[data-color-scheme='spring'][data-theme='light'] [data-rmiz-modal-overlay="visible"],
+[data-color-scheme='spring']:not([data-theme='dark']) [data-rmiz-modal-overlay="visible"] {
+  background-color: oklch(0.15 0 020 145 / 0.9) !important;
 }
 
-/* 春季主题适配 */
-[data-color-scheme='spring'] .react-medium-image-zoom-overlay {
-  background-color: oklch(20% 0.020 145 / 0.9);
+[data-color-scheme='summer'][data-theme='light'] [data-rmiz-modal-overlay="visible"],
+[data-color-scheme='summer']:not([data-theme='dark']) [data-rmiz-modal-overlay="visible"] {
+  background-color: oklch(0.15 0 025 230 / 0.9) !important;
 }
 
-/* 夏季主题适配 */
-[data-color-scheme='summer'] .react-medium-image-zoom-overlay {
-  background-color: oklch(18% 0.025 230 / 0.9);
+[data-color-scheme='autumn'][data-theme='light'] [data-rmiz-modal-overlay="visible"],
+[data-color-scheme='autumn']:not([data-theme='dark']) [data-rmiz-modal-overlay="visible"] {
+  background-color: oklch(0.15 0 022 60 / 0.9) !important;
 }
 
-/* 秋季主题适配 */
-[data-color-scheme='autumn'] .react-medium-image-zoom-overlay {
-  background-color: oklch(22% 0.022 60 / 0.9);
+[data-color-scheme='winter'][data-theme='light'] [data-rmiz-modal-overlay="visible"],
+[data-color-scheme='winter']:not([data-theme='dark']) [data-rmiz-modal-overlay="visible"] {
+  background-color: oklch(0.15 0 012 250 / 0.9) !important;
 }
 
-/* 冬季主题适配 */
-[data-color-scheme='winter'] .react-medium-image-zoom-overlay {
-  background-color: oklch(16% 0.012 250 / 0.9);
+[data-color-scheme='glass'][data-theme='light'] [data-rmiz-modal-overlay="visible"],
+[data-color-scheme='glass']:not([data-theme='dark']) [data-rmiz-modal-overlay="visible"] {
+  background-color: oklch(0.15 0 020 280 / 0.92) !important;
+}
+
+/* 各配色方案深色模式 */
+[data-color-scheme='spring'][data-theme='dark'] [data-rmiz-modal-overlay="visible"] {
+  background-color: oklch(0.08 0 020 145 / 0.95) !important;
+}
+
+[data-color-scheme='summer'][data-theme='dark'] [data-rmiz-modal-overlay="visible"] {
+  background-color: oklch(0.08 0 025 230 / 0.95) !important;
+}
+
+[data-color-scheme='autumn'][data-theme='dark'] [data-rmiz-modal-overlay="visible"] {
+  background-color: oklch(0.08 0 022 60 / 0.95) !important;
+}
+
+[data-color-scheme='winter'][data-theme='dark'] [data-rmiz-modal-overlay="visible"] {
+  background-color: oklch(0.08 0 012 250 / 0.95) !important;
+}
+
+[data-color-scheme='glass'][data-theme='dark'] [data-rmiz-modal-overlay="visible"] {
+  background-color: oklch(0.08 0 020 280 / 0.95) !important;
 }
