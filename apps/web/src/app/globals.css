@@ -1478,3 +1478,42 @@ h4 {
     display: none !important;
   }
 }
+
+/* ===== 图片查看器样式 ===== */
+
+/* 图片查看器背景 */
+[data-color-scheme='default'] .react-medium-image-zoom-overlay,
+[data-color-scheme='wechat'] .react-medium-image-zoom-overlay,
+:root .react-medium-image-zoom-overlay {
+  background-color: oklch(0.15 0 0 / 0.9);
+}
+
+/* 查看器图片样式 */
+.react-medium-image-zoom-zoomed {
+  border-radius: var(--radius);
+}
+
+/* 玻璃主题适配 */
+[data-color-scheme='glass'] .react-medium-image-zoom-overlay {
+  background-color: oklch(18% 0.020 280 / 0.92);
+}
+
+/* 春季主题适配 */
+[data-color-scheme='spring'] .react-medium-image-zoom-overlay {
+  background-color: oklch(20% 0.020 145 / 0.9);
+}
+
+/* 夏季主题适配 */
+[data-color-scheme='summer'] .react-medium-image-zoom-overlay {
+  background-color: oklch(18% 0.025 230 / 0.9);
+}
+
+/* 秋季主题适配 */
+[data-color-scheme='autumn'] .react-medium-image-zoom-overlay {
+  background-color: oklch(22% 0.022 60 / 0.9);
+}
+
+/* 冬季主题适配 */
+[data-color-scheme='winter'] .react-medium-image-zoom-overlay {
+  background-color: oklch(16% 0.012 250 / 0.9);
+}

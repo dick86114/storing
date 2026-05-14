@@ -10,6 +10,8 @@ import { api } from '@/lib/api';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useBookmark } from '@/hooks/useBookmark';
 import ReactMarkdown from 'react-markdown';
+import Zoom from 'react-medium-image-zoom'
+import 'react-medium-image-zoom/dist/styles.css'
 import type { ArticleListItem } from '@storing/shared';
 
 export function ArticleDetailPanel({
@@ -97,7 +99,22 @@ export function ArticleDetailPanel({
 
   const memoizedContent = useMemo(() => {
     if (!article?.contentMd) return null;
-    return <ReactMarkdown>{article.contentMd}</ReactMarkdown>;
+    return (
+      <ReactMarkdown
+        components={{
+          // 将所有 p 渲染为 div 以避免 Zoom 组件导致的 hydration 错误
+          // Zoom 渲染为 div，HTML 不允许 div 在 p 内
+          p: ({ children }) => <div className="md-p">{children}</div>,
+          img: ({ src, alt }) => (
+            <Zoom>
+              <img src={src} alt={alt} />
+            </Zoom>
+          ),
+        }}
+      >
+        {article.contentMd}
+      </ReactMarkdown>
+    );
   }, [article?.contentMd]);
 
   if (!articleId) return null;
