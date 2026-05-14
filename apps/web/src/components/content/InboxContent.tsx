@@ -43,7 +43,7 @@ function InboxContentInner() {
     openArticle(bookmarkPrompt.articleId);
     setBookmarkPrompt(null);
     setTimeout(() => {
-      const content = document.querySelector('.detail-panel-content');
+      const content = document.querySelector('[data-scroll-container="detail"]');
       if (content) content.scrollTop = bookmarkPrompt.scrollPosition;
     }, 200);
   };

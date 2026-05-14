@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useSWRConfig } from 'swr';
-import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, LinkOutlined } from '@ant-design/icons';
+import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, LinkOutlined, BookOutlined } from '@ant-design/icons';
 import { useArticle } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/providers/AuthContext';
 import { DateText } from '@/lib/formatDate';
 import { api } from '@/lib/api';
+import { useBookmark } from '@/hooks/useBookmark';
 import ReactMarkdown from 'react-markdown';
 
 interface WechatDetailPanelProps {
@@ -22,6 +23,24 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   const { mutate: globalMutate } = useSWRConfig();
   const { showToast } = useToast();
   const { isAuthenticated } = useAuth();
+  const { saveBookmark } = useBookmark();
+
+  // 滚动位置追踪
+  const [scrollPosition, setScrollPosition] = useState(0);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // 监听滚动位置
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!content || !articleId) return;
+
+    const handleScroll = () => {
+      setScrollPosition(content.scrollTop);
+    };
+
+    content.addEventListener('scroll', handleScroll);
+    return () => content.removeEventListener('scroll', handleScroll);
+  }, [articleId]);
 
   function refreshCounts() {
     globalMutate('count:inbox');
@@ -63,6 +82,8 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
         />
         {/* 详情面板 */}
         <div
+          ref={contentRef}
+          data-scroll-container="detail"
           style={{
             position: 'fixed',
             top: 0,
@@ -85,6 +106,8 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
             isAuthenticated={isAuthenticated}
             memoizedContent={memoizedContent}
             refreshCounts={refreshCounts}
+            scrollPosition={scrollPosition}
+            saveBookmark={saveBookmark}
           />
         </div>
       </>
@@ -94,6 +117,8 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   // 移动端：全屏面板样式
   return (
     <div
+      ref={contentRef}
+      data-scroll-container="detail"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -118,6 +143,8 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
         isAuthenticated={isAuthenticated}
         memoizedContent={memoizedContent}
         refreshCounts={refreshCounts}
+        scrollPosition={scrollPosition}
+        saveBookmark={saveBookmark}
       />
     </div>
   );
@@ -134,6 +161,8 @@ function DetailContent({
   isAuthenticated,
   memoizedContent,
   refreshCounts,
+  scrollPosition,
+  saveBookmark,
 }: {
   article: any;
   isLoading: boolean;
@@ -144,7 +173,29 @@ function DetailContent({
   isAuthenticated: boolean;
   memoizedContent: React.ReactNode;
   refreshCounts: () => void;
+  scrollPosition: number;
+  saveBookmark: (bookmark: { view: 'inbox' | 'archive' | 'favorites'; articleId: number; scrollPosition: number; articleTitle?: string; timestamp: number }) => void;
 }) {
+  // 保存书签
+  const handleSaveBookmark = () => {
+    if (!article) return;
+
+    // 从 URL 获取当前视图
+    const path = window.location.pathname;
+    const view: 'inbox' | 'archive' | 'favorites' = path.includes('inbox') ? 'inbox'
+      : path.includes('favorites') ? 'favorites'
+      : 'archive';
+
+    saveBookmark({
+      view,
+      articleId: article.id,
+      scrollPosition,
+      articleTitle: article.title,
+      timestamp: Date.now(),
+    });
+
+    showToast('已保存书签');
+  };
   // 分享功能
   async function handleShare() {
     if (!article) return;
@@ -348,6 +399,11 @@ function DetailContent({
 
             {/* 右侧：操作按钮 —— 游客只显示分享 */}
             <div style={{ display: 'flex', gap: '24px' }}>
+              {/* 书签按钮 —— 所有用户可用 */}
+              <button onClick={handleSaveBookmark} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                <BookOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>书签</span>
+              </button>
               {isAuthenticated && (
                 <>
                   <button onClick={handleArchive} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
