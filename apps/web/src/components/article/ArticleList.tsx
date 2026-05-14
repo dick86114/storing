@@ -13,8 +13,6 @@ interface ArticleListProps {
   onArticleClick: (id: number) => void;
   onToggleFavorite: (id: number, e: React.MouseEvent) => void;
   onArchive: (id: number, e: React.MouseEvent) => void;
-  onReclassify?: (id: number, e: React.MouseEvent) => void;
-  showReclassify?: boolean;
   showMenu?: boolean;
   highlightId?: number | null;
 }
@@ -28,8 +26,6 @@ export function ArticleList({
   onArticleClick,
   onToggleFavorite,
   onArchive,
-  onReclassify,
-  showReclassify,
   showMenu = true,
   highlightId,
 }: ArticleListProps) {
@@ -78,8 +74,6 @@ export function ArticleList({
             onClick={() => onArticleClick(article.id)}
             onToggleFavorite={(e) => onToggleFavorite(article.id, e)}
             onArchive={(e) => onArchive(article.id, e)}
-            onReclassify={onReclassify ? (e) => onReclassify(article.id, e) : undefined}
-            showReclassify={showReclassify}
             showMenu={showMenu}
             highlight={highlightId === article.id}
           />
