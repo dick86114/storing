@@ -23,7 +23,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
       style={{
         position: 'relative',
         background: 'var(--card-bg)',
-        borderRadius: '4px',
+        borderRadius: '12px',
         cursor: 'pointer',
         transition: 'opacity 0.2s',
         opacity: highlight ? 0.6 : 1,
@@ -91,7 +91,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
                       borderRadius: '8px',
                       boxShadow: 'var(--shadow-md)',
                       padding: '8px 0',
-                      minWidth: '120px',
+                      minWidth: '140px',
                       zIndex: 1000,
                     }}
                   >
@@ -100,14 +100,14 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px',
-                        padding: '12px 16px',
+                        gap: '10px',
+                        padding: '10px 16px',
                         width: '100%',
                         background: 'transparent',
                         border: 'none',
                         cursor: 'pointer',
-                        fontSize: '14px',
-                        color: 'var(--text)',
+                        fontSize: '16px',
+                        color: article.isFavorited ? 'var(--accent)' : '#fff',
                       }}
                     >
                       {article.isFavorited ? (
@@ -122,14 +122,14 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px',
-                        padding: '12px 16px',
+                        gap: '10px',
+                        padding: '10px 16px',
                         width: '100%',
                         background: 'transparent',
                         border: 'none',
                         cursor: 'pointer',
-                        fontSize: '14px',
-                        color: 'var(--text)',
+                        fontSize: '16px',
+                        color: article.isArchived ? 'var(--accent)' : '#fff',
                       }}
                     >
                       {article.isArchived ? (

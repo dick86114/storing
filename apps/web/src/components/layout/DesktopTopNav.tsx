@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, PlusCircleOutlined, AppstoreOutlined, HeartOutlined, FolderOutlined } from '@ant-design/icons';
+import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, PlusCircleOutlined, AppstoreOutlined, HeartOutlined, FolderOutlined, SunOutlined, MoonOutlined, DesktopOutlined } from '@ant-design/icons';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { LoginModal } from '@/components/auth/LoginModal';
@@ -29,36 +29,17 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
   const [loginOpen, setLoginOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
 
-  const themeMenuItems = (
-    <>
-      <div style={{ fontSize: '10px', color: 'var(--text-muted)', padding: '8px 12px 4px', fontWeight: 500 }}>
-        主题模式
-      </div>
-      {(['light', 'dark', 'system'] as const).map((mode) => (
-        <button
-          key={mode}
-          onClick={() => {
-            setTheme(mode);
-            setMenuOpen(false);
-          }}
-          type="button"
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            textAlign: 'left',
-            background: theme === mode ? 'var(--accent-soft)' : 'transparent',
-            border: 'none',
-            fontSize: '14px',
-            color: theme === mode ? 'var(--accent)' : 'var(--text)',
-            cursor: 'pointer',
-            borderRadius: '4px',
-          }}
-        >
-          {mode === 'light' ? '浅色模式' : mode === 'dark' ? '深色模式' : '跟随系统'}
-        </button>
-      ))}
-    </>
-  );
+  const themeIcons: Record<string, React.ReactNode> = {
+    light: <SunOutlined style={{ fontSize: '16px' }} />,
+    dark: <MoonOutlined style={{ fontSize: '16px' }} />,
+    system: <DesktopOutlined style={{ fontSize: '16px' }} />,
+  };
+
+  const themeLabels: Record<string, string> = {
+    light: '浅色模式',
+    dark: '深色模式',
+    system: '跟随系统',
+  };
 
   return (
     <>
@@ -155,7 +136,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
               {isAuthenticated ? (
                 <>
                   <UserOutlined style={{ fontSize: '22px', color: 'var(--text)' }} />
-                  <span style={{ fontSize: '14px', color: 'var(--text)' }}>{user?.username}</span>
+                  <span style={{ fontSize: '16px', color: 'var(--text)' }}>{user?.username}</span>
                   <DownOutlined style={{ fontSize: '12px', color: 'var(--text-muted)' }} />
                 </>
               ) : (
@@ -176,34 +157,60 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
                   style={{
                     position: 'absolute',
                     top: '100%',
-                    right: 0,
+                    right: '-8px',
                     marginTop: '4px',
-                    minWidth: '160px',
+                    minWidth: '180px',
                     background: 'var(--menu-bg)',
                     borderRadius: '8px',
                     boxShadow: 'var(--shadow-md)',
-                    padding: '4px 0',
+                    padding: '8px 0',
                     zIndex: 1000,
                   }}
                 >
-                  {themeMenuItems}
-                  <div style={{ height: '1px', background: 'var(--divider)', margin: '4px 8px' }} />
+                  {(['light', 'dark', 'system'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => {
+                        setTheme(mode);
+                        setMenuOpen(false);
+                      }}
+                      type="button"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        width: '100%',
+                        padding: '10px 16px',
+                        textAlign: 'left',
+                        background: 'transparent',
+                        border: 'none',
+                        fontSize: '16px',
+                        color: theme === mode ? 'var(--accent)' : '#fff',
+                        cursor: 'pointer',
+                        borderRadius: '4px',
+                      }}
+                    >
+                      {themeIcons[mode]}
+                      {themeLabels[mode]}
+                    </button>
+                  ))}
+                  <div style={{ height: '1px', background: 'rgba(255,255,255,0.2)', margin: '8px 12px' }} />
                   {isAuthenticated ? (
                     <>
                       <button
                         onClick={() => { setMenuOpen(false); setChangePasswordOpen(true); }}
                         type="button"
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', fontSize: '14px', color: 'var(--text)', cursor: 'pointer' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 16px', textAlign: 'left', background: 'transparent', border: 'none', fontSize: '16px', color: '#fff', cursor: 'pointer' }}
                       >
-                        <LockOutlined style={{ fontSize: '14px' }} />
+                        <LockOutlined style={{ fontSize: '16px' }} />
                         修改密码
                       </button>
                       <button
                         onClick={() => { setMenuOpen(false); logout(); }}
                         type="button"
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', fontSize: '14px', color: 'var(--text)', cursor: 'pointer' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 16px', textAlign: 'left', background: 'transparent', border: 'none', fontSize: '16px', color: '#fff', cursor: 'pointer' }}
                       >
-                        <LogoutOutlined style={{ fontSize: '14px' }} />
+                        <LogoutOutlined style={{ fontSize: '16px' }} />
                         登出
                       </button>
                     </>
@@ -211,9 +218,9 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
                     <button
                       onClick={() => { setMenuOpen(false); setLoginOpen(true); }}
                       type="button"
-                      style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', fontSize: '14px', color: 'var(--text)', cursor: 'pointer' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 16px', textAlign: 'left', background: 'transparent', border: 'none', fontSize: '16px', color: '#fff', cursor: 'pointer' }}
                     >
-                      <UserOutlined style={{ fontSize: '14px' }} />
+                      <UserOutlined style={{ fontSize: '16px' }} />
                       登录
                     </button>
                   )}

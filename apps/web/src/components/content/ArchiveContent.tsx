@@ -22,6 +22,7 @@ function ArchiveContentInner() {
 
   const [activeSource, setActiveSource] = useState('all');
   const [currentSort, setCurrentSort] = useState('count');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
   const [allArticles, setAllArticles] = useState<ArticleListItem[]>([]);
   const [isMobile, setIsMobile] = useState(false);
@@ -50,7 +51,7 @@ function ArchiveContentInner() {
     { revalidateOnFocus: false }
   );
 
-  const { data: sourceData } = useSWR(`sources:${currentSort}`, () => api.getSources(currentSort), { revalidateOnFocus: false });
+  const { data: sourceData } = useSWR(`sources:${currentSort}:${sortOrder}`, () => api.getSources(currentSort, sortOrder), { revalidateOnFocus: false });
 
   const totalPages = data?.totalPages ?? 1;
   const sources = sourceData ?? [];
@@ -79,6 +80,10 @@ function ArchiveContentInner() {
 
   const handleSortChange = useCallback((sort: string) => {
     setCurrentSort(sort);
+  }, []);
+
+  const handleSortOrderChange = useCallback((order: 'asc' | 'desc') => {
+    setSortOrder(order);
   }, []);
 
   const refreshList = useCallback(() => {
@@ -254,11 +259,15 @@ function ArchiveContentInner() {
           activeSource={activeSource}
           totalCount={totalCount}
           onSelect={handleSourceSelect}
+          currentSort={currentSort}
+          onSortChange={handleSortChange}
+          sortOrder={sortOrder}
+          onSortOrderChange={handleSortOrderChange}
         />
       )}
 
       {!isMobile && (
-        <div style={{ display: 'flex', gap: '24px' }}>
+        <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
           <SourceSidebar
             sources={sources}
             activeSource={activeSource}
@@ -266,12 +275,14 @@ function ArchiveContentInner() {
             onSelect={handleSourceSelect}
             currentSort={currentSort}
             onSortChange={handleSortChange}
+            sortOrder={sortOrder}
+            onSortOrderChange={handleSortOrderChange}
           />
-          <div style={{ flex: 1 }}>{articleListContent}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>{articleListContent}</div>
         </div>
       )}
 
-      {isMobile && <div style={{ padding: '8px 8px' }}>{articleListContent}</div>}
+      {isMobile && <div style={{ padding: '8px 16px' }}>{articleListContent}</div>}
     </div>
   );
 }
