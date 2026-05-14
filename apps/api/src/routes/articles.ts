@@ -256,15 +256,46 @@ articlesRoutes.post('/articles/:id/unarchive', requireAuth, async (c) => {
 });
 
 /**
- * GET /categories — 归档分类统计
+ * GET /sources — 公众号来源统计（归档页使用）
  */
-articlesRoutes.get('/categories', async (c) => {
-  const rows = await db
-    .select({ category: articleMetadata.aiCategory, count: count() })
-    .from(articleMetadata)
-    .where(and(eq(articleMetadata.isArchived, true), sql`${articleMetadata.aiCategory} IS NOT NULL`))
-    .groupBy(articleMetadata.aiCategory);
-  return c.json(rows);
+articlesRoutes.get('/sources', async (c) => {
+  const sortParam = c.req.query('sort') || 'count';
+  const validSorts = ['count', 'name', 'latest'];
+  const sort = validSorts.includes(sortParam) ? sortParam : 'count';
+
+  try {
+    let query = db
+      .select({
+        source: articles.source,
+        count: count(),
+        latestCreatedAt: sql<Date>`MAX(${articles.createdAt})`,
+      })
+      .from(articles)
+      .innerJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+      .where(eq(articleMetadata.isArchived, true))
+      .where(sql`${articles.source} IS NOT NULL`)
+      .groupBy(articles.source);
+
+    // 根据 sort 参数添加 ORDER BY
+    if (sort === 'name') {
+      query = query.orderBy(articles.source);
+    } else if (sort === 'latest') {
+      query = query.orderBy(sql`MAX(${articles.createdAt}) DESC`);
+    } else {
+      query = query.orderBy(sql`${count()} DESC`);
+    }
+
+    const rows = await query;
+
+    return c.json(rows.map(r => ({
+      source: r.source,
+      count: r.count,
+      latestCreatedAt: r.latestCreatedAt,
+    })));
+  } catch (e: any) {
+    console.error('Failed to get sources:', e.message);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: '获取来源统计失败' } }, 500);
+  }
 });
 
 /**
