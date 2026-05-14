@@ -6,8 +6,8 @@ import { useToast } from '@/components/ui/Toast';
 import { useArticleContext } from '@/components/providers/ArticleContext';
 import { useAuth } from '@/components/providers/AuthContext';
 import { ArticleList } from '@/components/article/ArticleList';
-import { WechatCategorySidebar } from '@/components/archive/WechatCategorySidebar';
-import { WechatCategoryPills } from '@/components/archive/WechatCategoryPills';
+import { SourceSidebar } from '@/components/archive/SourceSidebar';
+import { SourcePills } from '@/components/archive/SourcePills';
 import { api } from '@/lib/api';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
 import type { ArticleListItem } from '@storing/shared';
@@ -18,7 +18,8 @@ function ArchiveContentInner() {
   const { openArticle, highlightId, setMutateFn } = useArticleContext();
   const { unarchive, toggleFavorite } = useArticleOperations();
 
-  const [activeCat, setActiveCat] = useState('all');
+  const [activeSource, setActiveSource] = useState('all');
+  const [currentSort, setCurrentSort] = useState('count');
   const [page, setPage] = useState(1);
   const [allArticles, setAllArticles] = useState<ArticleListItem[]>([]);
   const [isMobile, setIsMobile] = useState(false);
@@ -32,16 +33,16 @@ function ArchiveContentInner() {
   }, []);
 
   const { data, isLoading, isValidating } = useSWR(
-    `articles:archive:${page}:${activeCat}`,
-    () => api.getArticles('archive', page, activeCat),
+    `articles:archive:${page}:${activeSource}`,
+    () => api.getArticles('archive', page, activeSource),
     { revalidateOnFocus: false }
   );
 
-  const { data: catData } = useSWR('categories', () => api.getCategories(), { revalidateOnFocus: false });
+  const { data: sourceData } = useSWR(`sources:${currentSort}`, () => api.getSources(currentSort), { revalidateOnFocus: false });
 
   const totalPages = data?.totalPages ?? 1;
-  const categories = catData ?? [];
-  const totalCount = categories.reduce((sum: number, c: any) => sum + c.count, 0);
+  const sources = sourceData ?? [];
+  const totalCount = sources.reduce((sum: number, s: any) => sum + s.count, 0);
 
   useEffect(() => {
     if (data?.articles) {
@@ -56,13 +57,17 @@ function ArchiveContentInner() {
     }
   }, [data, page]);
 
-  const handleCategorySelect = useCallback((cat: string) => {
-    if (cat === activeCat) return;
-    setActiveCat(cat);
+  const handleSourceSelect = useCallback((source: string) => {
+    if (source === activeSource) return;
+    setActiveSource(source);
     setPage(1);
     removingIdsRef.current.clear();
     window.scrollTo(0, 0);
-  }, [activeCat]);
+  }, [activeSource]);
+
+  const handleSortChange = useCallback((sort: string) => {
+    setCurrentSort(sort);
+  }, []);
 
   const refreshList = useCallback(() => {
     setPage(1);
@@ -113,34 +118,6 @@ function ArchiveContentInner() {
     }
   };
 
-  // 重新分类
-  const handleReclassify = async (id: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      await api.reclassify(id);
-      setPage(1);
-      showToast('已重新分类');
-    } catch (error) {
-      showToast('重新分类失败，请重试');
-      console.error('Failed to reclassify:', error);
-    }
-  };
-
-  const [reclassifyingAll, setReclassifyingAll] = useState(false);
-  const handleReclassifyAll = async () => {
-    if (reclassifyingAll) return;
-    setReclassifyingAll(true);
-    try {
-      await api.reclassifyAll();
-      showToast('已开始后台重新分类，稍后刷新查看结果');
-      setTimeout(() => { setPage(1); }, 10000);
-    } catch (error) {
-      showToast('批量重新分类失败');
-      console.error('Failed to reclassify all:', error);
-      setReclassifyingAll(false);
-    }
-  };
-
   const articleListContent = isLoading && page === 1 ? (
     <div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>
   ) : (
@@ -153,8 +130,6 @@ function ArchiveContentInner() {
       onArticleClick={(id) => openArticle(id)}
       onToggleFavorite={handleToggleFavorite}
       onArchive={handleUnarchive}
-      onReclassify={handleReclassify}
-      showReclassify={isAuthenticated}
       showMenu={isAuthenticated}
       highlightId={highlightId}
     />
@@ -163,23 +138,23 @@ function ArchiveContentInner() {
   return (
     <div style={{ padding: '0' }}>
       {isMobile && (
-        <WechatCategoryPills
-          categories={categories}
-          activeCategory={activeCat}
+        <SourcePills
+          sources={sources}
+          activeSource={activeSource}
           totalCount={totalCount}
-          onSelect={handleCategorySelect}
+          onSelect={handleSourceSelect}
         />
       )}
 
       {!isMobile && (
         <div style={{ display: 'flex', gap: '24px' }}>
-          <WechatCategorySidebar
-            categories={categories}
-            activeCategory={activeCat}
+          <SourceSidebar
+            sources={sources}
+            activeSource={activeSource}
             totalCount={totalCount}
-            onSelect={handleCategorySelect}
-            onReclassifyAll={isAuthenticated ? handleReclassifyAll : undefined}
-            reclassifyingAll={reclassifyingAll}
+            onSelect={handleSourceSelect}
+            currentSort={currentSort}
+            onSortChange={handleSortChange}
           />
           <div style={{ flex: 1 }}>{articleListContent}</div>
         </div>
