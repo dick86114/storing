@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { DateText } from '@/lib/formatDate';
-import { getCategoryColor } from '@/lib/categoryColors';
 import type { ArticleListItem } from '@storing/shared';
 
 export function ArticleCard({
@@ -38,22 +37,6 @@ export function ArticleCard({
   const cardContent = (
     <>
       <div className="article-card-meta">
-        {/* 归档文章显示分类 */}
-        {article.isArchived && article.aiCategory && (
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 500,
-              color: getCategoryColor(article.aiCategory).text,
-              background: getCategoryColor(article.aiCategory).bg,
-              padding: '2px 6px',
-              borderRadius: 4,
-              marginRight: 6,
-            }}
-          >
-            {article.aiCategory}
-          </span>
-        )}
         <span className="article-card-source">{article.source}</span>
         <span className="article-card-dot" />
         <DateText dateStr={article.publishTime} className="article-card-date" />
