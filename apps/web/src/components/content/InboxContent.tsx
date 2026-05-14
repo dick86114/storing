@@ -9,6 +9,7 @@ import { useAuth } from '@/components/providers/AuthContext';
 import { ArticleList } from '@/components/article/ArticleList';
 import { api } from '@/lib/api';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
+import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
 import type { ArticleListItem } from '@storing/shared';
 
 const PER_PAGE = 18;
@@ -19,14 +20,38 @@ function InboxContentInner() {
   const { openArticle, highlightId, setMutateFn } = useArticleContext();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { archive, toggleFavorite, removeArticleFromView } = useArticleOperations();
+  const { getBookmark, clearBookmark } = useBookmark();
+  const [bookmarkPrompt, setBookmarkPrompt] = useState<ReadingBookmark | null>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.replace('/archive');
   }, [isAuthenticated, authLoading, router]);
 
+  useEffect(() => {
+    const bookmark = getBookmark();
+    if (bookmark && bookmark.view === 'inbox') {
+      setBookmarkPrompt(bookmark);
+    }
+  }, [getBookmark]);
+
   const [page, setPage] = useState(1);
   const [allArticles, setAllArticles] = useState<ArticleListItem[]>([]);
   const removingIdsRef = useRef<Set<number>>(new Set());
+
+  const handleContinueReading = () => {
+    if (!bookmarkPrompt) return;
+    openArticle(bookmarkPrompt.articleId);
+    setBookmarkPrompt(null);
+    setTimeout(() => {
+      const content = document.querySelector('.detail-panel-content');
+      if (content) content.scrollTop = bookmarkPrompt.scrollPosition;
+    }, 200);
+  };
+
+  const handleDismissBookmark = () => {
+    clearBookmark();
+    setBookmarkPrompt(null);
+  };
 
   const { data, isLoading: dataLoading, isValidating } = useSWR(
     isAuthenticated ? `articles:inbox:${page}` : null,
@@ -62,6 +87,54 @@ function InboxContentInner() {
 
   return (
     <>
+      {bookmarkPrompt && (
+        <div style={{
+          background: 'oklch(0.95 0.05 270)',
+          border: '1px solid oklch(0.8 0.1 270)',
+          borderRadius: '12px',
+          padding: '16px 20px',
+          margin: '0 0 16px 0',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          backdropFilter: 'blur(12px)',
+        }}>
+          <span style={{ color: 'oklch(0.3 0.05 270)', fontSize: '14px' }}>
+            检测到上次未读完的文章，是否继续阅读?
+          </span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={handleDismissBookmark}
+              style={{
+                background: 'transparent',
+                border: '1px solid oklch(0.7 0.05 270)',
+                borderRadius: '8px',
+                padding: '8px 16px',
+                fontSize: '14px',
+                color: 'oklch(0.4 0.05 270)',
+                cursor: 'pointer',
+              }}
+            >
+              稍后
+            </button>
+            <button
+              onClick={handleContinueReading}
+              style={{
+                background: 'oklch(0.6 0.15 270)',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '8px 16px',
+                fontSize: '14px',
+                color: 'white',
+                cursor: 'pointer',
+                fontWeight: 500,
+              }}
+            >
+              继续
+            </button>
+          </div>
+        </div>
+      )}
       {dataLoading && page === 1 ? (
         <div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>
       ) : (
