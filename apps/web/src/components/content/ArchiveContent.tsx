@@ -10,6 +10,7 @@ import { SourceSidebar } from '@/components/archive/SourceSidebar';
 import { SourcePills } from '@/components/archive/SourcePills';
 import { api } from '@/lib/api';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
+import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
 import type { ArticleListItem } from '@storing/shared';
 
 function ArchiveContentInner() {
@@ -17,12 +18,14 @@ function ArchiveContentInner() {
   const { showToast } = useToast();
   const { openArticle, highlightId, setMutateFn } = useArticleContext();
   const { unarchive, toggleFavorite } = useArticleOperations();
+  const { getBookmark, clearBookmark } = useBookmark();
 
   const [activeSource, setActiveSource] = useState('all');
   const [currentSort, setCurrentSort] = useState('count');
   const [page, setPage] = useState(1);
   const [allArticles, setAllArticles] = useState<ArticleListItem[]>([]);
   const [isMobile, setIsMobile] = useState(false);
+  const [bookmarkPrompt, setBookmarkPrompt] = useState<ReadingBookmark | null>(null);
   const removingIdsRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
@@ -31,6 +34,15 @@ function ArchiveContentInner() {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // 页面加载时检测书签（仅 archive 视图的书签）
+  useEffect(() => {
+    const bookmark = getBookmark();
+    // 只处理 archive 视图的书签，其他视图由对应页面处理
+    if (bookmark && bookmark.view === 'archive') {
+      setBookmarkPrompt(bookmark);
+    }
+  }, [getBookmark]);
 
   const { data, isLoading, isValidating } = useSWR(
     `articles:archive:${page}:${activeSource}`,
@@ -79,6 +91,25 @@ function ArchiveContentInner() {
   const handleLoadMore = useCallback(() => {
     if (page < totalPages) setPage((p) => p + 1);
   }, [page, totalPages]);
+
+  const handleContinueReading = () => {
+    if (!bookmarkPrompt) return;
+    openArticle(bookmarkPrompt.articleId);
+    setBookmarkPrompt(null);
+
+    // 延迟滚动到保存位置
+    setTimeout(() => {
+      const content = document.querySelector('.detail-panel-content');
+      if (content) {
+        content.scrollTop = bookmarkPrompt.scrollPosition;
+      }
+    }, 200);
+  };
+
+  const handleDismissBookmark = () => {
+    clearBookmark();
+    setBookmarkPrompt(null);
+  };
 
   // 收藏/取消收藏：立即更新卡片状态
   const handleToggleFavorite = async (id: number, e: React.MouseEvent) => {
@@ -137,6 +168,67 @@ function ArchiveContentInner() {
 
   return (
     <div style={{ padding: '0' }}>
+      {/* 书签提示弹窗 */}
+      {bookmarkPrompt && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 300,
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--card-bg)',
+              padding: '24px',
+              borderRadius: '12px',
+              maxWidth: '320px',
+              textAlign: 'center',
+            }}
+          >
+            <p style={{ marginBottom: '16px', color: 'var(--text)' }}>
+              检测到上次的书签「{bookmarkPrompt.articleTitle || '未命名文章'}」，是否继续阅读？
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button
+                onClick={handleContinueReading}
+                style={{
+                  padding: '10px 20px',
+                  background: 'var(--accent)',
+                  color: '#fff',
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                继续阅读
+              </button>
+              <button
+                onClick={handleDismissBookmark}
+                style={{
+                  padding: '10px 20px',
+                  background: 'transparent',
+                  color: 'var(--text-muted)',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  cursor: 'pointer',
+                }}
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isMobile && (
         <SourcePills
           sources={sources}
