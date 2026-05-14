@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useSWRConfig } from 'swr';
 import { useArticle } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
@@ -8,6 +8,7 @@ import { useAuth } from '@/components/providers/AuthContext';
 import { DateText } from '@/lib/formatDate';
 import { api } from '@/lib/api';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
+import { useBookmark } from '@/hooks/useBookmark';
 import ReactMarkdown from 'react-markdown';
 import type { ArticleListItem } from '@storing/shared';
 
@@ -25,6 +26,24 @@ export function ArticleDetailPanel({
   const { showToast } = useToast();
   const { isAuthenticated } = useAuth();
   const { archive, unarchive, toggleFavorite, updateArticleInView, removeArticleFromView } = useArticleOperations();
+
+  // 滚动位置追踪
+  const [scrollPosition, setScrollPosition] = useState(0);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const { saveBookmark } = useBookmark();
+
+  // 监听滚动位置
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!content || !articleId) return;
+
+    const handleScroll = () => {
+      setScrollPosition(content.scrollTop);
+    };
+
+    content.addEventListener('scroll', handleScroll);
+    return () => content.removeEventListener('scroll', handleScroll);
+  }, [articleId]);
 
   // 分享功能
   async function handleShare() {
@@ -47,6 +66,27 @@ export function ArticleDetailPanel({
       }
     }
   }
+
+  // 保存书签
+  const handleSaveBookmark = () => {
+    if (!article) return;
+
+    // 从 URL 获取当前视图
+    const path = window.location.pathname;
+    const view: 'inbox' | 'archive' | 'favorites' = path.includes('inbox') ? 'inbox'
+      : path.includes('favorites') ? 'favorites'
+      : 'archive';
+
+    saveBookmark({
+      view,
+      articleId: article.id,
+      scrollPosition,
+      articleTitle: article.title,
+      timestamp: Date.now(),
+    });
+
+    showToast('已保存书签');
+  };
 
   useEffect(() => {
     if (articleId) {
@@ -74,8 +114,14 @@ export function ArticleDetailPanel({
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
-          {article && isAuthenticated && (
+          {article && (
             <div className="flex" style={{ gap: 'var(--gap-xs)' }}>
+              {/* 书签按钮 */}
+              <button onClick={handleSaveBookmark} className="detail-panel-action-btn" title="保存书签">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                </svg>
+              </button>
               {article.isArchived && (
                 <button onClick={handleShare} className="detail-panel-action-btn" title="分享">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
@@ -174,7 +220,7 @@ export function ArticleDetailPanel({
             </div>
           </div>
         ) : article ? (
-          <div className="detail-panel-content">
+          <div className="detail-panel-content" ref={contentRef}>
             <div className="detail-panel-meta">
               <span className="detail-panel-source">{article.source}</span>
               <span className="article-card-dot" />
