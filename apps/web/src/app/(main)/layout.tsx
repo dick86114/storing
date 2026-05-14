@@ -70,11 +70,16 @@ function MainContent({ children }: { children: ReactNode }) {
       {isMobile && (
         <>
           <MobileTopNav />
-          <main style={{
-            height: isAuthenticated ? 'calc(100vh - 110px)' : 'calc(100vh - 44px)',
-            overflowY: 'auto',
-            paddingBottom: isAuthenticated ? '66px' : '0',
-          }}>
+          <main
+            className="hide-scrollbar"
+            style={{
+              height: isAuthenticated ? 'calc(100vh - 110px)' : 'calc(100vh - 56px)',
+              overflowY: 'auto',
+              paddingBottom: isAuthenticated ? '66px' : '0',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            }}
+          >
             {children}
           </main>
           <MobileBottomTab
@@ -90,7 +95,7 @@ function MainContent({ children }: { children: ReactNode }) {
         <>
           <DesktopTopNav onSearchOpen={() => setSearchOpen(true)} counts={counts} activeIndex={currentTabIndex} onTabChange={setCurrentTabIndex} />
           <main style={{ padding: '24px 0', background: 'var(--bg)' }}>
-            <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px' }}>
+            <div style={{ margin: '0 auto', padding: '0 24px' }}>
               {children}
             </div>
           </main>

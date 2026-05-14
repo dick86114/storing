@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SearchOutlined, PlusOutlined, PlusCircleOutlined } from '@ant-design/icons';
+import { SearchOutlined, PlusOutlined, PlusCircleOutlined, UserOutlined, SunOutlined, MoonOutlined, DesktopOutlined, LockOutlined, LogoutOutlined } from '@ant-design/icons';
 import { SearchModal } from '@/components/search/SearchModal';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
@@ -20,6 +20,18 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
   const [loginOpen, setLoginOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
 
+  const themeIcons: Record<string, React.ReactNode> = {
+    light: <SunOutlined style={{ fontSize: '16px' }} />,
+    dark: <MoonOutlined style={{ fontSize: '16px' }} />,
+    system: <DesktopOutlined style={{ fontSize: '16px' }} />,
+  };
+
+  const themeLabels: Record<string, string> = {
+    light: '浅色模式',
+    dark: '深色模式',
+    system: '跟随系统',
+  };
+
   return (
     <>
       <header
@@ -27,7 +39,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          height: '44px',
+          height: '56px',
           padding: '0 16px',
           background: 'var(--bg)',
           position: 'sticky',
@@ -114,30 +126,28 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                 onTouchEnd={(e) => e.stopPropagation()}
                 style={{
                   position: 'absolute',
-                  top: '44px',
-                  right: '16px',
+                  top: '56px',
+                  right: '-8px',
                   background: 'var(--menu-bg)',
                   borderRadius: '8px',
                   boxShadow: 'var(--shadow-md)',
-                  padding: '4px 0',
-                  minWidth: '140px',
+                  padding: '8px 0',
+                  minWidth: '180px',
                   zIndex: 1000,
                 }}
               >
                 {/* 已登录：显示用户名 */}
                 {isAuthenticated && (
                   <>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '8px 12px 4px', fontWeight: 500 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', fontSize: '16px', color: '#fff' }}>
+                      <UserOutlined style={{ fontSize: '16px' }} />
                       {user?.username}
                     </div>
-                    <div style={{ height: '1px', background: 'var(--divider)', margin: '4px 8px' }} />
+                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.2)', margin: '8px 12px' }} />
                   </>
                 )}
 
                 {/* 主题切换 */}
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', padding: '8px 12px 4px', fontWeight: 500 }}>
-                  主题模式
-                </div>
                 {(['light', 'dark', 'system'] as const).map((mode) => (
                   <button
                     key={mode}
@@ -147,22 +157,26 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                     }}
                     type="button"
                     style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
                       width: '100%',
-                      padding: '8px 12px',
+                      padding: '10px 16px',
                       textAlign: 'left',
-                      background: theme === mode ? 'var(--accent-soft)' : 'transparent',
+                      background: 'transparent',
                       border: 'none',
-                      fontSize: '14px',
-                      color: theme === mode ? 'var(--accent)' : 'var(--text)',
+                      fontSize: '16px',
+                      color: theme === mode ? 'var(--accent)' : '#fff',
                       cursor: 'pointer',
                       borderRadius: '4px',
                     }}
                   >
-                    {mode === 'light' ? '浅色模式' : mode === 'dark' ? '深色模式' : '跟随系统'}
+                    {themeIcons[mode]}
+                    {themeLabels[mode]}
                   </button>
                 ))}
 
-                <div style={{ height: '1px', background: 'var(--divider)', margin: '4px 8px' }} />
+                <div style={{ height: '1px', background: 'rgba(255,255,255,0.2)', margin: '8px 12px' }} />
 
                 {isAuthenticated ? (
                   <>
@@ -175,17 +189,17 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '8px',
-                          padding: '8px 12px',
+                          gap: '10px',
+                          padding: '10px 16px',
                           width: '100%',
                           background: 'transparent',
                           border: 'none',
                           cursor: 'pointer',
-                          fontSize: '14px',
-                          color: 'var(--text)',
+                          fontSize: '16px',
+                          color: '#fff',
                         }}
                       >
-                        <PlusOutlined style={{ fontSize: '14px' }} />
+                        <PlusOutlined style={{ fontSize: '16px' }} />
                         添加文章
                       </button>
                     )}
@@ -197,16 +211,17 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px',
-                        padding: '8px 12px',
+                        gap: '10px',
+                        padding: '10px 16px',
                         width: '100%',
                         background: 'transparent',
                         border: 'none',
                         cursor: 'pointer',
-                        fontSize: '14px',
-                        color: 'var(--text)',
+                        fontSize: '16px',
+                        color: '#fff',
                       }}
                     >
+                      <LockOutlined style={{ fontSize: '16px' }} />
                       修改密码
                     </button>
                     <button
@@ -217,16 +232,17 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px',
-                        padding: '8px 12px',
+                        gap: '10px',
+                        padding: '10px 16px',
                         width: '100%',
                         background: 'transparent',
                         border: 'none',
                         cursor: 'pointer',
-                        fontSize: '14px',
-                        color: 'var(--text)',
+                        fontSize: '16px',
+                        color: '#fff',
                       }}
                     >
+                      <LogoutOutlined style={{ fontSize: '16px' }} />
                       登出
                     </button>
                   </>
@@ -239,16 +255,17 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '8px',
-                      padding: '8px 12px',
+                      gap: '10px',
+                      padding: '10px 16px',
                       width: '100%',
                       background: 'transparent',
                       border: 'none',
                       cursor: 'pointer',
-                      fontSize: '14px',
-                      color: 'var(--text)',
+                      fontSize: '16px',
+                      color: '#fff',
                     }}
                   >
+                    <UserOutlined style={{ fontSize: '16px' }} />
                     登录
                   </button>
                 )}

@@ -139,31 +139,25 @@ wait_for_port() {
   fi
 }
 
-# 关闭所有相关进程（更彻底的清理）
-echo "清理所有相关进程..."
-# 使用 killall 和 pkill 组合，确保清理所有相关进程
-killall -9 node 2>/dev/null || true
-killall -9 pnpm 2>/dev/null || true
-killall -9 turbo 2>/dev/null || true
-killall -9 next 2>/dev/null || true
-killall -9 tsx 2>/dev/null || true
+# 关闭项目相关进程（只清理本项目，不影响其他进程）
+echo "清理项目相关进程..."
 
-# 再次使用 pkill 确保清理
-pkill -9 -f "pnpm" 2>/dev/null || true
-pkill -9 -f "turbo" 2>/dev/null || true
-pkill -9 -f "next" 2>/dev/null || true
-pkill -9 -f "tsx" 2>/dev/null || true
-pkill -9 -f "node.*storing" 2>/dev/null || true
-
-sleep 3
-
-# 关闭后端
+# 通过端口清理（最精确的方式）
 kill_port $BACKEND_PORT "后端"
+kill_port $FRONTEND_PORT "前端"
+
+# 通过工作目录精确匹配项目进程（避免误杀其他 node 进程）
+pkill -9 -f "node.*$SCRIPT_DIR" 2>/dev/null || true
+pkill -9 -f "pnpm.*$SCRIPT_DIR" 2>/dev/null || true
+pkill -9 -f "turbo.*$SCRIPT_DIR" 2>/dev/null || true
+pkill -9 -f "next.*$SCRIPT_DIR" 2>/dev/null || true
+pkill -9 -f "tsx.*$SCRIPT_DIR" 2>/dev/null || true
+
+sleep 2
+
+# 等待端口完全释放
 wait_for_port $BACKEND_PORT "后端"
 echo ""
-
-# 关闭前端
-kill_port $FRONTEND_PORT "前端"
 wait_for_port $FRONTEND_PORT "前端"
 echo ""
 

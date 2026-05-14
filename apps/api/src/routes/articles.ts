@@ -260,8 +260,10 @@ articlesRoutes.post('/articles/:id/unarchive', requireAuth, async (c) => {
  */
 articlesRoutes.get('/sources', async (c) => {
   const sortParam = c.req.query('sort') || 'count';
+  const orderParam = c.req.query('order') || 'desc';
   const validSorts = ['count', 'name', 'latest'];
   const sort = validSorts.includes(sortParam) ? sortParam : 'count';
+  const order = orderParam === 'asc' || orderParam === 'desc' ? orderParam : 'desc';
 
   try {
     const rows = await db
@@ -278,17 +280,18 @@ articlesRoutes.get('/sources', async (c) => {
       ))
       .groupBy(articles.source);
 
-    // 根据 sort 参数排序
     const sortedRows = rows.sort((a: any, b: any) => {
+      let comparison = 0;
       if (sort === 'name') {
-        return (a.source || '').localeCompare(b.source || '');
+        comparison = (a.source || '').localeCompare(b.source || '');
       } else if (sort === 'latest') {
         const dateA = a.latestCreatedAt ? new Date(a.latestCreatedAt).getTime() : 0;
         const dateB = b.latestCreatedAt ? new Date(b.latestCreatedAt).getTime() : 0;
-        return dateB - dateA;
+        comparison = dateB - dateA;
       } else {
-        return (b.count || 0) - (a.count || 0);
+        comparison = (b.count || 0) - (a.count || 0);
       }
+      return order === 'asc' ? -comparison : comparison;
     });
 
     return c.json(sortedRows.map((r: any) => ({

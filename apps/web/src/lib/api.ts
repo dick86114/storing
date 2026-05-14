@@ -67,5 +67,11 @@ export const api = {
     return fetchJSON<any>(`/search?${params}`);
   },
 
-  getSources: (sort?: string) => fetchJSON<any>(`/sources${sort ? `?sort=${sort}` : ''}`),
+  getSources: (sort?: string, order?: 'asc' | 'desc') => {
+    const params = new URLSearchParams();
+    if (sort) params.set('sort', sort);
+    if (order) params.set('order', order);
+    const query = params.toString();
+    return fetchJSON<any>(`/sources${query ? `?${query}` : ''}`);
+  },
 };
