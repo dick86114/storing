@@ -137,7 +137,7 @@ export function ArticleDetailPanel({
                     if (success) {
                       mutateArticle();
                       onClose();
-                      showToast('已归档 — AI 正在自动分类…');
+                      showToast('已归档 — AI 正在生成摘要…');
                     } else {
                       showToast('归档失败，请重试');
                     }
