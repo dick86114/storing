@@ -20,7 +20,19 @@ function useRelativeDate(dateStr: string | null): string {
     const d = new Date(dateStr);
     const now = Date.now();
     const diff = Math.floor((now - d.getTime()) / (1000 * 60 * 60 * 24));
-    if (diff === 0) setText('今天');
+    // 未来日期或当天（diff <= 0）显示具体日期或"今天"
+    if (diff <= 0) {
+      // 判断是否是同一天（忽略时区偏差）
+      const today = new Date();
+      const articleDate = new Date(dateStr);
+      if (today.getFullYear() === articleDate.getFullYear() &&
+          today.getMonth() === articleDate.getMonth() &&
+          today.getDate() === articleDate.getDate()) {
+        setText('今天');
+      } else {
+        setText(formatDateStatic(dateStr));
+      }
+    }
     else if (diff === 1) setText('昨天');
     else if (diff < 7) setText(`${diff} 天前`);
     else setText(formatDateStatic(dateStr));
