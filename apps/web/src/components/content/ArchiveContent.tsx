@@ -99,7 +99,7 @@ function ArchiveContentInner() {
 
     // 延迟滚动到保存位置
     setTimeout(() => {
-      const content = document.querySelector('.detail-panel-content');
+      const content = document.querySelector('[data-scroll-container="detail"]');
       if (content) {
         content.scrollTop = bookmarkPrompt.scrollPosition;
       }
