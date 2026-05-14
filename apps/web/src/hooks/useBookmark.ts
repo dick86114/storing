@@ -7,7 +7,8 @@ const BOOKMARK_KEY = 'reading_bookmark';
 export interface ReadingBookmark {
   view: 'inbox' | 'archive' | 'favorites';
   articleId: number;
-  scrollPosition: number;
+  scrollPosition: number; // 详情面板内的滚动位置
+  listScrollPosition?: number; // 文章列表的滚动位置
   articleTitle?: string;
   timestamp: number;
 }
