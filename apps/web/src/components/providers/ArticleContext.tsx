@@ -11,6 +11,7 @@ interface ArticleContextValue {
   clearHighlight: () => void;
   mutateList: () => void;
   setMutateFn: (fn: () => void) => void;
+  scrollToPosition: (position: number) => void;  // 新增：滚动到指定位置
 }
 
 const ArticleContext = createContext<ArticleContextValue | null>(null);
@@ -61,6 +62,16 @@ export function ArticleProvider({ children }: { children: ReactNode }) {
   const mutateList = useCallback(() => mutateFn?.(), [mutateFn]);
   const setMutateFn = useCallback((fn: () => void) => setMutateFnState(() => fn), []);
 
+  const scrollToPosition = useCallback((position: number) => {
+    // 延迟执行，等详情面板渲染完成
+    setTimeout(() => {
+      const content = document.querySelector('.detail-panel-content');
+      if (content) {
+        content.scrollTop = position;
+      }
+    }, 100);
+  }, []);
+
   const highlightAndOpen = useCallback((id: number, view: 'inbox' | 'favorites' | 'archive') => {
     setHighlightId(id);
     setSelectedId(id);
@@ -78,15 +89,16 @@ export function ArticleProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <ArticleContext.Provider value={{ 
-      selectedId, 
-      highlightId, 
-      openArticle, 
-      closeArticle, 
-      highlightAndOpen, 
+    <ArticleContext.Provider value={{
+      selectedId,
+      highlightId,
+      openArticle,
+      closeArticle,
+      highlightAndOpen,
       clearHighlight,
-      mutateList, 
-      setMutateFn 
+      mutateList,
+      setMutateFn,
+      scrollToPosition,
     }}>
       {children}
     </ArticleContext.Provider>
