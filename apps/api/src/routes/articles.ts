@@ -264,7 +264,7 @@ articlesRoutes.get('/sources', async (c) => {
   const sort = validSorts.includes(sortParam) ? sortParam : 'count';
 
   try {
-    let query = db
+    const rows = await db
       .select({
         source: articles.source,
         count: count(),
@@ -272,22 +272,26 @@ articlesRoutes.get('/sources', async (c) => {
       })
       .from(articles)
       .innerJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
-      .where(eq(articleMetadata.isArchived, true))
-      .where(sql`${articles.source} IS NOT NULL`)
+      .where(and(
+        eq(articleMetadata.isArchived, true),
+        sql`${articles.source} IS NOT NULL`
+      ))
       .groupBy(articles.source);
 
-    // 根据 sort 参数添加 ORDER BY
-    if (sort === 'name') {
-      query = query.orderBy(articles.source);
-    } else if (sort === 'latest') {
-      query = query.orderBy(sql`MAX(${articles.createdAt}) DESC`);
-    } else {
-      query = query.orderBy(sql`${count()} DESC`);
-    }
+    // 根据 sort 参数排序
+    const sortedRows = rows.sort((a: any, b: any) => {
+      if (sort === 'name') {
+        return (a.source || '').localeCompare(b.source || '');
+      } else if (sort === 'latest') {
+        const dateA = a.latestCreatedAt ? new Date(a.latestCreatedAt).getTime() : 0;
+        const dateB = b.latestCreatedAt ? new Date(b.latestCreatedAt).getTime() : 0;
+        return dateB - dateA;
+      } else {
+        return (b.count || 0) - (a.count || 0);
+      }
+    });
 
-    const rows = await query;
-
-    return c.json(rows.map(r => ({
+    return c.json(sortedRows.map((r: any) => ({
       source: r.source,
       count: r.count,
       latestCreatedAt: r.latestCreatedAt,
