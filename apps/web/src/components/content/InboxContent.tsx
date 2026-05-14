@@ -52,16 +52,21 @@ function InboxContentInner() {
     openArticle(bookmarkPrompt.articleId);
     setBookmarkPrompt(null);
 
-    // 等待详情面板渲染完成后再滚动
-    const scrollToPosition = () => {
+    // 延迟滚动到保存位置（等待 DOM 完全渲染）
+    const scrollToPosition = (retries = 0) => {
       const content = document.querySelector('[data-scroll-container="detail"]');
-      if (content) {
+      if (content && content.scrollHeight > 0) {
         content.scrollTop = bookmarkPrompt.scrollPosition;
-      } else {
-        requestAnimationFrame(scrollToPosition);
+        // 验证滚动是否成功
+        if (content.scrollTop !== bookmarkPrompt.scrollPosition && retries < 10) {
+          setTimeout(() => scrollToPosition(retries + 1), 100);
+        }
+      } else if (retries < 10) {
+        setTimeout(() => scrollToPosition(retries + 1), 100);
       }
     };
-    requestAnimationFrame(scrollToPosition);
+
+    setTimeout(() => scrollToPosition(), 300);
   };
 
   const handleDismissBookmark = () => {

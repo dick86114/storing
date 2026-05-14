@@ -106,19 +106,23 @@ function ArchiveContentInner() {
     openArticle(bookmarkPrompt.articleId);
     setBookmarkPrompt(null);
 
-    // 等待详情面板渲染完成后再滚动
-    const scrollToPosition = () => {
+    // 延迟滚动到保存位置（等待 DOM 完全渲染）
+    const scrollToPosition = (retries = 0) => {
       const content = document.querySelector('[data-scroll-container="detail"]');
-      if (content) {
+      if (content && content.scrollHeight > 0) {
         content.scrollTop = bookmarkPrompt.scrollPosition;
-      } else {
+        // 验证滚动是否成功
+        if (content.scrollTop !== bookmarkPrompt.scrollPosition && retries < 10) {
+          setTimeout(() => scrollToPosition(retries + 1), 100);
+        }
+      } else if (retries < 10) {
         // 元素还没渲染，继续等待
-        requestAnimationFrame(scrollToPosition);
+        setTimeout(() => scrollToPosition(retries + 1), 100);
       }
     };
 
-    // 开始尝试滚动
-    requestAnimationFrame(scrollToPosition);
+    // 延迟开始尝试滚动
+    setTimeout(() => scrollToPosition(), 300);
   };
 
   const handleDismissBookmark = () => {
