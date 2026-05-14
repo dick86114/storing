@@ -10,6 +10,18 @@ export interface ReadingBookmark {
   timestamp: number;
 }
 
+// 类型守卫
+function isValidBookmark(obj: unknown): obj is ReadingBookmark {
+  if (typeof obj !== 'object' || obj === null) return false;
+  const bookmark = obj as Record<string, unknown>;
+  return (
+    'view' in bookmark && ['inbox', 'archive', 'favorites'].includes(bookmark.view as string) &&
+    'articleId' in bookmark && typeof bookmark.articleId === 'number' &&
+    'scrollPosition' in bookmark && typeof bookmark.scrollPosition === 'number' &&
+    'timestamp' in bookmark && typeof bookmark.timestamp === 'number'
+  );
+}
+
 export function useBookmark() {
   // 保存书签
   const saveBookmark = (bookmark: ReadingBookmark) => {
@@ -21,8 +33,10 @@ export function useBookmark() {
     const data = localStorage.getItem(BOOKMARK_KEY);
     if (!data) return null;
     try {
-      return JSON.parse(data) as ReadingBookmark;
-    } catch {
+      const parsed = JSON.parse(data);
+      return isValidBookmark(parsed) ? parsed : null;
+    } catch (error) {
+      console.error('Failed to parse bookmark:', error);
       return null;
     }
   };
