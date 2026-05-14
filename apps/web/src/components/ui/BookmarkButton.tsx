@@ -91,25 +91,28 @@ export function BookmarkButton({ onClick }: BookmarkButtonProps) {
   );
 }
 
-// 撒花效果组件
+// 撒花效果组件 - 四周飞溅特效
 function ConfettiEffect() {
-  const particles = Array.from({ length: 12 }, (_, i) => ({
+  const particles = Array.from({ length: 16 }, (_, i) => ({
     id: i,
-    angle: (i * 30) + Math.random() * 20,
-    delay: Math.random() * 0.2,
-    color: ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4'][Math.floor(Math.random() * 5)],
+    angle: i * 22.5 + Math.random() * 10 - 5, // 均匀分布在360度，加一点随机偏差
+    speed: 30 + Math.random() * 20, // 随机速度
+    size: 4 + Math.random() * 3, // 随机大小
+    color: ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DFE6E9'][Math.floor(Math.random() * 7)],
+    rotation: Math.random() * 360,
+    shape: Math.random() > 0.5 ? 'circle' : 'square', // 随机形状
   }));
 
   return (
     <div
       style={{
         position: 'absolute',
-        top: '-10px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        width: '40px',
-        height: '40px',
+        top: '0',
+        left: '0',
+        right: '0',
+        bottom: '0',
         pointerEvents: 'none',
+        overflow: 'visible',
       }}
     >
       {particles.map((p) => (
@@ -117,28 +120,41 @@ function ConfettiEffect() {
           key={p.id}
           style={{
             position: 'absolute',
-            top: '20px',
-            left: '20px',
-            width: '6px',
-            height: '6px',
-            borderRadius: '50%',
+            top: '50%',
+            left: '50%',
+            width: `${p.size}px`,
+            height: `${p.size}px`,
+            borderRadius: p.shape === 'circle' ? '50%' : '2px',
             background: p.color,
-            animation: `confetti-burst 0.8s ease-out ${p.delay}s forwards`,
-            transform: `rotate(${p.angle}deg)`,
+            transform: 'translate(-50%, -50%)',
+            animation: `confetti-splash-${p.id} 0.6s ease-out forwards`,
+            opacity: 0.9,
           }}
         />
       ))}
       <style>{`
-        @keyframes confetti-burst {
-          0% {
-            opacity: 1;
-            transform: rotate(var(--angle, 0deg)) translateY(0) scale(1);
+        ${particles.map((p) => `
+          @keyframes confetti-splash-${p.id} {
+            0% {
+              opacity: 1;
+              transform: translate(-50%, -50%) scale(0.5);
+            }
+            50% {
+              opacity: 1;
+              transform: translate(
+                calc(-50% + ${Math.cos(p.angle * Math.PI / 180) * p.speed}px),
+                calc(-50% + ${Math.sin(p.angle * Math.PI / 180) * p.speed}px)
+              ) scale(1) rotate(${p.rotation}deg);
+            }
+            100% {
+              opacity: 0;
+              transform: translate(
+                calc(-50% + ${Math.cos(p.angle * Math.PI / 180) * p.speed * 1.5}px),
+                calc(-50% + ${Math.sin(p.angle * Math.PI / 180) * p.speed * 1.5}px)
+              ) scale(0.3) rotate(${p.rotation + 180}deg);
+            }
           }
-          100% {
-            opacity: 0;
-            transform: rotate(var(--angle, 0deg)) translateY(-25px) scale(0.3);
-          }
-        }
+        `).join('\n')}
       `}</style>
     </div>
   );
