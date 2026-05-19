@@ -8,28 +8,9 @@ services:
     ports:
       - "1050:1050"  # 前端
       - "1052:1052"  # API
+    env_file:
+      - .env
     environment:
-      # 数据库连接
-      - DATABASE_URL=${DATABASE_URL}
-
-      # AI 配置
-      - AI_PROVIDER=${AI_PROVIDER:-deepseek}
-      - AI_MODEL=${AI_MODEL:-}
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - ZHIPU_API_KEY=${ZHIPU_API_KEY}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - CUSTOM_AI_BASE_URL=${CUSTOM_AI_BASE_URL}
-      - CUSTOM_AI_API_KEY=${CUSTOM_AI_API_KEY}
-      - CUSTOM_AI_MODEL=${CUSTOM_AI_MODEL}
-
-      # 文章抓取服务
-      - READER_API_BASE=${READER_API_BASE}
-
-      # 图片上传服务
-      - IMG_HOST=${IMG_HOST}
-      - IMG_API_KEY=${IMG_API_KEY}
-
       # 运行时配置
       - NODE_ENV=production
     volumes:
