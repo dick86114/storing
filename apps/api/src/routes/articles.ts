@@ -121,6 +121,7 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
   const idParam = c.req.param('id');
   if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
   const id = parseInt(idParam);
+  const format = c.req.query('format') || 'markdown';
 
   // 先查询 metadata 看是否已有图床封面图
   const [meta] = await db
@@ -164,9 +165,9 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
     processCoverImage(id).catch((e) => console.error('Cover image process failed:', e.message));
   }
 
-  // 获取 markdown 正文（首次抓取并缓存，后续读库）
-  const contentMd = await getArticleContent(id).catch((e) => {
-    console.error('Fetch markdown failed:', e.message);
+  // 获取正文内容（根据 format 参数）
+  const content = await getArticleContent(id, format as 'markdown' | 'html').catch((e) => {
+    console.error('Fetch content failed:', e.message);
     return null;
   });
 
@@ -176,7 +177,8 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
   return c.json({
     ...article,
     coverImage: finalCoverImage,
-    contentMd,
+    contentMd: format === 'markdown' ? content : null,
+    contentHtml: format === 'html' ? content : null,
     isFavorited: article.isFavorited ?? false,
     isArchived: article.isArchived ?? false,
     aiTags: article.aiTags ?? [],

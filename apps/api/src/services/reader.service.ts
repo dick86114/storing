@@ -168,40 +168,144 @@ async function uploadImagesInMarkdown(md: string): Promise<string> {
   return result;
 }
 
+/** 批量上传 HTML 中的图片到图床并替换 URL（优先处理 data-src，最终赋给 src） */
+async function uploadImagesInHtml(html: string): Promise<string> {
+  // 匹配所有 img 标签
+  const imgPattern = /<img[^>]*>/gi;
+  const matches = [...html.matchAll(imgPattern)];
+  if (matches.length === 0) return html;
+
+  const uploads = matches.map(async (match) => {
+    const [fullMatch] = match;
+    
+    // 优先提取 data-src（真实图片地址），其次 src
+    const dataSrcMatch = fullMatch.match(/data-src=["']([^"']+)["']/i);
+    const srcMatch = fullMatch.match(/src=["']([^"']+)["']/i);
+    
+    const originalUrl = dataSrcMatch?.[1] || srcMatch?.[1];
+    if (!originalUrl) return { original: fullMatch, replacement: fullMatch };
+    
+    // 跳过已经是图床的 URL
+    if (originalUrl.startsWith(IMG_HOST)) return { original: fullMatch, replacement: fullMatch };
+    
+    const newUrl = await uploadImage(originalUrl);
+    if (!newUrl) return { original: fullMatch, replacement: fullMatch };
+    
+    // 构建新的 img 标签：把图床地址赋给 src，移除 data-src
+    let newImg = fullMatch;
+    
+    // 移除 data-src 属性
+    if (dataSrcMatch) {
+      newImg = newImg.replace(dataSrcMatch[0], '');
+    }
+    
+    // 替换或添加 src 属性
+    if (srcMatch) {
+      newImg = newImg.replace(srcMatch[0], `src="${newUrl}"`);
+    } else {
+      // 如果没有 src，添加一个
+      newImg = newImg.replace(/<img/i, `<img src="${newUrl}"`);
+    }
+    
+    // 清理多余空格
+    newImg = newImg.replace(/\s+/g, ' ').replace(/\s*>/g, '>');
+    
+    return { original: fullMatch, replacement: newImg };
+  });
+
+  const results = await Promise.all(uploads);
+
+  let result = html;
+  for (const { original, replacement } of results) {
+    if (original !== replacement) {
+      result = result.replace(original, replacement);
+    }
+  }
+  return result;
+}
+
+/** 清洗 HTML：移除标题、作者信息等头部元素 */
+function cleanHtml(html: string): string {
+  // 使用 JSDOM 解析 HTML
+  const dom = new JSDOM(html);
+  const doc = dom.window.document;
+
+  // 移除标题 (h1.rich_media_title 或 #activity-name)
+  const titleEl = doc.querySelector('#activity-name, .rich_media_title');
+  if (titleEl) titleEl.remove();
+
+  // 移除作者信息 (#meta_content 或 .rich_media_meta_list)
+  const metaEl = doc.querySelector('#meta_content, .rich_media_meta_list');
+  if (metaEl) metaEl.remove();
+
+  // 移除其他常见的微信头部元素
+  const selectorsToRemove = [
+    '#js_a11y_op_title_modify',  // 标题修改提示
+    '#js_profile_card',          // 作者卡片
+    '.rich_media_tool',          // 工具栏
+    '#js_content_toolbar',       // 内容工具栏
+    '#js_bottom_area',           // 底部区域
+  ];
+  
+  for (const selector of selectorsToRemove) {
+    const el = doc.querySelector(selector);
+    if (el) el.remove();
+  }
+
+  // 返回 body 的 innerHTML
+  return doc.body?.innerHTML || html;
+}
+
 /**
- * 从 Reader API 抓取文章 markdown 内容（含图片上传）
+ * 从 Reader API 抓取文章内容（含图片上传）
+ * @param url 原始文章 URL
+ * @param format 格式：markdown 或 html
  */
-async function fetchMarkdown(url: string): Promise<string> {
-  const apiUrl = `${READER_API_BASE}?url=${encodeURIComponent(url)}&format=markdown`;
+async function fetchContent(url: string, format: 'markdown' | 'html' = 'markdown'): Promise<string> {
+  const apiUrl = `${READER_API_BASE}?url=${encodeURIComponent(url)}&format=${format}`;
   const res = await fetch(apiUrl, {
     headers: { 'User-Agent': 'StoringBot/1.0' },
     signal: AbortSignal.timeout(30000),
   });
   if (!res.ok) throw new Error(`Reader API error: ${res.status}`);
   const raw = await res.text();
-  const cleaned = cleanMarkdown(raw);
-  // 上传图片到图床
-  return uploadImagesInMarkdown(cleaned);
+  
+  if (format === 'html') {
+    // HTML 格式：清洗、上传图片并替换 URL
+    const cleaned = cleanHtml(raw);
+    return uploadImagesInHtml(cleaned);
+  } else {
+    // Markdown 格式：清洗并上传图片
+    const cleaned = cleanMarkdown(raw);
+    return uploadImagesInMarkdown(cleaned);
+  }
 }
 
 /**
- * 获取文章 markdown 内容（首次抓取并缓存，后续读库）
+ * 获取文章内容（首次抓取并缓存，后续读库）
  * 优先从 Reader API 抓取，失败则 fallback 到 articles.content 字段
+ * @param articleId 文章 ID
+ * @param format 格式：markdown 或 html
  */
-export async function getArticleContent(articleId: number): Promise<string | null> {
-  // 先查缓存（排除本地资源引用的脏缓存）
+export async function getArticleContent(articleId: number, format: 'markdown' | 'html' = 'markdown'): Promise<string | null> {
+  // 先查缓存
   const [meta] = await db
-    .select({ contentMd: articleMetadata.contentMd })
+    .select({ contentMd: articleMetadata.contentMd, contentHtml: articleMetadata.contentHtml })
     .from(articleMetadata)
     .where(eq(articleMetadata.articleId, articleId));
 
-  if (meta?.contentMd && !hasLocalResourceRefs(meta.contentMd)) return meta.contentMd;
-
-  // 标记需要刷新：如果有脏缓存，先清除
-  if (meta?.contentMd && hasLocalResourceRefs(meta.contentMd)) {
-    await db.update(articleMetadata)
-      .set({ contentMd: null, updatedAt: new Date() })
-      .where(eq(articleMetadata.articleId, articleId));
+  if (format === 'html') {
+    // HTML 格式：检查缓存
+    if (meta?.contentHtml) return meta.contentHtml;
+  } else {
+    // Markdown 格式：检查缓存（排除本地资源引用的脏缓存）
+    if (meta?.contentMd && !hasLocalResourceRefs(meta.contentMd)) return meta.contentMd;
+    // 标记需要刷新：如果有脏缓存，先清除
+    if (meta?.contentMd && hasLocalResourceRefs(meta.contentMd)) {
+      await db.update(articleMetadata)
+        .set({ contentMd: null, updatedAt: new Date() })
+        .where(eq(articleMetadata.articleId, articleId));
+    }
   }
 
   // 获取原始链接和 content 字段
@@ -212,29 +316,33 @@ export async function getArticleContent(articleId: number): Promise<string | nul
 
   if (!article) return null;
 
-  let md: string | null = null;
+  let content: string | null = null;
 
   // 尝试通过 Reader API 抓取
   if (article.originalUrl) {
     try {
-      const fetched = await fetchMarkdown(article.originalUrl);
-      // 只有内容长度足够且不包含本地资源引用时才使用
-      if (fetched && fetched.length >= 100 && !hasLocalResourceRefs(fetched)) {
-        md = fetched;
+      const fetched = await fetchContent(article.originalUrl, format);
+      // 只有内容长度足够时才使用
+      if (fetched && fetched.length >= 100) {
+        if (format === 'markdown' && !hasLocalResourceRefs(fetched)) {
+          content = fetched;
+        } else if (format === 'html') {
+          content = fetched;
+        }
       }
     } catch (e) {
       console.error(`Reader API fetch failed for article ${articleId}:`, (e as Error).message);
     }
   }
 
-  // Reader API 抓取失败或结果太短或包含本地资源引用，fallback 到 articles.content 字段
-  if (!md && article.content) {
-    const content = article.content as any;
+  // Reader API 抓取失败，fallback 到 articles.content 字段（仅 Markdown）
+  if (!content && format === 'markdown' && article.content) {
+    const rawContent = article.content as any;
     const parts: string[] = [];
 
     // 从 content_noencode 提取正文和图片（HTML 解析）
-    if (content.content_noencode) {
-      const extracted = extractContentFromHtml(content.content_noencode);
+    if (rawContent.content_noencode) {
+      const extracted = extractContentFromHtml(rawContent.content_noencode);
       if (extracted.text) {
         parts.push(extracted.text);
       }
@@ -252,8 +360,8 @@ export async function getArticleContent(articleId: number): Promise<string | nul
     }
 
     // 如果 content_noencode 中没有图片，再从 picture_page_info_list 取图片
-    if (Array.isArray(content.picture_page_info_list) && content.picture_page_info_list.length > 0) {
-      for (const pic of content.picture_page_info_list) {
+    if (Array.isArray(rawContent.picture_page_info_list) && rawContent.picture_page_info_list.length > 0) {
+      for (const pic of rawContent.picture_page_info_list) {
         if (pic.cdn_url) {
           // 检查是否已在 content_noencode 提取的图片中
           const alreadyIncluded = parts.some(p => p.includes(pic.cdn_url));
@@ -266,28 +374,30 @@ export async function getArticleContent(articleId: number): Promise<string | nul
     }
 
     if (parts.length > 0) {
-      md = parts.join('\n\n');
+      content = parts.join('\n\n');
     }
   }
 
-  if (!md) return null;
+  if (!content) return null;
 
-  // 确保 metadata 记录存在
+  // 确保 metadata 记录存在并保存内容
   const [existing] = await db
     .select({ id: articleMetadata.id })
     .from(articleMetadata)
     .where(eq(articleMetadata.articleId, articleId));
 
+  const updateField = format === 'html' ? { contentHtml: content } : { contentMd: content };
+
   if (existing) {
     await db.update(articleMetadata)
-      .set({ contentMd: md, updatedAt: new Date() })
+      .set({ ...updateField, updatedAt: new Date() })
       .where(eq(articleMetadata.articleId, articleId));
   } else {
     await db.insert(articleMetadata)
-      .values({ articleId, contentMd: md });
+      .values({ articleId, ...updateField });
   }
 
-  return md;
+  return content;
 }
 
 /** 从 markdown 中提取第一张图片 URL */

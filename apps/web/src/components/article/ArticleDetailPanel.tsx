@@ -1,18 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSWRConfig } from 'swr';
 import { useArticle } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/providers/AuthContext';
 import { DateText } from '@/lib/formatDate';
-import { api } from '@/lib/api';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useBookmark } from '@/hooks/useBookmark';
-import ReactMarkdown from 'react-markdown';
-import Zoom from 'react-medium-image-zoom'
 import 'react-medium-image-zoom/dist/styles.css'
-import type { ArticleListItem } from '@storing/shared';
 
 export function ArticleDetailPanel({
   articleId,
@@ -97,25 +93,45 @@ export function ArticleDetailPanel({
     }
   }, [articleId]);
 
-  const memoizedContent = useMemo(() => {
-    if (!article?.contentMd) return null;
-    return (
-      <ReactMarkdown
-        components={{
-          // 将所有 p 渲染为 div 以避免 Zoom 组件导致的 hydration 错误
-          // Zoom 渲染为 div，HTML 不允许 div 在 p 内
-          p: ({ children }) => <div className="md-p">{children}</div>,
-          img: ({ src, alt }) => (
-            <Zoom>
-              <img src={src} alt={alt} />
-            </Zoom>
-          ),
-        }}
-      >
-        {article.contentMd}
-      </ReactMarkdown>
-    );
-  }, [article?.contentMd]);
+  // HTML 内容渲染后，为图片添加 Zoom 功能
+  useEffect(() => {
+    if (!article?.contentHtml || !contentRef.current) return;
+
+    const container = contentRef.current.querySelector('.article-body');
+    if (!container) return;
+
+    const imgs = container.querySelectorAll('img');
+    imgs.forEach((img) => {
+      // 如果图片已经被 Zoom 包裹，跳过
+      if (img.parentElement?.classList.contains('react-medium-image-zoom')) return;
+
+      // 创建 Zoom wrapper
+      const wrapper = document.createElement('div');
+      wrapper.className = 'react-medium-image-zoom';
+      img.parentNode?.insertBefore(wrapper, img);
+      wrapper.appendChild(img);
+
+      // 点击事件
+      img.style.cursor = 'zoom-in';
+      img.addEventListener('click', () => {
+        wrapper.classList.add('zoomed');
+        img.style.cursor = 'zoom-out';
+      });
+    });
+
+    // 点击 Zoom wrapper 外部关闭
+    const handleZoomClose = (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (target.classList.contains('zoomed')) {
+        target.classList.remove('zoomed');
+        const img = target.querySelector('img');
+        if (img) img.style.cursor = 'zoom-in';
+      }
+    };
+
+    container.addEventListener('click', handleZoomClose);
+    return () => container.removeEventListener('click', handleZoomClose);
+  }, [article?.contentHtml]);
 
   if (!articleId) return null;
 
@@ -278,8 +294,11 @@ export function ArticleDetailPanel({
               <div className="ai-loading-placeholder">AI 正在生成总结…</div>
             )}
 
-            {article.contentMd ? (
-              <div className="article-body">{memoizedContent}</div>
+            {article.contentHtml ? (
+              <div 
+                className="article-body" 
+                dangerouslySetInnerHTML={{ __html: article.contentHtml }}
+              />
             ) : (
               <div className="content-loading">正在加载正文…</div>
             )}
