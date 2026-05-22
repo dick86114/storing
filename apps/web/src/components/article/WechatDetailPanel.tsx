@@ -10,7 +10,6 @@ import { DateText } from '@/lib/formatDate';
 import { api } from '@/lib/api';
 import { useBookmark } from '@/hooks/useBookmark';
 import { BookmarkButton } from '@/components/ui/BookmarkButton';
-import 'react-medium-image-zoom/dist/styles.css'
 
 interface WechatDetailPanelProps {
   articleId: number | null;
@@ -65,10 +64,10 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
 
     const imgs = container.querySelectorAll('img');
     imgs.forEach((img) => {
-      if (img.parentElement?.classList.contains('react-medium-image-zoom')) return;
+      if (img.parentElement?.classList.contains('img-zoom-wrapper')) return;
 
       const wrapper = document.createElement('div');
-      wrapper.className = 'react-medium-image-zoom';
+      wrapper.className = 'img-zoom-wrapper';
       img.parentNode?.insertBefore(wrapper, img);
       wrapper.appendChild(img);
 

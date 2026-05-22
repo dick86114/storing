@@ -141,23 +141,46 @@ async function uploadImage(imageUrl: string): Promise<string | null> {
   }
 }
 
-/** 批量上传 markdown 中的图片到图床并替换 URL */
+/** 并发限制执行器 */
+async function limitConcurrency<T>(tasks: (() => Promise<T>)[], limit: number): Promise<T[]> {
+  const results: T[] = [];
+  const executing: Promise<void>[] = [];
+
+  for (const task of tasks) {
+    const promise = task().then(result => {
+      results.push(result);
+      executing.splice(executing.indexOf(promise), 1);
+    });
+    executing.push(promise);
+
+    if (executing.length >= limit) {
+      await Promise.race(executing);
+    }
+  }
+
+  await Promise.all(executing);
+  return results;
+}
+
+/** 批量上传 markdown 中的图片到图床并替换 URL（限制并发） */
 async function uploadImagesInMarkdown(md: string): Promise<string> {
   const imagePattern = /!\[([^\]]*)\]\(([^)]+)\)/g;
   const matches = [...md.matchAll(imagePattern)];
   if (matches.length === 0) return md;
 
-  // 并发上传所有图片
-  const uploads = matches.map(async (match) => {
+  // 使用并发限制（最多 3 个并发）
+  const tasks = matches.map((match) => {
     const [fullMatch, alt, url] = match;
-    // 跳过已经是图床的 URL
-    if (url.startsWith(IMG_HOST)) return { original: fullMatch, replacement: fullMatch };
-    const newUrl = await uploadImage(url);
-    if (!newUrl) return { original: fullMatch, replacement: fullMatch };
-    return { original: fullMatch, replacement: `![${alt}](${newUrl})` };
+    return async () => {
+      // 跳过已经是图床的 URL
+      if (url.startsWith(IMG_HOST)) return { original: fullMatch, replacement: fullMatch };
+      const newUrl = await uploadImage(url);
+      if (!newUrl) return { original: fullMatch, replacement: fullMatch };
+      return { original: fullMatch, replacement: `![${alt}](${newUrl})` };
+    };
   });
 
-  const results = await Promise.all(uploads);
+  const results = await limitConcurrency(tasks, 3);
 
   let result = md;
   for (const { original, replacement } of results) {
@@ -168,52 +191,54 @@ async function uploadImagesInMarkdown(md: string): Promise<string> {
   return result;
 }
 
-/** 批量上传 HTML 中的图片到图床并替换 URL（优先处理 data-src，最终赋给 src） */
+/** 批量上传 HTML 中的图片到图床并替换 URL（优先处理 data-src，最终赋给 src，限制并发） */
 async function uploadImagesInHtml(html: string): Promise<string> {
   // 匹配所有 img 标签
   const imgPattern = /<img[^>]*>/gi;
   const matches = [...html.matchAll(imgPattern)];
   if (matches.length === 0) return html;
 
-  const uploads = matches.map(async (match) => {
+  // 使用并发限制（最多 3 个并发）
+  const tasks = matches.map((match) => {
     const [fullMatch] = match;
-    
-    // 优先提取 data-src（真实图片地址），其次 src
-    const dataSrcMatch = fullMatch.match(/data-src=["']([^"']+)["']/i);
-    const srcMatch = fullMatch.match(/src=["']([^"']+)["']/i);
-    
-    const originalUrl = dataSrcMatch?.[1] || srcMatch?.[1];
-    if (!originalUrl) return { original: fullMatch, replacement: fullMatch };
-    
-    // 跳过已经是图床的 URL
-    if (originalUrl.startsWith(IMG_HOST)) return { original: fullMatch, replacement: fullMatch };
-    
-    const newUrl = await uploadImage(originalUrl);
-    if (!newUrl) return { original: fullMatch, replacement: fullMatch };
-    
-    // 构建新的 img 标签：把图床地址赋给 src，移除 data-src
-    let newImg = fullMatch;
-    
-    // 移除 data-src 属性
-    if (dataSrcMatch) {
-      newImg = newImg.replace(dataSrcMatch[0], '');
-    }
-    
-    // 替换或添加 src 属性
-    if (srcMatch) {
-      newImg = newImg.replace(srcMatch[0], `src="${newUrl}"`);
-    } else {
-      // 如果没有 src，添加一个
-      newImg = newImg.replace(/<img/i, `<img src="${newUrl}"`);
-    }
-    
-    // 清理多余空格
-    newImg = newImg.replace(/\s+/g, ' ').replace(/\s*>/g, '>');
-    
-    return { original: fullMatch, replacement: newImg };
+    return async () => {
+      // 优先提取 data-src（真实图片地址），其次 src
+      const dataSrcMatch = fullMatch.match(/data-src=["']([^"']+)["']/i);
+      const srcMatch = fullMatch.match(/src=["']([^"']+)["']/i);
+      
+      const originalUrl = dataSrcMatch?.[1] || srcMatch?.[1];
+      if (!originalUrl) return { original: fullMatch, replacement: fullMatch };
+      
+      // 跳过已经是图床的 URL
+      if (originalUrl.startsWith(IMG_HOST)) return { original: fullMatch, replacement: fullMatch };
+      
+      const newUrl = await uploadImage(originalUrl);
+      if (!newUrl) return { original: fullMatch, replacement: fullMatch };
+      
+      // 构建新的 img 标签：把图床地址赋给 src，移除 data-src
+      let newImg = fullMatch;
+      
+      // 移除 data-src 属性
+      if (dataSrcMatch) {
+        newImg = newImg.replace(dataSrcMatch[0], '');
+      }
+      
+      // 替换或添加 src 属性
+      if (srcMatch) {
+        newImg = newImg.replace(srcMatch[0], `src="${newUrl}"`);
+      } else {
+        // 如果没有 src，添加一个
+        newImg = newImg.replace(/<img/i, `<img src="${newUrl}"`);
+      }
+      
+      // 清理多余空格
+      newImg = newImg.replace(/\s+/g, ' ').replace(/\s*>/g, '>');
+      
+      return { original: fullMatch, replacement: newImg };
+    };
   });
 
-  const results = await Promise.all(uploads);
+  const results = await limitConcurrency(tasks, 3);
 
   let result = html;
   for (const { original, replacement } of results) {
@@ -335,46 +360,55 @@ export async function getArticleContent(articleId: number, format: 'markdown' | 
     }
   }
 
-  // Reader API 抓取失败，fallback 到 articles.content 字段（仅 Markdown）
-  if (!content && format === 'markdown' && article.content) {
+  // Reader API 抓取失败，fallback 到 articles.content 字段
+  if (!content && article.content) {
     const rawContent = article.content as any;
-    const parts: string[] = [];
 
-    // 从 content_noencode 提取正文和图片（HTML 解析）
-    if (rawContent.content_noencode) {
-      const extracted = extractContentFromHtml(rawContent.content_noencode);
-      if (extracted.text) {
-        parts.push(extracted.text);
+    if (format === 'html') {
+      // HTML 格式：直接从 content_noencode 提取 HTML
+      if (rawContent.content_noencode) {
+        const htmlContent = await uploadImagesInHtml(rawContent.content_noencode);
+        if (htmlContent && htmlContent.length >= 100) {
+          content = htmlContent;
+        }
       }
-      // 从 content_noencode 中提取的图片 URL
-      if (extracted.imageUrls.length > 0) {
-        const uploadResults = await Promise.all(
-          extracted.imageUrls.map(async (url) => {
-            if (url.startsWith(IMG_HOST)) return `![图片](${url})`;
-            const newUrl = await uploadImage(url);
-            return newUrl ? `![图片](${newUrl})` : `![图片](${url})`;
-          })
-        );
-        parts.push(...uploadResults);
-      }
-    }
+    } else {
+      // Markdown 格式：从 content_noencode 提取文本和图片
+      const parts: string[] = [];
 
-    // 如果 content_noencode 中没有图片，再从 picture_page_info_list 取图片
-    if (Array.isArray(rawContent.picture_page_info_list) && rawContent.picture_page_info_list.length > 0) {
-      for (const pic of rawContent.picture_page_info_list) {
-        if (pic.cdn_url) {
-          // 检查是否已在 content_noencode 提取的图片中
-          const alreadyIncluded = parts.some(p => p.includes(pic.cdn_url));
-          if (!alreadyIncluded) {
-            const newUrl = await uploadImage(pic.cdn_url);
-            parts.push(newUrl ? `![图片](${newUrl})` : `![图片](${pic.cdn_url})`);
+      if (rawContent.content_noencode) {
+        const extracted = extractContentFromHtml(rawContent.content_noencode);
+        if (extracted.text) {
+          parts.push(extracted.text);
+        }
+        if (extracted.imageUrls.length > 0) {
+          const uploadResults = await Promise.all(
+            extracted.imageUrls.map(async (url) => {
+              if (url.startsWith(IMG_HOST)) return `![图片](${url})`;
+              const newUrl = await uploadImage(url);
+              return newUrl ? `![图片](${newUrl})` : `![图片](${url})`;
+            })
+          );
+          parts.push(...uploadResults);
+        }
+      }
+
+      // 如果 content_noencode 中没有图片，再从 picture_page_info_list 取图片
+      if (Array.isArray(rawContent.picture_page_info_list) && rawContent.picture_page_info_list.length > 0) {
+        for (const pic of rawContent.picture_page_info_list) {
+          if (pic.cdn_url) {
+            const alreadyIncluded = parts.some(p => p.includes(pic.cdn_url));
+            if (!alreadyIncluded) {
+              const newUrl = await uploadImage(pic.cdn_url);
+              parts.push(newUrl ? `![图片](${newUrl})` : `![图片](${pic.cdn_url})`);
+            }
           }
         }
       }
-    }
 
-    if (parts.length > 0) {
-      content = parts.join('\n\n');
+      if (parts.length > 0) {
+        content = parts.join('\n\n');
+      }
     }
   }
 

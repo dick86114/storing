@@ -75,4 +75,7 @@ export const api = {
     const query = params.toString();
     return fetchJSON<any>(`/sources${query ? `?${query}` : ''}`);
   },
+
+  getCounts: () =>
+    fetchJSON<{ inbox: number; favorites: number; archive: number }>('/counts'),
 };

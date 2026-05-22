@@ -311,6 +311,33 @@ h4 {
   filter: none !important;
 }
 
+/* 图片放大功能样式 */
+.img-zoom-wrapper {
+  display: inline-block;
+  position: relative;
+  transition: transform 0.3s ease;
+}
+
+.img-zoom-wrapper.zoomed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.9);
+  cursor: zoom-out;
+}
+
+.img-zoom-wrapper.zoomed img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+}
+
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 
