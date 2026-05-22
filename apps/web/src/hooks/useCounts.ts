@@ -2,40 +2,24 @@
 
 import useSWR, { useSWRConfig } from 'swr';
 import { api } from '@/lib/api';
-import { useAuth } from '@/components/providers/AuthContext';
 
 export function useCounts() {
-  const { isAuthenticated } = useAuth();
   const { mutate } = useSWRConfig();
 
-  // 游客只请求 archive，管理员请求全部
-  const { data: inbox } = useSWR(
-    isAuthenticated ? 'count:inbox' : null,
-    () => api.getArticles('inbox', 1),
-    { revalidateOnFocus: false }
-  );
-  const { data: favorites } = useSWR(
-    isAuthenticated ? 'count:favorites' : null,
-    () => api.getArticles('favorites', 1),
-    { revalidateOnFocus: false }
-  );
-  const { data: archive } = useSWR(
-    'count:archive',
-    () => api.getArticles('archive', 1),
-    { revalidateOnFocus: false }
-  );
+  // 使用合并的 counts API，减少请求次数
+  const { data } = useSWR('counts', () => api.getCounts(), {
+    revalidateOnFocus: false,
+  });
 
   // 刷新所有计数
   const refreshCounts = () => {
-    mutate('count:inbox');
-    mutate('count:favorites');
-    mutate('count:archive');
+    mutate('counts');
   };
 
   return {
-    inbox: inbox?.total ?? 0,
-    favorites: favorites?.total ?? 0,
-    archive: archive?.total ?? 0,
+    inbox: data?.inbox ?? 0,
+    favorites: data?.favorites ?? 0,
+    archive: data?.archive ?? 0,
     refreshCounts,
   };
 }

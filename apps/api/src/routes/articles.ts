@@ -258,6 +258,42 @@ articlesRoutes.post('/articles/:id/unarchive', requireAuth, async (c) => {
 });
 
 /**
+ * GET /counts — 获取各视图的文章计数（合并请求，减少 API 调用）
+ */
+articlesRoutes.get('/counts', optionalAuth, async (c) => {
+  // 游客只能获取 archive 计数
+  if (!isAuthenticated(c)) {
+    const result = await db.execute(sql`
+      SELECT COUNT(*) as archive FROM articles a
+      LEFT JOIN article_metadata m ON a.id = m.article_id
+      WHERE m.is_archived = true
+    `);
+    return c.json({ inbox: 0, favorites: 0, archive: Number(result.rows[0]?.archive || 0) });
+  }
+
+  // 登录用户获取所有计数（使用单个 SQL 查询）
+  const result = await db.execute(sql`
+    SELECT
+      (SELECT COUNT(*) FROM articles a
+       LEFT JOIN article_metadata m ON a.id = m.article_id
+       WHERE m.id IS NULL OR (m.is_archived = false AND m.is_favorited = false)) as inbox,
+      (SELECT COUNT(*) FROM articles a
+       LEFT JOIN article_metadata m ON a.id = m.article_id
+       WHERE m.is_favorited = true) as favorites,
+      (SELECT COUNT(*) FROM articles a
+       LEFT JOIN article_metadata m ON a.id = m.article_id
+       WHERE m.is_archived = true) as archive
+  `);
+
+  const row = result.rows[0];
+  return c.json({
+    inbox: Number(row?.inbox || 0),
+    favorites: Number(row?.favorites || 0),
+    archive: Number(row?.archive || 0),
+  });
+});
+
+/**
  * GET /sources — 公众号来源统计（归档页使用）
  */
 articlesRoutes.get('/sources', async (c) => {
@@ -310,6 +346,7 @@ articlesRoutes.get('/sources', async (c) => {
 /**
  * GET /articles/:id/position — 查找文章在某个视图中的页码位置
  * 游客只能查询 archive 视图
+ * 优化：使用子查询计算位置，避免查询所有文章
  */
 articlesRoutes.get('/articles/:id/position', optionalAuth, async (c) => {
   const idParam = c.req.param('id');
@@ -345,28 +382,42 @@ articlesRoutes.get('/articles/:id/position', optionalAuth, async (c) => {
     whereCondition = and(whereCondition, eq(articles.source, category));
   }
 
-  const allArticles = await db
-    .select({ id: articles.id })
+  // 使用子查询计算位置（比查询所有文章更高效）
+  const [{ position }] = await db
+    .select({
+      position: sql<number>`
+        SELECT COUNT(*) + 1
+        FROM articles a
+        LEFT JOIN article_metadata m ON a.id = m.article_id
+        WHERE a.created_at > (SELECT created_at FROM articles WHERE id = ${id})
+        AND (${sql.raw(view === 'inbox' ? 'm.id IS NULL OR (m.is_archived = false AND m.is_favorited = false)' : view === 'favorites' ? 'm.is_favorited = true' : 'm.is_archived = true')})
+        ${category && category !== 'all' && view === 'archive' ? sql.raw(`AND a.source = '${category}'`) : sql.raw('')}
+      `.as('position')
+    })
     .from(articles)
-    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
-    .where(whereCondition)
-    .orderBy(desc(articles.createdAt));
+    .where(eq(articles.id, id))
+    .limit(1);
 
-  const position = allArticles.findIndex(a => a.id === id);
-  
-  if (position === -1) {
+  if (!position) {
     return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in this view' } }, 404);
   }
 
-  const page = Math.floor(position / perPage) + 1;
+  // 计算总数（用于 totalPages）
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(articles)
+    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .where(whereCondition);
+
+  const page = Math.floor((position - 1) / perPage) + 1;
 
   return c.json({
     articleId: id,
     view,
-    position: position + 1,
+    position,
     page,
     perPage,
-    total: allArticles.length,
-    totalPages: Math.ceil(allArticles.length / perPage),
+    total,
+    totalPages: Math.ceil(total / perPage),
   });
 });
