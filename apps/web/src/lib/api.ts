@@ -45,7 +45,8 @@ export const api = {
     return fetchJSON<any>(`/articles?${params}`);
   },
 
-  getArticle: (id: number) => fetchJSON<any>(`/articles/${id}`),
+  getArticle: (id: number, format: 'markdown' | 'html' = 'markdown') => 
+    fetchJSON<any>(`/articles/${id}?format=${format}`),
 
   getArticlePosition: (id: number, view: string, category?: string, perPage = 18) => {
     const params = new URLSearchParams({ view, perPage: String(perPage) });

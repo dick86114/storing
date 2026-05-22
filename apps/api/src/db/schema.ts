@@ -49,7 +49,8 @@ export const articleMetadata = pgTable('article_metadata', {
   aiCategory: text('ai_category'),
   aiTags: text('ai_tags').array().default([]),
   contentMd: text('content_md'),
-  coverImage: text('cover_image'),  // 上传到图床后的封面图 URL
+  contentHtml: text('content_html'),
+  coverImage: text('cover_image'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
