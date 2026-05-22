@@ -282,6 +282,35 @@ h4 {
   padding: 0;
 }
 
+/* 深色模式：强制覆盖 HTML 内联样式 */
+@media (prefers-color-scheme: dark) {
+  .article-body,
+  .article-body * {
+    color: var(--text-secondary) !important;
+    background-color: transparent !important;
+  }
+  .article-body a {
+    color: var(--accent) !important;
+  }
+  .article-body img {
+    filter: none !important;
+  }
+}
+
+[data-theme='dark'] .article-body,
+[data-theme='dark'] .article-body * {
+  color: var(--text-secondary) !important;
+  background-color: transparent !important;
+}
+
+[data-theme='dark'] .article-body a {
+  color: var(--accent) !important;
+}
+
+[data-theme='dark'] .article-body img {
+  filter: none !important;
+}
+
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 
