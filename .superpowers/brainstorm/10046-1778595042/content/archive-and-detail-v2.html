@@ -1,0 +1,319 @@
+<h2>归档页设计 v2 + 桌面端详情页</h2>
+<p class="subtitle">调整：侧边栏宽度、分类颜色动态、响应式卡片、桌面端详情展示</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">桌面端 - 归档页（调整版）</div>
+    <div class="mockup-body" style="background: #ededed; width: 900px; min-height: 500px;">
+      <!-- 桌面端顶部导航 -->
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 24px; height: 56px; background: #ededed; border-bottom: 1px solid #d9d9d9;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 32px; height: 32px; background: #07c160; border-radius: 6px; display: flex; align-items: center; justify-content: center;">
+            <span style="color: white; font-size: 16px; font-weight: bold;">S</span>
+          </div>
+          <span style="font-size: 18px; color: #000; font-family: 'Brush Script MT', cursive;">Storing</span>
+        </div>
+        <div style="display: flex; align-items: center; background: #fff; border-radius: 8px; padding: 8px 16px; width: 280px; border: 1px solid #e5e5e5;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <span style="font-size: 14px; color: #888; margin-left: 8px;">搜索文章...</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+            <span style="font-size: 14px; color: #000;">admin</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabs - 归档激活 -->
+      <div style="display: flex; background: #fff; border-bottom: 1px solid #e5e5e5;">
+        <div style="display: flex; align-items: center; padding: 0 24px;">
+          <div style="display: flex; align-items: center; gap: 6px; padding: 14px 20px; border-bottom: 2px solid transparent;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7" rx="1"/>
+              <rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/>
+              <rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+            <span style="font-size: 14px; color: #666;">收件箱</span>
+            <span style="padding: 2px 8px; background: #f5f5f5; color: #999; font-size: 12px; border-radius: 10px;">12</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px; padding: 14px 20px; border-bottom: 2px solid transparent;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2">
+              <path d="M12 21l-1.45-1.32C5.4 15.36 2 12.28 2 8.5"/>
+            </svg>
+            <span style="font-size: 14px; color: #666;">收藏</span>
+            <span style="padding: 2px 8px; background: #f5f5f5; color: #999; font-size: 12px; border-radius: 10px;">5</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px; padding: 14px 20px; border-bottom: 2px solid #07c160;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#07c160">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span style="font-size: 14px; color: #07c160; font-weight: 500;">归档</span>
+            <span style="padding: 2px 8px; background: #e8f8e8; color: #07c160; font-size: 12px; border-radius: 10px;">28</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 归档页布局：左侧侧边栏（加宽） + 右侧响应式卡片 -->
+      <div style="display: flex; gap: 24px; padding: 24px; background: #ededed;">
+        <!-- 左侧分类侧边栏 - 加宽到240px -->
+        <aside style="width: 240px; background: #fff; border-radius: 8px; padding: 16px;">
+          <div style="font-size: 12px; color: #888; font-weight: 500; margin-bottom: 12px;">
+            分类筛选
+          </div>
+          <ul style="list-style: none; padding: 0; margin: 0;">
+            <li style="padding: 10px 12px; border-radius: 6px; font-size: 14px; color: #07c160; background: #e8f8e8; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span>全部文章</span>
+              <span style="font-size: 12px; color: #888;">28</span>
+            </li>
+            <li style="padding: 10px 12px; border-radius: 6px; font-size: 14px; color: #666; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; cursor: pointer;">
+              <span style="display: flex; align-items: center; gap: 8px;">
+                <span style="width: 6px; height: 6px; border-radius: 50%; background: #5b8ff9;"></span>
+                前端开发技术
+              </span>
+              <span style="font-size: 12px; color: #999;">8</span>
+            </li>
+            <li style="padding: 10px 12px; border-radius: 6px; font-size: 14px; color: #666; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; cursor: pointer;">
+              <span style="display: flex; align-items: center; gap: 8px;">
+                <span style="width: 6px; height: 6px; border-radius: 50%; background: #f6bd16;"></span>
+                人工智能应用
+              </span>
+              <span style="font-size: 12px; color: #999;">6</span>
+            </li>
+            <li style="padding: 10px 12px; border-radius: 6px; font-size: 14px; color: #666; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; cursor: pointer;">
+              <span style="display: flex; align-items: center; gap: 8px;">
+                <span style="width: 6px; height: 6px; border-radius: 50%; background: #e86464;"></span>
+                产品设计思考
+              </span>
+              <span style="font-size: 12px; color: #999;">5</span>
+            </li>
+            <li style="padding: 10px 12px; border-radius: 6px; font-size: 14px; color: #666; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+              <span style="display: flex; align-items: center; gap: 8px;">
+                <span style="width: 6px; height: 6px; border-radius: 50%; background: #6dc8ec;"></span>
+                读书笔记分享
+              </span>
+              <span style="font-size: 12px; color: #999;">9</span>
+            </li>
+          </ul>
+        </aside>
+
+        <!-- 右侧文章列表 - 响应式网格布局，无空白 -->
+        <div style="flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+          <!-- 卡片1 -->
+          <div style="background: #fff; border-radius: 8px; overflow: hidden;">
+            <img src="https://picsum.photos/seed/card1/400/140" style="width: 100%; height: 140px; object-fit: cover;">
+            <div style="padding: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div style="font-size: 15px; font-weight: 500; color: #000; line-height: 1.4; flex: 1;">
+                  归档文章标题示例内容
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2" style="margin-left: 4px;">
+                  <circle cx="5" cy="12" r="1"/>
+                  <circle cx="12" cy="12" r="1"/>
+                  <circle cx="19" cy="12" r="1"/>
+                </svg>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; color: #888; margin-top: 6px;">
+                <span>作者名</span>
+                <span>上周</span>
+              </div>
+            </div>
+          </div>
+          <!-- 卡片2 -->
+          <div style="background: #fff; border-radius: 8px; overflow: hidden;">
+            <img src="https://picsum.photos/seed/card2/400/140" style="width: 100%; height: 140px; object-fit: cover;">
+            <div style="padding: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div style="font-size: 15px; font-weight: 500; color: #000; line-height: 1.4; flex: 1;">
+                  另一篇归档文章
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2" style="margin-left: 4px;">
+                  <circle cx="5" cy="12" r="1"/>
+                  <circle cx="12" cy="12" r="1"/>
+                  <circle cx="19" cy="12" r="1"/>
+                </svg>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; color: #888; margin-top: 6px;">
+                <span>其他作者</span>
+                <span>2周前</span>
+              </div>
+            </div>
+          </div>
+          <!-- 卡片3 -->
+          <div style="background: #fff; border-radius: 8px; overflow: hidden;">
+            <img src="https://picsum.photos/seed/card3/400/140" style="width: 100%; height: 140px; object-fit: cover;">
+            <div style="padding: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div style="font-size: 15px; font-weight: 500; color: #000; line-height: 1.4; flex: 1;">
+                  第三篇归档文章标题
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2" style="margin-left: 4px;">
+                  <circle cx="5" cy="12" r="1"/>
+                  <circle cx="12" cy="12" r="1"/>
+                  <circle cx="19" cy="12" r="1"/>
+                </svg>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; color: #888; margin-top: 6px;">
+                <span>某人</span>
+                <span>3天前</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">桌面端 - 文章详情页（右侧面板）</div>
+    <div class="mockup-body" style="background: #ededed; width: 900px; min-height: 500px; position: relative;">
+      <!-- 主内容区（带遮罩） -->
+      <div style="display: flex; height: 100%;">
+        <!-- 左侧列表区域（半透明遮罩） -->
+        <div style="flex: 1; opacity: 0.3; filter: blur(2px); background: #ededed;">
+          <!-- 模糊的列表背景 -->
+          <div style="display: flex; gap: 24px; padding: 24px;">
+            <aside style="width: 240px; background: #fff; border-radius: 8px; padding: 16px;">
+              <div style="font-size: 12px; color: #888;">分类筛选</div>
+            </aside>
+            <div style="flex: 1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+              <div style="background: #fff; border-radius: 8px; height: 200px;"></div>
+              <div style="background: #fff; border-radius: 8px; height: 200px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右侧详情面板 -->
+        <div style="width: 420px; background: #fff; border-left: 1px solid #e5e5e5; height: 100%; overflow-y: auto;">
+          <!-- 详情页顶部 -->
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px; height: 44px; background: #fff; border-bottom: 1px solid #e5e5e5;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2">
+              <circle cx="5" cy="12" r="1"/>
+              <circle cx="12" cy="12" r="1"/>
+              <circle cx="19" cy="12" r="1"/>
+            </svg>
+          </div>
+
+          <!-- 文章头部 -->
+          <div style="padding: 16px;">
+            <h1 style="font-size: 20px; font-weight: 500; color: #000; line-height: 1.5; margin-bottom: 8px;">
+              文章标题示例 - 桌面端详情展示
+            </h1>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #888; margin-bottom: 12px;">
+              <span>来源：公众号</span>
+              <span style="color: #ccc;">·</span>
+              <span>作者名</span>
+              <span style="color: #ccc;">·</span>
+              <span>2024年1月</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <span style="padding: 4px 10px; background: #f5f5f5; color: #888; font-size: 12px; border-radius: 4px;"># 技术</span>
+              <span style="padding: 4px 10px; background: #f5f5f5; color: #888; font-size: 12px; border-radius: 4px;"># AI</span>
+            </div>
+          </div>
+
+          <!-- AI摘要 -->
+          <div style="padding: 14px 16px; background: #f8f8f8; margin: 8px 16px; border-radius: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#07c160">
+                <circle cx="12" cy="12" r="10"/>
+              </svg>
+              <span style="font-size: 14px; font-weight: 500; color: #000;">智能摘要</span>
+            </div>
+            <p style="font-size: 14px; color: #333; line-height: 1.6;">
+              AI生成的摘要内容，帮助用户快速了解文章核心观点。控制在100-200字左右。
+            </p>
+          </div>
+
+          <!-- 正文 -->
+          <div style="padding: 16px;">
+            <p style="font-size: 16px; color: #333; line-height: 1.8; margin-bottom: 12px;">
+              正文段落示例。桌面端详情面板宽度固定，字号可稍小（16px）以适应面板宽度。
+            </p>
+            <img src="https://picsum.photos/seed/detail1/400/200" style="width: 100%; margin: 12px 0; border-radius: 4px;">
+            <p style="font-size: 16px; color: #333; line-height: 1.8;">
+              继续的正文内容，详情面板固定420px宽度，右侧滑出方式展示。
+            </p>
+          </div>
+
+          <!-- 底部操作栏 -->
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #f7f7f7; border-top: 1px solid #e5e5e5; position: sticky; bottom: 0;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#07c160" stroke-width="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/>
+                <line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+              <span style="font-size: 13px; color: #07c160;">阅读原文</span>
+            </div>
+            <div style="display: flex; gap: 20px;">
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span style="font-size: 10px; color: #888;">归档</span>
+              </div>
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2">
+                  <circle cx="18" cy="5" r="3"/>
+                  <circle cx="6" cy="12" r="3"/>
+                  <circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+                <span style="font-size: 10px; color: #888;">分享</span>
+              </div>
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2">
+                  <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+                </svg>
+                <span style="font-size: 10px; color: #888;">收藏</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 24px;">
+  <h3>调整要点</h3>
+  <div style="font-size: 14px; color: #666; line-height: 1.8;">
+    <p>✓ <strong>侧边栏宽度：</strong>从180px加宽到240px，避免文字换行挤压</p>
+    <p>✓ <strong>分类颜色：</strong>动态生成，每个分类配随机颜色圆点，不固定颜色</p>
+    <p>✓ <strong>响应式卡片：</strong>使用CSS Grid auto-fill + minmax(280px, 1fr)，自动填充无空白</p>
+    <p>✓ <strong>卡片布局：</strong>封面图在上 → 标题+三点 → 作者+时间，紧凑无大片空白</p>
+    <p>✓ <strong>桌面端详情页：</strong>右侧滑出面板(420px宽度)，左侧列表半透明遮罩</p>
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="approve" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>确认设计</h3>
+      <p>更新设计文档并完成总结</p>
+    </div>
+  </div>
+  <div class="option" data-choice="adjust" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>需要调整</h3>
+      <p>请在终端说明具体修改需求</p>
+    </div>
+  </div>
+</div>

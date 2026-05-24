@@ -71,7 +71,7 @@ function MainContent({ children }: { children: ReactNode }) {
         <>
           <MobileTopNav />
           <main
-            className="hide-scrollbar"
+            className="hide-scrollbar app-main mobile-main"
             style={{
               height: isAuthenticated ? 'calc(100vh - 110px)' : 'calc(100vh - 56px)',
               overflowY: 'auto',
@@ -94,7 +94,7 @@ function MainContent({ children }: { children: ReactNode }) {
       {!isMobile && (
         <>
           <DesktopTopNav onSearchOpen={() => setSearchOpen(true)} counts={counts} activeIndex={currentTabIndex} onTabChange={setCurrentTabIndex} />
-          <main style={{ padding: '24px 0', background: 'var(--bg)' }}>
+          <main className="app-main desktop-main" style={{ padding: '24px 0', background: 'var(--bg)' }}>
             <div style={{ margin: '0 auto', padding: '0 24px' }}>
               {children}
             </div>

@@ -7,6 +7,7 @@ import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { LoginModal } from '@/components/auth/LoginModal';
 import { ChangePasswordModal } from '@/components/auth/ChangePasswordModal';
+import { ThemeStyleMenu } from '@/components/layout/ThemeStyleMenu';
 
 const tabs = [
   { key: 'inbox', label: '收件箱', href: '/inbox', Icon: AppstoreOutlined },
@@ -44,6 +45,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
   return (
     <>
       <header
+        className="app-top-nav desktop-top-nav"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -152,6 +154,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
                   style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}
                 />
                 <div
+                  className="app-menu user-menu"
                   onClick={(e) => e.stopPropagation()}
                   onTouchEnd={(e) => e.stopPropagation()}
                   style={{
@@ -194,7 +197,9 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
                       {themeLabels[mode]}
                     </button>
                   ))}
-                  <div style={{ height: '1px', background: 'rgba(255,255,255,0.2)', margin: '8px 12px' }} />
+                  <div className="app-menu-divider" />
+                  <ThemeStyleMenu onSelect={() => setMenuOpen(false)} />
+                  <div className="app-menu-divider" />
                   {isAuthenticated ? (
                     <>
                       <button

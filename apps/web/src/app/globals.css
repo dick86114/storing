@@ -801,14 +801,13 @@ h4 {
 
 /* ===== 配色方案 ===== */
 
-/* ===== 微信风格配色 ===== */
-/* 微信绿为主色调 + 简洁实用风格 */
-
 [data-color-scheme='wechat'][data-theme='light'],
 [data-color-scheme='wechat']:not([data-theme='dark']) {
   --bg: #ededed;
   --card-bg: #fff;
   --nav-bg: #f7f7f7;
+  --menu-bg: #4d4d4d;
+  --menu-text: #fff;
   --surface: #fff;
   --surface-alt: #f5f5f5;
   --fg: #000;
@@ -824,8 +823,7 @@ h4 {
   --accent-soft: #e8f8e8;
   --tag-bg: #f5f5f5;
   --fg-soft: rgba(0, 0, 0, 0.05);
-  --surface-glow: #fff;
-  --glass: rgba(255, 255, 255, 0.85);
+  --glass: rgba(255, 255, 255, 0.88);
   --glass-border: rgba(214, 214, 214, 0.7);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
@@ -833,12 +831,11 @@ h4 {
   --radius: 8px;
   --radius-lg: 12px;
   --radius-sm: 4px;
-  --fs-h1: clamp(32px, 4vw, 48px);
-  --fs-h2: clamp(24px, 3vw, 32px);
-  --fs-h3: 17px;
-  --fs-body: 14.5px;
-  --fs-meta: 11.5px;
-  --font-display: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  --font-meta: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --title-weight: 500;
+  --body-weight: 400;
   --letter-spacing-title: 0;
   --line-height: 1.6;
 }
@@ -847,6 +844,8 @@ h4 {
   --bg: #1f1f1f;
   --card-bg: #2c2c2c;
   --nav-bg: #2c2c2c;
+  --menu-bg: #3a3a3a;
+  --menu-text: #fff;
   --surface: #2c2c2c;
   --surface-alt: #3a3a3a;
   --fg: #fff;
@@ -862,660 +861,573 @@ h4 {
   --accent-soft: #1a3a1a;
   --tag-bg: #3a3a3a;
   --fg-soft: rgba(255, 255, 255, 0.08);
-  --surface-glow: #2c2c2c;
-  --glass: rgba(44, 44, 44, 0.85);
+  --glass: rgba(44, 44, 44, 0.88);
   --glass-border: rgba(58, 58, 58, 0.7);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.15);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 
-/* 微信主题组件样式覆盖 */
-[data-color-scheme='wechat'] .article-card {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: none;
-}
-
-[data-color-scheme='wechat'] .article-card:hover {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-sm);
-}
-
-[data-color-scheme='wechat'] .article-card-tag {
-  background: var(--tag-bg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--muted);
-}
-
-[data-color-scheme='wechat'] .bottom-tab-bar {
-  background: var(--nav-bg);
-  box-shadow: 0 -1px 0 var(--border);
-}
-
-/* 默认配色 - 浅色模式 */
-[data-color-scheme='default'][data-theme='light'],
-[data-color-scheme='default']:not([data-theme='dark']) {
-  --bg: oklch(95.5% 0.018 82);
-  --surface: oklch(97.5% 0.010 82);
-  --fg: oklch(18% 0.016 55);
-  --muted: oklch(46% 0.012 60);
-  --border: oklch(86% 0.012 82);
-  --accent: oklch(52% 0.12 32);
-  --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
-  --fg-soft: color-mix(in oklch, var(--fg) 5%, transparent);
-  --surface-glow: color-mix(in oklch, var(--accent) 5%, var(--surface));
-  --glass: color-mix(in oklch, var(--surface) 85%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 70%, transparent);
-  --shadow-sm: 0 1px 2px color-mix(in oklch, var(--fg) 4%, transparent);
-  --shadow-md: 0 4px 12px color-mix(in oklch, var(--fg) 6%, transparent);
-  --shadow-lg: 0 12px 32px color-mix(in oklch, var(--fg) 8%, transparent);
-  --radius: 10px;
-  --radius-lg: 14px;
-}
-
-/* 默认配色 - 深色模式 */
-[data-color-scheme='default'][data-theme='dark'] {
-  --bg: oklch(22% 0.008 70);
-  --surface: oklch(26% 0.008 70);
-  --fg: oklch(93% 0.006 75);
-  --muted: oklch(65% 0.008 70);
-  --border: oklch(34% 0.008 70);
-  --accent: oklch(72% 0.11 32);
-  --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
-  --fg-soft: color-mix(in oklch, var(--fg) 8%, transparent);
-  --surface-glow: color-mix(in oklch, var(--accent) 8%, var(--surface));
-  --glass: color-mix(in oklch, var(--surface) 75%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 60%, transparent);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.3);
-  --menu-bg: oklch(38% 0.008 70); /* 深色模式：更浅的灰色 */
-}
-
-/* ===== 春季配色：自然生机 ===== */
-/* 嫩绿色系 + 自然纹理感 + 较细字体 + 生机勃勃 */
-
-[data-color-scheme='spring'][data-theme='light'],
-[data-color-scheme='spring']:not([data-theme='dark']) {
-  --bg: oklch(96% 0.025 145);
-  --surface: oklch(98% 0.015 145);
-  --surface-alt: oklch(94% 0.030 130);
-  --fg: oklch(25% 0.020 140);
-  --fg-title: oklch(35% 0.025 130);
-  --muted: oklch(50% 0.018 140);
-  --border: oklch(85% 0.020 145);
-  --accent: oklch(58% 0.18 145);
-  --accent-alt: oklch(55% 0.15 350);
-  --accent-soft: color-mix(in oklch, var(--accent) 15%, transparent);
-  --fg-soft: color-mix(in oklch, var(--fg) 6%, transparent);
-  --surface-glow: linear-gradient(135deg, oklch(98% 0.015 145), oklch(95% 0.025 130));
-  --glass: color-mix(in oklch, var(--surface) 80%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 50%, oklch(58% 0.10 145));
-  --shadow-sm: 0 2px 4px oklch(40% 0.015 145 0.08);
-  --shadow-md: 0 6px 16px oklch(40% 0.015 145 0.12);
-  --shadow-lg: 0 16px 40px oklch(40% 0.015 145 0.16);
-  --radius: 12px;
-  --radius-lg: 18px;
-  --fs-h1: clamp(34px, 4.5vw, 52px);
-  --fs-h2: clamp(26px, 3.2vw, 36px);
-  --fs-h3: 18px;
-  --fs-body: 15px;
-  --fs-meta: 12px;
-  --font-display: 'Iowan Old Style', 'Newsreader', Georgia, serif;
-  --letter-spacing-title: -0.005em;
-  --line-height: 1.65;
-}
-
-[data-color-scheme='spring'][data-theme='dark'] {
-  --bg: oklch(20% 0.020 145);
-  --surface: oklch(25% 0.018 145);
-  --surface-alt: oklch(28% 0.022 130);
-  --fg: oklch(92% 0.012 145);
-  --fg-title: oklch(96% 0.015 130);
-  --muted: oklch(70% 0.012 145);
-  --border: oklch(32% 0.018 145);
-  --accent: oklch(70% 0.20 145);
-  --accent-alt: oklch(72% 0.16 350);
-  --accent-soft: color-mix(in oklch, var(--accent) 20%, transparent);
-  --fg-soft: color-mix(in oklch, var(--fg) 10%, transparent);
-  --surface-glow: linear-gradient(135deg, oklch(25% 0.018 145), oklch(28% 0.022 130));
-  --glass: color-mix(in oklch, var(--surface) 70%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 40%, oklch(70% 0.12 145));
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.25);
-  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.35);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.45);
-}
-
-/* ===== 夏季配色：海洋活力 ===== */
-/* 海洋蓝系 + 流动感 + 较大字号 + 活力四射 */
-
-[data-color-scheme='summer'][data-theme='light'],
-[data-color-scheme='summer']:not([data-theme='dark']) {
-  --bg: oklch(96% 0.030 230);
-  --surface: oklch(98% 0.020 230);
-  --surface-alt: oklch(94% 0.035 220);
-  --fg: oklch(22% 0.025 230);
-  --fg-title: oklch(15% 0.030 220);
-  --muted: oklch(48% 0.020 230);
-  --border: oklch(82% 0.025 230);
-  --accent: oklch(60% 0.22 220);
-  --accent-alt: oklch(58% 0.20 50);
-  --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
-  --fg-soft: color-mix(in oklch, var(--fg) 8%, transparent);
-  --surface-glow: linear-gradient(160deg, oklch(98% 0.020 230), oklch(95% 0.035 220));
-  --glass: color-mix(in oklch, var(--surface) 75%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 40%, oklch(60% 0.15 220));
-  --shadow-sm: 0 3px 6px oklch(30% 0.020 230 0.1);
-  --shadow-md: 0 8px 20px oklch(30% 0.020 230 0.15);
-  --shadow-lg: 0 20px 50px oklch(30% 0.020 230 0.2);
-  --radius: 14px;
-  --radius-lg: 22px;
-  --fs-h1: clamp(38px, 5vw, 56px);
-  --fs-h2: clamp(28px, 3.5vw, 40px);
-  --fs-h3: 19px;
-  --fs-body: 16px;
-  --fs-meta: 13px;
-  --font-display: 'Söhne', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --letter-spacing-title: -0.02em;
-  --line-height: 1.6;
-}
-
-[data-color-scheme='summer'][data-theme='dark'] {
-  --bg: oklch(18% 0.025 230);
-  --surface: oklch(23% 0.020 230);
-  --surface-alt: oklch(26% 0.030 220);
-  --fg: oklch(94% 0.015 230);
-  --fg-title: oklch(98% 0.018 220);
-  --muted: oklch(68% 0.015 230);
-  --border: oklch(30% 0.020 230);
-  --accent: oklch(72% 0.24 220);
-  --accent-alt: oklch(70% 0.22 50);
-  --accent-soft: color-mix(in oklch, var(--accent) 22%, transparent);
-  --fg-soft: color-mix(in oklch, var(--fg) 12%, transparent);
-  --surface-glow: linear-gradient(160deg, oklch(23% 0.020 230), oklch(26% 0.030 220));
-  --glass: color-mix(in oklch, var(--surface) 65%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 35%, oklch(72% 0.15 220));
-  --shadow-sm: 0 3px 6px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.5);
-}
-
-/* ===== 秋季配色：渐变暖阳 ===== */
-/* 渐变橙红 + 玻璃模糊 + 现代感字体 + 温暖时尚 */
-
-[data-color-scheme='autumn'][data-theme='light'],
-[data-color-scheme='autumn']:not([data-theme='dark']) {
-  --bg: linear-gradient(180deg, oklch(97% 0.025 70), oklch(95% 0.030 50));
-  --surface: oklch(98% 0.018 70);
-  --surface-alt: oklch(94% 0.035 40);
-  --fg: oklch(20% 0.022 60);
-  --fg-title: oklch(28% 0.028 35);
-  --muted: oklch(45% 0.018 60);
-  --border: oklch(85% 0.022 70);
-  --accent: oklch(55% 0.22 35);
-  --accent-alt: oklch(52% 0.20 60);
-  --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
-  --fg-soft: color-mix(in oklch, var(--fg) 8%, transparent);
-  --surface-glow: linear-gradient(145deg, oklch(98% 0.018 70), oklch(95% 0.030 40));
-  --glass: color-mix(in oklch, oklch(98% 0.018 70) 60%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 30%, oklch(55% 0.12 35));
-  --shadow-sm: 0 2px 5px oklch(35% 0.020 50 0.12);
-  --shadow-md: 0 6px 18px oklch(35% 0.020 50 0.18);
-  --shadow-lg: 0 18px 45px oklch(35% 0.020 50 0.24);
-  --radius: 12px;
-  --radius-lg: 20px;
-  --fs-h1: clamp(36px, 4.8vw, 54px);
-  --fs-h2: clamp(27px, 3.3vw, 38px);
-  --fs-h3: 18px;
-  --fs-body: 15px;
-  --fs-meta: 12px;
-  --font-display: 'Iowan Old Style', 'Newsreader', Georgia, serif;
-  --letter-spacing-title: -0.01em;
-  --line-height: 1.7;
-}
-
-[data-color-scheme='autumn'][data-theme='dark'] {
-  --bg: linear-gradient(180deg, oklch(22% 0.022 60), oklch(20% 0.025 40));
-  --surface: oklch(26% 0.018 60);
-  --surface-alt: oklch(30% 0.028 35);
-  --fg: oklch(92% 0.014 60);
-  --fg-title: oklch(96% 0.018 35);
-  --muted: oklch(66% 0.014 60);
-  --border: oklch(34% 0.018 60);
-  --accent: oklch(70% 0.24 35);
-  --accent-alt: oklch(68% 0.22 60);
-  --accent-soft: color-mix(in oklch, var(--accent) 22%, transparent);
-  --fg-soft: color-mix(in oklch, var(--fg) 10%, transparent);
-  --surface-glow: linear-gradient(145deg, oklch(26% 0.018 60), oklch(30% 0.028 35));
-  --glass: color-mix(in oklch, oklch(26% 0.018 60) 55%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 35%, oklch(70% 0.14 35));
-  --shadow-sm: 0 2px 5px rgba(0, 0, 0, 0.28);
-  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.38);
-  --shadow-lg: 0 18px 45px rgba(0, 0, 0, 0.48);
-}
-
-/* ===== 冬季配色：极简冰雪 ===== */
-/* 冰雪蓝白 + 极细线条 + 大间距 + 纯净空灵 */
-
-[data-color-scheme='winter'][data-theme='light'],
-[data-color-scheme='winter']:not([data-theme='dark']) {
-  --bg: oklch(98% 0.005 250);
-  --surface: oklch(99% 0.002 250);
-  --surface-alt: oklch(96% 0.008 240);
-  --fg: oklch(18% 0.010 250);
-  --fg-title: oklch(12% 0.012 240);
-  --muted: oklch(52% 0.008 250);
-  --border: oklch(90% 0.005 250);
-  --accent: oklch(50% 0.18 250);
-  --accent-alt: oklch(48% 0.16 220);
-  --accent-soft: color-mix(in oklch, var(--accent) 10%, transparent);
-  --fg-soft: color-mix(in oklch, var(--fg) 4%, transparent);
-  --surface-glow: oklch(99% 0.002 250);
-  --glass: color-mix(in oklch, var(--surface) 90%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 60%, oklch(50% 0.08 250));
-  --shadow-sm: 0 1px 3px oklch(20% 0.008 250 0.06);
-  --shadow-md: 0 4px 12px oklch(20% 0.008 250 0.08);
-  --shadow-lg: 0 12px 32px oklch(20% 0.008 250 0.1);
-  --radius: 8px;
-  --radius-lg: 12px;
-  --fs-h1: clamp(32px, 4vw, 48px);
-  --fs-h2: clamp(24px, 3vw, 34px);
-  --fs-h3: 17px;
-  --fs-body: 14px;
-  --fs-meta: 11px;
-  --font-display: 'Söhne', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --letter-spacing-title: 0.02em;
-  --line-height: 1.8;
-}
-
-[data-color-scheme='winter'][data-theme='dark'] {
-  --bg: oklch(16% 0.012 250);
-  --surface: oklch(20% 0.010 250);
-  --surface-alt: oklch(24% 0.014 240);
-  --fg: oklch(96% 0.006 250);
-  --fg-title: oklch(98% 0.008 240);
-  --muted: oklch(70% 0.008 250);
-  --border: oklch(28% 0.010 250);
-  --accent: oklch(68% 0.20 250);
-  --accent-alt: oklch(66% 0.18 220);
-  --accent-soft: color-mix(in oklch, var(--accent) 15%, transparent);
-  --fg-soft: color-mix(in oklch, var(--fg) 6%, transparent);
-  --surface-glow: oklch(20% 0.010 250);
-  --glass: color-mix(in oklch, var(--surface) 80%, transparent);
-  --glass-border: color-mix(in oklch, var(--border) 50%, oklch(68% 0.10 250));
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
-}
-
-/* ===== 玻璃配色：macOS Tahoe 液态玻璃 ===== */
-/* 蓝紫冷色调 + 多层半透明 + 边缘光晕 + 内部高光折射 */
-
 [data-color-scheme='glass'][data-theme='light'],
 [data-color-scheme='glass']:not([data-theme='dark']) {
-  /* 基础配色 */
-  --bg: oklch(97% 0.015 280);
-  --surface: oklch(98% 0.010 280);
-  --surface-alt: oklch(96% 0.018 275);
-  --fg: oklch(20% 0.015 270);
-  --fg-title: oklch(15% 0.018 270);
-  --muted: oklch(48% 0.012 280);
-  --border: oklch(88% 0.012 280);
-  --accent: oklch(55% 0.25 270);
-  --accent-alt: oklch(52% 0.22 290);
-
-  /* 衍生配色 */
-  --accent-soft: color-mix(in oklch, var(--accent) 15%, transparent);
+  --bg: oklch(96.8% 0.012 112);
+  --card-bg: color-mix(in oklch, oklch(99% 0.005 120) 76%, transparent);
+  --nav-bg: color-mix(in oklch, oklch(99% 0.006 120) 72%, transparent);
+  --menu-bg: color-mix(in oklch, oklch(25% 0.018 145) 82%, transparent);
+  --menu-text: oklch(97% 0.006 120);
+  --surface: oklch(99% 0.006 120);
+  --surface-alt: oklch(94% 0.018 118);
+  --fg: oklch(21% 0.018 145);
+  --fg-title: oklch(16% 0.02 145);
+  --text: var(--fg);
+  --text-secondary: oklch(34% 0.015 145);
+  --muted: oklch(52% 0.012 130);
+  --text-muted: var(--muted);
+  --border: oklch(86% 0.015 118);
+  --divider: color-mix(in oklch, var(--border) 72%, transparent);
+  --accent: oklch(53% 0.12 145);
+  --accent-alt: oklch(55% 0.09 185);
+  --accent-soft: color-mix(in oklch, var(--accent) 13%, transparent);
+  --tag-bg: color-mix(in oklch, var(--surface-alt) 68%, transparent);
   --fg-soft: color-mix(in oklch, var(--fg) 6%, transparent);
-
-  /* 液态玻璃核心参数 */
-  --glass-blur: 24px;
-  --glass-saturate: 1.6;
-  --glass-opacity: 0.72;
-  --glass: color-mix(in oklch, var(--surface) var(--glass-opacity), transparent);
-  --glass-border: color-mix(in oklch, var(--border) 60%, transparent);
-
-  /* 高光与光晕 */
-  --glass-inner-glow: inset 0 1px 1px oklch(100% 0 0 0.15);
-  --glass-specular: linear-gradient(180deg, oklch(100% 0 0 0.08), transparent 50%);
-  --glass-border-glow: color-mix(in oklch, var(--accent) 25%, transparent);
-  --surface-glow: oklch(98% 0.010 280);
-
-  /* 阴影系统（带紫色调） */
-  --shadow-sm: 0 2px 4px oklch(30% 0.015 280 0.08);
-  --shadow-md: 0 6px 16px oklch(30% 0.018 280 0.12);
-  --shadow-lg: 0 16px 40px oklch(30% 0.020 280 0.16);
-  --shadow-glass: 0 8px 24px oklch(25% 0.018 270 0.15);
-  --shadow-elevated: 0 12px 32px oklch(55% 0.25 270 0.20);
-
-  /* 圆角系统（Tahoe 风格更大圆角） */
-  --radius: 16px;
-  --radius-lg: 24px;
-  --radius-xl: 32px;
-  --radius-sm: 10px;
-
-  /* 字体与排版 */
-  --fs-h1: clamp(34px, 4.5vw, 52px);
-  --fs-h2: clamp(26px, 3.2vw, 36px);
-  --fs-h3: 18px;
-  --fs-body: 15px;
-  --fs-meta: 12px;
-  --font-display: 'Söhne', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --letter-spacing-title: -0.02em;
-  --line-height: 1.6;
+  --glass: color-mix(in oklch, var(--surface) 72%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 58%, transparent);
+  --glass-glow: color-mix(in oklch, var(--accent) 24%, transparent);
+  --shadow-sm: 0 2px 8px oklch(35% 0.02 145 / 0.06);
+  --shadow-md: 0 8px 24px oklch(35% 0.02 145 / 0.1);
+  --shadow-lg: 0 18px 48px oklch(28% 0.018 145 / 0.16);
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-sm: 8px;
+  --font-body: Inter, 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-display: Inter, 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-meta: 'SF Mono', ui-monospace, Menlo, monospace;
+  --title-weight: 620;
+  --body-weight: 400;
+  --letter-spacing-title: 0;
+  --line-height: 1.62;
 }
 
 [data-color-scheme='glass'][data-theme='dark'] {
-  /* 基础配色 */
-  --bg: oklch(18% 0.020 280);
-  --surface: oklch(24% 0.018 280);
-  --surface-alt: oklch(28% 0.022 275);
-  --fg: oklch(94% 0.010 280);
-  --fg-title: oklch(98% 0.012 270);
-  --muted: oklch(70% 0.010 280);
-  --border: oklch(32% 0.015 280);
-  --accent: oklch(72% 0.28 270);
-  --accent-alt: oklch(70% 0.25 290);
-
-  /* 衍生配色 */
-  --accent-soft: color-mix(in oklch, var(--accent) 22%, transparent);
-  --fg-soft: color-mix(in oklch, var(--fg) 10%, transparent);
-
-  /* 液态玻璃核心参数（深色模式更强模糊） */
-  --glass-blur: 28px;
-  --glass-saturate: 1.8;
-  --glass-opacity: 0.68;
-  --glass: color-mix(in oklch, var(--surface) var(--glass-opacity), transparent);
-  --glass-border: color-mix(in oklch, var(--border) 50%, transparent);
-
-  /* 高光与光晕（深色模式光晕更明显） */
-  --glass-inner-glow: inset 0 1px 2px oklch(100% 0 0 0.08);
-  --glass-specular: linear-gradient(180deg, oklch(100% 0 0 0.06), transparent 40%);
-  --glass-border-glow: color-mix(in oklch, var(--accent) 35%, transparent);
-  --surface-glow: oklch(24% 0.018 280);
-
-  /* 阴影系统（深色模式更重） */
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.25);
-  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.35);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.45);
-  --shadow-glass: 0 8px 24px oklch(72% 0.28 270 0.18);
-  --shadow-elevated: 0 12px 32px oklch(72% 0.28 270 0.25);
-
-  /* 圆角系统 */
-  --radius: 16px;
-  --radius-lg: 24px;
-  --radius-xl: 32px;
-  --radius-sm: 10px;
-
-  /* 字体与排版 */
-  --fs-h1: clamp(34px, 4.5vw, 52px);
-  --fs-h2: clamp(26px, 3.2vw, 36px);
-  --fs-h3: 18px;
-  --fs-body: 15px;
-  --fs-meta: 12px;
-  --font-display: 'Söhne', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --letter-spacing-title: -0.02em;
-  --line-height: 1.6;
+  --bg: oklch(19% 0.015 145);
+  --card-bg: color-mix(in oklch, oklch(27% 0.014 145) 76%, transparent);
+  --nav-bg: color-mix(in oklch, oklch(25% 0.014 145) 74%, transparent);
+  --menu-bg: color-mix(in oklch, oklch(16% 0.012 145) 88%, transparent);
+  --menu-text: oklch(96% 0.008 135);
+  --surface: oklch(26% 0.014 145);
+  --surface-alt: oklch(31% 0.018 145);
+  --fg: oklch(94% 0.006 130);
+  --fg-title: oklch(98% 0.006 130);
+  --text: var(--fg);
+  --text-secondary: oklch(78% 0.008 135);
+  --muted: oklch(66% 0.01 135);
+  --text-muted: var(--muted);
+  --border: oklch(36% 0.012 145);
+  --divider: color-mix(in oklch, var(--border) 70%, transparent);
+  --accent: oklch(73% 0.14 145);
+  --accent-alt: oklch(76% 0.1 185);
+  --accent-soft: color-mix(in oklch, var(--accent) 20%, transparent);
+  --tag-bg: color-mix(in oklch, var(--surface-alt) 72%, transparent);
+  --fg-soft: color-mix(in oklch, var(--fg) 9%, transparent);
+  --glass: color-mix(in oklch, var(--surface) 68%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 52%, transparent);
+  --glass-glow: color-mix(in oklch, var(--accent) 30%, transparent);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.46);
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-sm: 8px;
+  --font-body: Inter, 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-display: Inter, 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-meta: 'SF Mono', ui-monospace, Menlo, monospace;
+  --title-weight: 620;
+  --body-weight: 400;
+  --letter-spacing-title: 0;
+  --line-height: 1.62;
 }
 
-/* 主题特定样式覆盖 */
-[data-color-scheme='spring'] .detail-panel-title,
-[data-color-scheme='spring'] .article-card-title {
-  font-family: var(--font-display);
-  letter-spacing: var(--letter-spacing-title);
+[data-color-scheme='magazine'][data-theme='light'],
+[data-color-scheme='magazine']:not([data-theme='dark']) {
+  --bg: oklch(96.5% 0.018 78);
+  --card-bg: oklch(99% 0.006 82);
+  --nav-bg: color-mix(in oklch, oklch(98.5% 0.008 82) 92%, transparent);
+  --menu-bg: oklch(25% 0.02 55);
+  --menu-text: oklch(98% 0.008 80);
+  --surface: oklch(99% 0.006 82);
+  --surface-alt: oklch(94% 0.018 78);
+  --fg: oklch(18% 0.018 55);
+  --fg-title: oklch(14% 0.02 50);
+  --text: var(--fg);
+  --text-secondary: oklch(32% 0.016 58);
+  --muted: oklch(49% 0.014 65);
+  --text-muted: var(--muted);
+  --border: oklch(84% 0.014 75);
+  --divider: oklch(88% 0.012 75);
+  --accent: oklch(46% 0.12 38);
+  --accent-alt: oklch(42% 0.08 145);
+  --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
+  --tag-bg: oklch(93.5% 0.016 76);
+  --fg-soft: color-mix(in oklch, var(--fg) 5%, transparent);
+  --glass: color-mix(in oklch, var(--surface) 86%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 68%, transparent);
+  --shadow-sm: 0 1px 3px oklch(28% 0.018 55 / 0.05);
+  --shadow-md: 0 8px 20px oklch(28% 0.018 55 / 0.08);
+  --shadow-lg: 0 18px 42px oklch(28% 0.018 55 / 0.12);
+  --radius: 6px;
+  --radius-lg: 8px;
+  --radius-sm: 4px;
+  --font-body: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
+  --font-display: 'Iowan Old Style', Georgia, 'Songti SC', 'STSong', serif;
+  --font-meta: 'SF Mono', ui-monospace, Menlo, monospace;
+  --title-weight: 600;
+  --body-weight: 400;
+  --letter-spacing-title: 0;
+  --line-height: 1.72;
 }
 
-[data-color-scheme='summer'] .detail-panel-title,
-[data-color-scheme='summer'] .article-card-title {
-  font-weight: 600;
-  letter-spacing: var(--letter-spacing-title);
+[data-color-scheme='magazine'][data-theme='dark'] {
+  --bg: oklch(18% 0.01 60);
+  --card-bg: oklch(23% 0.012 58);
+  --nav-bg: oklch(21% 0.012 58);
+  --menu-bg: oklch(15% 0.012 55);
+  --menu-text: oklch(96% 0.008 78);
+  --surface: oklch(24% 0.012 58);
+  --surface-alt: oklch(29% 0.014 58);
+  --fg: oklch(93% 0.008 76);
+  --fg-title: oklch(97% 0.006 76);
+  --text: var(--fg);
+  --text-secondary: oklch(79% 0.008 76);
+  --muted: oklch(65% 0.01 70);
+  --text-muted: var(--muted);
+  --border: oklch(34% 0.012 58);
+  --divider: oklch(31% 0.012 58);
+  --accent: oklch(70% 0.12 42);
+  --accent-alt: oklch(70% 0.08 145);
+  --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
+  --tag-bg: oklch(29% 0.014 58);
+  --fg-soft: color-mix(in oklch, var(--fg) 7%, transparent);
+  --glass: color-mix(in oklch, var(--surface) 86%, transparent);
+  --glass-border: color-mix(in oklch, var(--border) 68%, transparent);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.34);
+  --shadow-lg: 0 18px 42px rgba(0, 0, 0, 0.45);
+  --radius: 6px;
+  --radius-lg: 8px;
+  --radius-sm: 4px;
+  --font-body: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
+  --font-display: 'Iowan Old Style', Georgia, 'Songti SC', 'STSong', serif;
+  --font-meta: 'SF Mono', ui-monospace, Menlo, monospace;
+  --title-weight: 600;
+  --body-weight: 400;
+  --letter-spacing-title: 0;
+  --line-height: 1.72;
 }
 
-[data-color-scheme='autumn'] .detail-panel-title,
-[data-color-scheme='autumn'] .article-card-title {
-  font-family: var(--font-display);
-  letter-spacing: var(--letter-spacing-title);
+body {
+  font-family: var(--font-body);
+  font-weight: var(--body-weight);
 }
 
-[data-color-scheme='winter'] .detail-panel-title,
-[data-color-scheme='winter'] .article-card-title {
-  font-weight: 400;
-  letter-spacing: var(--letter-spacing-title);
-}
-
-/* 冬季主题的细线条风格 */
-[data-color-scheme='winter'] .article-card {
-  border-width: 0.5px;
-}
-
-[data-color-scheme='winter'] .detail-panel {
-  border-left-width: 0.5px;
-}
-
-/* 春季主题的圆润风格 */
-[data-color-scheme='spring'] .article-card-tag {
-  border-radius: 12px;
-  padding: 3px 8px;
-}
-
-/* 夏季主题的大圆角 */
-[data-color-scheme='summer'] .article-card-tag {
-  border-radius: 14px;
-  font-size: 11px;
-  padding: 4px 10px;
-}
-
-/* 秋季渐变背景 */
-[data-color-scheme='autumn'][data-theme='light'] body,
-[data-color-scheme='autumn']:not([data-theme='dark']) body {
-  background: var(--bg);
-}
-
-[data-color-scheme='autumn'][data-theme='dark'] body {
-  background: var(--bg);
-}
-
-/* ===== 玻璃主题组件样式覆盖 ===== */
-
-/* 导航栏液态玻璃效果（仅导航栏保留 blur，使用 will-change 优化） */
-[data-color-scheme='glass'] header,
-[data-color-scheme='glass'] .sticky.top-0 {
-  backdrop-filter: blur(20px) saturate(1.4);
-  background: color-mix(in oklch, var(--surface) 88%, transparent);
-  border-bottom: 1px solid var(--glass-border-glow);
-  will-change: transform;
-}
-
-[data-color-scheme='glass'] header::before {
+[data-color-scheme='magazine'][data-theme='light'] body::before,
+[data-color-scheme='magazine']:not([data-theme='dark']) body::before {
   content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(180deg, oklch(100% 0 0 0.06), transparent);
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.26;
+  z-index: -1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.22'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
 }
 
-/* 文章卡片液态玻璃效果（性能优化：移除 backdrop-filter） */
+.app-top-nav,
+.bottom-tab-bar,
+.article-card,
+.detail-panel,
+.search-modal-panel,
+.source-modal-panel,
+.app-menu,
+.app-toast {
+  transition: background var(--transition), border-color var(--transition), box-shadow var(--transition), color var(--transition), transform var(--transition);
+}
+
+.app-top-nav {
+  position: relative;
+  z-index: 1200;
+  background: var(--nav-bg) !important;
+  border-bottom-color: var(--divider) !important;
+}
+
+[data-color-scheme='glass'] .app-top-nav,
+[data-color-scheme='glass'] .bottom-tab-bar {
+  background: var(--nav-bg) !important;
+  border-color: var(--glass-border) !important;
+  backdrop-filter: blur(22px) saturate(1.35);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 42%, transparent), var(--shadow-sm);
+}
+
+[data-color-scheme='magazine'] .app-top-nav {
+  box-shadow: 0 1px 0 var(--divider);
+}
+
+.app-menu {
+  z-index: 1300 !important;
+  background: var(--menu-bg) !important;
+  border: 1px solid color-mix(in oklch, var(--menu-text) 14%, transparent);
+  animation: menuIn 0.16s ease-out;
+  overflow: hidden;
+}
+
+.app-menu-divider {
+  height: 1px;
+  margin: 8px 12px;
+  background: color-mix(in oklch, var(--menu-text) 18%, transparent);
+}
+
+.theme-menu-label {
+  padding: 2px 16px 6px;
+  color: color-mix(in oklch, var(--menu-text) 62%, transparent);
+  font-family: var(--font-meta);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.theme-style-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 16px;
+  color: var(--menu-text);
+  text-align: left;
+  border-radius: 4px;
+}
+
+.theme-style-option:hover,
+.theme-style-option[aria-pressed='true'] {
+  color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 16%, transparent);
+}
+
+.theme-style-copy {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.theme-style-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.theme-style-desc {
+  color: color-mix(in oklch, currentColor 70%, transparent);
+  font-size: 11px;
+}
+
+.theme-style-icon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.theme-style-icon--wechat path:first-child,
+.theme-style-icon--wechat path:nth-child(2) {
+  fill: color-mix(in oklch, currentColor 16%, transparent);
+}
+
+.theme-style-option:hover .theme-style-icon--glass path,
+.theme-style-icon[data-active='true'].theme-style-icon--glass path {
+  animation: svgGlint 1.6s ease-in-out infinite;
+}
+
+.theme-style-option:hover .theme-style-icon--wechat,
+.theme-style-icon[data-active='true'].theme-style-icon--wechat {
+  animation: iconBob 1.5s ease-in-out infinite;
+}
+
+.theme-style-option:hover .theme-style-icon--magazine path,
+.theme-style-icon[data-active='true'].theme-style-icon--magazine path {
+  stroke-dasharray: 26;
+  animation: svgDraw 1.6s ease-in-out infinite;
+}
+
+.article-grid {
+  align-items: start;
+}
+
+.article-card {
+  position: relative;
+  z-index: 0;
+  background: var(--card-bg) !important;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-sm);
+  animation: cardIn 0.24s ease-out both;
+  transition: opacity 0.2s, border-color var(--transition), box-shadow var(--transition), transform var(--transition) !important;
+}
+
+.article-card:hover {
+  border-color: color-mix(in oklch, var(--accent) 38%, var(--border));
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.article-card.highlighted {
+  opacity: 1 !important;
+  border-color: var(--accent);
+  animation: pulseHighlight 1.8s ease-in-out infinite;
+}
+
+.article-card-title,
+.detail-panel-title {
+  color: var(--fg-title) !important;
+  font-family: var(--font-display) !important;
+  font-weight: var(--title-weight) !important;
+  letter-spacing: var(--letter-spacing-title) !important;
+}
+
+.article-card-footer,
+.detail-panel-meta,
+.source-sidebar,
+.source-pills {
+  font-family: var(--font-meta);
+}
+
+.article-card-cover {
+  border-radius: var(--radius-sm) !important;
+  box-shadow: 0 1px 0 color-mix(in oklch, var(--border) 65%, transparent);
+}
+
+.wechat-article-card {
+  padding: 0 !important;
+}
+
+.wechat-article-card > div {
+  padding: 10px 14px !important;
+}
+
 [data-color-scheme='glass'] .article-card {
-  background: color-mix(in oklch, var(--surface) 88%, transparent);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-glass);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  will-change: box-shadow;
+  border-color: var(--glass-border);
+  background: var(--glass) !important;
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 42%, transparent), var(--shadow-md);
 }
 
 [data-color-scheme='glass'] .article-card:hover {
-  border-color: var(--glass-border-glow);
-  box-shadow: var(--shadow-elevated);
+  border-color: var(--glass-glow);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 48%, transparent), var(--shadow-lg);
 }
 
-/* 卡片标签玻璃胶囊样式 */
-[data-color-scheme='glass'] .article-card-tag {
-  background: color-mix(in oklch, var(--accent) 12%, transparent);
-  border: 1px solid var(--glass-border-glow);
-  border-radius: 12px;
-  padding: 3px 10px;
-  color: var(--accent);
-  font-size: 11px;
+[data-color-scheme='magazine'] .article-card {
+  border-color: var(--divider);
+  box-shadow: var(--shadow-sm);
 }
 
-/* 按钮液态玻璃效果（性能优化：简化样式） */
-[data-color-scheme='glass'] button {
-  transition: border-color 0.2s ease, background 0.2s ease;
+[data-color-scheme='magazine'] .article-card:hover {
+  border-color: color-mix(in oklch, var(--accent) 40%, var(--border));
 }
 
-[data-color-scheme='glass'] button:not([class*='article-card']):not(.detail-panel-close-btn):not(.detail-panel-action-btn) {
-  background: color-mix(in oklch, var(--surface) 85%, transparent);
+.article-card-menu,
+.search-modal-panel,
+.source-modal-panel {
+  background: var(--glass) !important;
+  border-color: var(--glass-border) !important;
+}
+
+.article-card-menu-item {
+  color: var(--menu-text) !important;
+}
+
+.article-card-menu-item:hover {
+  background: color-mix(in oklch, var(--accent) 18%, transparent) !important;
+}
+
+.article-card-menu-item.favorited {
+  color: var(--accent) !important;
+}
+
+.bottom-tab-bar {
+  background: var(--nav-bg) !important;
+  border-top-color: var(--divider) !important;
+}
+
+.bottom-tab-button.active .bottom-tab-icon-wrap {
+  animation: iconBob 1.8s ease-in-out infinite;
+}
+
+.detail-panel {
+  background: var(--card-bg) !important;
+  border-left-color: var(--divider) !important;
+  animation: detailSlideIn 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.detail-panel-header,
+.detail-panel-footer {
+  background: var(--nav-bg) !important;
+  border-color: var(--divider) !important;
+}
+
+.detail-panel-content,
+.article-content-wrap {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.ai-summary-block {
+  background: var(--tag-bg) !important;
   border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-sm);
 }
 
-[data-color-scheme='glass'] button:not([class*='article-card']):not(.detail-panel-close-btn):not(.detail-panel-action-btn):hover {
-  border-color: var(--glass-border-glow);
-  background: color-mix(in oklch, var(--surface) 90%, transparent);
+[data-color-scheme='glass'] .ai-summary-block,
+[data-color-scheme='glass'] .search-modal-panel,
+[data-color-scheme='glass'] .source-modal-panel {
+  backdrop-filter: blur(22px) saturate(1.35);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 38%, transparent), var(--shadow-lg);
 }
 
-/* 详情面板液态玻璃效果（仅面板保留 blur，内部元素简化） */
-[data-color-scheme='glass'] .detail-panel {
-  background: color-mix(in oklch, var(--surface) 92%, transparent);
-  border-left: 1px solid var(--glass-border-glow);
-  box-shadow: var(--shadow-lg);
+[data-color-scheme='magazine'] .ai-summary-block {
+  border-left: 3px solid var(--accent);
 }
 
-[data-color-scheme='glass'] .detail-panel-header {
-  background: color-mix(in oklch, var(--surface) 88%, transparent);
-  border-bottom: 1px solid var(--glass-border);
+.search-modal-overlay,
+.source-modal-overlay {
+  background: color-mix(in oklch, var(--bg) 74%, transparent) !important;
 }
 
-[data-color-scheme='glass'] .detail-panel-title {
+.search-modal-panel,
+.source-modal-panel {
+  animation: cardIn 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.search-modal-icon path,
+.search-modal-icon circle {
+  transition: stroke var(--transition), transform var(--transition);
+}
+
+.search-modal-input-row:focus-within .search-modal-icon {
+  color: var(--accent) !important;
+  animation: iconBob 1.5s ease-in-out infinite;
+}
+
+.search-result-item:hover,
+.source-pill:hover,
+.source-sidebar-item:hover,
+.source-modal-item:hover {
+  background: var(--fg-soft) !important;
+}
+
+.source-pill,
+.source-sort-button,
+.source-sidebar-item,
+.source-modal-item {
+  transition: color var(--transition), background var(--transition), border-color var(--transition), transform var(--transition);
+}
+
+.source-pill:hover,
+.source-sidebar-item:hover,
+.source-modal-item:hover {
+  transform: translateY(-1px);
+}
+
+.source-pill.active,
+.source-sort-button.active,
+.source-sidebar-item.active,
+.source-modal-item.active {
+  color: var(--accent) !important;
+}
+
+.app-toast {
+  background: var(--fg-title) !important;
+  color: var(--bg) !important;
+}
+
+[data-color-scheme='magazine'] .article-body {
+  line-height: 1.9;
+}
+
+[data-color-scheme='magazine'] .article-body h1,
+[data-color-scheme='magazine'] .article-body h2,
+[data-color-scheme='magazine'] .article-body h3,
+[data-color-scheme='magazine'] .article-body h4 {
   font-family: var(--font-display);
-  letter-spacing: var(--letter-spacing-title);
-  color: var(--fg-title);
+  letter-spacing: 0;
 }
 
-/* 详情面板关闭/操作按钮 */
-[data-color-scheme='glass'] .detail-panel-close-btn,
-[data-color-scheme='glass'] .detail-panel-action-btn {
-  background: color-mix(in oklch, var(--surface) 85%, transparent);
-  border: 1px solid var(--glass-border);
-  transition: background 0.15s ease, border-color 0.15s ease;
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
-[data-color-scheme='glass'] .detail-panel-close-btn:hover,
-[data-color-scheme='glass'] .detail-panel-action-btn:hover {
-  background: color-mix(in oklch, var(--accent) 20%, transparent);
-  border-color: var(--glass-border-glow);
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
-/* 弹窗/菜单液态玻璃效果（仅菜单保留 blur） */
-[data-color-scheme='glass'] .article-card-menu,
-[data-color-scheme='glass'] [style*="position: absolute"][style*="min-width"] {
-  background: color-mix(in oklch, var(--surface) 95%, transparent);
-  border: 1px solid var(--glass-border-glow);
-  box-shadow: var(--shadow-lg);
+@keyframes detailSlideIn {
+  from {
+    opacity: 0.96;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
-[data-color-scheme='glass'] .article-card-menu-item,
-[data-color-scheme='glass'] button[style*="width: 100%"][style*="padding: 8px"] {
-  border-radius: var(--radius-sm);
-  transition: background 0.15s ease;
+@keyframes iconBob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1px); }
 }
 
-[data-color-scheme='glass'] .article-card-menu-item:hover,
-[data-color-scheme='glass'] button[style*="width: 100%"][style*="padding: 8px"]:hover {
-  background: color-mix(in oklch, var(--accent) 20%, transparent);
+@keyframes svgGlint {
+  0%, 100% { opacity: 0.72; }
+  50% { opacity: 1; }
 }
 
-/* 搜索按钮玻璃效果 */
-[data-color-scheme='glass'] button[aria-label="搜索"] {
-  background: color-mix(in oklch, var(--surface) 85%, transparent);
-  border: 1px solid var(--glass-border);
+@keyframes svgDraw {
+  0% { stroke-dashoffset: 26; }
+  50%, 100% { stroke-dashoffset: 0; }
 }
 
-[data-color-scheme='glass'] button[aria-label="搜索"]:hover {
-  border-color: var(--glass-border-glow);
+/* 图片查看器样式 */
+[data-theme='light'] [data-rmiz-modal-overlay="visible"],
+[data-color-scheme='wechat'][data-theme='light'] [data-rmiz-modal-overlay="visible"],
+[data-color-scheme='glass'][data-theme='light'] [data-rmiz-modal-overlay="visible"],
+[data-color-scheme='magazine'][data-theme='light'] [data-rmiz-modal-overlay="visible"] {
+  background-color: oklch(0.15 0 0 / 0.9) !important;
 }
 
-/* AI 摘要块玻璃效果 */
-[data-color-scheme='glass'] .ai-summary-block {
-  background: color-mix(in oklch, var(--surface) 90%, transparent);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-md);
+[data-theme='dark'] [data-rmiz-modal-overlay="visible"],
+[data-color-scheme='wechat'][data-theme='dark'] [data-rmiz-modal-overlay="visible"],
+[data-color-scheme='glass'][data-theme='dark'] [data-rmiz-modal-overlay="visible"],
+[data-color-scheme='magazine'][data-theme='dark'] [data-rmiz-modal-overlay="visible"] {
+  background-color: oklch(0.08 0 0 / 0.95) !important;
 }
 
-[data-color-scheme='glass'] .ai-summary-title {
-  color: var(--accent);
-  border-bottom: 1px solid var(--glass-border);
-}
-
-/* 加载占位符玻璃效果 */
-[data-color-scheme='glass'] .ai-loading-placeholder,
-[data-color-scheme='glass'] .skeleton-line {
-  background: color-mix(in oklch, var(--surface) 88%, transparent);
-  border: 1px solid var(--glass-border);
-}
-
-/* 分隔线玻璃风格 */
-[data-color-scheme='glass'] .content-divider {
-  border-top: 1px solid var(--glass-border);
-}
-
-/* 玻璃主题骨架屏 */
-[data-color-scheme='glass'] .skeleton-card {
-  background: linear-gradient(
-    90deg,
-    color-mix(in oklch, var(--accent) 8%, transparent) 25%,
-    color-mix(in oklch, var(--accent) 15%, transparent) 50%,
-    color-mix(in oklch, var(--accent) 8%, transparent) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
-}
-
-/* 详情面板遮罩 */
-[data-color-scheme='glass'] .detail-panel-overlay {
-  background: color-mix(in oklch, var(--bg) 60%, transparent);
-}
-
-/* 高亮卡片发光效果 */
-[data-color-scheme='glass'] .article-card.highlighted {
-  border-color: var(--glass-border-glow);
-  box-shadow: 0 0 16px 2px color-mix(in oklch, var(--accent) 25%, transparent);
-}
-
-/* ===== 底部 Tab 栏样式 ===== */
-
-/* 玻璃主题适配 - 强化玻璃效果 */
-[data-color-scheme='glass'] .bottom-tab-bar {
-  background: color-mix(in oklch, var(--surface) 65%, transparent);
-  backdrop-filter: blur(24px) saturate(1.6);
-  -webkit-backdrop-filter: blur(24px) saturate(1.6);
-  box-shadow: 0 4px 16px color-mix(in oklch, var(--accent) 8%, transparent),
-              0 0 0 1px color-mix(in oklch, var(--border) 30%, transparent);
-}
-
-/* 各季节主题的底部 Tab 栏样式 */
-[data-color-scheme='spring'] .bottom-tab-bar {
-  background: color-mix(in oklch, var(--surface) 75%, transparent);
-  box-shadow: 0 4px 12px oklch(40% 0.015 145 0.1);
-}
-
-[data-color-scheme='summer'] .bottom-tab-bar {
-  background: color-mix(in oklch, var(--surface) 70%, transparent);
-  box-shadow: 0 4px 12px oklch(40% 0.02 220 0.1);
-}
-
-[data-color-scheme='autumn'] .bottom-tab-bar {
-  background: color-mix(in oklch, var(--surface) 75%, transparent);
-  box-shadow: 0 4px 12px oklch(40% 0.02 35 0.1);
-}
-
-[data-color-scheme='winter'] .bottom-tab-bar {
-  background: color-mix(in oklch, var(--surface) 80%, transparent);
-  box-shadow: 0 4px 12px oklch(40% 0.01 280 0.08);
+[data-rmiz-modal-content] {
+  border-radius: var(--radius);
 }
 
 /* 隐藏桌面端移动端视图 */
@@ -1535,83 +1447,20 @@ h4 {
   }
 }
 
-/* ===== 图片查看器样式 ===== */
-
-/* 浅色模式：深色半透明背景 */
-[data-theme='light'] [data-rmiz-modal-overlay="visible"],
-[data-color-scheme='default'][data-theme='light'] [data-rmiz-modal-overlay="visible"],
-[data-color-scheme='wechat'][data-theme='light'] [data-rmiz-modal-overlay="visible"] {
-  background-color: oklch(0.15 0 0 / 0.9) !important;
-}
-
-/* 深色模式：更深的背景 */
-[data-theme='dark'] [data-rmiz-modal-overlay="visible"],
-[data-color-scheme='default'][data-theme='dark'] [data-rmiz-modal-overlay="visible"],
-[data-color-scheme='wechat'][data-theme='dark'] [data-rmiz-modal-overlay="visible"] {
-  background-color: oklch(0.08 0 0 / 0.95) !important;
-}
-
-/* 系统默认（无 data-theme 时，跟随 prefers-color-scheme） */
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme]) [data-rmiz-modal-overlay="visible"] {
-    background-color: oklch(0.15 0 0 / 0.9) !important;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
   }
-}
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) [data-rmiz-modal-overlay="visible"] {
-    background-color: oklch(0.08 0 0 / 0.95) !important;
+  .article-card:hover,
+  .source-pill:hover,
+  .source-sidebar-item:hover,
+  .source-modal-item:hover {
+    transform: none !important;
   }
-}
-
-/* 查看器图片样式 */
-[data-rmiz-modal-content] {
-  border-radius: var(--radius);
-}
-
-/* 各配色方案浅色模式 */
-[data-color-scheme='spring'][data-theme='light'] [data-rmiz-modal-overlay="visible"],
-[data-color-scheme='spring']:not([data-theme='dark']) [data-rmiz-modal-overlay="visible"] {
-  background-color: oklch(0.15 0 020 145 / 0.9) !important;
-}
-
-[data-color-scheme='summer'][data-theme='light'] [data-rmiz-modal-overlay="visible"],
-[data-color-scheme='summer']:not([data-theme='dark']) [data-rmiz-modal-overlay="visible"] {
-  background-color: oklch(0.15 0 025 230 / 0.9) !important;
-}
-
-[data-color-scheme='autumn'][data-theme='light'] [data-rmiz-modal-overlay="visible"],
-[data-color-scheme='autumn']:not([data-theme='dark']) [data-rmiz-modal-overlay="visible"] {
-  background-color: oklch(0.15 0 022 60 / 0.9) !important;
-}
-
-[data-color-scheme='winter'][data-theme='light'] [data-rmiz-modal-overlay="visible"],
-[data-color-scheme='winter']:not([data-theme='dark']) [data-rmiz-modal-overlay="visible"] {
-  background-color: oklch(0.15 0 012 250 / 0.9) !important;
-}
-
-[data-color-scheme='glass'][data-theme='light'] [data-rmiz-modal-overlay="visible"],
-[data-color-scheme='glass']:not([data-theme='dark']) [data-rmiz-modal-overlay="visible"] {
-  background-color: oklch(0.15 0 020 280 / 0.92) !important;
-}
-
-/* 各配色方案深色模式 */
-[data-color-scheme='spring'][data-theme='dark'] [data-rmiz-modal-overlay="visible"] {
-  background-color: oklch(0.08 0 020 145 / 0.95) !important;
-}
-
-[data-color-scheme='summer'][data-theme='dark'] [data-rmiz-modal-overlay="visible"] {
-  background-color: oklch(0.08 0 025 230 / 0.95) !important;
-}
-
-[data-color-scheme='autumn'][data-theme='dark'] [data-rmiz-modal-overlay="visible"] {
-  background-color: oklch(0.08 0 022 60 / 0.95) !important;
-}
-
-[data-color-scheme='winter'][data-theme='dark'] [data-rmiz-modal-overlay="visible"] {
-  background-color: oklch(0.08 0 012 250 / 0.95) !important;
-}
-
-[data-color-scheme='glass'][data-theme='dark'] [data-rmiz-modal-overlay="visible"] {
-  background-color: oklch(0.08 0 020 280 / 0.95) !important;
 }

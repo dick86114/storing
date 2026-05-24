@@ -32,6 +32,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {mounted &&
         createPortal(
           <div
+            className="app-toast"
             style={{
               position: 'fixed',
               bottom: 28,

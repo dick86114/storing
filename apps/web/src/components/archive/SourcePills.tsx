@@ -126,7 +126,7 @@ export function SourcePills({
   }, [activeSource]);
 
   return (
-    <div style={{ padding: '12px 8px' }}>
+    <div className="source-pills" style={{ padding: '12px 8px' }}>
       {onSortChange && (
         <div
           style={{
@@ -139,8 +139,9 @@ export function SourcePills({
           {sortOptions.map((opt) => {
             const isActive = currentSort === opt.value;
             return (
-              <button
-                key={opt.value}
+            <button
+              key={opt.value}
+              className={`source-sort-button${isActive ? ' active' : ''}`}
                 onClick={() => handleSortClick(opt.value)}
                 style={{
                   padding: '6px 12px',
@@ -182,6 +183,7 @@ export function SourcePills({
           return (
             <button
               key={src.source}
+              className={`source-pill${isActive ? ' active' : ''}`}
               onClick={() => onSelect(src.source)}
               type="button"
               aria-pressed={isActive}
@@ -203,6 +205,7 @@ export function SourcePills({
 
         {hasMore && (
           <button
+            className="source-pill source-pill-more"
             onClick={() => setShowModal(true)}
             type="button"
             style={{
@@ -242,6 +245,7 @@ export function SourcePills({
           onTouchMove={(e) => e.stopPropagation()}
         >
           <div
+            className="source-modal-panel"
             ref={modalRef}
             style={{
               background: 'var(--glass)',
@@ -323,6 +327,7 @@ export function SourcePills({
                   return (
                     <button
                       key={src.source}
+                      className={`source-pill${isActive ? ' active' : ''}`}
                       onClick={() => handleSelectFromModal(src.source)}
                       type="button"
                       style={{

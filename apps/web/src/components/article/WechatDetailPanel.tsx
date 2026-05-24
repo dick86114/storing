@@ -99,6 +99,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
       <>
         {/* 遮罩层 */}
         <div
+          className="detail-panel-overlay"
           onClick={onClose}
           style={{
             position: 'fixed',
@@ -114,6 +115,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
         {/* 详情面板 */}
         <div
           ref={contentRef}
+          className="detail-panel wechat-detail-panel"
           data-scroll-container="detail"
           style={{
             position: 'fixed',
@@ -148,6 +150,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   return (
     <div
       ref={contentRef}
+      className="detail-panel wechat-detail-panel mobile-detail-panel"
       data-scroll-container="detail"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -270,6 +273,7 @@ function DetailContent({
     <>
       {/* 顶部导航 */}
       <header
+        className="detail-panel-header"
         style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -283,10 +287,10 @@ function DetailContent({
           zIndex: 10,
         }}
       >
-        <button onClick={onClose} type="button" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer' }}>
+        <button className="detail-panel-close-btn" onClick={onClose} type="button" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer' }}>
           <LeftOutlined style={{ fontSize: '22px', color: 'var(--text)' }} />
         </button>
-        <button type="button" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer' }}>
+        <button className="detail-panel-action-btn" type="button" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer' }}>
           <MoreOutlined style={{ fontSize: '22px', color: 'var(--text)', transform: 'rotate(90deg)' }} />
         </button>
       </header>
@@ -344,11 +348,11 @@ function DetailContent({
       ) : article ? (
         <>
           {/* 文章头部 */}
-          <div style={{ padding: '16px' }}>
-            <h1 style={{ fontSize: '20px', fontWeight: 500, color: 'var(--text)', lineHeight: 1.5, marginBottom: '8px' }}>
+          <div className="detail-panel-content" style={{ padding: '16px' }}>
+            <h1 className="detail-panel-title" style={{ fontSize: '20px', fontWeight: 500, color: 'var(--text)', lineHeight: 1.5, marginBottom: '8px' }}>
               {article.title}
             </h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+            <div className="detail-panel-meta" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--text-muted)', marginBottom: '12px' }}>
               <span>{article.source}</span>
               <span style={{ color: 'var(--divider)' }}>·</span>
               {article.author && (
@@ -361,9 +365,9 @@ function DetailContent({
             </div>
             {/* AI标签 */}
             {article.aiTags?.length > 0 && (
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div className="detail-panel-tags" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {article.aiTags.map((tag: string) => (
-                  <span key={tag} style={{ padding: '4px 10px', background: 'var(--tag-bg)', color: 'var(--text-muted)', fontSize: '12px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                  <span className="article-card-tag" key={tag} style={{ padding: '4px 10px', background: 'var(--tag-bg)', color: 'var(--text-muted)', fontSize: '12px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
                     #{tag}
                   </span>
                 ))}
@@ -373,17 +377,17 @@ function DetailContent({
 
           {/* AI摘要 */}
           {article.aiSummary && (
-            <div style={{ padding: '14px 16px', background: 'var(--tag-bg)', margin: '8px 16px', borderRadius: '8px' }}>
+            <div className="ai-summary-block" style={{ padding: '14px 16px', background: 'var(--tag-bg)', margin: '8px 16px', borderRadius: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                 <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'var(--accent)' }} />
-                <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>智能摘要</span>
+                <span className="ai-summary-title" style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>智能摘要</span>
               </div>
-              <p style={{ fontSize: '15px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{article.aiSummary}</p>
+              <p className="ai-summary-text" style={{ fontSize: '15px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{article.aiSummary}</p>
             </div>
           )}
 
           {/* 正文 */}
-          <div style={{ padding: '16px' }}>
+          <div className="article-content-wrap" style={{ padding: '16px' }}>
             {article.contentHtml ? (
               <div 
                 className="article-body"
@@ -397,6 +401,7 @@ function DetailContent({
 
           {/* 底部操作栏 */}
           <footer
+            className="detail-panel-footer"
             style={{
               display: 'flex',
               justifyContent: 'space-between',
@@ -435,7 +440,7 @@ function DetailContent({
               <BookmarkButton onClick={handleSaveBookmark} />
               {isAuthenticated && (
                 <>
-                  <button onClick={handleArchive} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                  <button className="detail-panel-action-btn" onClick={handleArchive} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
                     {article.isArchived ? (
                       <FolderFilled style={{ fontSize: '20px', color: 'var(--accent)' }} />
                     ) : (
@@ -443,7 +448,7 @@ function DetailContent({
                     )}
                     <span style={{ fontSize: '11px', color: article.isArchived ? 'var(--accent)' : 'var(--text-muted)' }}>{article.isArchived ? '取消归档' : '归档'}</span>
                   </button>
-                  <button onClick={handleFavorite} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                  <button className={`detail-panel-action-btn${article.isFavorited ? ' favorited' : ''}`} onClick={handleFavorite} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
                     {article.isFavorited ? (
                       <HeartFilled style={{ fontSize: '20px', color: 'var(--accent)' }} />
                     ) : (
@@ -453,7 +458,7 @@ function DetailContent({
                   </button>
                 </>
               )}
-              <button onClick={handleShare} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+              <button className="detail-panel-action-btn" onClick={handleShare} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
                 <ShareAltOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>分享</span>
               </button>

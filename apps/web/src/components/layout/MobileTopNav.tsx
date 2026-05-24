@@ -7,6 +7,7 @@ import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { LoginModal } from '@/components/auth/LoginModal';
 import { ChangePasswordModal } from '@/components/auth/ChangePasswordModal';
+import { ThemeStyleMenu } from '@/components/layout/ThemeStyleMenu';
 
 interface MobileTopNavProps {
   onAddClick?: () => void;
@@ -35,6 +36,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
   return (
     <>
       <header
+        className="app-top-nav mobile-top-nav"
         style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -122,6 +124,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                 style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}
               />
               <div
+                className="app-menu user-menu"
                 onClick={(e) => e.stopPropagation()}
                 onTouchEnd={(e) => e.stopPropagation()}
                 style={{
@@ -176,7 +179,9 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                   </button>
                 ))}
 
-                <div style={{ height: '1px', background: 'rgba(255,255,255,0.2)', margin: '8px 12px' }} />
+                <div className="app-menu-divider" />
+                <ThemeStyleMenu onSelect={() => setMenuOpen(false)} />
+                <div className="app-menu-divider" />
 
                 {isAuthenticated ? (
                   <>

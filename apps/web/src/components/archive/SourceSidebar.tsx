@@ -132,6 +132,7 @@ export function SourceSidebar({
 
   return (
     <aside
+      className="source-sidebar"
       style={{
         width: '260px',
         flexShrink: 0,
@@ -155,6 +156,7 @@ export function SourceSidebar({
             return (
               <button
                 key={opt.value}
+                className={`source-sort-button${isActive ? ' active' : ''}`}
                 onClick={() => handleSortClick(opt.value)}
                 style={{
                   padding: '8px 12px',
@@ -193,6 +195,7 @@ export function SourceSidebar({
           return (
             <li
               key={src.source}
+              className={`source-sidebar-item${isActive ? ' active' : ''}`}
               onClick={() => onSelect(src.source)}
               tabIndex={0}
               role="button"
@@ -249,6 +252,7 @@ export function SourceSidebar({
 
       {showModal && createPortal(
         <div
+          className="source-modal-overlay"
           style={{
             position: 'fixed',
             top: 0,
@@ -267,6 +271,7 @@ export function SourceSidebar({
         >
           <div
             ref={modalRef}
+            className="source-modal-panel"
             style={{
               background: 'var(--card-bg)',
               borderRadius: '16px',
@@ -349,6 +354,7 @@ export function SourceSidebar({
                   return (
                     <div
                       key={src.source}
+                      className={`source-modal-item${isActive ? ' active' : ''}`}
                       onClick={() => handleSelectFromModal(src.source)}
                       tabIndex={0}
                       role="button"
