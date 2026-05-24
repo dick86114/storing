@@ -89,7 +89,7 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 flex items-start justify-center"
+      className="search-modal-overlay fixed inset-0 flex items-start justify-center"
       style={{
         zIndex: 300,
         background: 'color-mix(in oklch, var(--bg) 70%, transparent)',
@@ -102,7 +102,7 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
       }}
     >
       <div
-        className="overflow-hidden border"
+        className="search-modal-panel overflow-hidden border"
         style={{
           width: 'min(580px, calc(100vw - 48px))',
           background: 'var(--glass)',
@@ -114,8 +114,8 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
           animation: 'cardIn 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
-        <div className="flex items-center border-b" style={{ gap: 'var(--gap-sm)', padding: 'var(--gap-md) var(--gap-lg)', borderColor: 'var(--border)' }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18, color: 'var(--muted)', flexShrink: 0 }}>
+        <div className="search-modal-input-row flex items-center border-b" style={{ gap: 'var(--gap-sm)', padding: 'var(--gap-md) var(--gap-lg)', borderColor: 'var(--border)' }}>
+          <svg className="search-modal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18, color: 'var(--muted)', flexShrink: 0 }}>
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.3-4.3" />
           </svg>
@@ -148,7 +148,7 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
               <div
                 key={a.id}
                 data-search-idx={i}
-                className="flex flex-col cursor-pointer"
+                className="search-result-item flex flex-col cursor-pointer"
                 style={{
                   padding: 'var(--gap-sm) var(--gap-md)',
                   borderRadius: 'var(--radius-sm)',
@@ -180,7 +180,7 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
             ))
           )}
         </div>
-        <div className="flex border-t" style={{ gap: 'var(--gap-md)', padding: 'var(--gap-sm) var(--gap-lg)', fontSize: 'var(--fs-meta)', color: 'var(--muted)' }}>
+        <div className="search-modal-help flex border-t" style={{ gap: 'var(--gap-md)', padding: 'var(--gap-sm) var(--gap-lg)', fontSize: 'var(--fs-meta)', color: 'var(--muted)' }}>
           <span className="flex items-center" style={{ gap: 4 }}><kbd>↑↓</kbd> 导航</span>
           <span className="flex items-center" style={{ gap: 4 }}><kbd>↵</kbd> 打开</span>
           <span className="flex items-center" style={{ gap: 4 }}><kbd>ESC</kbd> 关闭</span>

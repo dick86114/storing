@@ -29,6 +29,7 @@ export function MobileBottomTab({ counts, activeIndex, onTabChange }: MobileBott
 
   return (
     <nav
+      className="bottom-tab-bar"
       style={{
         position: 'fixed',
         bottom: 0,
@@ -51,6 +52,7 @@ export function MobileBottomTab({ counts, activeIndex, onTabChange }: MobileBott
         return (
           <button
             key={tab.key}
+            className={`bottom-tab-button${isActive ? ' active' : ''}`}
             onClick={() => handleTabClick(index, tab.href)}
             type="button"
             style={{
@@ -66,7 +68,7 @@ export function MobileBottomTab({ counts, activeIndex, onTabChange }: MobileBott
               cursor: 'pointer',
             }}
           >
-            <div style={{ position: 'relative', display: 'inline-flex' }}>
+            <div className="bottom-tab-icon-wrap" style={{ position: 'relative', display: 'inline-flex' }}>
               <tab.Icon
                 style={{
                   fontSize: '24px',

@@ -19,6 +19,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
 
   return (
     <div
+      className={`article-card wechat-article-card${highlight ? ' highlighted' : ''}`}
       onClick={onClick}
       style={{
         position: 'relative',
@@ -34,6 +35,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
         {/* 第一行：标题 + 三点菜单 */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
           <div
+            className="article-card-title"
             title={article.title}
             style={{
               fontSize: '15px',
@@ -55,6 +57,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
           {showMenu && (
             <div style={{ position: 'relative', flexShrink: 0 }}>
               <button
+                className="article-card-menu-btn"
                 onClick={(e) => {
                   e.stopPropagation();
                   setMenuOpen((prev) => !prev);
@@ -81,6 +84,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
                     style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}
                   />
                   <div
+                    className="article-card-menu"
                     onClick={(e) => e.stopPropagation()}
                     onTouchEnd={(e) => e.stopPropagation()}
                     style={{
@@ -96,6 +100,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
                     }}
                   >
                     <button
+                      className={`article-card-menu-item${article.isFavorited ? ' favorited' : ''}`}
                       onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onToggleFavorite(e); }}
                       style={{
                         display: 'flex',
@@ -118,6 +123,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
                       {article.isFavorited ? '取消收藏' : '收藏'}
                     </button>
                     <button
+                      className={`article-card-menu-item${article.isArchived ? ' favorited' : ''}`}
                       onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onArchive(e); }}
                       style={{
                         display: 'flex',
@@ -149,6 +155,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
         {/* 第二行：封面图 */}
         {article.coverImage && (
           <img
+            className="article-card-cover"
             src={article.coverImage}
             alt=""
             style={{
@@ -162,7 +169,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
         )}
 
         {/* 第三行：来源 + 发布时间 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
+        <div className="article-card-footer" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
           <span>{article.source || article.author || '未知来源'}</span>
           <DateText dateStr={article.publishTime} />
         </div>

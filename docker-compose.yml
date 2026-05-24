@@ -9,7 +9,7 @@ services:
       - "1050:1050"  # 前端
       - "1052:1052"  # API
     env_file:
-      - .env
+      - .env  # 直接读取宿主机的 .env 文件
     environment:
       # 运行时配置
       - NODE_ENV=production

@@ -1,15 +1,21 @@
 const BASE = '/api/v1';
+const REQUEST_TIMEOUT_MS = 10000;
 
 async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
   const token = localStorage.getItem('token');
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
   const res = await fetch(`${BASE}${path}`, {
     ...init,
+    signal: controller.signal,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
-  });
+  }).finally(() => window.clearTimeout(timeout));
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     // 401 或 403 时清除 token

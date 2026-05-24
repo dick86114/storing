@@ -24,6 +24,7 @@ export function BookmarkButton({ onClick }: BookmarkButtonProps) {
 
   return (
     <button
+      className="bookmark-button"
       onClick={handleClick}
       type="button"
       style={{
@@ -42,6 +43,7 @@ export function BookmarkButton({ onClick }: BookmarkButtonProps) {
 
       {/* Icon */}
       <div
+        className="bookmark-icon"
         style={{
           width: '20px',
           height: '20px',

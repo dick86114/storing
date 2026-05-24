@@ -1,0 +1,224 @@
+<h2>文章详情页设计</h2>
+<p class="subtitle">微信公众号风格：简洁头部 + 正文阅读体验</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">浅色模式</div>
+    <div class="mockup-body" style="background: #fff; height: 500px; overflow-y: auto;">
+      <!-- 微信风格顶部导航 -->
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px; height: 44px; background: #fff; border-bottom: 0.5px solid #e5e5e5;">
+        <!-- 返回按钮 -->
+        <div style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          <span style="font-size: 16px; color: #000;">返回</span>
+        </div>
+        <!-- 三点菜单 -->
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="5" r="1"/>
+          <circle cx="12" cy="12" r="1"/>
+          <circle cx="12" cy="19" r="1"/>
+        </svg>
+      </div>
+
+      <!-- 公众号信息头部 -->
+      <div style="padding: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+          <!-- 公众号头像 -->
+          <div style="width: 40px; height: 40px; background: #07c160; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+            <span style="color: white; font-size: 18px; font-weight: bold;">S</span>
+          </div>
+          <div>
+            <div style="font-size: 15px; font-weight: 500; color: #000;">作者名称</div>
+            <div style="font-size: 12px; color: #888;">2024年1月15日</div>
+          </div>
+        </div>
+
+        <!-- 文章标题 -->
+        <h1 style="font-size: 22px; font-weight: 500; color: #000; line-height: 1.5; margin-bottom: 16px;">
+          文章标题示例 - 微信公众号风格详情页设计
+        </h1>
+
+        <!-- AI 标签（如有） -->
+        <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+          <span style="display: inline-block; padding: 4px 10px; background: #f5f5f5; color: #888; font-size: 12px; border-radius: 4px;"># 技术</span>
+          <span style="display: inline-block; padding: 4px 10px; background: #f5f5f5; color: #888; font-size: 12px; border-radius: 4px;"># AI</span>
+        </div>
+      </div>
+
+      <!-- AI 摘要卡片 -->
+      <div style="padding: 16px; background: #f8f8f8; margin: 0 16px; border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#07c160">
+            <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/>
+            <path d="M12 6v6l4 2"/>
+          </svg>
+          <span style="font-size: 14px; font-weight: 500; color: #000;">智能摘要</span>
+        </div>
+        <p style="font-size: 15px; color: #333; line-height: 1.6;">
+          这是一段 AI 生成的文章摘要，帮助用户快速了解文章核心内容。摘要通常控制在100-200字左右，突出关键观点和结论。
+        </p>
+      </div>
+
+      <!-- 文章正文 -->
+      <div style="padding: 16px; margin-top: 16px;">
+        <p style="font-size: 17px; color: #333; line-height: 1.8; margin-bottom: 16px;">
+          正文段落示例。微信公众号的正文采用较大的字号（17px）和舒适的行高（1.8），确保阅读体验。段落之间有适当的间距，图片居中显示。
+        </p>
+        <img src="https://picsum.photos/seed/detail1/400/250" style="width: 100%; margin: 16px 0; border-radius: 4px;">
+        <p style="font-size: 17px; color: #333; line-height: 1.8; margin-bottom: 16px;">
+          继续的正文内容。微信风格注重内容排版，段落清晰，图文结合，给用户带来良好的阅读体验。
+        </p>
+      </div>
+
+      <!-- 底部操作栏 -->
+      <div style="display: flex; justify-content: space-around; align-items: center; padding: 12px 16px; background: #f7f7f7; border-top: 0.5px solid #e5e5e5; position: sticky; bottom: 0;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+          </svg>
+          <span style="font-size: 14px; color: #000;">收藏</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span style="font-size: 14px; color: #000;">归档</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="18" cy="5" r="3"/>
+            <circle cx="6" cy="12" r="3"/>
+            <circle cx="18" cy="19" r="3"/>
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          </svg>
+          <span style="font-size: 14px; color: #000;">分享</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">深色模式</div>
+    <div class="mockup-body" style="background: #1f1f1f; height: 500px; overflow-y: auto;">
+      <!-- 深色顶部导航 -->
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px; height: 44px; background: #1f1f1f; border-bottom: 0.5px solid #3a3a3a;">
+        <div style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          <span style="font-size: 16px; color: #fff;">返回</span>
+        </div>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="5" r="1"/>
+          <circle cx="12" cy="12" r="1"/>
+          <circle cx="12" cy="19" r="1"/>
+        </svg>
+      </div>
+
+      <!-- 深色公众号信息头部 -->
+      <div style="padding: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+          <div style="width: 40px; height: 40px; background: #07c160; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+            <span style="color: white; font-size: 18px; font-weight: bold;">S</span>
+          </div>
+          <div>
+            <div style="font-size: 15px; font-weight: 500; color: #fff;">作者名称</div>
+            <div style="font-size: 12px; color: #888;">2024年1月15日</div>
+          </div>
+        </div>
+
+        <h1 style="font-size: 22px; font-weight: 500; color: #fff; line-height: 1.5; margin-bottom: 16px;">
+          文章标题示例 - 微信公众号风格详情页设计
+        </h1>
+
+        <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+          <span style="display: inline-block; padding: 4px 10px; background: #3a3a3a; color: #888; font-size: 12px; border-radius: 4px;"># 技术</span>
+          <span style="display: inline-block; padding: 4px 10px; background: #3a3a3a; color: #888; font-size: 12px; border-radius: 4px;"># AI</span>
+        </div>
+      </div>
+
+      <!-- 深色AI摘要卡片 -->
+      <div style="padding: 16px; background: #2c2c2c; margin: 0 16px; border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#07c160">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 6v6l4 2" stroke="#fff" stroke-width="2" fill="none"/>
+          </svg>
+          <span style="font-size: 14px; font-weight: 500; color: #fff;">智能摘要</span>
+        </div>
+        <p style="font-size: 15px; color: #b2b2b2; line-height: 1.6;">
+          这是一段 AI 生成的文章摘要，帮助用户快速了解文章核心内容。摘要通常控制在100-200字左右，突出关键观点和结论。
+        </p>
+      </div>
+
+      <!-- 深色文章正文 -->
+      <div style="padding: 16px; margin-top: 16px;">
+        <p style="font-size: 17px; color: #d9d9d9; line-height: 1.8; margin-bottom: 16px;">
+          正文段落示例。微信公众号的正文采用较大的字号（17px）和舒适的行高（1.8），确保阅读体验。段落之间有适当的间距，图片居中显示。
+        </p>
+        <img src="https://picsum.photos/seed/detail1/400/250" style="width: 100%; margin: 16px 0; border-radius: 4px;">
+        <p style="font-size: 17px; color: #d9d9d9; line-height: 1.8;">
+          继续的正文内容。微信风格注重内容排版，段落清晰，图文结合，给用户带来良好的阅读体验。
+        </p>
+      </div>
+
+      <!-- 深色底部操作栏 -->
+      <div style="display: flex; justify-content: space-around; align-items: center; padding: 12px 16px; background: #2c2c2c; border-top: 0.5px solid #3a3a3a; position: sticky; bottom: 0;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+          </svg>
+          <span style="font-size: 14px; color: #fff;">收藏</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span style="font-size: 14px; color: #fff;">归档</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="18" cy="5" r="3"/>
+            <circle cx="6" cy="12" r="3"/>
+            <circle cx="18" cy="19" r="3"/>
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          </svg>
+          <span style="font-size: 14px; color: #fff;">分享</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 24px;">
+  <h3>详情页设计要点</h3>
+  <div style="font-size: 14px; color: #666; line-height: 1.8;">
+    <p>✓ <strong>顶部导航：</strong>返回按钮+文字在左，三点菜单在右，简洁白色背景</p>
+    <p>✓ <strong>作者信息：</strong>头像+作者名+发布时间，类似公众号展示方式</p>
+    <p>✓ <strong>文章标题：</strong>22px、500字重、居左对齐</p>
+    <p>✓ <strong>AI摘要卡片：</strong>浅灰/深灰背景卡片，圆角8px，标题带绿色图标</p>
+    <p>✓ <strong>正文排版：</strong>17px字号、1.8行高、图片居中无边框</p>
+    <p>✓ <strong>底部操作栏：</strong>收藏/归档/分享三个操作，sticky底部固定</p>
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="approve" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>确认设计</h3>
+      <p>继续展示桌面端设计或其他组件</p>
+    </div>
+  </div>
+  <div class="option" data-choice="adjust" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>需要调整</h3>
+      <p>请在终端说明具体修改需求</p>
+    </div>
+  </div>
+</div>
