@@ -81,6 +81,7 @@ export function BookmarkButton({ onClick }: BookmarkButtonProps) {
       </div>
 
       <span
+        className="detail-panel-action-label"
         style={{
           fontSize: '11px',
           color: isAnimating ? 'var(--accent)' : 'var(--text-muted)',
