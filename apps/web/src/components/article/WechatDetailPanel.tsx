@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSWRConfig } from 'swr';
 import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, LinkOutlined } from '@ant-design/icons';
 import { useArticle } from '@/hooks/useArticle';
@@ -26,7 +26,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   const { saveBookmark } = useBookmark();
 
   // 滚动位置追踪
-  const [scrollPosition, setScrollPosition] = useState(0);
+  const scrollPositionRef = useRef(0);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // 监听滚动位置
@@ -35,10 +35,10 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
     if (!content || !articleId) return;
 
     const handleScroll = () => {
-      setScrollPosition(content.scrollTop);
+      scrollPositionRef.current = content.scrollTop;
     };
 
-    content.addEventListener('scroll', handleScroll);
+    content.addEventListener('scroll', handleScroll, { passive: true });
     return () => content.removeEventListener('scroll', handleScroll);
   }, [articleId]);
 
@@ -51,9 +51,15 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   useEffect(() => {
     if (articleId && !isDesktop) {
       document.body.style.overflow = 'hidden';
-      return () => { document.body.style.overflow = ''; };
+      document.body.classList.add('detail-panel-open');
+      return () => {
+        document.body.style.overflow = '';
+        document.body.classList.remove('detail-panel-open');
+      };
     }
   }, [articleId, isDesktop]);
+
+  const getScrollPosition = () => scrollPositionRef.current;
 
   // HTML 内容渲染后，为图片添加 Zoom 功能
   useEffect(() => {
@@ -138,7 +144,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
             showToast={showToast}
             isAuthenticated={isAuthenticated}
             refreshCounts={refreshCounts}
-            scrollPosition={scrollPosition}
+            getScrollPosition={getScrollPosition}
             saveBookmark={saveBookmark}
           />
         </div>
@@ -175,7 +181,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
         showToast={showToast}
         isAuthenticated={isAuthenticated}
         refreshCounts={refreshCounts}
-        scrollPosition={scrollPosition}
+        getScrollPosition={getScrollPosition}
         saveBookmark={saveBookmark}
       />
     </div>
@@ -192,7 +198,7 @@ function DetailContent({
   showToast,
   isAuthenticated,
   refreshCounts,
-  scrollPosition,
+  getScrollPosition,
   saveBookmark,
 }: {
   article: any;
@@ -203,7 +209,7 @@ function DetailContent({
   showToast: (msg: string) => void;
   isAuthenticated: boolean;
   refreshCounts: () => void;
-  scrollPosition: number;
+  getScrollPosition: () => number;
   saveBookmark: (bookmark: { view: 'inbox' | 'archive' | 'favorites'; articleId: number; scrollPosition: number; listScrollPosition?: number; articleTitle?: string; timestamp: number }) => void;
 }) {
   // 保存书签
@@ -223,7 +229,7 @@ function DetailContent({
     saveBookmark({
       view,
       articleId: article.id,
-      scrollPosition,
+      scrollPosition: getScrollPosition(),
       listScrollPosition,
       articleTitle: article.title,
       timestamp: Date.now(),
@@ -435,7 +441,7 @@ function DetailContent({
             )}
 
             {/* 右侧：操作按钮 —— 游客只显示分享 */}
-            <div style={{ display: 'flex', gap: '24px' }}>
+            <div className="detail-panel-footer-actions">
               {/* 书签按钮 —— 所有用户可用 */}
               <BookmarkButton onClick={handleSaveBookmark} />
               {isAuthenticated && (
@@ -446,7 +452,7 @@ function DetailContent({
                     ) : (
                       <FolderOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
                     )}
-                    <span style={{ fontSize: '11px', color: article.isArchived ? 'var(--accent)' : 'var(--text-muted)' }}>{article.isArchived ? '取消归档' : '归档'}</span>
+                    <span className="detail-panel-action-label" style={{ fontSize: '11px', color: article.isArchived ? 'var(--accent)' : 'var(--text-muted)' }}>{article.isArchived ? '取消归档' : '归档'}</span>
                   </button>
                   <button className={`detail-panel-action-btn${article.isFavorited ? ' favorited' : ''}`} onClick={handleFavorite} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
                     {article.isFavorited ? (
@@ -454,13 +460,13 @@ function DetailContent({
                     ) : (
                       <HeartOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
                     )}
-                    <span style={{ fontSize: '11px', color: article.isFavorited ? 'var(--accent)' : 'var(--text-muted)' }}>收藏</span>
+                    <span className="detail-panel-action-label" style={{ fontSize: '11px', color: article.isFavorited ? 'var(--accent)' : 'var(--text-muted)' }}>收藏</span>
                   </button>
                 </>
               )}
               <button className="detail-panel-action-btn" onClick={handleShare} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
                 <ShareAltOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>分享</span>
+                <span className="detail-panel-action-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>分享</span>
               </button>
             </div>
           </footer>

@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port ${PORT:-1050}",
-    "build": "next build",
-    "start": "next start",
+    "dev": "NODE_OPTIONS=--disable-warning=DEP0205 next dev --port ${PORT:-1050}",
+    "build": "NODE_OPTIONS=--disable-warning=DEP0205 next build",
+    "start": "NODE_OPTIONS=--disable-warning=DEP0205 next start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
   },
   "dependencies": {

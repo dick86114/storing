@@ -147,6 +147,8 @@ export function SourceSidebar({
   }, [activeSource]);
 
   const activeLabel = activeSource === 'all' ? '全部文章' : activeSource;
+  const activeCount = allSources.find((src) => src.source === activeSource)?.count ?? totalCount;
+  const activeInitial = activeSource === 'all' ? '全' : Array.from(activeLabel.trim())[0] || '源';
 
   if (collapsed) {
     return (
@@ -161,44 +163,17 @@ export function SourceSidebar({
         }}
       >
         <button
-          className="source-sidebar-toggle"
+          className="source-sidebar-toggle source-sidebar-collapsed-card"
           type="button"
           onClick={onToggleCollapsed}
           aria-label="展开来源列表"
           title="展开来源列表"
-          style={{
-            width: '52px',
-            minHeight: '128px',
-            borderRadius: 'var(--radius)',
-            border: '1px solid var(--border)',
-            background: 'var(--glass)',
-            color: 'var(--text-secondary)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            cursor: 'pointer',
-            boxShadow: 'var(--shadow-sm)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-          }}
         >
-          <ChevronRightIcon />
-          <span
-            style={{
-              writingMode: 'vertical-rl',
-              textOrientation: 'mixed',
-              fontSize: '13px',
-              letterSpacing: '0.08em',
-              maxHeight: '78px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {activeLabel}
+          <span className="source-sidebar-collapsed-arrow" aria-hidden="true">
+            <ChevronRightIcon />
           </span>
+          <span className="source-sidebar-collapsed-mark">{activeInitial}</span>
+          <span className="source-sidebar-collapsed-count">{activeCount}</span>
         </button>
       </aside>
     );
