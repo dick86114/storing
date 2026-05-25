@@ -27,6 +27,8 @@ function ArchiveContentInner() {
   const [allArticles, setAllArticles] = useState<ArticleListItem[]>([]);
   const [isMobile, setIsMobile] = useState(false);
   const [bookmarkPrompt, setBookmarkPrompt] = useState<ReadingBookmark | null>(null);
+  const [requestTimedOut, setRequestTimedOut] = useState(false);
+  const [sourceSidebarCollapsed, setSourceSidebarCollapsed] = useState(false);
   const removingIdsRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
@@ -45,10 +47,10 @@ function ArchiveContentInner() {
     }
   }, [getBookmark]);
 
-  const { data, isLoading, isValidating } = useSWR(
+  const { data, error, isLoading, isValidating, mutate } = useSWR(
     `articles:archive:${page}:${activeSource}`,
     () => api.getArticles('archive', page, activeSource),
-    { revalidateOnFocus: false }
+    { revalidateOnFocus: false, errorRetryCount: 1 }
   );
 
   const { data: sourceData } = useSWR(`sources:${currentSort}:${sortOrder}`, () => api.getSources(currentSort, sortOrder), { revalidateOnFocus: false });
@@ -69,6 +71,16 @@ function ArchiveContentInner() {
       }
     }
   }, [data, page]);
+
+  useEffect(() => {
+    if (!isLoading || page !== 1) {
+      setRequestTimedOut(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setRequestTimedOut(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [isLoading, page]);
 
   const handleSourceSelect = useCallback((source: string) => {
     if (source === activeSource) return;
@@ -173,7 +185,21 @@ function ArchiveContentInner() {
     }
   };
 
-  const articleListContent = isLoading && page === 1 ? (
+  const articleListContent = (error || requestTimedOut) && page === 1 ? (
+    <div style={{ color: 'var(--text-muted)', padding: '48px 16px', textAlign: 'center' }}>
+      <div style={{ marginBottom: 12 }}>归档列表加载失败，可能是后端或数据库暂时不可用。</div>
+      <button
+        type="button"
+        onClick={() => {
+          setRequestTimedOut(false);
+          mutate();
+        }}
+        style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--card-bg)', color: 'var(--fg)', cursor: 'pointer', padding: '8px 14px' }}
+      >
+        重试
+      </button>
+    </div>
+  ) : isLoading && page === 1 ? (
     <div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>
   ) : (
     <ArticleList
@@ -277,6 +303,8 @@ function ArchiveContentInner() {
             onSortChange={handleSortChange}
             sortOrder={sortOrder}
             onSortOrderChange={handleSortOrderChange}
+            collapsed={sourceSidebarCollapsed}
+            onToggleCollapsed={() => setSourceSidebarCollapsed((collapsed) => !collapsed)}
           />
           <div style={{ flex: 1, minWidth: 0 }}>{articleListContent}</div>
         </div>

@@ -2,10 +2,13 @@
 
 import { useTheme, type ColorScheme } from '@/components/providers/ThemeProvider';
 
-const styleOptions: Array<{ key: ColorScheme; label: string; description: string; icon: 'wechat' | 'glass' | 'magazine' }> = [
+type ThemeStyleIconType = 'wechat' | 'glass' | 'magazine' | 'xianxia';
+
+const styleOptions: Array<{ key: ColorScheme; label: string; description: string; icon: ThemeStyleIconType }> = [
   { key: 'wechat', label: '微信', description: '清爽实用', icon: 'wechat' },
   { key: 'glass', label: '玻璃', description: '通透柔和', icon: 'glass' },
   { key: 'magazine', label: '杂志', description: '纸感阅读', icon: 'magazine' },
+  { key: 'xianxia', label: '修仙', description: '仙雾灵卷', icon: 'xianxia' },
 ];
 
 interface ThemeStyleMenuProps {
@@ -23,7 +26,7 @@ export function ThemeStyleMenu({ onSelect }: ThemeStyleMenuProps) {
         return (
           <button
             key={option.key}
-            className="theme-style-option"
+            className={`theme-style-option theme-style-option--${option.icon}`}
             type="button"
             aria-pressed={active}
             onClick={() => {
@@ -43,7 +46,7 @@ export function ThemeStyleMenu({ onSelect }: ThemeStyleMenuProps) {
   );
 }
 
-function ThemeStyleIcon({ type, active }: { type: 'wechat' | 'glass' | 'magazine'; active: boolean }) {
+function ThemeStyleIcon({ type, active }: { type: ThemeStyleIconType; active: boolean }) {
   if (type === 'wechat') {
     return (
       <svg className="theme-style-icon theme-style-icon--wechat" data-active={active} viewBox="0 0 32 32" aria-hidden="true">
@@ -66,7 +69,8 @@ function ThemeStyleIcon({ type, active }: { type: 'wechat' | 'glass' | 'magazine
     );
   }
 
-  return (
+  if (type === 'magazine') {
+    return (
     <svg className="theme-style-icon theme-style-icon--magazine" data-active={active} viewBox="0 0 32 32" aria-hidden="true">
       <rect x="7" y="6" width="18" height="20" rx="2" />
       <path d="M11 11h10" />
@@ -74,6 +78,16 @@ function ThemeStyleIcon({ type, active }: { type: 'wechat' | 'glass' | 'magazine
       <path d="M11 19h10" />
       <path d="M11 22h6" />
       <path d="M22 6v20" />
+    </svg>
+    );
+  }
+
+  return (
+    <svg className="theme-style-icon theme-style-icon--xianxia" data-active={active} viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M16 5.2c2.6 3 4.1 6.1 4.1 9.1 0 4.4-2.9 7.7-4.1 10.5-1.2-2.8-4.1-6.1-4.1-10.5 0-3 1.5-6.1 4.1-9.1Z" />
+      <path d="M8.2 18.2c2.6-1.1 5.2-.7 7.8 1.1 2.6-1.8 5.2-2.2 7.8-1.1" />
+      <path d="M9.6 24.5c2.4-1.3 4.5-1.1 6.4.4 1.9-1.5 4-1.7 6.4-.4" />
+      <circle cx="16" cy="15" r="2.3" />
     </svg>
   );
 }

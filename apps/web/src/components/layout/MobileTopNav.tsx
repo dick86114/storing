@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { SearchOutlined, PlusOutlined, PlusCircleOutlined, UserOutlined, SunOutlined, MoonOutlined, DesktopOutlined, LockOutlined, LogoutOutlined } from '@ant-design/icons';
 import { SearchModal } from '@/components/search/SearchModal';
 import { useAuth } from '@/components/providers/AuthContext';
@@ -51,9 +52,11 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
       >
         {/* 左侧：Logo + 站点名 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <img
+          <Image
             src="/logo.png"
             alt="乾坤戒"
+            width={28}
+            height={28}
             style={{
               width: '28px',
               height: '28px',
@@ -61,9 +64,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
               objectFit: 'cover',
             }}
           />
-          <span style={{ fontSize: '16px', fontWeight: 500, color: 'var(--text)' }}>
-            乾坤戒
-          </span>
+          <span className="app-brand-title">今天藏什么</span>
         </div>
 
         {/* 中间：空 */}
@@ -142,7 +143,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                 {/* 已登录：显示用户名 */}
                 {isAuthenticated && (
                   <>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', fontSize: '16px', color: '#fff' }}>
+                    <div className="app-menu-user" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', fontSize: '16px', color: '#fff' }}>
                       <UserOutlined style={{ fontSize: '16px' }} />
                       {user?.username}
                     </div>
@@ -154,6 +155,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                 {(['light', 'dark', 'system'] as const).map((mode) => (
                   <button
                     key={mode}
+                    className={`app-menu-item app-menu-item--${mode}${theme === mode ? ' active' : ''}`}
                     onClick={() => {
                       setTheme(mode);
                       setMenuOpen(false);
@@ -187,6 +189,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                   <>
                     {onAddClick && (
                       <button
+                        className="app-menu-item app-menu-item--add"
                         onClick={() => {
                           onAddClick();
                           setMenuOpen(false);
@@ -209,6 +212,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                       </button>
                     )}
                     <button
+                      className="app-menu-item app-menu-item--lock"
                       onClick={() => {
                         setMenuOpen(false);
                         setChangePasswordOpen(true);
@@ -230,6 +234,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                       修改密码
                     </button>
                     <button
+                      className="app-menu-item app-menu-item--logout"
                       onClick={() => {
                         setMenuOpen(false);
                         logout();
@@ -253,6 +258,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                   </>
                 ) : (
                   <button
+                    className="app-menu-item app-menu-item--login"
                     onClick={() => {
                       setMenuOpen(false);
                       setLoginOpen(true);

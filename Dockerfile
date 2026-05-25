@@ -23,6 +23,7 @@ COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_module
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_OUTPUT_STANDALONE=true
 RUN cd apps/web && pnpm run build
 
 FROM node:20-alpine AS runner

@@ -17,6 +17,7 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const AUTH_BOOT_TIMEOUT_MS = 3000;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -24,10 +25,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // 初始化时验证 token
   useEffect(() => {
+    let cancelled = false;
+
+    const finishLoading = () => {
+      if (!cancelled) {
+        setIsLoading(false);
+      }
+    };
+
     const token = localStorage.getItem('token');
     if (token) {
+      const bootTimeout = window.setTimeout(() => {
+        localStorage.removeItem('token');
+        finishLoading();
+      }, AUTH_BOOT_TIMEOUT_MS);
+
       api.verifyToken()
         .then((data) => {
+          if (cancelled) return;
           if (data.valid && data.user) {
             setUser(data.user);
           } else {
@@ -38,11 +53,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.removeItem('token');
         })
         .finally(() => {
-          setIsLoading(false);
+          window.clearTimeout(bootTimeout);
+          finishLoading();
         });
     } else {
-      setIsLoading(false);
+      finishLoading();
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {

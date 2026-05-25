@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSearch } from '@/hooks/useSearch';
 import { DateText } from '@/lib/formatDate';
@@ -16,6 +16,29 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const { highlightAndOpen } = useArticleContext();
   const { isAuthenticated } = useAuth();
+
+  const handleSelect = useCallback(async (article: any) => {
+    onClose();
+    
+    const view = article.isArchived ? 'archive' : article.isFavorited ? 'favorites' : 'inbox';
+    
+    try {
+      const positionData = await api.getArticlePosition(article.id, view);
+      const targetPage = positionData.page;
+      
+      router.push(`/${view}?page=${targetPage}`);
+      
+      setTimeout(() => {
+        highlightAndOpen(article.id, view);
+      }, 500);
+    } catch (error) {
+      console.error('Failed to find article position:', error);
+      router.push(`/${view}`);
+      setTimeout(() => {
+        highlightAndOpen(article.id, view);
+      }, 300);
+    }
+  }, [highlightAndOpen, onClose, router]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -50,30 +73,7 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [onClose, results, selectedIdx]);
-
-  async function handleSelect(article: any) {
-    onClose();
-    
-    const view = article.isArchived ? 'archive' : article.isFavorited ? 'favorites' : 'inbox';
-    
-    try {
-      const positionData = await api.getArticlePosition(article.id, view);
-      const targetPage = positionData.page;
-      
-      router.push(`/${view}?page=${targetPage}`);
-      
-      setTimeout(() => {
-        highlightAndOpen(article.id, view);
-      }, 500);
-    } catch (error) {
-      console.error('Failed to find article position:', error);
-      router.push(`/${view}`);
-      setTimeout(() => {
-        highlightAndOpen(article.id, view);
-      }, 300);
-    }
-  }
+  }, [handleSelect, onClose, results, selectedIdx]);
 
   function highlightMatch(text: string, q: string) {
     const idx = text.toLowerCase().indexOf(q.toLowerCase());

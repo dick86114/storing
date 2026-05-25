@@ -36,6 +36,7 @@ function InboxContentInner() {
 
   const [page, setPage] = useState(1);
   const [allArticles, setAllArticles] = useState<ArticleListItem[]>([]);
+  const [requestTimedOut, setRequestTimedOut] = useState(false);
   const removingIdsRef = useRef<Set<number>>(new Set());
 
   const handleContinueReading = () => {
@@ -74,10 +75,10 @@ function InboxContentInner() {
     setBookmarkPrompt(null);
   };
 
-  const { data, isLoading: dataLoading, isValidating } = useSWR(
+  const { data, error, isLoading: dataLoading, isValidating, mutate } = useSWR(
     isAuthenticated ? `articles:inbox:${page}` : null,
     () => api.getArticles('inbox', page, undefined, PER_PAGE),
-    { revalidateOnFocus: false }
+    { revalidateOnFocus: false, errorRetryCount: 1 }
   );
 
   const totalPages = data?.totalPages ?? 1;
@@ -94,6 +95,16 @@ function InboxContentInner() {
       }
     }
   }, [data, page]);
+
+  useEffect(() => {
+    if (!dataLoading || page !== 1) {
+      setRequestTimedOut(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setRequestTimedOut(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [dataLoading, page]);
 
   const refreshList = useCallback(() => {
     setPage(1);
@@ -156,7 +167,28 @@ function InboxContentInner() {
           </div>
         </div>
       )}
-      {dataLoading && page === 1 ? (
+      {(error || requestTimedOut) && page === 1 ? (
+        <div style={{ color: 'var(--text-muted)', padding: '48px 16px', textAlign: 'center' }}>
+          <div style={{ marginBottom: 12 }}>文章加载失败，可能是后端或数据库暂时不可用。</div>
+          <button
+            type="button"
+            onClick={() => {
+              setRequestTimedOut(false);
+              mutate();
+            }}
+            style={{
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--card-bg)',
+              color: 'var(--fg)',
+              cursor: 'pointer',
+              padding: '8px 14px',
+            }}
+          >
+            重试
+          </button>
+        </div>
+      ) : dataLoading && page === 1 ? (
         <div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>
       ) : (
         <ArticleList
