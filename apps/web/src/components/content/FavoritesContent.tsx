@@ -36,6 +36,7 @@ function FavoritesContentInner() {
 
   const [page, setPage] = useState(1);
   const [allArticles, setAllArticles] = useState<ArticleListItem[]>([]);
+  const [requestTimedOut, setRequestTimedOut] = useState(false);
   const removingIdsRef = useRef<Set<number>>(new Set());
 
   const handleContinueReading = () => {
@@ -74,10 +75,10 @@ function FavoritesContentInner() {
     setBookmarkPrompt(null);
   };
 
-  const { data, isLoading, isValidating } = useSWR(
+  const { data, error, isLoading, isValidating, mutate } = useSWR(
     isAuthenticated ? `articles:favorites:${page}` : null,
     () => api.getArticles('favorites', page),
-    { revalidateOnFocus: false }
+    { revalidateOnFocus: false, errorRetryCount: 1 }
   );
 
   const totalPages = data?.totalPages ?? 1;
@@ -94,6 +95,16 @@ function FavoritesContentInner() {
       }
     }
   }, [data, page]);
+
+  useEffect(() => {
+    if (!isLoading || page !== 1) {
+      setRequestTimedOut(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setRequestTimedOut(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [isLoading, page]);
 
   const refreshList = useCallback(() => {
     setPage(1);
@@ -169,7 +180,21 @@ function FavoritesContentInner() {
         </div>
       )}
 
-      {isLoading && page === 1 ? (
+      {(error || requestTimedOut) && page === 1 ? (
+        <div style={{ color: 'var(--muted)', padding: 'var(--gap-2xl) 16px', textAlign: 'center' }}>
+          <div style={{ marginBottom: 12 }}>收藏列表加载失败，可能是后端或数据库暂时不可用。</div>
+          <button
+            type="button"
+            onClick={() => {
+              setRequestTimedOut(false);
+              mutate();
+            }}
+            style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--card-bg)', color: 'var(--fg)', cursor: 'pointer', padding: '8px 14px' }}
+          >
+            重试
+          </button>
+        </div>
+      ) : isLoading && page === 1 ? (
         <div style={{ color: 'var(--muted)', padding: 'var(--gap-2xl) 0', textAlign: 'center' }}>加载中…</div>
       ) : (
         <ArticleList

@@ -70,6 +70,7 @@ export function MobileBottomTab({ counts, activeIndex, onTabChange }: MobileBott
           >
             <div className="bottom-tab-icon-wrap" style={{ position: 'relative', display: 'inline-flex' }}>
               <tab.Icon
+                className={`bottom-tab-icon bottom-tab-icon--${tab.key}`}
                 style={{
                   fontSize: '24px',
                   color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
@@ -77,10 +78,11 @@ export function MobileBottomTab({ counts, activeIndex, onTabChange }: MobileBott
               />
               {count > 0 && (
                 <span
+                  className="bottom-tab-count"
                   style={{
                     position: 'absolute',
                     top: '-4px',
-                    right: '-8px',
+                    left: '14px',
                     padding: '1px 5px',
                     background: isActive ? 'var(--accent-soft)' : 'var(--tag-bg)',
                     color: isActive ? 'var(--accent)' : 'var(--text-muted)',

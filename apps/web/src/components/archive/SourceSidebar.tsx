@@ -18,6 +18,8 @@ interface SourceSidebarProps {
   onSortChange: (sort: string) => void;
   sortOrder: 'asc' | 'desc';
   onSortOrderChange: (order: 'asc' | 'desc') => void;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }
 
 const ArrowUpIcon = () => (
@@ -38,6 +40,18 @@ const CloseIcon = () => (
   </svg>
 );
 
+const ChevronLeftIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m15 18-6-6 6-6" />
+  </svg>
+);
+
+const ChevronRightIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m9 18 6-6-6-6" />
+  </svg>
+);
+
 export function SourceSidebar({
   sources,
   activeSource,
@@ -47,6 +61,8 @@ export function SourceSidebar({
   onSortChange,
   sortOrder,
   onSortOrderChange,
+  collapsed = false,
+  onToggleCollapsed,
 }: SourceSidebarProps) {
   const [showModal, setShowModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -130,6 +146,64 @@ export function SourceSidebar({
     }
   }, [activeSource]);
 
+  const activeLabel = activeSource === 'all' ? '全部文章' : activeSource;
+
+  if (collapsed) {
+    return (
+      <aside
+        className="source-sidebar source-sidebar--collapsed"
+        style={{
+          width: '52px',
+          flexShrink: 0,
+          height: 'fit-content',
+          position: 'sticky',
+          top: '24px',
+        }}
+      >
+        <button
+          className="source-sidebar-toggle"
+          type="button"
+          onClick={onToggleCollapsed}
+          aria-label="展开来源列表"
+          title="展开来源列表"
+          style={{
+            width: '52px',
+            minHeight: '128px',
+            borderRadius: 'var(--radius)',
+            border: '1px solid var(--border)',
+            background: 'var(--glass)',
+            color: 'var(--text-secondary)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            cursor: 'pointer',
+            boxShadow: 'var(--shadow-sm)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+          }}
+        >
+          <ChevronRightIcon />
+          <span
+            style={{
+              writingMode: 'vertical-rl',
+              textOrientation: 'mixed',
+              fontSize: '13px',
+              letterSpacing: '0.08em',
+              maxHeight: '78px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {activeLabel}
+          </span>
+        </button>
+      </aside>
+    );
+  }
+
   return (
     <aside
       className="source-sidebar"
@@ -142,6 +216,37 @@ export function SourceSidebar({
         top: '24px',
       }}
     >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px',
+          marginBottom: '12px',
+        }}
+      >
+        <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>来源</span>
+        <button
+          className="source-sidebar-toggle"
+          type="button"
+          onClick={onToggleCollapsed}
+          aria-label="收起来源列表"
+          title="收起来源列表"
+          style={{
+            width: '30px',
+            height: '30px',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--text-muted)',
+            background: 'var(--fg-soft)',
+            display: 'grid',
+            placeItems: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <ChevronLeftIcon />
+        </button>
+      </div>
+
       <div style={{ marginBottom: '16px' }}>
         <div
           style={{

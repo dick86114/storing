@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled } from '@ant-design/icons';
 import { DateText } from '@/lib/formatDate';
 import type { ArticleListItem } from '@storing/shared';
@@ -154,18 +155,26 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
 
         {/* 第二行：封面图 */}
         {article.coverImage && (
-          <img
+          <div
             className="article-card-cover"
-            src={article.coverImage}
-            alt=""
             style={{
+              position: 'relative',
               width: '100%',
               height: '120px',
-              objectFit: 'cover',
               borderRadius: '4px',
               marginBottom: '8px',
+              overflow: 'hidden',
             }}
-          />
+          >
+            <Image
+              src={article.coverImage}
+              alt=""
+              fill
+              sizes="(max-width: 639px) calc(100vw - 64px), 360px"
+              unoptimized
+              style={{ objectFit: 'cover' }}
+            />
+          </div>
         )}
 
         {/* 第三行：来源 + 发布时间 */}

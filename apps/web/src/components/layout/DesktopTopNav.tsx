@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, PlusCircleOutlined, AppstoreOutlined, HeartOutlined, FolderOutlined, SunOutlined, MoonOutlined, DesktopOutlined } from '@ant-design/icons';
 import { useAuth } from '@/components/providers/AuthContext';
@@ -55,14 +56,16 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
           borderBottom: '1px solid var(--divider)',
         }}
       >
-        {/* 左侧：Logo + 乾坤戒 */}
+        {/* 左侧：Logo + 标题 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-          <img
+          <Image
             src="/logo.png"
             alt="乾坤戒"
+            width={28}
+            height={28}
             style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'cover' }}
           />
-          <span style={{ fontSize: '16px', fontWeight: 500, color: 'var(--text)' }}>乾坤戒</span>
+          <span className="app-brand-title">今天藏什么</span>
         </div>
 
         {/* 竖线分隔 */}
@@ -77,6 +80,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
             return (
               <button
                 key={tab.key}
+                className={`top-tab-button${isActive ? ' active' : ''}`}
                 onClick={() => { onTabChange(index); router.push(tab.href, { scroll: false }); }}
                 type="button"
                 style={{
@@ -90,12 +94,13 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
                   cursor: 'pointer',
                   transition: 'background 0.2s',
                 }}
-              >
-                <tab.Icon style={{ fontSize: '15px', color: isActive ? 'var(--accent)' : 'var(--text-secondary)' }} />
+                >
+                <tab.Icon className={`top-tab-icon top-tab-icon--${tab.key}`} style={{ fontSize: '15px', color: isActive ? 'var(--accent)' : 'var(--text-secondary)' }} />
                 <span style={{ fontSize: '13px', fontWeight: isActive ? 500 : 400, color: isActive ? 'var(--accent)' : 'var(--text-secondary)' }}>
                   {tab.label}
                 </span>
                 <span
+                  className="top-tab-count"
                   style={{
                     padding: '1px 7px',
                     background: isActive ? 'var(--accent-soft)' : 'var(--tag-bg)',
@@ -173,6 +178,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
                   {(['light', 'dark', 'system'] as const).map((mode) => (
                     <button
                       key={mode}
+                      className={`app-menu-item app-menu-item--${mode}${theme === mode ? ' active' : ''}`}
                       onClick={() => {
                         setTheme(mode);
                         setMenuOpen(false);
@@ -203,6 +209,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
                   {isAuthenticated ? (
                     <>
                       <button
+                        className="app-menu-item app-menu-item--lock"
                         onClick={() => { setMenuOpen(false); setChangePasswordOpen(true); }}
                         type="button"
                         style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 16px', textAlign: 'left', background: 'transparent', border: 'none', fontSize: '16px', color: '#fff', cursor: 'pointer' }}
@@ -211,6 +218,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
                         修改密码
                       </button>
                       <button
+                        className="app-menu-item app-menu-item--logout"
                         onClick={() => { setMenuOpen(false); logout(); }}
                         type="button"
                         style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 16px', textAlign: 'left', background: 'transparent', border: 'none', fontSize: '16px', color: '#fff', cursor: 'pointer' }}
@@ -221,6 +229,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
                     </>
                   ) : (
                     <button
+                      className="app-menu-item app-menu-item--login"
                       onClick={() => { setMenuOpen(false); setLoginOpen(true); }}
                       type="button"
                       style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 16px', textAlign: 'left', background: 'transparent', border: 'none', fontSize: '16px', color: '#fff', cursor: 'pointer' }}

@@ -68,6 +68,12 @@ wait_for_port() {
   fi
 }
 
+clear_frontend_cache() {
+  echo "清理前端 Next 缓存..."
+  rm -rf "$WEB_DIR/.next" "$WEB_DIR/.next-dev"
+  echo "✓ 前端缓存已清理"
+}
+
 check_dependencies() {
   local root_dir="$SCRIPT_DIR"
   local web_modules="$WEB_DIR/node_modules"
@@ -164,6 +170,9 @@ echo ""
 wait_for_port $BACKEND_PORT "后端"
 echo ""
 wait_for_port $FRONTEND_PORT "前端"
+echo ""
+
+clear_frontend_cache
 echo ""
 
 echo "=== 启动本地服务 ==="

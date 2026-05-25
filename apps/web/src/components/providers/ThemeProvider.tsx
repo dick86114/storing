@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 type ThemeMode = 'light' | 'dark' | 'system';
-export type ColorScheme = 'wechat' | 'glass' | 'magazine';
+export type ColorScheme = 'wechat' | 'glass' | 'magazine' | 'xianxia';
 
 interface ThemeContextValue {
   theme: ThemeMode;
@@ -25,7 +25,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const savedTheme = localStorage.getItem('theme') as ThemeMode | null;
     const savedScheme = localStorage.getItem('colorScheme');
     if (savedTheme) setThemeState(savedTheme);
-    if (savedScheme === 'wechat' || savedScheme === 'glass' || savedScheme === 'magazine') {
+    if (savedScheme === 'wechat' || savedScheme === 'glass' || savedScheme === 'magazine' || savedScheme === 'xianxia') {
       setColorSchemeState(savedScheme);
     } else if (savedScheme) {
       // 旧主题（default/spring/summer/autumn/winter 等）统一迁移到微信主题。
