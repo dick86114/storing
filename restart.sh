@@ -22,21 +22,26 @@ echo ""
 kill_port() {
   local port=$1
   local name=$2
+  local pids
 
   echo "检查 $name 端口 $port..."
 
-  if fuser $port/tcp &>/dev/null; then
-    echo "端口 $port 被占用，正在关闭所有相关进程..."
-    fuser -k $port/tcp 2>/dev/null
+  pids=$(lsof -tiTCP:$port -sTCP:LISTEN 2>/dev/null || true)
+
+  if [ -n "$pids" ]; then
+    echo "端口 $port 被占用，正在关闭所有相关进程: $pids"
+    kill $pids 2>/dev/null || true
     sleep 2
 
-    if fuser $port/tcp &>/dev/null; then
+    pids=$(lsof -tiTCP:$port -sTCP:LISTEN 2>/dev/null || true)
+    if [ -n "$pids" ]; then
       echo "仍有进程占用，强制关闭..."
-      fuser -k -9 $port/tcp 2>/dev/null
+      kill -9 $pids 2>/dev/null || true
       sleep 2
     fi
 
-    if fuser $port/tcp &>/dev/null; then
+    pids=$(lsof -tiTCP:$port -sTCP:LISTEN 2>/dev/null || true)
+    if [ -n "$pids" ]; then
       echo "❌ 无法关闭端口 $port"
       return 1
     fi
@@ -109,6 +114,30 @@ check_service_health() {
     echo "❌ $name 服务未正常运行"
     return 1
   fi
+}
+
+wait_for_service_health() {
+  local name=$1
+  local health_url=$2
+  local max_wait=${3:-60}
+  local count=0
+
+  echo "等待 $name 服务就绪..."
+  while [ $count -lt $max_wait ]; do
+    if curl -s --max-time 3 "$health_url" > /dev/null 2>&1; then
+      echo "✅ $name 服务正常运行"
+      return 0
+    fi
+
+    sleep 1
+    count=$((count + 1))
+    if [ $((count % 5)) -eq 0 ]; then
+      echo "  等待中... ($count/$max_wait)"
+    fi
+  done
+
+  echo "❌ $name 服务未正常运行"
+  return 1
 }
 
 stop_all_services() {
@@ -192,18 +221,16 @@ nohup pnpm dev > "$SCRIPT_DIR/web.log" 2>&1 &
 FRONTEND_PID=$!
 echo "✓ 前端进程: $FRONTEND_PID"
 
-sleep 5
-
 echo ""
 echo "=== 服务状态 ==="
 
-if curl -s --max-time 5 "http://localhost:$BACKEND_PORT/api/v1/health" > /dev/null 2>&1; then
+if wait_for_service_health "后端 API" "http://localhost:$BACKEND_PORT/api/v1/health" 30; then
   echo "✅ 后端 API: http://localhost:$BACKEND_PORT/api/v1"
 else
   echo "❌ 后端 API 启动失败，查看日志: cat $SCRIPT_DIR/api.log"
 fi
 
-if curl -s --max-time 5 "http://localhost:$FRONTEND_PORT" > /dev/null 2>&1; then
+if wait_for_service_health "前端 Web" "http://localhost:$FRONTEND_PORT" 60; then
   echo "✅ 前端 Web: http://localhost:$FRONTEND_PORT"
 else
   echo "❌ 前端 Web 启动失败，查看日志: cat $SCRIPT_DIR/web.log"

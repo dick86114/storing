@@ -20,7 +20,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
 
   return (
     <div
-      className={`article-card wechat-article-card${highlight ? ' highlighted' : ''}`}
+      className={`article-card wechat-article-card${highlight ? ' highlighted' : ''}${menuOpen ? ' article-card--menu-open' : ''}`}
       onClick={onClick}
       style={{
         position: 'relative',

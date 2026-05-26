@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSWRConfig } from 'swr';
 import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, LinkOutlined } from '@ant-design/icons';
 import { useArticle } from '@/hooks/useArticle';
@@ -28,6 +28,8 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   // 滚动位置追踪
   const scrollPositionRef = useRef(0);
   const contentRef = useRef<HTMLDivElement>(null);
+  const [galleryImages, setGalleryImages] = useState<string[]>([]);
+  const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
 
   // 监听滚动位置
   useEffect(() => {
@@ -61,41 +63,16 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
 
   const getScrollPosition = () => scrollPositionRef.current;
 
-  // HTML 内容渲染后，为图片添加 Zoom 功能
-  useEffect(() => {
-    if (!article?.contentHtml || !contentRef.current) return;
-
-    const container = contentRef.current.querySelector('.article-body');
+  const openImageGallery = (img: HTMLImageElement) => {
+    const container = contentRef.current?.querySelector('.article-body');
     if (!container) return;
 
-    const imgs = container.querySelectorAll('img');
-    imgs.forEach((img) => {
-      if (img.parentElement?.classList.contains('img-zoom-wrapper')) return;
-
-      const wrapper = document.createElement('div');
-      wrapper.className = 'img-zoom-wrapper';
-      img.parentNode?.insertBefore(wrapper, img);
-      wrapper.appendChild(img);
-
-      img.style.cursor = 'zoom-in';
-      img.addEventListener('click', () => {
-        wrapper.classList.add('zoomed');
-        img.style.cursor = 'zoom-out';
-      });
-    });
-
-    const handleZoomClose = (e: Event) => {
-      const target = e.target as HTMLElement;
-      if (target.classList.contains('zoomed')) {
-        target.classList.remove('zoomed');
-        const img = target.querySelector('img');
-        if (img) img.style.cursor = 'zoom-in';
-      }
-    };
-
-    container.addEventListener('click', handleZoomClose);
-    return () => container.removeEventListener('click', handleZoomClose);
-  }, [article?.contentHtml]);
+    const imgs = Array.from(container.querySelectorAll('img')) as HTMLImageElement[];
+    const imageUrls = imgs.map((img) => img.currentSrc || img.src).filter(Boolean);
+    const index = Math.max(0, imgs.indexOf(img));
+    setGalleryImages(imageUrls);
+    setGalleryIndex(index);
+  };
 
   if (!articleId) return null;
 
@@ -146,8 +123,17 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
             refreshCounts={refreshCounts}
             getScrollPosition={getScrollPosition}
             saveBookmark={saveBookmark}
+            onOpenImageGallery={openImageGallery}
           />
         </div>
+        {galleryIndex !== null && (
+          <ImageGalleryLightbox
+            images={galleryImages}
+            index={galleryIndex}
+            onIndexChange={setGalleryIndex}
+            onClose={() => setGalleryIndex(null)}
+          />
+        )}
       </>
     );
   }
@@ -183,7 +169,122 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
         refreshCounts={refreshCounts}
         getScrollPosition={getScrollPosition}
         saveBookmark={saveBookmark}
+        onOpenImageGallery={openImageGallery}
       />
+      {galleryIndex !== null && (
+        <ImageGalleryLightbox
+          images={galleryImages}
+          index={galleryIndex}
+          onIndexChange={setGalleryIndex}
+          onClose={() => setGalleryIndex(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ImageGalleryLightbox({
+  images,
+  index,
+  onIndexChange,
+  onClose,
+}: {
+  images: string[];
+  index: number;
+  onIndexChange: (index: number) => void;
+  onClose: () => void;
+}) {
+  const [scale, setScale] = useState(1);
+  const [dragStartX, setDragStartX] = useState<number | null>(null);
+  const hasPrevious = index > 0;
+  const hasNext = index < images.length - 1;
+  const imageUrl = images[index];
+
+  useEffect(() => {
+    setScale(1);
+  }, [index]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+      if (event.key === 'ArrowLeft' && hasPrevious) onIndexChange(index - 1);
+      if (event.key === 'ArrowRight' && hasNext) onIndexChange(index + 1);
+      if ((event.key === '+' || event.key === '=') && scale < 4) setScale((value) => Math.min(4, value + 0.25));
+      if (event.key === '-' && scale > 0.5) setScale((value) => Math.max(0.5, value - 0.25));
+      if (event.key === '0') setScale(1);
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [hasNext, hasPrevious, index, onClose, onIndexChange, scale]);
+
+  if (!imageUrl) return null;
+
+  const goPrevious = () => {
+    if (hasPrevious) onIndexChange(index - 1);
+  };
+  const goNext = () => {
+    if (hasNext) onIndexChange(index + 1);
+  };
+
+  return (
+    <div
+      className="image-gallery-lightbox"
+      role="dialog"
+      aria-modal="true"
+      onClick={(event) => {
+        if (event.target !== event.currentTarget) return;
+        const clickX = event.clientX;
+        const edgeWidth = window.innerWidth * 0.28;
+        if (clickX < edgeWidth && hasPrevious) {
+          goPrevious();
+          return;
+        }
+        if (clickX > window.innerWidth - edgeWidth && hasNext) {
+          goNext();
+          return;
+        }
+        onClose();
+      }}
+      onDoubleClick={(event) => {
+        event.preventDefault();
+        setScale((value) => (value > 1 ? 1 : 2));
+      }}
+      onWheel={(event) => {
+        event.preventDefault();
+        setScale((value) => Math.min(4, Math.max(0.5, value + (event.deltaY < 0 ? 0.12 : -0.12))));
+      }}
+      onTouchStart={(event) => {
+        setDragStartX(event.touches[0]?.clientX ?? null);
+      }}
+      onTouchEnd={(event) => {
+        if (dragStartX === null) return;
+        const endX = event.changedTouches[0]?.clientX ?? dragStartX;
+        const deltaX = endX - dragStartX;
+        if (Math.abs(deltaX) > 44) {
+          if (deltaX > 0) goPrevious();
+          else goNext();
+        }
+        setDragStartX(null);
+      }}
+    >
+      <div className="image-gallery-stage">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={imageUrl}
+          alt=""
+          draggable={false}
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+          onDoubleClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setScale((value) => (value > 1 ? 1 : 2));
+          }}
+          style={{ transform: `scale(${scale})` }}
+        />
+      </div>
     </div>
   );
 }
@@ -200,6 +301,7 @@ function DetailContent({
   refreshCounts,
   getScrollPosition,
   saveBookmark,
+  onOpenImageGallery,
 }: {
   article: any;
   isLoading: boolean;
@@ -211,6 +313,7 @@ function DetailContent({
   refreshCounts: () => void;
   getScrollPosition: () => number;
   saveBookmark: (bookmark: { view: 'inbox' | 'archive' | 'favorites'; articleId: number; scrollPosition: number; listScrollPosition?: number; articleTitle?: string; timestamp: number }) => void;
+  onOpenImageGallery: (img: HTMLImageElement) => void;
 }) {
   // 保存书签
   const handleSaveBookmark = () => {
@@ -393,7 +496,19 @@ function DetailContent({
           )}
 
           {/* 正文 */}
-          <div className="article-content-wrap" style={{ padding: '16px' }}>
+          <div
+            className="article-content-wrap"
+            style={{ padding: '16px' }}
+            onClickCapture={(event) => {
+              const target = event.target as HTMLElement;
+              const img = target.closest('img');
+              if (!img || !event.currentTarget.contains(img)) return;
+
+              event.preventDefault();
+              event.stopPropagation();
+              onOpenImageGallery(img as HTMLImageElement);
+            }}
+          >
             {article.contentHtml ? (
               <div 
                 className="article-body"
