@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useSWRConfig } from 'swr';
-import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, LinkOutlined } from '@ant-design/icons';
+import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, LinkOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, DeleteOutlined, UpOutlined, DownOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import { useArticle } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/providers/AuthContext';
@@ -92,7 +93,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
             bottom: 0,
             background: 'rgba(0, 0, 0, 0.3)',
             backdropFilter: 'blur(2px)',
-            zIndex: 200,
+            zIndex: 1400,
           }}
         />
         {/* 详情面板 */}
@@ -108,7 +109,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
             height: '100vh',
             background: 'var(--card-bg)',
             borderLeft: '1px solid var(--divider)',
-            zIndex: 201,
+            zIndex: 1500,
             overflowY: 'auto',
           }}
         >
@@ -154,7 +155,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
         right: 0,
         bottom: 0,
         background: 'var(--card-bg)',
-        zIndex: 200,
+        zIndex: 1500,
         overflowY: 'auto',
       }}
     >
@@ -289,6 +290,98 @@ function ImageGalleryLightbox({
   );
 }
 
+type DeleteConfirmMode = 'metadata' | 'permanent';
+
+const deleteConfirmCopy: Record<DeleteConfirmMode, {
+  title: string;
+  body: string;
+  note: string;
+  confirmLabel: string;
+  loadingLabel: string;
+}> = {
+  metadata: {
+    title: '删除文章记录',
+    body: '这会删除乾坤戒里的归档、收藏、AI 摘要、标签和重新抓取的正文缓存。',
+    note: '原始 articles 表中的文章仍会保留，之后仍可从原始数据重新进入列表。',
+    confirmLabel: '删除记录',
+    loadingLabel: '删除中…',
+  },
+  permanent: {
+    title: '彻底删除文章',
+    body: '这会同时删除 article_metadata 和 articles 两张表中的数据。',
+    note: '原始文章、链接、正文和所有平台记录都会消失，此操作不可撤销，请确认已经不再需要这篇文章。',
+    confirmLabel: '彻底删除',
+    loadingLabel: '彻底删除中…',
+  },
+};
+
+function DeleteConfirmDialog({
+  mode,
+  articleTitle,
+  loading,
+  onCancel,
+  onConfirm,
+}: {
+  mode: DeleteConfirmMode;
+  articleTitle: string;
+  loading: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const copy = deleteConfirmCopy[mode];
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !loading) onCancel();
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [loading, onCancel]);
+
+  return createPortal(
+    <div
+      className="confirm-dialog-overlay"
+      role="presentation"
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !loading) onCancel();
+      }}
+    >
+      <section
+        className={`confirm-dialog-panel${mode === 'permanent' ? ' confirm-dialog-panel--permanent' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-confirm-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="confirm-dialog-icon confirm-dialog-icon--danger" aria-hidden="true">
+          <ExclamationCircleOutlined />
+        </div>
+        <div className="confirm-dialog-content">
+          <h2 id="delete-confirm-title" className="confirm-dialog-title">{copy.title}</h2>
+          <p className="confirm-dialog-copy">
+            确定要处理《{articleTitle}》吗？
+          </p>
+          <p className="confirm-dialog-copy">
+            {copy.body}
+          </p>
+          <p className="confirm-dialog-note">
+            {copy.note}
+          </p>
+        </div>
+        <div className="confirm-dialog-actions">
+          <button className="confirm-dialog-button confirm-dialog-button--secondary" type="button" onClick={onCancel} disabled={loading}>
+            取消
+          </button>
+          <button className="confirm-dialog-button confirm-dialog-button--danger" type="button" onClick={onConfirm} disabled={loading}>
+            {loading ? copy.loadingLabel : copy.confirmLabel}
+          </button>
+        </div>
+      </section>
+    </div>,
+    document.body
+  );
+}
+
 // 详情内容组件
 function DetailContent({
   article,
@@ -315,6 +408,11 @@ function DetailContent({
   saveBookmark: (bookmark: { view: 'inbox' | 'archive' | 'favorites'; articleId: number; scrollPosition: number; listScrollPosition?: number; articleTitle?: string; timestamp: number }) => void;
   onOpenImageGallery: (img: HTMLImageElement) => void;
 }) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [summaryCollapsed, setSummaryCollapsed] = useState(false);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [deleteConfirmMode, setDeleteConfirmMode] = useState<DeleteConfirmMode | null>(null);
+
   // 保存书签
   const handleSaveBookmark = () => {
     if (!article) return;
@@ -341,15 +439,95 @@ function DetailContent({
   // 分享功能
   async function handleShare() {
     if (!article) return;
-    const url = article.originalUrl || window.location.href;
+    const shareUrl = article.isArchived
+      ? (() => {
+          const url = new URL(window.location.href);
+          url.pathname = '/archive';
+          url.searchParams.set('article', String(article.id));
+          url.searchParams.set('scroll', String(Math.round(getScrollPosition())));
+          url.hash = 'reading-position';
+          return url.toString();
+        })()
+      : article.originalUrl || window.location.href;
+
     if (navigator.share) {
       try {
-        await navigator.share({ title: article.title, url });
+        await navigator.share({ title: article.title, url: shareUrl });
       } catch {}
     } else {
-      await navigator.clipboard.writeText(url);
-      showToast('链接已复制');
+      await navigator.clipboard.writeText(shareUrl);
+      showToast(article.isArchived ? '分享链接已复制' : '原文链接已复制');
     }
+  }
+
+  async function runArticleAction(action: string, task: () => Promise<void>, failureMessage: string) {
+    if (pendingAction) return;
+    setMoreOpen(false);
+    setPendingAction(action);
+    try {
+      await task();
+    } catch (error) {
+      console.error(error);
+      showToast(failureMessage);
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function handleRefetchContent() {
+    if (!article) return;
+    await runArticleAction('refetch', async () => {
+      await api.refetchArticle(article.id);
+      await mutateArticle();
+      onMutate();
+      showToast('正文已重新抓取');
+    }, '重新抓取正文失败');
+  }
+
+  async function handleRegenerateAI() {
+    if (!article) return;
+    await runArticleAction('ai', async () => {
+      await api.regenerateArticleAI(article.id);
+      await mutateArticle();
+      onMutate();
+      showToast('摘要和标签已重新生成');
+    }, '重新生成摘要失败');
+  }
+
+  const showArticleSkeleton = isLoading || pendingAction === 'refetch';
+  const showAISkeleton = pendingAction === 'ai';
+
+  async function handleCopyOriginalUrl() {
+    if (!article) return;
+    const url = article.originalUrl || window.location.href;
+    await navigator.clipboard.writeText(url);
+    setMoreOpen(false);
+    showToast('链接已复制');
+  }
+
+  function handleOpenOriginalUrl() {
+    if (!article?.originalUrl) return;
+    setMoreOpen(false);
+    window.open(article.originalUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  async function confirmDeleteArticle() {
+    if (!article) return;
+    const mode = deleteConfirmMode;
+    if (!mode) return;
+    setDeleteConfirmMode(null);
+
+    await runArticleAction(mode === 'permanent' ? 'permanent-delete' : 'delete', async () => {
+      if (mode === 'permanent') {
+        await api.permanentlyDeleteArticle(article.id);
+      } else {
+        await api.deleteArticle(article.id);
+      }
+      onMutate();
+      refreshCounts();
+      showToast(mode === 'permanent' ? '文章已彻底删除' : '文章记录已删除');
+      onClose();
+    }, mode === 'permanent' ? '彻底删除失败' : '删除文章记录失败');
   }
 
   // 收藏功能
@@ -399,13 +577,90 @@ function DetailContent({
         <button className="detail-panel-close-btn" onClick={onClose} type="button" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer' }}>
           <LeftOutlined style={{ fontSize: '22px', color: 'var(--text)' }} />
         </button>
-        <button className="detail-panel-action-btn" type="button" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer' }}>
-          <MoreOutlined style={{ fontSize: '22px', color: 'var(--text)', transform: 'rotate(90deg)' }} />
-        </button>
+        <div style={{ position: 'relative' }}>
+          <button
+            className={`detail-panel-action-btn${moreOpen ? ' active' : ''}`}
+            type="button"
+            aria-expanded={moreOpen}
+            onClick={(event) => {
+              event.stopPropagation();
+              setMoreOpen((open) => !open);
+            }}
+            style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer' }}
+          >
+            <MoreOutlined style={{ fontSize: '22px', color: 'var(--text)', transform: 'rotate(90deg)' }} />
+          </button>
+
+          {moreOpen && (
+            <>
+              <div
+                className="detail-more-menu-backdrop"
+                onClick={() => setMoreOpen(false)}
+              />
+              <div className="app-menu detail-more-menu" onClick={(event) => event.stopPropagation()}>
+                {isAuthenticated ? (
+                  <>
+                    <button className="app-menu-item detail-more-menu-item" type="button" onClick={handleRefetchContent} disabled={!!pendingAction}>
+                      <ReloadOutlined />
+                      <span>{pendingAction === 'refetch' ? '正在抓取…' : '重新抓取正文'}</span>
+                    </button>
+                    <button className="app-menu-item detail-more-menu-item" type="button" onClick={handleRegenerateAI} disabled={!!pendingAction}>
+                      <RobotOutlined />
+                      <span>{pendingAction === 'ai' ? '正在生成…' : '重新生成摘要和标签'}</span>
+                    </button>
+                    <div className="detail-more-menu-divider" />
+                    <button className="app-menu-item detail-more-menu-item" type="button" onClick={handleCopyOriginalUrl}>
+                      <CopyOutlined />
+                      <span>复制原文链接</span>
+                    </button>
+                    {article?.originalUrl && (
+                      <button className="app-menu-item detail-more-menu-item" type="button" onClick={handleOpenOriginalUrl}>
+                        <ExportOutlined />
+                        <span>打开原文</span>
+                      </button>
+                    )}
+                    <div className="detail-more-menu-divider" />
+                    <button className="app-menu-item detail-more-menu-item detail-more-menu-item--danger" type="button" onClick={() => { setMoreOpen(false); setDeleteConfirmMode('metadata'); }} disabled={!!pendingAction}>
+                      <DeleteOutlined />
+                      <span>{pendingAction === 'delete' ? '正在删除…' : '删除文章记录'}</span>
+                    </button>
+                    <button className="app-menu-item detail-more-menu-item detail-more-menu-item--danger detail-more-menu-item--permanent" type="button" onClick={() => { setMoreOpen(false); setDeleteConfirmMode('permanent'); }} disabled={!!pendingAction}>
+                      <DeleteOutlined />
+                      <span>{pendingAction === 'permanent-delete' ? '正在彻底删除…' : '彻底删除文章'}</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button className="app-menu-item detail-more-menu-item" type="button" onClick={handleCopyOriginalUrl}>
+                      <CopyOutlined />
+                      <span>复制链接</span>
+                    </button>
+                    {article?.originalUrl && (
+                      <button className="app-menu-item detail-more-menu-item" type="button" onClick={handleOpenOriginalUrl}>
+                        <ExportOutlined />
+                        <span>打开正文</span>
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </header>
 
+      {deleteConfirmMode && article && (
+        <DeleteConfirmDialog
+          mode={deleteConfirmMode}
+          articleTitle={article.title}
+          loading={pendingAction === 'delete' || pendingAction === 'permanent-delete'}
+          onCancel={() => setDeleteConfirmMode(null)}
+          onConfirm={confirmDeleteArticle}
+        />
+      )}
+
       {/* 文章内容 */}
-      {isLoading ? (
+      {showArticleSkeleton ? (
         <div style={{ padding: '16px' }}>
           {/* 标题骨架 */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '12px' }}>
@@ -473,7 +728,13 @@ function DetailContent({
               <DateText dateStr={article.publishTime} />
             </div>
             {/* AI标签 */}
-            {article.aiTags?.length > 0 && (
+            {showAISkeleton ? (
+              <div className="detail-panel-tags" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <div className="skeleton-line" style={{ width: 56, height: 24, borderRadius: '4px' }} />
+                <div className="skeleton-line" style={{ width: 72, height: 24, borderRadius: '4px' }} />
+                <div className="skeleton-line" style={{ width: 48, height: 24, borderRadius: '4px' }} />
+              </div>
+            ) : article.aiTags?.length > 0 && (
               <div className="detail-panel-tags" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {article.aiTags.map((tag: string) => (
                   <span className="article-card-tag" key={tag} style={{ padding: '4px 10px', background: 'var(--tag-bg)', color: 'var(--text-muted)', fontSize: '12px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
@@ -484,16 +745,40 @@ function DetailContent({
             )}
           </div>
 
-          {/* AI摘要 */}
-          {article.aiSummary && (
-            <div className="ai-summary-block" style={{ padding: '14px 16px', background: 'var(--tag-bg)', margin: '8px 16px', borderRadius: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'var(--accent)' }} />
-                <span className="ai-summary-title" style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>智能摘要</span>
-              </div>
-              <p className="ai-summary-text" style={{ fontSize: '15px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{article.aiSummary}</p>
-            </div>
-          )}
+	          {/* AI摘要 */}
+	          {showAISkeleton ? (
+	            <div className="ai-summary-block" style={{ background: 'var(--tag-bg)', margin: '8px 16px', borderRadius: '8px' }}>
+	              <div className="ai-summary-row" aria-hidden="true">
+	                <div className="skeleton-line" style={{ width: 16, height: 16, borderRadius: '50%', flexShrink: 0 }} />
+	                <div className="skeleton-line" style={{ width: 72, height: 14 }} />
+	              </div>
+	              <div className="ai-summary-text" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+	                <div className="skeleton-line" style={{ width: '100%', height: 14 }} />
+	                <div className="skeleton-line" style={{ width: '90%', height: 14 }} />
+	                <div className="skeleton-line" style={{ width: '75%', height: 14 }} />
+	              </div>
+	            </div>
+	          ) : article.aiSummary && (
+	            <div className={`ai-summary-block${summaryCollapsed ? ' collapsed' : ''}`} style={{ background: 'var(--tag-bg)', margin: '8px 16px', borderRadius: '8px' }}>
+	              <button
+	                className="ai-summary-row"
+	                type="button"
+	                onClick={() => setSummaryCollapsed((collapsed) => !collapsed)}
+	                aria-expanded={!summaryCollapsed}
+	              >
+	                <div className="ai-summary-dot" aria-hidden="true" />
+	                <span className="ai-summary-title" style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', flex: 1 }}>
+	                  智能摘要
+	                </span>
+	                <span className="ai-summary-toggle" aria-hidden="true">
+	                  {summaryCollapsed ? <DownOutlined /> : <UpOutlined />}
+	                </span>
+	              </button>
+	              {!summaryCollapsed && (
+	                <p className="ai-summary-text" style={{ fontSize: '15px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{article.aiSummary}</p>
+	              )}
+	            </div>
+	          )}
 
           {/* 正文 */}
           <div

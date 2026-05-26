@@ -1862,7 +1862,9 @@ body {
 .search-modal-panel,
 .source-modal-panel,
 .app-menu,
-.app-toast {
+.app-toast,
+.confirm-dialog-panel,
+.confirm-dialog-button {
   transition: background var(--transition), border-color var(--transition), box-shadow var(--transition), color var(--transition), transform var(--transition);
 }
 .app-top-nav {
@@ -2018,6 +2020,280 @@ body {
 }
 .app-menu-item:active {
   transform: translateX(2px) scale(0.99);
+}
+.detail-more-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1199;
+  cursor: default;
+}
+.detail-more-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 1300;
+  width: 224px;
+  padding: 8px;
+  border-radius: var(--radius);
+  box-shadow: 0 18px 44px color-mix(in oklch, black 22%, transparent);
+  transform-origin: 88% 0;
+}
+.detail-more-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  text-align: left;
+  white-space: nowrap;
+}
+.detail-more-menu-item .anticon {
+  width: 18px;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.detail-more-menu-item:disabled {
+  opacity: 0.52;
+  cursor: wait;
+}
+.detail-more-menu-item--danger {
+  color: oklch(70% 0.16 28) !important;
+}
+.detail-more-menu-item--danger:hover {
+  color: oklch(76% 0.17 28) !important;
+  background: oklch(62% 0.18 28 / 0.14) !important;
+}
+.detail-more-menu-item--permanent {
+  color: oklch(62% 0.22 28) !important;
+}
+.detail-more-menu-item--permanent:hover {
+  color: white !important;
+  background: oklch(52% 0.22 28) !important;
+}
+.confirm-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg);
+  @supports (color: color-mix(in lab, red, red)) {
+    background: color-mix(in oklch, var(--bg) 66%, transparent);
+  }
+  backdrop-filter: blur(12px) saturate(1.08);
+  -webkit-backdrop-filter: blur(12px) saturate(1.08);
+}
+.confirm-dialog-panel {
+  width: min(420px, 100%);
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 14px;
+  padding: 22px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--glass);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+  animation: cardIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.confirm-dialog-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  font-size: 22px;
+}
+.confirm-dialog-icon--danger {
+  color: oklch(65% 0.22 28);
+  background: oklch(62% 0.18 28 / 0.14);
+}
+.confirm-dialog-content {
+  min-width: 0;
+}
+.confirm-dialog-title {
+  margin: 0 0 8px;
+  color: var(--fg-title);
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+.confirm-dialog-copy {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.65;
+  word-break: break-word;
+}
+.confirm-dialog-copy + .confirm-dialog-copy {
+  margin-top: 8px;
+}
+.confirm-dialog-note {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid oklch(62% 0.18 28 / 0.22);
+  background: oklch(62% 0.18 28 / 0.1);
+  color: var(--text-secondary);
+  @supports (color: color-mix(in lab, red, red)) {
+    color: color-mix(in oklch, var(--text-secondary) 82%, oklch(62% 0.18 28));
+  }
+  font-size: 13px;
+  line-height: 1.55;
+}
+.confirm-dialog-panel--permanent {
+  border-color: oklch(62% 0.18 28 / 0.38);
+  box-shadow: 0 24px 64px color-mix(in oklch, black 34%, oklch(52% 0.22 28 / 0.16));
+}
+.confirm-dialog-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+.confirm-dialog-button {
+  min-width: 84px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color var(--transition), background var(--transition), border-color var(--transition), transform var(--transition), opacity var(--transition);
+}
+.confirm-dialog-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+.confirm-dialog-button:not(:disabled):active {
+  transform: scale(0.98);
+}
+.confirm-dialog-button--secondary {
+  color: var(--text);
+  border-color: var(--glass-border);
+  background: var(--tag-bg);
+}
+.confirm-dialog-button--secondary:hover {
+  border-color: var(--accent);
+  @supports (color: color-mix(in lab, red, red)) {
+    border-color: color-mix(in oklch, var(--accent) 30%, var(--glass-border));
+  }
+  background: var(--fg-soft);
+}
+.confirm-dialog-button--danger {
+  color: white;
+  background: oklch(58% 0.22 28);
+  box-shadow: 0 12px 24px oklch(58% 0.22 28 / 0.22);
+}
+.confirm-dialog-button--danger:hover {
+  background: oklch(62% 0.22 28);
+}
+@media (max-width: 640px) {
+  .confirm-dialog-panel {
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 12px;
+    padding: 18px;
+  }
+  .confirm-dialog-icon {
+    width: 40px;
+    height: 40px;
+  }
+  .confirm-dialog-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .confirm-dialog-button {
+    width: 100%;
+  }
+}
+.detail-more-menu-divider {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--menu-text);
+  @supports (color: color-mix(in lab, red, red)) {
+    background: color-mix(in oklch, var(--menu-text) 16%, transparent);
+  }
+}
+.ai-summary-block {
+  padding: 0;
+  overflow: hidden;
+  transition: box-shadow var(--transition), background var(--transition);
+}
+.ai-summary-block.collapsed {
+  box-shadow: var(--shadow-sm);
+}
+.ai-summary-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 0;
+  transition: background var(--transition);
+}
+.ai-summary-row .ai-summary-title {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border-bottom: 0;
+}
+.ai-summary-text {
+  padding: 0 16px 14px;
+}
+.ai-summary-row:hover {
+  background: var(--accent);
+  @supports (color: color-mix(in lab, red, red)) {
+    background: color-mix(in oklch, var(--accent) 6%, transparent);
+  }
+}
+.ai-summary-row:active {
+  background: var(--accent);
+  @supports (color: color-mix(in lab, red, red)) {
+    background: color-mix(in oklch, var(--accent) 10%, transparent);
+  }
+}
+.ai-summary-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.ai-summary-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  transition: color var(--transition), background var(--transition), transform var(--transition);
+}
+.ai-summary-toggle:hover {
+  color: var(--accent);
+  background: var(--accent);
+  @supports (color: color-mix(in lab, red, red)) {
+    background: color-mix(in oklch, var(--accent) 12%, transparent);
+  }
+}
+.ai-summary-toggle:active {
+  transform: scale(0.96);
 }
 [data-color-scheme='magazine'] .app-menu {
   border-radius: 4px !important;
@@ -2978,7 +3254,8 @@ body {
 }
 [data-color-scheme='glass'] .ai-summary-block,
 [data-color-scheme='glass'] .search-modal-panel,
-[data-color-scheme='glass'] .source-modal-panel {
+[data-color-scheme='glass'] .source-modal-panel,
+[data-color-scheme='glass'] .confirm-dialog-panel {
   backdrop-filter: blur(22px) saturate(1.35);
   -webkit-backdrop-filter: blur(22px) saturate(1.35);
   box-shadow: inset 0 1px 0 color-mix(in oklch, white 38%, transparent), var(--shadow-lg);
@@ -3092,7 +3369,8 @@ body {
   animation: cardIn 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 [data-color-scheme='magazine'] .search-modal-panel,
-[data-color-scheme='magazine'] .source-modal-panel {
+[data-color-scheme='magazine'] .source-modal-panel,
+[data-color-scheme='magazine'] .confirm-dialog-panel {
   position: relative;
   overflow: hidden;
   border-radius: 4px !important;
@@ -3109,7 +3387,8 @@ body {
   box-shadow: var(--shadow-lg);
 }
 [data-color-scheme='magazine'] .search-modal-panel::before,
-[data-color-scheme='magazine'] .source-modal-panel::before {
+[data-color-scheme='magazine'] .source-modal-panel::before,
+[data-color-scheme='magazine'] .confirm-dialog-panel::before {
   content: '';
   position: absolute;
   inset: 0 auto 0 0;
@@ -3429,7 +3708,8 @@ body {
 }
 [data-color-scheme='xianxia'] .ai-summary-block,
 [data-color-scheme='xianxia'] .search-modal-panel,
-[data-color-scheme='xianxia'] .source-modal-panel {
+[data-color-scheme='xianxia'] .source-modal-panel,
+[data-color-scheme='xianxia'] .confirm-dialog-panel {
   border-color: transparent !important;
   background: radial-gradient(circle at 92% 12%, var(--gold-glow), transparent 34%),
     linear-gradient(145deg, var(--surface), var(--tag-bg)) !important;
@@ -3463,6 +3743,34 @@ body {
   box-shadow: 0 12px 28px var(--accent);
   @supports (color: color-mix(in lab, red, red)) {
     box-shadow: 0 12px 28px color-mix(in oklch, var(--accent) 14%, transparent);
+  }
+}
+[data-color-scheme='xianxia'] body::before {
+  opacity: 0.28;
+  animation: none;
+}
+[data-color-scheme='xianxia'] body::after {
+  opacity: 0.12;
+}
+[data-color-scheme='xianxia'] .article-card::after,
+[data-color-scheme='xianxia'] .detail-panel::after {
+  content: none;
+}
+[data-color-scheme='xianxia'] .app-top-nav::after {
+  animation: none;
+  filter: none;
+}
+[data-color-scheme='xianxia'] .app-top-nav,
+[data-color-scheme='xianxia'] .bottom-tab-bar,
+[data-color-scheme='xianxia'] .detail-panel-header,
+[data-color-scheme='xianxia'] .detail-panel-footer {
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+[data-color-scheme='xianxia'] .article-card:hover {
+  box-shadow: 0 12px 28px var(--accent), var(--shadow-sm);
+  @supports (color: color-mix(in lab, red, red)) {
+    box-shadow: 0 12px 28px color-mix(in oklch, var(--accent) 10%, transparent), var(--shadow-sm);
   }
 }
 @keyframes cardIn {

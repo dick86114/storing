@@ -1,18 +1,23 @@
 const BASE = '/api/v1';
 const REQUEST_TIMEOUT_MS = 10000;
 
-async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
+type ApiRequestInit = RequestInit & {
+  timeoutMs?: number;
+};
+
+async function fetchJSON<T>(path: string, init?: ApiRequestInit): Promise<T> {
   const token = localStorage.getItem('token');
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const { timeoutMs = REQUEST_TIMEOUT_MS, ...fetchInit } = init ?? {};
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
 
   const res = await fetch(`${BASE}${path}`, {
-    ...init,
+    ...fetchInit,
     signal: controller.signal,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init?.headers,
+      ...fetchInit.headers,
     },
   }).finally(() => window.clearTimeout(timeout));
 
@@ -68,6 +73,18 @@ export const api = {
 
   unarchive: (id: number) =>
     fetchJSON<any>(`/articles/${id}/unarchive`, { method: 'POST' }),
+
+  refetchArticle: (id: number) =>
+    fetchJSON<any>(`/articles/${id}/refetch`, { method: 'POST', timeoutMs: 120000 }),
+
+  regenerateArticleAI: (id: number) =>
+    fetchJSON<any>(`/articles/${id}/regenerate-ai`, { method: 'POST', timeoutMs: 120000 }),
+
+  deleteArticle: (id: number) =>
+    fetchJSON<any>(`/articles/${id}`, { method: 'DELETE' }),
+
+  permanentlyDeleteArticle: (id: number) =>
+    fetchJSON<any>(`/articles/${id}/permanent`, { method: 'DELETE' }),
 
   search: (q: string, page = 1) => {
     const params = new URLSearchParams({ q, page: String(page), perPage: '20' });

@@ -258,6 +258,93 @@ articlesRoutes.post('/articles/:id/unarchive', requireAuth, async (c) => {
 });
 
 /**
+ * POST /articles/:id/refetch — 重新抓取正文和封面图
+ * 需要登录
+ */
+articlesRoutes.post('/articles/:id/refetch', requireAuth, async (c) => {
+  const idParam = c.req.param('id');
+  if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
+  const id = parseInt(idParam);
+
+  const [article] = await db.select().from(articles).where(eq(articles.id, id));
+  if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
+
+  await ensureMetadata(id);
+  await db.update(articleMetadata)
+    .set({ contentMd: null, contentHtml: null, coverImage: null, updatedAt: new Date() })
+    .where(eq(articleMetadata.articleId, id));
+
+  const [contentHtml, contentMd, coverImage] = await Promise.all([
+    getArticleContent(id, 'html'),
+    getArticleContent(id, 'markdown'),
+    processCoverImage(id),
+  ]);
+
+  return c.json({
+    articleId: id,
+    contentHtml: Boolean(contentHtml),
+    contentMd: Boolean(contentMd),
+    coverImage,
+  });
+});
+
+/**
+ * POST /articles/:id/regenerate-ai — 重新生成 AI 摘要和标签
+ * 需要登录
+ */
+articlesRoutes.post('/articles/:id/regenerate-ai', requireAuth, async (c) => {
+  const idParam = c.req.param('id');
+  if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
+  const id = parseInt(idParam);
+
+  const [article] = await db.select().from(articles).where(eq(articles.id, id));
+  if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
+
+  await ensureMetadata(id);
+  await db.update(articleMetadata)
+    .set({ aiSummary: null, aiTags: [], updatedAt: new Date() })
+    .where(eq(articleMetadata.articleId, id));
+
+  await generateSummaryAndTags(id);
+  return c.json({ articleId: id, ok: true });
+});
+
+/**
+ * DELETE /articles/:id — 删除平台元数据，保留原始文章
+ * 需要登录
+ */
+articlesRoutes.delete('/articles/:id', requireAuth, async (c) => {
+  const idParam = c.req.param('id');
+  if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
+  const id = parseInt(idParam);
+
+  const [article] = await db.select({ id: articles.id }).from(articles).where(eq(articles.id, id));
+  if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
+
+  await db.delete(articleMetadata).where(eq(articleMetadata.articleId, id));
+
+  return c.json({ articleId: id, deleted: true, scope: 'metadata' });
+});
+
+/**
+ * DELETE /articles/:id/permanent — 永久删除平台元数据和原始文章
+ * 需要登录
+ */
+articlesRoutes.delete('/articles/:id/permanent', requireAuth, async (c) => {
+  const idParam = c.req.param('id');
+  if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
+  const id = parseInt(idParam);
+
+  const [article] = await db.select({ id: articles.id }).from(articles).where(eq(articles.id, id));
+  if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
+
+  await db.delete(articleMetadata).where(eq(articleMetadata.articleId, id));
+  await db.delete(articles).where(eq(articles.id, id));
+
+  return c.json({ articleId: id, deleted: true, scope: 'permanent' });
+});
+
+/**
  * GET /counts — 获取各视图的文章计数（合并请求，减少 API 调用）
  */
 articlesRoutes.get('/counts', optionalAuth, async (c) => {

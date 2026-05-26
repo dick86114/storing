@@ -48,7 +48,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               opacity: visible ? 1 : 0,
               pointerEvents: 'none',
               transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              zIndex: 400,
+              zIndex: 10000,
             }}
           >
             {message}
