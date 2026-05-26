@@ -62,10 +62,36 @@ export function ArticleProvider({ children }: { children: ReactNode }) {
   const mutateList = useCallback(() => mutateFn?.(), [mutateFn]);
   const setMutateFn = useCallback((fn: () => void) => setMutateFnState(() => fn), []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const articleParam = params.get('article');
+    const scrollParam = params.get('scroll');
+    const articleId = articleParam ? Number(articleParam) : NaN;
+    const scrollPosition = scrollParam ? Number(scrollParam) : 0;
+
+    if (!Number.isFinite(articleId) || articleId <= 0) return;
+
+    setSelectedId(articleId);
+
+    const scrollToSharedPosition = (retries = 0) => {
+      const content = document.querySelector('[data-scroll-container="detail"]');
+      if (content && content.scrollHeight > 0) {
+        content.scrollTop = Number.isFinite(scrollPosition) && scrollPosition > 0 ? scrollPosition : 0;
+        if (Math.abs(content.scrollTop - scrollPosition) > 2 && retries < 20) {
+          window.setTimeout(() => scrollToSharedPosition(retries + 1), 120);
+        }
+      } else if (retries < 20) {
+        window.setTimeout(() => scrollToSharedPosition(retries + 1), 120);
+      }
+    };
+
+    window.setTimeout(() => scrollToSharedPosition(), 300);
+  }, []);
+
   const scrollToPosition = useCallback((position: number) => {
     // 延迟执行，等详情面板渲染完成
     setTimeout(() => {
-      const content = document.querySelector('.detail-panel-content');
+      const content = document.querySelector('[data-scroll-container="detail"]');
       if (content) {
         content.scrollTop = position;
       }

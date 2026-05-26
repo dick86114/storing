@@ -109,7 +109,8 @@ function FavoritesContentInner() {
   const refreshList = useCallback(() => {
     setPage(1);
     removingIdsRef.current.clear();
-  }, []);
+    void mutate();
+  }, [mutate]);
 
   useEffect(() => { setMutateFn(refreshList); }, [setMutateFn, refreshList]);
 
