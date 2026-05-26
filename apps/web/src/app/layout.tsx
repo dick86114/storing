@@ -16,11 +16,11 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: '乾坤戒 — Storing',
-    template: '%s | 乾坤戒',
+    default: '今天藏什么',
+    template: '%s | 今天藏什么',
   },
   description: 'AI 驱动的个人稍后阅读平台，让你的文章收藏变成真正的知识资产',
-  applicationName: '乾坤戒',
+  applicationName: '今天藏什么',
   manifest: '/manifest.json',
   icons: {
     icon: [
@@ -32,15 +32,15 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: '乾坤戒',
+    title: '今天藏什么',
   },
   formatDetection: {
     telephone: false,
   },
   openGraph: {
     type: 'website',
-    siteName: '乾坤戒',
-    title: '乾坤戒 — 你的第二大脑',
+    siteName: '今天藏什么',
+    title: '今天藏什么',
     description: 'AI 驱动的个人稍后阅读平台，让你的文章收藏变成真正的知识资产',
   },
 };

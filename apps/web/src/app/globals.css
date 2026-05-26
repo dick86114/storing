@@ -218,6 +218,7 @@ h4 {
   border-radius: var(--radius);
   margin: 1em auto;
   display: block;
+  cursor: zoom-in;
 }
 .article-body div:has(> img:only-child) {
   text-align: center;
@@ -311,31 +312,45 @@ h4 {
   filter: none !important;
 }
 
-/* 图片放大功能样式 */
-.img-zoom-wrapper {
-  display: inline-block;
-  position: relative;
-  transition: transform 0.3s ease;
-}
-
-.img-zoom-wrapper.zoomed {
+.image-gallery-lightbox {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 1000;
+  inset: 0;
+  z-index: 3000;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.9);
+  background: oklch(0% 0 0 / 0.92);
   cursor: zoom-out;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
-.img-zoom-wrapper.zoomed img {
-  max-width: 90vw;
-  max-height: 90vh;
+.image-gallery-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.image-gallery-stage img {
+  max-width: 94vw;
+  max-height: 94vh;
   object-fit: contain;
+  transition: transform 0.16s ease;
+  transform-origin: center;
+  user-select: none;
+  border-radius: var(--radius-sm);
+  pointer-events: auto;
+}
+
+@media (max-width: 640px) {
+  .image-gallery-stage img {
+    max-width: 96vw;
+    max-height: 92vh;
+  }
 }
 
 .hide-scrollbar::-webkit-scrollbar { display: none; }
@@ -1656,6 +1671,13 @@ body {
   opacity: 1 !important;
   border-color: var(--accent);
   animation: pulseHighlight 1.8s ease-in-out infinite;
+}
+
+.article-card.article-card--menu-open {
+  overflow: visible !important;
+  z-index: 30;
+  content-visibility: visible;
+  contain: none;
 }
 
 .article-card-title,

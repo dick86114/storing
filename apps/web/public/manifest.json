@@ -1,6 +1,6 @@
 {
-  "name": "乾坤戒 - AI 智能稍后阅读",
-  "short_name": "乾坤戒",
+  "name": "今天藏什么",
+  "short_name": "今天藏什么",
   "description": "AI 驱动的个人稍后阅读平台，让你的文章收藏变成真正的知识资产",
   "start_url": "/",
   "display": "standalone",

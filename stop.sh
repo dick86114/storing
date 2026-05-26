@@ -37,21 +37,26 @@ echo ""
 kill_port() {
   local port=$1
   local name=$2
+  local pids
 
   echo "检查 $name 端口 $port..."
 
-  if fuser $port/tcp &>/dev/null; then
-    echo "端口 $port 被占用，正在关闭所有相关进程..."
-    fuser -k $port/tcp 2>/dev/null
+  pids=$(lsof -tiTCP:$port -sTCP:LISTEN 2>/dev/null || true)
+
+  if [ -n "$pids" ]; then
+    echo "端口 $port 被占用，正在关闭所有相关进程: $pids"
+    kill $pids 2>/dev/null || true
     sleep 2
 
-    if fuser $port/tcp &>/dev/null; then
+    pids=$(lsof -tiTCP:$port -sTCP:LISTEN 2>/dev/null || true)
+    if [ -n "$pids" ]; then
       echo "仍有进程占用，强制关闭..."
-      fuser -k -9 $port/tcp 2>/dev/null
+      kill -9 $pids 2>/dev/null || true
       sleep 2
     fi
 
-    if fuser $port/tcp &>/dev/null; then
+    pids=$(lsof -tiTCP:$port -sTCP:LISTEN 2>/dev/null || true)
+    if [ -n "$pids" ]; then
       echo "❌ 无法关闭端口 $port"
       return 1
     fi

@@ -106,6 +106,39 @@ function hasLocalResourceRefs(md: string): boolean {
   return /!\[\[_resources\/.*?\]\]/.test(md);
 }
 
+/** 检查内容里是否还有会触发防盗链的微信图片外链 */
+function hasWechatImageRefs(content: string): boolean {
+  return /(mmbiz\.qpic\.cn|mmbiz\.qlogo\.cn|mmbiz\.qpic\.com|mp\.weixin\.qq\.com\/.*?(?:image|img))/i.test(content);
+}
+
+function normalizeImageUrl(url: string): string {
+  const trimmed = url.trim();
+  if (trimmed.startsWith('//')) return `https:${trimmed}`;
+  return trimmed;
+}
+
+function getImgOriginalUrl(img: HTMLImageElement): string | null {
+  const candidateAttrs = [
+    'data-src',
+    'data-original',
+    'data-backsrc',
+    'data-croporisrc',
+    'data-actualsrc',
+    'data-lazy-src',
+    'data-url',
+    'src',
+  ];
+
+  for (const attr of candidateAttrs) {
+    const value = img.getAttribute(attr);
+    if (value && !value.startsWith('data:')) {
+      return normalizeImageUrl(value);
+    }
+  }
+
+  return null;
+}
+
 /** 上传单张图片到图床，返回新 URL */
 async function uploadImage(imageUrl: string): Promise<string | null> {
   try {
@@ -193,60 +226,37 @@ async function uploadImagesInMarkdown(md: string): Promise<string> {
 
 /** 批量上传 HTML 中的图片到图床并替换 URL（优先处理 data-src，最终赋给 src，限制并发） */
 async function uploadImagesInHtml(html: string): Promise<string> {
-  // 匹配所有 img 标签
-  const imgPattern = /<img[^>]*>/gi;
-  const matches = [...html.matchAll(imgPattern)];
-  if (matches.length === 0) return html;
+  const dom = new JSDOM(html);
+  const doc = dom.window.document;
+  const imgs = Array.from(doc.querySelectorAll('img'));
+  if (imgs.length === 0) return html;
 
-  // 使用并发限制（最多 3 个并发）
-  const tasks = matches.map((match) => {
-    const [fullMatch] = match;
-    return async () => {
-      // 优先提取 data-src（真实图片地址），其次 src
-      const dataSrcMatch = fullMatch.match(/data-src=["']([^"']+)["']/i);
-      const srcMatch = fullMatch.match(/src=["']([^"']+)["']/i);
-      
-      const originalUrl = dataSrcMatch?.[1] || srcMatch?.[1];
-      if (!originalUrl) return { original: fullMatch, replacement: fullMatch };
-      
-      // 跳过已经是图床的 URL
-      if (originalUrl.startsWith(IMG_HOST)) return { original: fullMatch, replacement: fullMatch };
-      
-      const newUrl = await uploadImage(originalUrl);
-      if (!newUrl) return { original: fullMatch, replacement: fullMatch };
-      
-      // 构建新的 img 标签：把图床地址赋给 src，移除 data-src
-      let newImg = fullMatch;
-      
-      // 移除 data-src 属性
-      if (dataSrcMatch) {
-        newImg = newImg.replace(dataSrcMatch[0], '');
-      }
-      
-      // 替换或添加 src 属性
-      if (srcMatch) {
-        newImg = newImg.replace(srcMatch[0], `src="${newUrl}"`);
-      } else {
-        // 如果没有 src，添加一个
-        newImg = newImg.replace(/<img/i, `<img src="${newUrl}"`);
-      }
-      
-      // 清理多余空格
-      newImg = newImg.replace(/\s+/g, ' ').replace(/\s*>/g, '>');
-      
-      return { original: fullMatch, replacement: newImg };
-    };
+  const tasks = imgs.map((img) => async () => {
+    const originalUrl = getImgOriginalUrl(img);
+    if (!originalUrl || originalUrl.startsWith(IMG_HOST)) return null;
+
+    const newUrl = await uploadImage(originalUrl);
+    return newUrl ? { img, newUrl } : null;
   });
 
   const results = await limitConcurrency(tasks, 3);
 
-  let result = html;
-  for (const { original, replacement } of results) {
-    if (original !== replacement) {
-      result = result.replace(original, replacement);
-    }
+  for (const result of results) {
+    if (!result) continue;
+    const { img, newUrl } = result;
+    img.setAttribute('src', newUrl);
+    img.setAttribute('referrerpolicy', 'no-referrer');
+    img.removeAttribute('srcset');
+    img.removeAttribute('data-src');
+    img.removeAttribute('data-original');
+    img.removeAttribute('data-backsrc');
+    img.removeAttribute('data-croporisrc');
+    img.removeAttribute('data-actualsrc');
+    img.removeAttribute('data-lazy-src');
+    img.removeAttribute('data-url');
   }
-  return result;
+
+  return doc.body?.innerHTML || html;
 }
 
 /** 清洗 HTML：移除标题、作者信息等头部元素 */
@@ -321,12 +331,17 @@ export async function getArticleContent(articleId: number, format: 'markdown' | 
 
   if (format === 'html') {
     // HTML 格式：检查缓存
-    if (meta?.contentHtml) return meta.contentHtml;
+    if (meta?.contentHtml && !hasWechatImageRefs(meta.contentHtml)) return meta.contentHtml;
+    if (meta?.contentHtml && hasWechatImageRefs(meta.contentHtml)) {
+      await db.update(articleMetadata)
+        .set({ contentHtml: null, updatedAt: new Date() })
+        .where(eq(articleMetadata.articleId, articleId));
+    }
   } else {
     // Markdown 格式：检查缓存（排除本地资源引用的脏缓存）
-    if (meta?.contentMd && !hasLocalResourceRefs(meta.contentMd)) return meta.contentMd;
+    if (meta?.contentMd && !hasLocalResourceRefs(meta.contentMd) && !hasWechatImageRefs(meta.contentMd)) return meta.contentMd;
     // 标记需要刷新：如果有脏缓存，先清除
-    if (meta?.contentMd && hasLocalResourceRefs(meta.contentMd)) {
+    if (meta?.contentMd && (hasLocalResourceRefs(meta.contentMd) || hasWechatImageRefs(meta.contentMd))) {
       await db.update(articleMetadata)
         .set({ contentMd: null, updatedAt: new Date() })
         .where(eq(articleMetadata.articleId, articleId));
