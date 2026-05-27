@@ -51,6 +51,8 @@ export const articleMetadata = pgTable('article_metadata', {
   contentMd: text('content_md'),
   contentHtml: text('content_html'),
   coverImage: text('cover_image'),
+  favoritedAt: timestamp('favorited_at'),
+  archivedAt: timestamp('archived_at'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });

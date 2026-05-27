@@ -7,10 +7,17 @@ import { useToast } from '@/components/ui/Toast';
 import { useArticleContext } from '@/components/providers/ArticleContext';
 import { useAuth } from '@/components/providers/AuthContext';
 import { ArticleList } from '@/components/article/ArticleList';
+import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type ArticleSortOption } from '@/components/article/ArticleSortControl';
 import { api } from '@/lib/api';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
 import type { ArticleListItem } from '@storing/shared';
+
+const FAVORITES_SORT_OPTIONS: ArticleSortOption[] = [
+  { value: 'favorited', label: '最近收藏' },
+  { value: 'collected', label: '最新收录' },
+  { value: 'published', label: '最新发布' },
+];
 
 function FavoritesContentInner() {
   const router = useRouter();
@@ -35,6 +42,8 @@ function FavoritesContentInner() {
   }, [getBookmark]);
 
   const [page, setPage] = useState(1);
+  const [articleSort, setArticleSort] = useState<ArticleSortKey>('favorited');
+  const [articleSortOrder, setArticleSortOrder] = useState<ArticleSortOrder>('desc');
   const [allArticles, setAllArticles] = useState<ArticleListItem[]>([]);
   const [requestTimedOut, setRequestTimedOut] = useState(false);
   const removingIdsRef = useRef<Set<number>>(new Set());
@@ -76,8 +85,8 @@ function FavoritesContentInner() {
   };
 
   const { data, error, isLoading, isValidating, mutate } = useSWR(
-    isAuthenticated ? `articles:favorites:${page}` : null,
-    () => api.getArticles('favorites', page),
+    isAuthenticated ? `articles:favorites:${page}:${articleSort}:${articleSortOrder}` : null,
+    () => api.getArticles('favorites', page, undefined, 8, articleSort, articleSortOrder),
     { revalidateOnFocus: false, errorRetryCount: 1 }
   );
 
@@ -94,7 +103,7 @@ function FavoritesContentInner() {
         });
       }
     }
-  }, [data, page]);
+  }, [data, page, articleSort, articleSortOrder]);
 
   useEffect(() => {
     if (!isLoading || page !== 1) {
@@ -111,6 +120,22 @@ function FavoritesContentInner() {
     removingIdsRef.current.clear();
     void mutate();
   }, [mutate]);
+
+  const handleSortChange = useCallback((sort: ArticleSortKey) => {
+    if (sort === articleSort) return;
+    setArticleSort(sort);
+    setPage(1);
+    removingIdsRef.current.clear();
+    window.scrollTo(0, 0);
+  }, [articleSort]);
+
+  const handleSortOrderChange = useCallback((order: ArticleSortOrder) => {
+    if (order === articleSortOrder) return;
+    setArticleSortOrder(order);
+    setPage(1);
+    removingIdsRef.current.clear();
+    window.scrollTo(0, 0);
+  }, [articleSortOrder]);
 
   useEffect(() => { setMutateFn(refreshList); }, [setMutateFn, refreshList]);
 
@@ -198,59 +223,68 @@ function FavoritesContentInner() {
       ) : isLoading && page === 1 ? (
         <div style={{ color: 'var(--muted)', padding: 'var(--gap-2xl) 0', textAlign: 'center' }}>加载中…</div>
       ) : (
-        <ArticleList
-          articles={allArticles}
-          hasMore={page < totalPages}
-          loadingMore={isValidating && page > 1}
-          onLoadMore={handleLoadMore}
-          emptyTitle="还没有收藏的文章"
-          onArticleClick={(id) => openArticle(id)}
-          onToggleFavorite={async (id, e) => {
-            e.stopPropagation();
-            const article = allArticles.find(a => a.id === id);
-            if (!article) return;
+        <>
+          <ArticleSortControl
+            options={FAVORITES_SORT_OPTIONS}
+            value={articleSort}
+            order={articleSortOrder}
+            onChange={handleSortChange}
+            onOrderChange={handleSortOrderChange}
+          />
+          <ArticleList
+            articles={allArticles}
+            hasMore={page < totalPages}
+            loadingMore={isValidating && page > 1}
+            onLoadMore={handleLoadMore}
+            emptyTitle="还没有收藏的文章"
+            onArticleClick={(id) => openArticle(id)}
+            onToggleFavorite={async (id, e) => {
+              e.stopPropagation();
+              const article = allArticles.find(a => a.id === id);
+              if (!article) return;
 
-            // 乐观更新：立即从收藏页移除
-            removingIdsRef.current.add(id);
-            setAllArticles((prev) => prev.filter((a) => a.id !== id));
+              // 乐观更新：立即从收藏页移除
+              removingIdsRef.current.add(id);
+              setAllArticles((prev) => prev.filter((a) => a.id !== id));
 
-            const success = await toggleFavorite(id, true); // 当前是已收藏状态
-            if (success) {
-              removingIdsRef.current.delete(id);
-              showToast('已取消收藏');
-            } else {
-              removingIdsRef.current.delete(id);
-              refreshList();
-              showToast('取消收藏失败，请重试');
-            }
-          }}
-          onArchive={async (id, e) => {
-            e.stopPropagation();
-            const article = allArticles.find(a => a.id === id);
-            if (!article) return;
-
-            const wasArchived = article.isArchived;
-            setAllArticles((prev) => prev.map((a) => a.id === id ? { ...a, isArchived: !wasArchived } : a));
-
-            try {
-              if (wasArchived) {
-                await api.unarchive(id);
+              const success = await toggleFavorite(id, true); // 当前是已收藏状态
+              if (success) {
+                removingIdsRef.current.delete(id);
+                showToast('已取消收藏');
               } else {
-                await api.archive(id);
+                removingIdsRef.current.delete(id);
+                refreshList();
+                showToast('取消收藏失败，请重试');
               }
-              updateArticleInView('favorites', id, { isArchived: !wasArchived });
-              updateArticleInView('archive', id, { isArchived: !wasArchived });
-              updateArticleInView('inbox', id, { isArchived: !wasArchived });
-              refreshCounts();
-              showToast(wasArchived ? '已取消归档' : '已归档');
-            } catch (error) {
-              console.error('Toggle archive from favorites failed:', error);
-              refreshList();
-              showToast(wasArchived ? '取消归档失败，请重试' : '归档失败，请重试');
-            }
-          }}
-          highlightId={highlightId}
-        />
+            }}
+            onArchive={async (id, e) => {
+              e.stopPropagation();
+              const article = allArticles.find(a => a.id === id);
+              if (!article) return;
+
+              const wasArchived = article.isArchived;
+              setAllArticles((prev) => prev.map((a) => a.id === id ? { ...a, isArchived: !wasArchived } : a));
+
+              try {
+                if (wasArchived) {
+                  await api.unarchive(id);
+                } else {
+                  await api.archive(id);
+                }
+                updateArticleInView('favorites', id, { isArchived: !wasArchived });
+                updateArticleInView('archive', id, { isArchived: !wasArchived });
+                updateArticleInView('inbox', id, { isArchived: !wasArchived });
+                refreshCounts();
+                showToast(wasArchived ? '已取消归档' : '已归档');
+              } catch (error) {
+                console.error('Toggle archive from favorites failed:', error);
+                refreshList();
+                showToast(wasArchived ? '取消归档失败，请重试' : '归档失败，请重试');
+              }
+            }}
+            highlightId={highlightId}
+          />
+        </>
       )}
     </>
   );
