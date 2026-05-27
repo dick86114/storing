@@ -25,11 +25,6 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(main)/archive/page.js"
-    ],
-    "/(main)/favorites/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(main)/favorites/page.js"
     ]
   }
 }

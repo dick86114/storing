@@ -65,17 +65,26 @@ function getArticleOrderBy(sort: ArticleSortField, order: SortOrder, hasActionTi
  */
 async function ensureMetadata(articleId: number) {
   const [existing] = await db
-    .select()
+    .select({
+      id: articleMetadata.id,
+      articleId: articleMetadata.articleId,
+      isFavorited: articleMetadata.isFavorited,
+      isArchived: articleMetadata.isArchived,
+    })
     .from(articleMetadata)
     .where(eq(articleMetadata.articleId, articleId));
 
   if (existing) return existing;
 
-  const [created] = await db
+  await db
     .insert(articleMetadata)
-    .values({ articleId })
-    .returning();
-  return created;
+    .values({ articleId });
+
+  return {
+    articleId,
+    isFavorited: false,
+    isArchived: false,
+  };
 }
 
 /**
@@ -262,13 +271,12 @@ articlesRoutes.post('/articles/:id/favorite', requireAuth, async (c) => {
     ? { isFavorited: newState, favoritedAt: newState ? now : null, updatedAt: now }
     : { isFavorited: newState, updatedAt: now };
 
-  const [updated] = await db
+  await db
     .update(articleMetadata)
     .set(updateValues)
-    .where(eq(articleMetadata.articleId, id))
-    .returning();
+    .where(eq(articleMetadata.articleId, id));
 
-  return c.json({ ...updated, articleId: id });
+  return c.json({ articleId: id, isFavorited: newState });
 });
 
 /**
@@ -290,17 +298,16 @@ articlesRoutes.post('/articles/:id/archive', requireAuth, async (c) => {
     ? { isArchived: true, archivedAt: now, updatedAt: now }
     : { isArchived: true, updatedAt: now };
 
-  const [updated] = await db
+  await db
     .update(articleMetadata)
     .set(updateValues)
-    .where(eq(articleMetadata.articleId, id))
-    .returning();
+    .where(eq(articleMetadata.articleId, id));
 
   // 异步触发 AI 摘要和标签生成、封面图处理
   generateSummaryAndTags(id).catch((e) => console.error('AI summary/tags failed:', e.message));
   processCoverImage(id).catch((e) => console.error('Cover image process failed:', e.message));
 
-  return c.json({ ...updated, articleId: id });
+  return c.json({ articleId: id, isArchived: true });
 });
 
 /**
@@ -319,13 +326,12 @@ articlesRoutes.post('/articles/:id/unarchive', requireAuth, async (c) => {
     ? { isArchived: false, archivedAt: null, updatedAt: now }
     : { isArchived: false, updatedAt: now };
 
-  const [updated] = await db
+  await db
     .update(articleMetadata)
     .set(updateValues)
-    .where(eq(articleMetadata.articleId, id))
-    .returning();
+    .where(eq(articleMetadata.articleId, id));
 
-  return c.json({ ...updated, articleId: id });
+  return c.json({ articleId: id, isArchived: false });
 });
 
 /**
