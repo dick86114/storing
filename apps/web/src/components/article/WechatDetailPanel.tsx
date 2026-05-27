@@ -52,15 +52,20 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   }
 
   useEffect(() => {
-    if (articleId && !isDesktop) {
+    if (articleId) {
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
       document.body.style.overflow = 'hidden';
+      if (scrollbarWidth > 0) {
+        document.body.style.paddingRight = `${scrollbarWidth}px`;
+      }
       document.body.classList.add('detail-panel-open');
       return () => {
         document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
         document.body.classList.remove('detail-panel-open');
       };
     }
-  }, [articleId, isDesktop]);
+  }, [articleId]);
 
   const getScrollPosition = () => scrollPositionRef.current;
 

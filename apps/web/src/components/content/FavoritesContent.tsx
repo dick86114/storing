@@ -17,7 +17,7 @@ function FavoritesContentInner() {
   const { showToast } = useToast();
   const { openArticle, highlightId, setMutateFn } = useArticleContext();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const { archive, toggleFavorite } = useArticleOperations();
+  const { toggleFavorite, updateArticleInView, refreshCounts } = useArticleOperations();
   const { getBookmark, clearBookmark } = useBookmark();
   const [bookmarkPrompt, setBookmarkPrompt] = useState<ReadingBookmark | null>(null);
 
@@ -226,19 +226,27 @@ function FavoritesContentInner() {
           }}
           onArchive={async (id, e) => {
             e.stopPropagation();
+            const article = allArticles.find(a => a.id === id);
+            if (!article) return;
 
-            // 乐观更新：立即从收藏页移除
-            removingIdsRef.current.add(id);
-            setAllArticles((prev) => prev.filter((a) => a.id !== id));
+            const wasArchived = article.isArchived;
+            setAllArticles((prev) => prev.map((a) => a.id === id ? { ...a, isArchived: !wasArchived } : a));
 
-            const success = await archive(id);
-            if (success) {
-              removingIdsRef.current.delete(id);
-              showToast('已归档');
-            } else {
-              removingIdsRef.current.delete(id);
+            try {
+              if (wasArchived) {
+                await api.unarchive(id);
+              } else {
+                await api.archive(id);
+              }
+              updateArticleInView('favorites', id, { isArchived: !wasArchived });
+              updateArticleInView('archive', id, { isArchived: !wasArchived });
+              updateArticleInView('inbox', id, { isArchived: !wasArchived });
+              refreshCounts();
+              showToast(wasArchived ? '已取消归档' : '已归档');
+            } catch (error) {
+              console.error('Toggle archive from favorites failed:', error);
               refreshList();
-              showToast('归档失败，请重试');
+              showToast(wasArchived ? '取消归档失败，请重试' : '归档失败，请重试');
             }
           }}
           highlightId={highlightId}

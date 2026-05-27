@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled } from '@ant-design/icons';
 import { DateText } from '@/lib/formatDate';
@@ -17,6 +17,40 @@ interface WechatArticleCardProps {
 
 export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchive, showMenu = true, highlight }: WechatArticleCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuWrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const closeMenu = () => setMenuOpen(false);
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!menuWrapRef.current?.contains(event.target as Node)) {
+        closeMenu();
+      }
+    };
+    const handleFocusIn = (event: FocusEvent) => {
+      if (!menuWrapRef.current?.contains(event.target as Node)) {
+        closeMenu();
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeMenu();
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    document.addEventListener('focusin', handleFocusIn, true);
+    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('blur', closeMenu);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      document.removeEventListener('focusin', handleFocusIn, true);
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('scroll', closeMenu, true);
+      window.removeEventListener('blur', closeMenu);
+    };
+  }, [menuOpen]);
 
   return (
     <div
@@ -56,7 +90,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
           </div>
           {/* 三点菜单 —— 游客不显示 */}
           {showMenu && (
-            <div style={{ position: 'relative', flexShrink: 0 }}>
+            <div ref={menuWrapRef} style={{ position: 'relative', flexShrink: 0 }}>
               <button
                 className="article-card-menu-btn"
                 onClick={(e) => {

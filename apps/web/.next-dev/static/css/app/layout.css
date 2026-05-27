@@ -1868,7 +1868,8 @@ body {
   transition: background var(--transition), border-color var(--transition), box-shadow var(--transition), color var(--transition), transform var(--transition);
 }
 .app-top-nav {
-  position: relative;
+  position: sticky;
+  top: 0;
   z-index: 1200;
   background: var(--nav-bg) !important;
   border-bottom-color: var(--divider) !important;
@@ -3285,14 +3286,7 @@ body {
     linear-gradient(180deg, color-mix(in oklch, var(--surface) 98%, white 2%), var(--reading-bg)) !important;
   }
   background-size: 96px 100%, auto !important;
-  box-shadow: inset 8px 0 0 var(--fg-title),
-    inset 11px 0 0 var(--accent),
-    var(--shadow-lg);
-  @supports (color: color-mix(in lab, red, red)) {
-    box-shadow: inset 8px 0 0 color-mix(in oklch, var(--fg-title) 82%, transparent),
-    inset 11px 0 0 var(--accent),
-    var(--shadow-lg);
-  }
+  box-shadow: var(--shadow-lg);
 }
 [data-color-scheme='magazine'] .detail-panel::before {
   content: '';

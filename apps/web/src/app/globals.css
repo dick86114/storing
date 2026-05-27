@@ -1291,7 +1291,8 @@ body {
 }
 
 .app-top-nav {
-  position: relative;
+  position: sticky;
+  top: 0;
   z-index: 1200;
   background: var(--nav-bg) !important;
   border-bottom-color: var(--divider) !important;
@@ -2627,10 +2628,7 @@ body {
     linear-gradient(90deg, color-mix(in oklch, var(--fg-title) 5%, transparent) 0 1px, transparent 1px 100%),
     linear-gradient(180deg, color-mix(in oklch, var(--surface) 98%, white 2%), var(--reading-bg)) !important;
   background-size: 96px 100%, auto !important;
-  box-shadow:
-    inset 8px 0 0 color-mix(in oklch, var(--fg-title) 82%, transparent),
-    inset 11px 0 0 var(--accent),
-    var(--shadow-lg);
+  box-shadow: var(--shadow-lg);
 }
 
 [data-color-scheme='magazine'] .detail-panel::before {
