@@ -316,39 +316,7 @@ async function fetchContent(url: string, format: 'markdown' | 'html' = 'markdown
   }
 }
 
-/**
- * 获取文章内容（首次抓取并缓存，后续读库）
- * 优先从 Reader API 抓取，失败则 fallback 到 articles.content 字段
- * @param articleId 文章 ID
- * @param format 格式：markdown 或 html
- */
-export async function getArticleContent(articleId: number, format: 'markdown' | 'html' = 'markdown'): Promise<string | null> {
-  // 先查缓存
-  const [meta] = await db
-    .select({ contentMd: articleMetadata.contentMd, contentHtml: articleMetadata.contentHtml })
-    .from(articleMetadata)
-    .where(eq(articleMetadata.articleId, articleId));
-
-  if (format === 'html') {
-    // HTML 格式：检查缓存
-    if (meta?.contentHtml && !hasWechatImageRefs(meta.contentHtml)) return meta.contentHtml;
-    if (meta?.contentHtml && hasWechatImageRefs(meta.contentHtml)) {
-      await db.update(articleMetadata)
-        .set({ contentHtml: null, updatedAt: new Date() })
-        .where(eq(articleMetadata.articleId, articleId));
-    }
-  } else {
-    // Markdown 格式：检查缓存（排除本地资源引用的脏缓存）
-    if (meta?.contentMd && !hasLocalResourceRefs(meta.contentMd) && !hasWechatImageRefs(meta.contentMd)) return meta.contentMd;
-    // 标记需要刷新：如果有脏缓存，先清除
-    if (meta?.contentMd && (hasLocalResourceRefs(meta.contentMd) || hasWechatImageRefs(meta.contentMd))) {
-      await db.update(articleMetadata)
-        .set({ contentMd: null, updatedAt: new Date() })
-        .where(eq(articleMetadata.articleId, articleId));
-    }
-  }
-
-  // 获取原始链接和 content 字段
+async function fetchArticleContentFromSources(articleId: number, format: 'markdown' | 'html'): Promise<string | null> {
   const [article] = await db
     .select({ originalUrl: articles.originalUrl, content: articles.content })
     .from(articles)
@@ -358,11 +326,9 @@ export async function getArticleContent(articleId: number, format: 'markdown' | 
 
   let content: string | null = null;
 
-  // 尝试通过 Reader API 抓取
   if (article.originalUrl) {
     try {
       const fetched = await fetchContent(article.originalUrl, format);
-      // 只有内容长度足够时才使用
       if (fetched && fetched.length >= 100) {
         if (format === 'markdown' && !hasLocalResourceRefs(fetched)) {
           content = fetched;
@@ -375,12 +341,10 @@ export async function getArticleContent(articleId: number, format: 'markdown' | 
     }
   }
 
-  // Reader API 抓取失败，fallback 到 articles.content 字段
   if (!content && article.content) {
     const rawContent = article.content as any;
 
     if (format === 'html') {
-      // HTML 格式：直接从 content_noencode 提取 HTML
       if (rawContent.content_noencode) {
         const htmlContent = await uploadImagesInHtml(rawContent.content_noencode);
         if (htmlContent && htmlContent.length >= 100) {
@@ -388,7 +352,6 @@ export async function getArticleContent(articleId: number, format: 'markdown' | 
         }
       }
     } else {
-      // Markdown 格式：从 content_noencode 提取文本和图片
       const parts: string[] = [];
 
       if (rawContent.content_noencode) {
@@ -408,7 +371,6 @@ export async function getArticleContent(articleId: number, format: 'markdown' | 
         }
       }
 
-      // 如果 content_noencode 中没有图片，再从 picture_page_info_list 取图片
       if (Array.isArray(rawContent.picture_page_info_list) && rawContent.picture_page_info_list.length > 0) {
         for (const pic of rawContent.picture_page_info_list) {
           if (pic.cdn_url) {
@@ -427,9 +389,10 @@ export async function getArticleContent(articleId: number, format: 'markdown' | 
     }
   }
 
-  if (!content) return null;
+  return content;
+}
 
-  // 确保 metadata 记录存在并保存内容
+async function saveArticleContentCache(articleId: number, format: 'markdown' | 'html', content: string): Promise<void> {
   const [existing] = await db
     .select({ id: articleMetadata.id })
     .from(articleMetadata)
@@ -445,6 +408,55 @@ export async function getArticleContent(articleId: number, format: 'markdown' | 
     await db.insert(articleMetadata)
       .values({ articleId, ...updateField });
   }
+}
+
+async function refreshArticleContentCache(articleId: number, format: 'markdown' | 'html'): Promise<void> {
+  const content = await fetchArticleContentFromSources(articleId, format);
+  if (content) {
+    await saveArticleContentCache(articleId, format, content);
+  }
+}
+
+/**
+ * 获取文章内容（首次抓取并缓存，后续读库）
+ * 优先从 Reader API 抓取，失败则 fallback 到 articles.content 字段
+ * @param articleId 文章 ID
+ * @param format 格式：markdown 或 html
+ */
+export async function getArticleContent(articleId: number, format: 'markdown' | 'html' = 'markdown'): Promise<string | null> {
+  // 先查缓存
+  const [meta] = await db
+    .select({ contentMd: articleMetadata.contentMd, contentHtml: articleMetadata.contentHtml })
+    .from(articleMetadata)
+    .where(eq(articleMetadata.articleId, articleId));
+
+  if (format === 'html') {
+    // HTML 格式：检查缓存
+    if (meta?.contentHtml) {
+      if (hasWechatImageRefs(meta.contentHtml)) {
+        refreshArticleContentCache(articleId, format).catch((e) =>
+          console.error(`Background HTML cache refresh failed for article ${articleId}:`, (e as Error).message)
+        );
+      }
+      return meta.contentHtml;
+    }
+  } else {
+    // Markdown 格式：检查缓存（排除本地资源引用的脏缓存）
+    if (meta?.contentMd) {
+      if (hasLocalResourceRefs(meta.contentMd) || hasWechatImageRefs(meta.contentMd)) {
+        refreshArticleContentCache(articleId, format).catch((e) =>
+          console.error(`Background Markdown cache refresh failed for article ${articleId}:`, (e as Error).message)
+        );
+      }
+      return meta.contentMd;
+    }
+  }
+
+  const content = await fetchArticleContentFromSources(articleId, format);
+
+  if (!content) return null;
+
+  await saveArticleContentCache(articleId, format, content);
 
   return content;
 }

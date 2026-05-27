@@ -20,7 +20,7 @@ searchRoutes.get('/search', optionalAuth, async (c) => {
   const perPage = parseInt(c.req.query('perPage') || '20');
   const pattern = `%${q}%`;
 
-  const searchCondition = sql`${articles.title} ILIKE ${pattern} OR ${articles.source} ILIKE ${pattern} OR ${articles.summary} ILIKE ${pattern} OR ${articleMetadata.aiSummary} ILIKE ${pattern} OR ${articleMetadata.aiCategory} ILIKE ${pattern} OR array_to_string(${articleMetadata.aiTags}, ' ') ILIKE ${pattern}`;
+  const searchCondition = sql`(${articles.title} ILIKE ${pattern} OR ${articles.source} ILIKE ${pattern} OR ${articles.summary} ILIKE ${pattern} OR ${articleMetadata.aiSummary} ILIKE ${pattern} OR ${articleMetadata.aiCategory} ILIKE ${pattern} OR array_to_string(${articleMetadata.aiTags}, ' ') ILIKE ${pattern})`;
 
   // 游客只能搜索归档文章
   const finalCondition = isAuthenticated(c)

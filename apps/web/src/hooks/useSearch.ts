@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react';
 import useSWR from 'swr';
 import { api } from '@/lib/api';
+import { useAuth } from '@/components/providers/AuthContext';
 
 export function useSearch() {
+  const { isAuthenticated } = useAuth();
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
 
@@ -14,7 +16,7 @@ export function useSearch() {
   }, [query]);
 
   const { data, isLoading } = useSWR(
-    debounced.trim() ? `search:${debounced}` : null,
+    debounced.trim() ? `search:${isAuthenticated ? 'all' : 'archive'}:${debounced}` : null,
     () => api.search(debounced),
     { revalidateOnFocus: false }
   );
