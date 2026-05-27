@@ -444,24 +444,42 @@ function DetailContent({
   // 分享功能
   async function handleShare() {
     if (!article) return;
-    const shareUrl = article.isArchived
-      ? (() => {
-          const url = new URL(window.location.href);
-          url.pathname = '/archive';
-          url.searchParams.set('article', String(article.id));
-          url.searchParams.set('scroll', String(Math.round(getScrollPosition())));
-          url.hash = 'reading-position';
-          return url.toString();
-        })()
-      : article.originalUrl || window.location.href;
+    const shareUrl = (() => {
+      const currentPath = window.location.pathname;
+      const viewPath = currentPath.includes('/archive')
+        ? '/archive'
+        : currentPath.includes('/favorites')
+          ? '/favorites'
+          : currentPath.includes('/inbox')
+            ? '/inbox'
+            : article.isArchived
+              ? '/archive'
+              : article.isFavorited
+                ? '/favorites'
+                : '/inbox';
+      const url = new URL(viewPath, window.location.origin);
+      url.searchParams.set('article', String(article.id));
+      url.searchParams.set('scroll', String(Math.round(getScrollPosition())));
+      url.hash = 'reading-position';
+      return url.toString();
+    })();
 
     if (navigator.share) {
       try {
-        await navigator.share({ title: article.title, url: shareUrl });
-      } catch {}
+        await navigator.share({
+          title: article.title,
+          text: `${article.title}\n${shareUrl}`,
+          url: shareUrl,
+        });
+      } catch (error) {
+        if ((error as DOMException)?.name !== 'AbortError') {
+          await navigator.clipboard.writeText(shareUrl);
+          showToast('分享链接已复制');
+        }
+      }
     } else {
       await navigator.clipboard.writeText(shareUrl);
-      showToast(article.isArchived ? '分享链接已复制' : '原文链接已复制');
+      showToast('分享链接已复制');
     }
   }
 
@@ -538,27 +556,31 @@ function DetailContent({
   // 收藏功能
   async function handleFavorite() {
     if (!article) return;
-    await api.toggleFavorite(article.id);
-    mutateArticle();
-    onMutate();
-    refreshCounts();
-    showToast(article.isFavorited ? '已取消收藏' : '已收藏');
+    await runArticleAction('favorite', async () => {
+      await api.toggleFavorite(article.id);
+      mutateArticle();
+      onMutate();
+      refreshCounts();
+      showToast(article.isFavorited ? '已取消收藏' : '已收藏');
+    }, article.isFavorited ? '取消收藏失败' : '收藏失败');
   }
 
   // 归档功能
   async function handleArchive() {
     if (!article) return;
     const wasArchived = article.isArchived;
-    if (wasArchived) {
-      await api.unarchive(article.id);
-      showToast('已移回收件箱');
-    } else {
-      await api.archive(article.id);
-      showToast('已归档');
-    }
-    onMutate();
-    refreshCounts();
-    onClose();
+    await runArticleAction('archive', async () => {
+      if (wasArchived) {
+        await api.unarchive(article.id);
+        showToast('已移回收件箱');
+      } else {
+        await api.archive(article.id);
+        showToast('已归档');
+      }
+      onMutate();
+      refreshCounts();
+      onClose();
+    }, wasArchived ? '移回收件箱失败' : '归档失败');
   }
 
   return (
