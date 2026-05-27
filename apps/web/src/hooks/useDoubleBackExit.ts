@@ -32,6 +32,8 @@ export function useDoubleBackExit() {
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
     if (!isMobile) return;
 
+    const currentUrl = `${pathname}${window.location.search}${window.location.hash}`;
+
     const handlePopState = (e: PopStateEvent) => {
       // 如果刚从详情页关闭（500ms 内），不拦截这次返回
       const timeSinceClose = Date.now() - lastCloseTime.current;
@@ -68,13 +70,13 @@ export function useDoubleBackExit() {
         // 阻止这次返回，让用户留在当前页
         e.preventDefault();
         // 推一个历史记录，让用户可以再次触发 popstate
-        window.history.pushState(null, '', pathname);
+        window.history.pushState(null, '', currentUrl);
       }
     };
 
     // 只在列表页（无详情页打开）时注册监听器和推历史记录
     if (!selectedId) {
-      window.history.pushState(null, '', pathname);
+      window.history.pushState(null, '', currentUrl);
       window.addEventListener('popstate', handlePopState);
     }
 

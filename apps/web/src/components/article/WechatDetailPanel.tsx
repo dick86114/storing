@@ -29,6 +29,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   // 滚动位置追踪
   const scrollPositionRef = useRef(0);
   const contentRef = useRef<HTMLDivElement>(null);
+  const appliedSharedScrollRef = useRef<string | null>(null);
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
 
@@ -44,6 +45,63 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
     content.addEventListener('scroll', handleScroll, { passive: true });
     return () => content.removeEventListener('scroll', handleScroll);
   }, [articleId]);
+
+  useEffect(() => {
+    if (!articleId || isLoading || !article?.contentHtml) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const articleParam = params.get('article');
+    const scrollParam = params.get('scroll');
+    const sharedArticleId = articleParam ? Number(articleParam) : NaN;
+    const scrollPosition = scrollParam ? Number(scrollParam) : NaN;
+
+    if (
+      sharedArticleId !== articleId ||
+      !Number.isFinite(scrollPosition) ||
+      scrollPosition <= 0
+    ) {
+      return;
+    }
+
+    const scrollKey = `${articleId}:${Math.round(scrollPosition)}`;
+    if (appliedSharedScrollRef.current === scrollKey) return;
+    appliedSharedScrollRef.current = scrollKey;
+
+    const content = contentRef.current;
+    if (!content) return;
+
+    let stopped = false;
+    const startedAt = Date.now();
+    const maxDuration = 9000;
+
+    const applyScroll = () => {
+      if (stopped) return;
+
+      const maxScrollTop = Math.max(0, content.scrollHeight - content.clientHeight);
+      content.scrollTop = Math.min(scrollPosition, maxScrollTop);
+
+      const reachedTarget = Math.abs(content.scrollTop - scrollPosition) <= 4;
+      const canScrollThatFar = maxScrollTop >= scrollPosition - 4;
+      const timedOut = Date.now() - startedAt > maxDuration;
+
+      if ((!reachedTarget || !canScrollThatFar) && !timedOut) {
+        window.requestAnimationFrame(applyScroll);
+      }
+    };
+
+    window.requestAnimationFrame(applyScroll);
+
+    const articleBody = content.querySelector('.article-body');
+    const images = Array.from(articleBody?.querySelectorAll('img') ?? []);
+    images.forEach((img) => {
+      if (!img.complete) img.addEventListener('load', applyScroll, { once: true });
+    });
+
+    return () => {
+      stopped = true;
+      images.forEach((img) => img.removeEventListener('load', applyScroll));
+    };
+  }, [articleId, article?.contentHtml, isLoading]);
 
   function refreshCounts() {
     globalMutate('count:inbox');
