@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { SearchOutlined, PlusOutlined, PlusCircleOutlined, UserOutlined, SunOutlined, MoonOutlined, DesktopOutlined, LockOutlined, LogoutOutlined } from '@ant-design/icons';
 import { SearchModal } from '@/components/search/SearchModal';
@@ -21,6 +21,8 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const menuWrapRef = useRef<HTMLDivElement>(null);
+  const menuPanelRef = useRef<HTMLDivElement>(null);
 
   const themeIcons: Record<string, React.ReactNode> = {
     light: <SunOutlined style={{ fontSize: '16px' }} />,
@@ -33,6 +35,40 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
     dark: '深色模式',
     system: '跟随系统',
   };
+
+  const handleMenuBlur = () => {
+    window.setTimeout(() => {
+      if (!menuWrapRef.current?.contains(document.activeElement)) {
+        setMenuOpen(false);
+      }
+    }, 0);
+  };
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    window.setTimeout(() => menuPanelRef.current?.focus(), 0);
+
+    const closeMenu = () => setMenuOpen(false);
+    const handleFocusIn = (event: FocusEvent) => {
+      if (!menuWrapRef.current?.contains(event.target as Node)) {
+        closeMenu();
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeMenu();
+    };
+
+    document.addEventListener('focusin', handleFocusIn, true);
+    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('blur', closeMenu);
+
+    return () => {
+      document.removeEventListener('focusin', handleFocusIn, true);
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('blur', closeMenu);
+    };
+  }, [menuOpen]);
 
   return (
     <>
@@ -71,7 +107,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
         <div />
 
         {/* 右侧：搜索 + 加号/用户菜单 */}
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div ref={menuWrapRef} onBlurCapture={handleMenuBlur} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button
             onClick={() => setSearchOpen(true)}
             type="button"
@@ -125,7 +161,9 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                 style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}
               />
               <div
+                ref={menuPanelRef}
                 className="app-menu user-menu"
+                tabIndex={-1}
                 onClick={(e) => e.stopPropagation()}
                 onTouchEnd={(e) => e.stopPropagation()}
                 style={{

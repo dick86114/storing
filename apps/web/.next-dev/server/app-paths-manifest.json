@@ -1,6 +1,5 @@
 {
-  "/page": "app/page.js",
-  "/(main)/inbox/page": "app/(main)/inbox/page.js",
+  "/(main)/archive/page": "app/(main)/archive/page.js",
   "/(main)/favorites/page": "app/(main)/favorites/page.js",
-  "/(main)/archive/page": "app/(main)/archive/page.js"
+  "/(main)/inbox/page": "app/(main)/inbox/page.js"
 }

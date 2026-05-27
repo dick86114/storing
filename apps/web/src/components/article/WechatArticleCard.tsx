@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled } from '@ant-design/icons';
+import { MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, FieldTimeOutlined } from '@ant-design/icons';
 import { DateText } from '@/lib/formatDate';
 import type { ArticleListItem } from '@storing/shared';
 
@@ -212,9 +212,16 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
         )}
 
         {/* 第三行：来源 + 发布时间 */}
-        <div className="article-card-footer" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
+        <div className="article-card-footer" style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '12px', color: 'var(--text-muted)' }}>
           <span>{article.source || article.author || '未知来源'}</span>
-          <DateText dateStr={article.publishTime} />
+          <span
+            title="发布时间"
+            aria-label="发布时间"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
+          >
+            <FieldTimeOutlined aria-hidden="true" style={{ fontSize: '12px' }} />
+            <DateText dateStr={article.publishTime} />
+          </span>
         </div>
       </div>
     </div>

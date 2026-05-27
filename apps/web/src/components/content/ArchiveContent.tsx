@@ -6,12 +6,19 @@ import { useToast } from '@/components/ui/Toast';
 import { useArticleContext } from '@/components/providers/ArticleContext';
 import { useAuth } from '@/components/providers/AuthContext';
 import { ArticleList } from '@/components/article/ArticleList';
+import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type ArticleSortOption } from '@/components/article/ArticleSortControl';
 import { SourceSidebar } from '@/components/archive/SourceSidebar';
 import { SourcePills } from '@/components/archive/SourcePills';
 import { api } from '@/lib/api';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
 import type { ArticleListItem } from '@storing/shared';
+
+const ARCHIVE_SORT_OPTIONS: ArticleSortOption[] = [
+  { value: 'archived', label: '最近归档' },
+  { value: 'collected', label: '最新收录' },
+  { value: 'published', label: '最新发布' },
+];
 
 function ArchiveContentInner() {
   const { isAuthenticated } = useAuth();
@@ -23,6 +30,8 @@ function ArchiveContentInner() {
   const [activeSource, setActiveSource] = useState('all');
   const [currentSort, setCurrentSort] = useState('count');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [articleSort, setArticleSort] = useState<ArticleSortKey>('archived');
+  const [articleSortOrder, setArticleSortOrder] = useState<ArticleSortOrder>('desc');
   const [page, setPage] = useState(1);
   const [allArticles, setAllArticles] = useState<ArticleListItem[]>([]);
   const [isMobile, setIsMobile] = useState(false);
@@ -48,8 +57,8 @@ function ArchiveContentInner() {
   }, [getBookmark]);
 
   const { data, error, isLoading, isValidating, mutate } = useSWR(
-    `articles:archive:${page}:${activeSource}`,
-    () => api.getArticles('archive', page, activeSource),
+    `articles:archive:${page}:${activeSource}:${articleSort}:${articleSortOrder}`,
+    () => api.getArticles('archive', page, activeSource, 8, articleSort, articleSortOrder),
     { revalidateOnFocus: false, errorRetryCount: 1 }
   );
 
@@ -70,7 +79,7 @@ function ArchiveContentInner() {
         });
       }
     }
-  }, [data, page]);
+  }, [data, page, articleSort, articleSortOrder]);
 
   useEffect(() => {
     if (!isLoading || page !== 1) {
@@ -97,6 +106,22 @@ function ArchiveContentInner() {
   const handleSortOrderChange = useCallback((order: 'asc' | 'desc') => {
     setSortOrder(order);
   }, []);
+
+  const handleArticleSortChange = useCallback((sort: ArticleSortKey) => {
+    if (sort === articleSort) return;
+    setArticleSort(sort);
+    setPage(1);
+    removingIdsRef.current.clear();
+    window.scrollTo(0, 0);
+  }, [articleSort]);
+
+  const handleArticleSortOrderChange = useCallback((order: ArticleSortOrder) => {
+    if (order === articleSortOrder) return;
+    setArticleSortOrder(order);
+    setPage(1);
+    removingIdsRef.current.clear();
+    window.scrollTo(0, 0);
+  }, [articleSortOrder]);
 
   const refreshList = useCallback(() => {
     setPage(1);
@@ -203,18 +228,27 @@ function ArchiveContentInner() {
   ) : isLoading && page === 1 ? (
     <div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>
   ) : (
-    <ArticleList
-      articles={allArticles}
-      hasMore={page < totalPages}
-      loadingMore={isValidating && page > 1}
-      onLoadMore={handleLoadMore}
-      emptyTitle="归档中暂无此类文章"
-      onArticleClick={(id) => openArticle(id)}
-      onToggleFavorite={handleToggleFavorite}
-      onArchive={handleUnarchive}
-      showMenu={isAuthenticated}
-      highlightId={highlightId}
-    />
+    <>
+      <ArticleSortControl
+        options={ARCHIVE_SORT_OPTIONS}
+        value={articleSort}
+        order={articleSortOrder}
+        onChange={handleArticleSortChange}
+        onOrderChange={handleArticleSortOrderChange}
+      />
+      <ArticleList
+        articles={allArticles}
+        hasMore={page < totalPages}
+        loadingMore={isValidating && page > 1}
+        onLoadMore={handleLoadMore}
+        emptyTitle="归档中暂无此类文章"
+        onArticleClick={(id) => openArticle(id)}
+        onToggleFavorite={handleToggleFavorite}
+        onArchive={handleUnarchive}
+        showMenu={isAuthenticated}
+        highlightId={highlightId}
+      />
+    </>
   );
 
   return (

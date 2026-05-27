@@ -29,6 +29,8 @@ export interface ArticleListItem {
   source: string;
   publishTime: string | null;
   createdAt: string;
+  favoritedAt?: string | null;
+  archivedAt?: string | null;
   summary: string;
   aiTags: string[];
   aiCategory?: string | null;  // AI 分类

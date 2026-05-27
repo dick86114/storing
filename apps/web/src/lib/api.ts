@@ -50,9 +50,11 @@ export const api = {
     }),
 
   // 文章相关
-  getArticles: (view: string, page = 1, category?: string, perPage = 8) => {
+  getArticles: (view: string, page = 1, category?: string, perPage = 8, sort?: string, order?: 'asc' | 'desc') => {
     const params = new URLSearchParams({ view, page: String(page), perPage: String(perPage) });
     if (category && category !== 'all') params.set('category', category);
+    if (sort) params.set('sort', sort);
+    if (order) params.set('order', order);
     return fetchJSON<any>(`/articles?${params}`);
   },
 

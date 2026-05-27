@@ -1,12 +1,63 @@
 import { Hono } from 'hono';
 import { db } from '../db/index.js';
 import { articles, articleMetadata } from '../db/schema.js';
-import { eq, and, desc, count, sql, or, isNull } from 'drizzle-orm';
+import { eq, and, asc, desc, count, sql, or, isNull } from 'drizzle-orm';
 import { generateSummaryAndTags } from '../services/ai.service.js';
 import { getArticleContent, processCoverImage } from '../services/reader.service.js';
 import { requireAuth, optionalAuth, isAuthenticated } from '../middleware/auth.js';
 
 export const articlesRoutes = new Hono();
+
+type ArticleSortField = 'collected' | 'published' | 'favorited' | 'archived';
+type SortOrder = 'asc' | 'desc';
+
+async function hasMetadataTimestampColumns() {
+  try {
+    const result = await db.execute(sql`
+      SELECT COUNT(*)::int AS count
+      FROM information_schema.columns
+      WHERE table_name = 'article_metadata'
+        AND column_name IN ('favorited_at', 'archived_at')
+    `);
+    return Number(result.rows[0]?.count ?? 0) === 2;
+  } catch {
+    return false;
+  }
+}
+
+function getDefaultArticleSort(view: string): ArticleSortField {
+  if (view === 'favorites') return 'favorited';
+  if (view === 'archive') return 'archived';
+  return 'collected';
+}
+
+function normalizeArticleSort(view: string, sort?: string): ArticleSortField {
+  const defaultSort = getDefaultArticleSort(view);
+  const allowedByView: Record<string, ArticleSortField[]> = {
+    inbox: ['collected', 'published'],
+    favorites: ['favorited', 'collected', 'published'],
+    archive: ['archived', 'collected', 'published'],
+  };
+  const allowed = allowedByView[view] ?? allowedByView.inbox;
+  return allowed.includes(sort as ArticleSortField) ? (sort as ArticleSortField) : defaultSort;
+}
+
+function normalizeSortOrder(order?: string): SortOrder {
+  return order === 'asc' ? 'asc' : 'desc';
+}
+
+function getArticleSortExpression(sort: ArticleSortField, hasActionTimestamps: boolean) {
+  if (sort === 'published') return articles.publishTime;
+  if (sort === 'favorited' && hasActionTimestamps) return sql`coalesce(${articleMetadata.favoritedAt}, ${articleMetadata.updatedAt}, ${articles.createdAt})`;
+  if (sort === 'archived' && hasActionTimestamps) return sql`coalesce(${articleMetadata.archivedAt}, ${articleMetadata.updatedAt}, ${articles.createdAt})`;
+  if (sort === 'favorited' || sort === 'archived') return sql`coalesce(${articleMetadata.updatedAt}, ${articles.createdAt})`;
+  return articles.createdAt;
+}
+
+function getArticleOrderBy(sort: ArticleSortField, order: SortOrder, hasActionTimestamps: boolean) {
+  const expression = getArticleSortExpression(sort, hasActionTimestamps);
+  return order === 'asc' ? asc(expression) : desc(expression);
+}
 
 
 /**
@@ -36,6 +87,9 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
   const category = c.req.query('category');
   const page = parseInt(c.req.query('page') || '1');
   const perPage = parseInt(c.req.query('perPage') || '8');
+  const sort = normalizeArticleSort(view, c.req.query('sort'));
+  const order = normalizeSortOrder(c.req.query('order'));
+  const hasActionTimestamps = await hasMetadataTimestampColumns();
 
   // 游客只能访问 archive 视图
   if (!isAuthenticated(c) && view !== 'archive') {
@@ -95,7 +149,7 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
 
   const data = await baseQuery
     .where(whereCondition)
-    .orderBy(desc(articles.createdAt))
+    .orderBy(getArticleOrderBy(sort, order, hasActionTimestamps), desc(articles.id))
     .limit(perPage)
     .offset((page - 1) * perPage);
 
@@ -109,6 +163,8 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
     total,
     page,
     perPage,
+    sort,
+    order,
     totalPages: Math.ceil(total / perPage),
   });
 });
@@ -200,10 +256,15 @@ articlesRoutes.post('/articles/:id/favorite', requireAuth, async (c) => {
 
   const meta = await ensureMetadata(id);
   const newState = !meta.isFavorited;
+  const now = new Date();
+  const hasActionTimestamps = await hasMetadataTimestampColumns();
+  const updateValues = hasActionTimestamps
+    ? { isFavorited: newState, favoritedAt: newState ? now : null, updatedAt: now }
+    : { isFavorited: newState, updatedAt: now };
 
   const [updated] = await db
     .update(articleMetadata)
-    .set({ isFavorited: newState, updatedAt: new Date() })
+    .set(updateValues)
     .where(eq(articleMetadata.articleId, id))
     .returning();
 
@@ -223,10 +284,15 @@ articlesRoutes.post('/articles/:id/archive', requireAuth, async (c) => {
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
   await ensureMetadata(id);
+  const now = new Date();
+  const hasActionTimestamps = await hasMetadataTimestampColumns();
+  const updateValues = hasActionTimestamps
+    ? { isArchived: true, archivedAt: now, updatedAt: now }
+    : { isArchived: true, updatedAt: now };
 
   const [updated] = await db
     .update(articleMetadata)
-    .set({ isArchived: true, updatedAt: new Date() })
+    .set(updateValues)
     .where(eq(articleMetadata.articleId, id))
     .returning();
 
@@ -247,10 +313,15 @@ articlesRoutes.post('/articles/:id/unarchive', requireAuth, async (c) => {
   const id = parseInt(idParam);
 
   await ensureMetadata(id);
+  const now = new Date();
+  const hasActionTimestamps = await hasMetadataTimestampColumns();
+  const updateValues = hasActionTimestamps
+    ? { isArchived: false, archivedAt: null, updatedAt: now }
+    : { isArchived: false, updatedAt: now };
 
   const [updated] = await db
     .update(articleMetadata)
-    .set({ isArchived: false, updatedAt: new Date() })
+    .set(updateValues)
     .where(eq(articleMetadata.articleId, id))
     .returning();
 

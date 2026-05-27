@@ -7,12 +7,17 @@ import { useToast } from '@/components/ui/Toast';
 import { useArticleContext } from '@/components/providers/ArticleContext';
 import { useAuth } from '@/components/providers/AuthContext';
 import { ArticleList } from '@/components/article/ArticleList';
+import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type ArticleSortOption } from '@/components/article/ArticleSortControl';
 import { api } from '@/lib/api';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
 import type { ArticleListItem } from '@storing/shared';
 
 const PER_PAGE = 18;
+const INBOX_SORT_OPTIONS: ArticleSortOption[] = [
+  { value: 'collected', label: '最新收录' },
+  { value: 'published', label: '最新发布' },
+];
 
 function InboxContentInner() {
   const router = useRouter();
@@ -35,6 +40,8 @@ function InboxContentInner() {
   }, [getBookmark]);
 
   const [page, setPage] = useState(1);
+  const [articleSort, setArticleSort] = useState<ArticleSortKey>('collected');
+  const [articleSortOrder, setArticleSortOrder] = useState<ArticleSortOrder>('desc');
   const [allArticles, setAllArticles] = useState<ArticleListItem[]>([]);
   const [requestTimedOut, setRequestTimedOut] = useState(false);
   const removingIdsRef = useRef<Set<number>>(new Set());
@@ -76,8 +83,8 @@ function InboxContentInner() {
   };
 
   const { data, error, isLoading: dataLoading, isValidating, mutate } = useSWR(
-    isAuthenticated ? `articles:inbox:${page}` : null,
-    () => api.getArticles('inbox', page, undefined, PER_PAGE),
+    isAuthenticated ? `articles:inbox:${page}:${articleSort}:${articleSortOrder}` : null,
+    () => api.getArticles('inbox', page, undefined, PER_PAGE, articleSort, articleSortOrder),
     { revalidateOnFocus: false, errorRetryCount: 1 }
   );
 
@@ -94,7 +101,7 @@ function InboxContentInner() {
         });
       }
     }
-  }, [data, page]);
+  }, [data, page, articleSort, articleSortOrder]);
 
   useEffect(() => {
     if (!dataLoading || page !== 1) {
@@ -111,6 +118,22 @@ function InboxContentInner() {
     removingIdsRef.current.clear();
     void mutate();
   }, [mutate]);
+
+  const handleSortChange = useCallback((sort: ArticleSortKey) => {
+    if (sort === articleSort) return;
+    setArticleSort(sort);
+    setPage(1);
+    removingIdsRef.current.clear();
+    window.scrollTo(0, 0);
+  }, [articleSort]);
+
+  const handleSortOrderChange = useCallback((order: ArticleSortOrder) => {
+    if (order === articleSortOrder) return;
+    setArticleSortOrder(order);
+    setPage(1);
+    removingIdsRef.current.clear();
+    window.scrollTo(0, 0);
+  }, [articleSortOrder]);
 
   useEffect(() => { setMutateFn(refreshList); }, [setMutateFn, refreshList]);
 
@@ -192,51 +215,60 @@ function InboxContentInner() {
       ) : dataLoading && page === 1 ? (
         <div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>
       ) : (
-        <ArticleList
-          articles={allArticles}
-          hasMore={page < totalPages}
-          loadingMore={isValidating && page > 1}
-          onLoadMore={handleLoadMore}
-          emptyTitle="所有文章都已处理完毕"
-          onArticleClick={(id) => openArticle(id)}
-          onToggleFavorite={async (id, e) => {
-            e.stopPropagation();
-            const article = allArticles.find(a => a.id === id);
-            if (!article) return;
+        <>
+          <ArticleSortControl
+            options={INBOX_SORT_OPTIONS}
+            value={articleSort}
+            order={articleSortOrder}
+            onChange={handleSortChange}
+            onOrderChange={handleSortOrderChange}
+          />
+          <ArticleList
+            articles={allArticles}
+            hasMore={page < totalPages}
+            loadingMore={isValidating && page > 1}
+            onLoadMore={handleLoadMore}
+            emptyTitle="所有文章都已处理完毕"
+            onArticleClick={(id) => openArticle(id)}
+            onToggleFavorite={async (id, e) => {
+              e.stopPropagation();
+              const article = allArticles.find(a => a.id === id);
+              if (!article) return;
 
-            // 乐观更新：立即从收件箱移除
-            removingIdsRef.current.add(id);
-            setAllArticles((prev) => prev.filter((a) => a.id !== id));
+              // 乐观更新：立即从收件箱移除
+              removingIdsRef.current.add(id);
+              setAllArticles((prev) => prev.filter((a) => a.id !== id));
 
-            const success = await toggleFavorite(id, false);
-            if (success) {
-              removingIdsRef.current.delete(id);
-              showToast('已收藏');
-            } else {
-              removingIdsRef.current.delete(id);
-              refreshList();
-              showToast('收藏失败，请重试');
-            }
-          }}
-          onArchive={async (id, e) => {
-            e.stopPropagation();
+              const success = await toggleFavorite(id, false);
+              if (success) {
+                removingIdsRef.current.delete(id);
+                showToast('已收藏');
+              } else {
+                removingIdsRef.current.delete(id);
+                refreshList();
+                showToast('收藏失败，请重试');
+              }
+            }}
+            onArchive={async (id, e) => {
+              e.stopPropagation();
 
-            // 乐观更新：立即从收件箱移除
-            removingIdsRef.current.add(id);
-            setAllArticles((prev) => prev.filter((a) => a.id !== id));
+              // 乐观更新：立即从收件箱移除
+              removingIdsRef.current.add(id);
+              setAllArticles((prev) => prev.filter((a) => a.id !== id));
 
-            const success = await archive(id);
-            if (success) {
-              removingIdsRef.current.delete(id);
-              showToast('已归档');
-            } else {
-              removingIdsRef.current.delete(id);
-              refreshList();
-              showToast('归档失败，请重试');
-            }
-          }}
-          highlightId={highlightId}
-        />
+              const success = await archive(id);
+              if (success) {
+                removingIdsRef.current.delete(id);
+                showToast('已归档');
+              } else {
+                removingIdsRef.current.delete(id);
+                refreshList();
+                showToast('归档失败，请重试');
+              }
+            }}
+            highlightId={highlightId}
+          />
+        </>
       )}
     </>
   );
