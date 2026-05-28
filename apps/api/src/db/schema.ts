@@ -47,7 +47,7 @@ export const articleMetadata = pgTable('article_metadata', {
   isArchived: boolean('is_archived').default(false),
   aiSummary: text('ai_summary'),
   aiCategory: text('ai_category'),
-  aiTags: text('ai_tags').array().default([]),
+  aiTags: text('ai_tags').array(),
   contentMd: text('content_md'),
   contentHtml: text('content_html'),
   coverImage: text('cover_image'),
