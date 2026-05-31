@@ -12,7 +12,9 @@
     "@ant-design/icons": "^6.2.2",
     "@storing/shared": "workspace:*",
     "clsx": "^2.1.0",
+    "html2canvas": "^1.4.1",
     "next": "^15.3.0",
+    "qrcode": "^1.5.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "swr": "^2.3.0"
@@ -21,6 +23,7 @@
     "@eslint/eslintrc": "^3.3.5",
     "@tailwindcss/postcss": "^4.1.0",
     "@types/node": "^22.0.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "eslint": "^8.57.1",
