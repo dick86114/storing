@@ -48,8 +48,8 @@ function normalizeSortOrder(order?: string): SortOrder {
 
 function getArticleSortExpression(sort: ArticleSortField, hasActionTimestamps: boolean) {
   if (sort === 'published') return articles.publishTime;
-  if (sort === 'favorited' && hasActionTimestamps) return sql`coalesce(${articleMetadata.favoritedAt}, ${articleMetadata.updatedAt}, ${articles.createdAt})`;
-  if (sort === 'archived' && hasActionTimestamps) return sql`coalesce(${articleMetadata.archivedAt}, ${articleMetadata.updatedAt}, ${articles.createdAt})`;
+  if (sort === 'favorited' && hasActionTimestamps) return sql`coalesce(${articleMetadata.favoritedAt}, ${articles.createdAt})`;
+  if (sort === 'archived' && hasActionTimestamps) return sql`coalesce(${articleMetadata.archivedAt}, ${articles.createdAt})`;
   if (sort === 'favorited' || sort === 'archived') return sql`coalesce(${articleMetadata.updatedAt}, ${articles.createdAt})`;
   return articles.createdAt;
 }
