@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useSWRConfig } from 'swr';
-import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, LinkOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, DeleteOutlined, UpOutlined, DownOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
+import html2canvas from 'html2canvas';
+import QRCode from 'qrcode';
+import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, LinkOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, DeleteOutlined, UpOutlined, DownOutlined, ExclamationCircleOutlined, CloseOutlined } from '@ant-design/icons';
 import { useArticle } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/providers/AuthContext';
@@ -188,6 +190,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
             getScrollPosition={getScrollPosition}
             saveBookmark={saveBookmark}
             onOpenImageGallery={openImageGallery}
+            contentRef={contentRef}
           />
         </div>
         {galleryIndex !== null && (
@@ -234,6 +237,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
         getScrollPosition={getScrollPosition}
         saveBookmark={saveBookmark}
         onOpenImageGallery={openImageGallery}
+        contentRef={contentRef}
       />
       {galleryIndex !== null && (
         <ImageGalleryLightbox
@@ -355,6 +359,12 @@ function ImageGalleryLightbox({
 
 type DeleteConfirmMode = 'metadata' | 'permanent';
 
+type SharePosterState = {
+  imageUrl: string;
+  shareUrl: string;
+  blob: Blob;
+};
+
 const deleteConfirmCopy: Record<DeleteConfirmMode, {
   title: string;
   body: string;
@@ -377,6 +387,395 @@ const deleteConfirmCopy: Record<DeleteConfirmMode, {
     loadingLabel: '彻底删除中…',
   },
 };
+
+function buildArticleShareUrl(article: any, scrollPosition: number) {
+  const currentPath = window.location.pathname;
+  const viewPath = currentPath.includes('/archive')
+    ? '/archive'
+    : currentPath.includes('/favorites')
+      ? '/favorites'
+      : currentPath.includes('/inbox')
+        ? '/inbox'
+        : article.isArchived
+          ? '/archive'
+          : article.isFavorited
+            ? '/favorites'
+            : '/inbox';
+  const url = new URL(viewPath, window.location.origin);
+  url.searchParams.set('article', String(article.id));
+  url.searchParams.set('scroll', String(Math.round(scrollPosition)));
+  url.hash = 'reading-position';
+  return url.toString();
+}
+
+function drawRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+  const safeRadius = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + safeRadius, y);
+  ctx.arcTo(x + width, y, x + width, y + height, safeRadius);
+  ctx.arcTo(x + width, y + height, x, y + height, safeRadius);
+  ctx.arcTo(x, y + height, x, y, safeRadius);
+  ctx.arcTo(x, y, x + width, y, safeRadius);
+  ctx.closePath();
+}
+
+function loadCanvasImage(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = src;
+  });
+}
+
+function getProxiedImageUrl(src: string) {
+  if (!src || src.startsWith('data:') || src.startsWith('blob:')) return src;
+
+  try {
+    const url = new URL(src, window.location.origin);
+    if (url.origin === window.location.origin) return url.toString();
+    const requestedWidth = Math.min(Math.max(Math.ceil(window.innerWidth * (window.devicePixelRatio || 1)), 640), 1920);
+    const allowedWidths = [640, 750, 828, 1080, 1200, 1920, 2048, 3840];
+    const width = allowedWidths.find((value) => value >= requestedWidth) ?? 1920;
+    return `${window.location.origin}/_next/image?url=${encodeURIComponent(url.toString())}&w=${width}&q=85`;
+  } catch {
+    return src;
+  }
+}
+
+function wrapCanvasText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
+  const chars = Array.from(text);
+  const lines: string[] = [];
+  let line = '';
+
+  for (const char of chars) {
+    const nextLine = `${line}${char}`;
+    if (line && ctx.measureText(nextLine).width > maxWidth) {
+      lines.push(line);
+      line = char;
+    } else {
+      line = nextLine;
+    }
+  }
+
+  if (line) lines.push(line);
+  return lines;
+}
+
+function drawWrappedText({
+  ctx,
+  text,
+  x,
+  y,
+  maxWidth,
+  lineHeight,
+  maxLines,
+}: {
+  ctx: CanvasRenderingContext2D;
+  text: string;
+  x: number;
+  y: number;
+  maxWidth: number;
+  lineHeight: number;
+  maxLines: number;
+}) {
+  const lines = wrapCanvasText(ctx, text, maxWidth).slice(0, maxLines);
+  if (lines.length === maxLines && wrapCanvasText(ctx, text, maxWidth).length > maxLines) {
+    let lastLine = lines[maxLines - 1];
+    while (lastLine && ctx.measureText(`${lastLine}...`).width > maxWidth) {
+      lastLine = lastLine.slice(0, -1);
+    }
+    lines[maxLines - 1] = `${lastLine}...`;
+  }
+
+  lines.forEach((line, index) => {
+    ctx.fillText(line, x, y + index * lineHeight);
+  });
+
+  return lines.length * lineHeight;
+}
+
+function applyCaptureStyles(element: HTMLElement) {
+  const tagName = element.tagName.toLowerCase();
+  element.removeAttribute('class');
+  element.removeAttribute('style');
+  element.style.boxSizing = 'border-box';
+  element.style.color = '#1f2933';
+  element.style.borderColor = '#e5e7eb';
+  element.style.boxShadow = 'none';
+  element.style.textShadow = 'none';
+  element.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
+  if (tagName === 'h1' || tagName === 'h2' || tagName === 'h3' || tagName === 'h4') {
+    element.style.margin = '18px 0 10px';
+    element.style.fontWeight = '650';
+    element.style.lineHeight = '1.42';
+    element.style.color = '#111827';
+  }
+  if (tagName === 'h1') element.style.fontSize = '24px';
+  if (tagName === 'h2') element.style.fontSize = '21px';
+  if (tagName === 'h3') element.style.fontSize = '19px';
+
+  if (tagName === 'p' || tagName === 'div') {
+    element.style.lineHeight = '1.75';
+  }
+  if (tagName === 'p') {
+    element.style.margin = '0 0 14px';
+  }
+  if (tagName === 'a') {
+    element.style.color = '#338a55';
+    element.style.textDecoration = 'none';
+  }
+  if (tagName === 'blockquote') {
+    element.style.margin = '14px 0';
+    element.style.padding = '8px 14px';
+    element.style.borderLeft = '3px solid #48a868';
+    element.style.background = '#f3f6f4';
+  }
+  if (tagName === 'ul' || tagName === 'ol') {
+    element.style.margin = '0 0 14px';
+    element.style.paddingLeft = '24px';
+  }
+  if (tagName === 'li') {
+    element.style.margin = '6px 0';
+    element.style.lineHeight = '1.65';
+  }
+  if (tagName === 'pre') {
+    element.style.margin = '14px 0';
+    element.style.padding = '12px';
+    element.style.borderRadius = '8px';
+    element.style.background = '#f3f6f4';
+    element.style.overflow = 'hidden';
+  }
+  if (tagName === 'code') {
+    element.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, monospace';
+    element.style.background = '#f3f6f4';
+    element.style.borderRadius = '4px';
+    element.style.padding = '1px 4px';
+  }
+  if (tagName === 'button') {
+    element.style.border = '0';
+    element.style.background = '#f3f6f4';
+  }
+  if (tagName === 'img') {
+    element.style.display = 'block';
+    element.style.maxWidth = '100%';
+    element.style.height = 'auto';
+    element.style.margin = '12px 0';
+    element.style.borderRadius = '10px';
+    element.style.background = '#ffffff';
+  }
+  if (tagName === 'table') {
+    element.style.width = '100%';
+    element.style.borderCollapse = 'collapse';
+    element.style.margin = '14px 0';
+  }
+  if (tagName === 'td' || tagName === 'th') {
+    element.style.border = '1px solid #e5e7eb';
+    element.style.padding = '8px';
+  }
+}
+
+async function waitForCaptureImages(root: HTMLElement) {
+  const images = Array.from(root.querySelectorAll<HTMLImageElement>('img'));
+  await Promise.all(images.map((image) => new Promise<void>((resolve) => {
+    if (!image.src || image.complete) {
+      resolve();
+      return;
+    }
+    const finish = () => resolve();
+    image.onload = finish;
+    image.onerror = finish;
+  })));
+}
+
+async function createShareCaptureTarget(panel: HTMLDivElement, screenshotHeight: number) {
+  const headerHeight = panel.querySelector('.detail-panel-header')?.getBoundingClientRect().height ?? 0;
+  const captureHeight = Math.max(1, screenshotHeight - headerHeight);
+  const imageSources = Array.from(panel.querySelectorAll<HTMLImageElement>('img')).map((image) => image.currentSrc || image.src);
+  const wrapper = document.createElement('div');
+  wrapper.style.position = 'fixed';
+  wrapper.style.left = '-10000px';
+  wrapper.style.top = '0';
+  wrapper.style.width = `${panel.clientWidth}px`;
+  wrapper.style.height = `${captureHeight}px`;
+  wrapper.style.overflow = 'hidden';
+  wrapper.style.background = '#ffffff';
+  wrapper.style.color = '#1f2933';
+  wrapper.style.font = '17px/1.75 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  wrapper.style.pointerEvents = 'none';
+
+  const clonedPanel = panel.cloneNode(true) as HTMLElement;
+  clonedPanel.querySelectorAll('.detail-panel-header, .detail-panel-footer, .share-poster-overlay, .confirm-dialog-overlay, .detail-more-menu, .detail-more-menu-backdrop').forEach((node) => node.remove());
+  clonedPanel.querySelectorAll<HTMLElement>('*').forEach(applyCaptureStyles);
+  applyCaptureStyles(clonedPanel);
+
+  clonedPanel.style.position = 'absolute';
+  clonedPanel.style.left = '0';
+  clonedPanel.style.top = `-${panel.scrollTop}px`;
+  clonedPanel.style.width = `${panel.clientWidth}px`;
+  clonedPanel.style.minHeight = `${panel.scrollHeight}px`;
+  clonedPanel.style.padding = '0';
+  clonedPanel.style.background = '#ffffff';
+  clonedPanel.style.overflow = 'visible';
+
+  clonedPanel.querySelectorAll<HTMLImageElement>('img').forEach((image, index) => {
+    const source = imageSources[index] || image.getAttribute('src') || '';
+    if (!source) {
+      image.remove();
+      return;
+    }
+    const proxiedSource = getProxiedImageUrl(source);
+    image.removeAttribute('src');
+    image.removeAttribute('srcset');
+    image.removeAttribute('sizes');
+    image.removeAttribute('crossorigin');
+    image.srcset = '';
+    image.sizes = '';
+    image.crossOrigin = 'anonymous';
+    image.src = proxiedSource;
+  });
+
+  wrapper.appendChild(clonedPanel);
+  document.body.appendChild(wrapper);
+  await waitForCaptureImages(wrapper);
+
+  return {
+    element: wrapper,
+    cleanup: () => wrapper.remove(),
+  };
+}
+
+async function createSharePoster({
+  article,
+  shareUrl,
+  panel,
+}: {
+  article: any;
+  shareUrl: string;
+  panel: HTMLDivElement;
+}) {
+  const screenshotHeight = Math.min(panel.clientHeight, 760);
+  const captureTarget = await createShareCaptureTarget(panel, screenshotHeight);
+  let screenshot: HTMLCanvasElement;
+  try {
+    screenshot = await html2canvas(captureTarget.element, {
+      backgroundColor: '#ffffff',
+      height: captureTarget.element.clientHeight,
+      width: captureTarget.element.clientWidth,
+      windowWidth: captureTarget.element.clientWidth,
+      windowHeight: captureTarget.element.clientHeight,
+      logging: false,
+      useCORS: true,
+      scale: Math.min(window.devicePixelRatio || 1, 2),
+    });
+  } finally {
+    captureTarget.cleanup();
+  }
+
+  const qrDataUrl = await QRCode.toDataURL(shareUrl, {
+    width: 220,
+    margin: 1,
+    color: {
+      dark: '#1f2933',
+      light: '#ffffff',
+    },
+  });
+  const qrImage = await loadCanvasImage(qrDataUrl);
+
+  const posterWidth = 1080;
+  const padding = 64;
+  const titleTop = padding;
+  const screenshotWidth = posterWidth - padding * 2;
+  const screenshotInset = 28;
+  const screenshotContentWidth = screenshotWidth - screenshotInset * 2;
+  const screenshotScaledHeight = Math.round(screenshot.height * (screenshotContentWidth / screenshot.width));
+  const qrSize = 188;
+  const footerHeight = 276;
+  const titleBlockHeight = 150;
+  const screenshotTop = titleTop + titleBlockHeight;
+  const posterHeight = screenshotTop + screenshotScaledHeight + footerHeight + padding;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = posterWidth;
+  canvas.height = posterHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas context unavailable');
+
+  const gradient = ctx.createLinearGradient(0, 0, posterWidth, posterHeight);
+  gradient.addColorStop(0, '#f7f1e5');
+  gradient.addColorStop(0.52, '#eef5f1');
+  gradient.addColorStop(1, '#f4f0fb');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, posterWidth, posterHeight);
+
+  ctx.fillStyle = '#1f2933';
+  ctx.font = '650 42px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  drawWrappedText({
+    ctx,
+    text: String(article.title || '未命名文章'),
+    x: padding,
+    y: titleTop + 12,
+    maxWidth: posterWidth - padding * 2,
+    lineHeight: 54,
+    maxLines: 2,
+  });
+
+  ctx.fillStyle = 'rgba(31, 41, 51, 0.54)';
+  ctx.font = '400 24px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  ctx.fillText('当前阅读位置截图', padding, titleTop + 128);
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(31, 41, 51, 0.16)';
+  ctx.shadowBlur = 34;
+  ctx.shadowOffsetY = 18;
+  drawRoundRect(ctx, padding, screenshotTop, screenshotWidth, screenshotScaledHeight, 28);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.clip();
+  ctx.drawImage(screenshot, padding + screenshotInset, screenshotTop, screenshotContentWidth, screenshotScaledHeight);
+  ctx.restore();
+
+  const footerTop = screenshotTop + screenshotScaledHeight + 42;
+  ctx.fillStyle = '#1f2933';
+  ctx.font = '600 34px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  ctx.fillText('今天藏什么', padding, footerTop + 42);
+
+  ctx.fillStyle = 'rgba(31, 41, 51, 0.68)';
+  ctx.font = '400 26px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  ctx.fillText('扫码跳转到这篇文章的当前位置', padding, footerTop + 86);
+
+  ctx.fillStyle = 'rgba(31, 41, 51, 0.82)';
+  ctx.font = '500 30px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  const source = String(article.source || article.author || '未知来源');
+  const clippedSource = source.length > 30 ? `${source.slice(0, 30)}...` : source;
+  ctx.fillText(clippedSource, padding, footerTop + 142, posterWidth - padding * 2 - qrSize - 34);
+
+  const qrX = posterWidth - padding - qrSize;
+  const qrY = footerTop;
+  ctx.save();
+  ctx.shadowColor = 'rgba(31, 41, 51, 0.12)';
+  ctx.shadowBlur = 20;
+  ctx.shadowOffsetY = 8;
+  drawRoundRect(ctx, qrX - 14, qrY - 14, qrSize + 28, qrSize + 28, 24);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.restore();
+  ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((result) => {
+      if (result) resolve(result);
+      else reject(new Error('Poster export failed'));
+    }, 'image/png', 0.96);
+  });
+
+  return {
+    blob,
+    imageUrl: URL.createObjectURL(blob),
+  };
+}
 
 function DeleteConfirmDialog({
   mode,
@@ -445,6 +844,71 @@ function DeleteConfirmDialog({
   );
 }
 
+function SharePosterDialog({
+  imageUrl,
+  onClose,
+  onDownload,
+  onCopyLink,
+  onSystemShare,
+}: {
+  imageUrl: string;
+  onClose: () => void;
+  onDownload: () => void;
+  onCopyLink: () => void;
+  onSystemShare: () => void;
+}) {
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className="share-poster-overlay"
+      role="presentation"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        className="share-poster-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-poster-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="share-poster-header">
+          <div>
+            <h2 id="share-poster-title" className="share-poster-title">分享海报</h2>
+          </div>
+          <button className="share-poster-close" type="button" onClick={onClose} aria-label="关闭分享海报">
+            <CloseOutlined />
+          </button>
+        </div>
+
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="share-poster-preview" src={imageUrl} alt="文章分享海报预览" />
+
+        <div className="share-poster-actions">
+          <button className="share-poster-button share-poster-button--primary" type="button" onClick={onDownload}>
+            保存图片
+          </button>
+          <button className="share-poster-button" type="button" onClick={onSystemShare}>
+            系统分享
+          </button>
+          <button className="share-poster-button" type="button" onClick={onCopyLink}>
+            复制链接
+          </button>
+        </div>
+      </section>
+    </div>,
+    document.body
+  );
+}
+
 // 详情内容组件
 function DetailContent({
   article,
@@ -458,6 +922,7 @@ function DetailContent({
   getScrollPosition,
   saveBookmark,
   onOpenImageGallery,
+  contentRef,
 }: {
   article: any;
   isLoading: boolean;
@@ -470,11 +935,19 @@ function DetailContent({
   getScrollPosition: () => number;
   saveBookmark: (bookmark: { view: 'inbox' | 'archive' | 'favorites'; articleId: number; scrollPosition: number; listScrollPosition?: number; articleTitle?: string; timestamp: number }) => void;
   onOpenImageGallery: (img: HTMLImageElement) => void;
+  contentRef: RefObject<HTMLDivElement | null>;
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [deleteConfirmMode, setDeleteConfirmMode] = useState<DeleteConfirmMode | null>(null);
+  const [sharePoster, setSharePoster] = useState<SharePosterState | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (sharePoster?.imageUrl) URL.revokeObjectURL(sharePoster.imageUrl);
+    };
+  }, [sharePoster?.imageUrl]);
 
   // 保存书签
   const handleSaveBookmark = () => {
@@ -502,43 +975,72 @@ function DetailContent({
   // 分享功能
   async function handleShare() {
     if (!article) return;
-    const shareUrl = (() => {
-      const currentPath = window.location.pathname;
-      const viewPath = currentPath.includes('/archive')
-        ? '/archive'
-        : currentPath.includes('/favorites')
-          ? '/favorites'
-          : currentPath.includes('/inbox')
-            ? '/inbox'
-            : article.isArchived
-              ? '/archive'
-              : article.isFavorited
-                ? '/favorites'
-                : '/inbox';
-      const url = new URL(viewPath, window.location.origin);
-      url.searchParams.set('article', String(article.id));
-      url.searchParams.set('scroll', String(Math.round(getScrollPosition())));
-      url.hash = 'reading-position';
-      return url.toString();
-    })();
+    const panel = contentRef.current;
+    const shareUrl = buildArticleShareUrl(article, getScrollPosition());
 
-    if (navigator.share) {
+    if (!panel) {
+      await navigator.clipboard.writeText(shareUrl);
+      showToast('分享链接已复制');
+      return;
+    }
+
+    setPendingAction('share');
+    try {
+      const poster = await createSharePoster({ article, shareUrl, panel });
+      setSharePoster((current) => {
+        if (current?.imageUrl) URL.revokeObjectURL(current.imageUrl);
+        return {
+          imageUrl: poster.imageUrl,
+          blob: poster.blob,
+          shareUrl,
+        };
+      });
+      showToast('分享海报已生成');
+    } catch (error) {
+      console.error(error);
+      await navigator.clipboard.writeText(shareUrl);
+      showToast('生成海报失败，分享链接已复制');
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function handleSystemSharePoster() {
+    if (!article || !sharePoster) return;
+    const file = new File([sharePoster.blob], `storing-${article.id}-share.png`, { type: 'image/png' });
+
+    if (navigator.canShare?.({ files: [file] }) && navigator.share) {
       try {
         await navigator.share({
           title: article.title,
-          text: `${article.title}\n${shareUrl}`,
-          url: shareUrl,
+          text: '扫码跳转到这篇文章的当前位置',
+          url: sharePoster.shareUrl,
+          files: [file],
         });
       } catch (error) {
         if ((error as DOMException)?.name !== 'AbortError') {
-          await navigator.clipboard.writeText(shareUrl);
-          showToast('分享链接已复制');
+          await navigator.clipboard.writeText(sharePoster.shareUrl);
+          showToast('系统分享失败，链接已复制');
         }
       }
     } else {
-      await navigator.clipboard.writeText(shareUrl);
-      showToast('分享链接已复制');
+      await navigator.clipboard.writeText(sharePoster.shareUrl);
+      showToast('当前浏览器不支持图片分享，链接已复制');
     }
+  }
+
+  async function handleCopyShareUrl() {
+    if (!sharePoster) return;
+    await navigator.clipboard.writeText(sharePoster.shareUrl);
+    showToast('分享链接已复制');
+  }
+
+  function handleDownloadPoster() {
+    if (!article || !sharePoster) return;
+    const link = document.createElement('a');
+    link.href = sharePoster.imageUrl;
+    link.download = `storing-${article.id}-share.png`;
+    link.click();
   }
 
   async function runArticleAction(action: string, task: () => Promise<void>, failureMessage: string) {
@@ -741,6 +1243,16 @@ function DetailContent({
           loading={pendingAction === 'delete' || pendingAction === 'permanent-delete'}
           onCancel={() => setDeleteConfirmMode(null)}
           onConfirm={confirmDeleteArticle}
+        />
+      )}
+
+      {sharePoster && article && (
+        <SharePosterDialog
+          imageUrl={sharePoster.imageUrl}
+          onClose={() => setSharePoster(null)}
+          onDownload={handleDownloadPoster}
+          onCopyLink={handleCopyShareUrl}
+          onSystemShare={handleSystemSharePoster}
         />
       )}
 
@@ -951,7 +1463,7 @@ function DetailContent({
               )}
               <button className="detail-panel-action-btn" onClick={handleShare} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
                 <ShareAltOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
-                <span className="detail-panel-action-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>分享</span>
+                <span className="detail-panel-action-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{pendingAction === 'share' ? '生成中' : '分享'}</span>
               </button>
             </div>
           </footer>
