@@ -625,7 +625,7 @@ h4 {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 200;
+  z-index: 1800;
   background: color-mix(in oklch, var(--bg) 60%, transparent);
   opacity: 1;
   pointer-events: auto;
@@ -2994,6 +2994,13 @@ body {
   animation: detailSlideIn 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+body.detail-panel-open .app-top-nav,
+body.detail-panel-open .bottom-tab-bar {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
 .mobile-detail-panel {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -3091,21 +3098,130 @@ body {
   border-left-color: var(--glass-border) !important;
   background:
     linear-gradient(145deg, color-mix(in oklch, white 56%, transparent), color-mix(in oklch, var(--card-bg) 80%, var(--accent-soft))) !important;
-  box-shadow: var(--shadow-lg);
+  box-shadow:
+    inset 1px 0 0 color-mix(in oklch, white 44%, transparent),
+    var(--shadow-lg);
   backdrop-filter: blur(24px) saturate(1.22);
   -webkit-backdrop-filter: blur(24px) saturate(1.22);
 }
 
 [data-color-scheme='aurora'] .detail-panel-header,
 [data-color-scheme='aurora'] .detail-panel-footer {
-  background: color-mix(in oklch, white 56%, transparent) !important;
+  background:
+    linear-gradient(180deg, color-mix(in oklch, white 90%, transparent), color-mix(in oklch, var(--surface) 78%, transparent)),
+    radial-gradient(circle at 90% 0%, color-mix(in oklch, var(--accent-alt) 7%, transparent), transparent 44%) !important;
   border-color: var(--glass-border) !important;
-  backdrop-filter: blur(22px) saturate(1.25);
-  -webkit-backdrop-filter: blur(22px) saturate(1.25);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 76%, transparent),
+    0 8px 24px color-mix(in oklch, var(--fg) 6%, transparent);
+  backdrop-filter: blur(28px) saturate(1.22);
+  -webkit-backdrop-filter: blur(28px) saturate(1.22);
+}
+
+[data-color-scheme='aurora'] .detail-panel-footer {
+  background:
+    linear-gradient(0deg, color-mix(in oklch, white 90%, transparent), color-mix(in oklch, var(--surface) 78%, transparent)),
+    radial-gradient(circle at 8% 100%, color-mix(in oklch, var(--accent) 7%, transparent), transparent 44%) !important;
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 72%, transparent),
+    0 -10px 26px color-mix(in oklch, var(--fg) 7%, transparent);
+}
+
+[data-color-scheme='aurora'] .detail-panel-close-btn,
+[data-color-scheme='aurora'] .detail-panel-header .detail-panel-action-btn,
+[data-color-scheme='aurora'] .detail-panel-footer .bookmark-button,
+[data-color-scheme='aurora'] .detail-panel-footer .detail-panel-action-btn {
+  background: transparent !important;
+  border: none !important;
+  color: color-mix(in oklch, var(--fg-title) 88%, black) !important;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-color-scheme='aurora'] .detail-panel-close-btn,
+[data-color-scheme='aurora'] .detail-panel-header .detail-panel-action-btn {
+  background: color-mix(in oklch, white 30%, transparent) !important;
+  border-radius: 999px !important;
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 42%, transparent);
+}
+
+[data-color-scheme='aurora'] .detail-panel-footer .bookmark-button .bookmark-icon,
+[data-color-scheme='aurora'] .detail-panel-footer .detail-panel-action-btn .anticon {
+  color: color-mix(in oklch, var(--fg-title) 88%, black) !important;
+}
+
+[data-color-scheme='aurora'] .detail-panel-footer .bookmark-button .bookmark-icon svg[fill='none'] {
+  stroke: color-mix(in oklch, var(--fg-title) 88%, black) !important;
+}
+
+[data-color-scheme='aurora'] .detail-panel-footer .bookmark-button .bookmark-icon svg:not([fill='none']),
+[data-color-scheme='aurora'] .detail-panel-footer .detail-panel-action-btn.favorited .anticon {
+  color: var(--accent) !important;
+  fill: var(--accent) !important;
+}
+
+[data-color-scheme='aurora'] .detail-panel-footer .detail-panel-action-label,
+[data-color-scheme='aurora'] .detail-panel-footer .bookmark-label {
+  color: color-mix(in oklch, var(--fg) 76%, black) !important;
+  font-weight: 540 !important;
+  text-shadow: 0 1px 0 color-mix(in oklch, white 46%, transparent);
+}
+
+[data-color-scheme='aurora'] .detail-panel-footer a {
+  color: color-mix(in oklch, var(--accent) 78%, var(--fg-title)) !important;
+  font-weight: 620;
+  text-shadow: 0 1px 0 color-mix(in oklch, white 42%, transparent);
 }
 
 [data-color-scheme='aurora'] .article-content-wrap {
-  color: var(--fg);
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in oklch, var(--accent) 12%, transparent), transparent 38%),
+    radial-gradient(circle at 96% 28%, color-mix(in oklch, var(--accent-alt) 12%, transparent), transparent 34%),
+    linear-gradient(180deg, color-mix(in oklch, white 42%, transparent), color-mix(in oklch, white 28%, transparent));
+  color: color-mix(in oklch, var(--fg) 86%, black);
+  border-top: 1px solid color-mix(in oklch, white 34%, transparent);
+  border-bottom: 1px solid color-mix(in oklch, white 26%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 48%, transparent),
+    inset 0 0 44px color-mix(in oklch, white 14%, transparent);
+  backdrop-filter: blur(14px) saturate(1.12);
+  -webkit-backdrop-filter: blur(14px) saturate(1.12);
+}
+
+[data-color-scheme='aurora'] .detail-panel-content {
+  margin-top: 10px;
+  margin-bottom: 8px;
+  border: 1px solid color-mix(in oklch, white 38%, transparent);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at 100% 4%, color-mix(in oklch, var(--accent-soft) 20%, transparent), transparent 32%),
+    linear-gradient(145deg, color-mix(in oklch, white 34%, transparent), color-mix(in oklch, var(--accent-soft) 16%, transparent));
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 50%, transparent),
+    0 10px 28px color-mix(in oklch, var(--fg) 5%, transparent);
+  backdrop-filter: blur(12px) saturate(1.12);
+  -webkit-backdrop-filter: blur(12px) saturate(1.12);
+}
+
+[data-color-scheme='aurora'] .article-body {
+  color: color-mix(in oklch, var(--fg) 88%, black) !important;
+  text-shadow: 0 1px 0 color-mix(in oklch, white 34%, transparent);
+}
+
+[data-color-scheme='aurora'] .article-body * {
+  background-color: transparent !important;
+}
+
+[data-color-scheme='aurora'] .article-body p,
+[data-color-scheme='aurora'] .article-body span,
+[data-color-scheme='aurora'] .article-body div,
+[data-color-scheme='aurora'] .article-body li {
+  color: color-mix(in oklch, var(--fg) 82%, black) !important;
+}
+
+[data-color-scheme='aurora'] .article-body img {
+  box-shadow: 0 12px 30px color-mix(in oklch, var(--fg) 10%, transparent);
 }
 
 [data-color-scheme='aurora'] .ai-summary-block,
