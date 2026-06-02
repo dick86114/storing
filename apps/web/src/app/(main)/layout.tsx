@@ -95,7 +95,7 @@ function MainContent({ children }: { children: ReactNode }) {
         <>
           <DesktopTopNav onSearchOpen={() => setSearchOpen(true)} counts={counts} activeIndex={currentTabIndex} onTabChange={setCurrentTabIndex} />
           <main className="app-main desktop-main" style={{ minHeight: 'calc(100vh - 56px)', padding: '24px 0', background: 'var(--bg)' }}>
-            <div style={{ margin: '0 auto', padding: '0 24px' }}>
+            <div className="desktop-main-shell" style={{ margin: '0 auto', padding: '0 24px' }}>
               {children}
             </div>
           </main>

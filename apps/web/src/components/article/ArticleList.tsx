@@ -61,7 +61,7 @@ export function ArticleList({
     <>
       {/* 响应式网格布局 */}
       <div
-        className="article-grid"
+        className="article-grid article-stream"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
