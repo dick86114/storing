@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, FieldTimeOutlined } from '@ant-design/icons';
+import { MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, FieldTimeOutlined, RobotOutlined } from '@ant-design/icons';
 import { DateText } from '@/lib/formatDate';
 import type { ArticleListItem } from '@storing/shared';
 
@@ -18,6 +18,8 @@ interface WechatArticleCardProps {
 export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchive, showMenu = true, highlight }: WechatArticleCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuWrapRef = useRef<HTMLDivElement>(null);
+  const tags = article.aiTags?.slice(0, 3) ?? [];
+  const summary = article.summary?.trim();
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -66,9 +68,10 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
       }}
     >
       {/* 内容区域 */}
-      <div style={{ padding: '12px 16px' }}>
+      <div className="article-card-inner" style={{ padding: '12px 16px' }}>
+        <div className="article-card-main">
         {/* 第一行：标题 + 三点菜单 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+        <div className="article-card-heading" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
           <div
             className="article-card-title"
             title={article.title}
@@ -185,6 +188,25 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
               )}
             </div>
           )}
+        </div>
+
+        <div className="article-card-insight" aria-label="AI 摘要">
+          <span className="article-card-insight-icon" aria-hidden="true">
+            <RobotOutlined />
+          </span>
+          <span className="article-card-insight-text">
+            {summary || 'AI 摘要生成中，稍后会把重点线索整理到这里。'}
+          </span>
+        </div>
+
+        {(tags.length > 0 || article.aiCategory) && (
+          <div className="article-card-tags">
+            {article.aiCategory && <span className="article-card-tag">{article.aiCategory}</span>}
+            {tags.map((tag) => (
+              <span key={tag} className="article-card-tag">{tag}</span>
+            ))}
+          </div>
+        )}
         </div>
 
         {/* 第二行：封面图 */}
