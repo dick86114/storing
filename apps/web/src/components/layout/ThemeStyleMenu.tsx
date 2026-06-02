@@ -2,11 +2,12 @@
 
 import { useTheme, type ColorScheme } from '@/components/providers/ThemeProvider';
 
-type ThemeStyleIconType = 'wechat' | 'glass' | 'magazine' | 'xianxia';
+type ThemeStyleIconType = 'wechat' | 'glass' | 'aurora' | 'magazine' | 'xianxia';
 
 const styleOptions: Array<{ key: ColorScheme; label: string; description: string; icon: ThemeStyleIconType }> = [
   { key: 'wechat', label: '微信', description: '清爽实用', icon: 'wechat' },
   { key: 'glass', label: '玻璃', description: '通透柔和', icon: 'glass' },
+  { key: 'aurora', label: '极光', description: '柔彩晶窗', icon: 'aurora' },
   { key: 'magazine', label: '杂志', description: '纸感阅读', icon: 'magazine' },
   { key: 'xianxia', label: '修仙', description: '仙雾灵卷', icon: 'xianxia' },
 ];
@@ -79,6 +80,19 @@ function ThemeStyleIcon({ type, active }: { type: ThemeStyleIconType; active: bo
       <path d="M11 22h6" />
       <path d="M22 6v20" />
     </svg>
+    );
+  }
+
+  if (type === 'aurora') {
+    return (
+      <svg className="theme-style-icon theme-style-icon--aurora" data-active={active} viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="6" y="7" width="20" height="18" rx="6" />
+        <path d="M10 18c3.2-5.6 6.3-5.6 9.5 0 1.2 2 2.2 2.5 3.5 1.4" />
+        <path d="M10 13.2h3.8" />
+        <path d="M18.2 13.2H22" />
+        <circle cx="11.2" cy="21.2" r="1" />
+        <circle cx="20.8" cy="10.8" r="1" />
+      </svg>
     );
   }
 
