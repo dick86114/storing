@@ -4361,6 +4361,305 @@ body.detail-panel-open .bottom-tab-bar {
   box-shadow: var(--shadow-sm);
 }
 
+/* Magazine refinement: modern editorial rhythm, cool paper, and quiet masthead accents. */
+[data-color-scheme='magazine'][data-theme='light'],
+[data-color-scheme='magazine']:not([data-theme='dark']) {
+  --bg: oklch(96.6% 0.006 250);
+  --card-bg: oklch(99% 0.003 250);
+  --nav-bg: color-mix(in oklch, var(--surface) 88%, transparent);
+  --surface: oklch(99.3% 0.003 250);
+  --surface-alt: oklch(90.5% 0.006 250);
+  --fg: oklch(17% 0.008 255);
+  --fg-title: oklch(9.5% 0.006 255);
+  --text-secondary: oklch(30% 0.008 255);
+  --muted: oklch(48% 0.006 255);
+  --border: oklch(73% 0.006 250);
+  --divider: oklch(84% 0.005 250);
+  --accent: oklch(55% 0.17 27);
+  --accent-alt: oklch(44% 0.09 255);
+  --accent-soft: color-mix(in oklch, var(--accent) 10%, transparent);
+  --tag-bg: oklch(93.8% 0.005 250);
+  --glass: color-mix(in oklch, var(--surface) 92%, transparent);
+  --reading-bg: color-mix(in oklch, var(--surface) 96%, var(--bg));
+  --glass-border: color-mix(in oklch, var(--fg-title) 16%, transparent);
+  --shadow-sm: 0 1px 0 color-mix(in oklch, var(--fg-title) 8%, transparent), 0 10px 22px color-mix(in oklch, var(--fg-title) 5%, transparent);
+  --shadow-md: 0 18px 38px color-mix(in oklch, var(--fg-title) 9%, transparent);
+  --shadow-lg: 0 28px 68px color-mix(in oklch, var(--fg-title) 14%, transparent);
+  --radius: 2px;
+  --radius-lg: 3px;
+  --radius-sm: 2px;
+}
+
+[data-color-scheme='magazine'][data-theme='dark'] {
+  --bg: oklch(17% 0.014 260);
+  --card-bg: oklch(22% 0.013 260);
+  --nav-bg: color-mix(in oklch, oklch(21% 0.014 260) 88%, transparent);
+  --surface: oklch(24.5% 0.013 260);
+  --surface-alt: oklch(30% 0.014 260);
+  --fg: oklch(91% 0.006 250);
+  --fg-title: oklch(97% 0.004 250);
+  --text-secondary: oklch(80% 0.006 250);
+  --muted: oklch(66% 0.008 250);
+  --border: oklch(39% 0.011 260);
+  --divider: oklch(32% 0.01 260);
+  --accent: oklch(66% 0.16 27);
+  --accent-alt: oklch(74% 0.07 255);
+  --accent-soft: color-mix(in oklch, var(--accent) 15%, transparent);
+  --tag-bg: oklch(28.5% 0.012 260);
+  --glass: color-mix(in oklch, var(--surface) 90%, transparent);
+  --reading-bg: color-mix(in oklch, var(--surface) 96%, var(--bg));
+  --glass-border: color-mix(in oklch, white 16%, transparent);
+  --shadow-sm: 0 1px 0 color-mix(in oklch, white 7%, transparent), 0 12px 28px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 18px 44px rgba(0, 0, 0, 0.34);
+  --shadow-lg: 0 28px 72px rgba(0, 0, 0, 0.48);
+}
+
+[data-color-scheme='magazine'][data-theme='light'] body::before,
+[data-color-scheme='magazine']:not([data-theme='dark']) body::before {
+  opacity: 0.16;
+  background-image:
+    radial-gradient(circle at 18px 18px, color-mix(in oklch, var(--fg-title) 7%, transparent) 0 0.55px, transparent 0.9px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='paper'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.48' numOctaves='3' seed='21' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0.08 0 0 0 0.82 0 0.08 0 0 0.84 0 0 0.08 0 0.87 0 0 0 0.18 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23paper)'/%3E%3C/svg%3E");
+  background-size: 36px 36px, 180px 180px;
+}
+
+[data-color-scheme='magazine'][data-theme='dark'] body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.18;
+  background-image:
+    radial-gradient(circle at 20px 20px, color-mix(in oklch, white 9%, transparent) 0 0.55px, transparent 0.95px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='paper'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.48' numOctaves='3' seed='22' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0.05 0 0 0 0.10 0 0.05 0 0 0.11 0 0 0.07 0 0.14 0 0 0 0.24 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23paper)'/%3E%3C/svg%3E");
+  background-size: 40px 40px, 180px 180px;
+}
+
+[data-color-scheme='magazine'] body::after {
+  opacity: 0.28;
+  background:
+    radial-gradient(ellipse at 18% 0%, color-mix(in oklch, var(--accent) 6%, transparent), transparent 34rem),
+    radial-gradient(ellipse at 92% 6%, color-mix(in oklch, var(--accent-alt) 7%, transparent), transparent 30rem);
+}
+
+[data-color-scheme='magazine'] .app-top-nav,
+[data-color-scheme='magazine'] .bottom-tab-bar {
+  border-color: color-mix(in oklch, var(--fg-title) 14%, var(--divider)) !important;
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--surface) 94%, transparent), var(--nav-bg)) !important;
+  backdrop-filter: blur(14px) saturate(1.02);
+  -webkit-backdrop-filter: blur(14px) saturate(1.02);
+  box-shadow:
+    inset 0 -1px 0 color-mix(in oklch, var(--fg-title) 10%, transparent),
+    0 12px 30px color-mix(in oklch, var(--fg-title) 7%, transparent);
+}
+
+[data-color-scheme='magazine'] .app-brand-title {
+  font-size: 18px;
+  font-weight: 720;
+  letter-spacing: 0.015em;
+}
+
+[data-color-scheme='magazine'] .top-tab-button,
+[data-color-scheme='magazine'] .bottom-tab-button,
+[data-color-scheme='magazine'] .article-sort-trigger,
+[data-color-scheme='magazine'] .article-sort-order-button,
+[data-color-scheme='magazine'] .source-pill,
+[data-color-scheme='magazine'] .source-sort-button {
+  border-radius: 3px !important;
+  border-color: color-mix(in oklch, var(--fg-title) 16%, var(--divider)) !important;
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--surface) 94%, transparent), color-mix(in oklch, var(--tag-bg) 82%, transparent)) !important;
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 24%, transparent);
+  font-family: var(--font-meta);
+  letter-spacing: 0.02em;
+}
+
+[data-color-scheme='magazine'] .top-tab-button.active,
+[data-color-scheme='magazine'] .bottom-tab-button.active,
+[data-color-scheme='magazine'] .source-pill.active,
+[data-color-scheme='magazine'] .source-sort-button.active {
+  color: var(--fg-title) !important;
+  border-color: color-mix(in oklch, var(--accent) 44%, var(--divider)) !important;
+  background:
+    linear-gradient(90deg, color-mix(in oklch, var(--accent) 14%, transparent), transparent 48%),
+    linear-gradient(180deg, color-mix(in oklch, var(--surface) 98%, transparent), var(--tag-bg)) !important;
+  box-shadow:
+    inset 3px 0 0 var(--accent),
+    inset 0 1px 0 color-mix(in oklch, white 24%, transparent),
+    var(--shadow-sm);
+}
+
+[data-color-scheme='magazine'] .article-card {
+  border-width: 1px;
+  border-color: color-mix(in oklch, var(--fg-title) 18%, var(--divider));
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--surface) 98%, transparent), var(--card-bg)) !important;
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 32%, transparent),
+    var(--shadow-sm);
+}
+
+[data-color-scheme='magazine'] .wechat-article-card > .article-card-inner {
+  gap: 14px;
+}
+
+[data-color-scheme='magazine'] .article-card::before {
+  width: 100%;
+  min-width: 0;
+  height: 3px;
+  background:
+    linear-gradient(90deg, var(--fg-title) 0 16%, transparent 16% 20%, var(--accent) 20% 42%, transparent 42% 46%, color-mix(in oklch, var(--accent-alt) 68%, var(--accent)) 46% 58%, transparent 58%);
+  opacity: 0.7;
+  transform: none;
+}
+
+[data-color-scheme='magazine'] .article-card::after {
+  background:
+    linear-gradient(135deg, transparent calc(100% - 22px), color-mix(in oklch, var(--divider) 74%, transparent) calc(100% - 21px), color-mix(in oklch, var(--surface-alt) 74%, transparent) calc(100% - 1px)),
+    repeating-linear-gradient(0deg, color-mix(in oklch, var(--fg-title) 2%, transparent) 0 1px, transparent 1px 13px);
+  background-size: auto, auto;
+  opacity: 0.34;
+}
+
+[data-color-scheme='magazine'] .article-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklch, var(--accent) 46%, var(--border));
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 30%, transparent),
+    0 18px 42px color-mix(in oklch, var(--fg-title) 12%, transparent);
+}
+
+[data-color-scheme='magazine'] .article-card-title {
+  font-size: 18px !important;
+  line-height: 1.28 !important;
+  letter-spacing: 0.002em !important;
+}
+
+[data-color-scheme='magazine'] .article-card-insight,
+[data-color-scheme='magazine'] .article-card-footer,
+[data-color-scheme='magazine'] .article-card-tags {
+  color: color-mix(in oklch, var(--muted) 86%, var(--fg-title)) !important;
+}
+
+[data-color-scheme='magazine'] .article-card-insight {
+  padding-top: 2px;
+  border-top: 1px solid color-mix(in oklch, var(--fg-title) 10%, transparent);
+}
+
+[data-color-scheme='magazine'] .article-card-tag {
+  border: 1px solid color-mix(in oklch, var(--fg-title) 12%, var(--divider));
+  border-radius: 2px !important;
+  background: color-mix(in oklch, var(--surface) 72%, var(--tag-bg)) !important;
+  color: color-mix(in oklch, var(--fg-title) 72%, var(--muted)) !important;
+  font-family: var(--font-meta);
+  letter-spacing: 0.01em;
+}
+
+[data-color-scheme='magazine'] .article-card-cover {
+  border-radius: 2px;
+  filter: saturate(0.9) contrast(1.08);
+  box-shadow:
+    0 1px 0 color-mix(in oklch, white 34%, transparent),
+    0 10px 24px color-mix(in oklch, var(--fg-title) 10%, transparent);
+}
+
+[data-color-scheme='magazine'] .detail-panel {
+  border-left: 1px solid color-mix(in oklch, var(--fg-title) 20%, var(--divider)) !important;
+  background:
+    radial-gradient(ellipse at 24% 0%, color-mix(in oklch, var(--accent-alt) 5%, transparent), transparent 34rem),
+    linear-gradient(180deg, color-mix(in oklch, var(--surface) 98%, transparent), var(--reading-bg)) !important;
+  background-size: auto !important;
+}
+
+[data-color-scheme='magazine'] .detail-panel-title {
+  margin-top: 8px;
+  padding-bottom: 18px;
+  border-bottom: 3px double color-mix(in oklch, var(--fg-title) 84%, var(--accent));
+  font-size: clamp(28px, 3vw, 42px) !important;
+  line-height: 1.08 !important;
+  text-wrap: balance;
+}
+
+[data-color-scheme='magazine'] .detail-panel-meta,
+[data-color-scheme='magazine'] .detail-panel-tags {
+  color: color-mix(in oklch, var(--muted) 86%, var(--fg-title));
+}
+
+[data-color-scheme='magazine'] .ai-summary-block {
+  margin: 14px 16px !important;
+  border-left: 5px solid var(--accent);
+  background:
+    linear-gradient(90deg, color-mix(in oklch, var(--accent) 12%, transparent), transparent 46%),
+    linear-gradient(180deg, color-mix(in oklch, var(--surface) 94%, transparent), var(--tag-bg)) !important;
+}
+
+[data-color-scheme='magazine'] .article-body {
+  color: var(--text-secondary);
+  font-size: clamp(17px, 1.2vw, 19px);
+  line-height: 1.9;
+}
+
+[data-color-scheme='magazine'] .article-body > p:first-of-type::first-letter {
+  float: left;
+  margin: 0.08em 0.16em 0 0;
+  color: var(--fg-title);
+  font-family: var(--font-display);
+  font-size: 3.8em;
+  line-height: 0.82;
+}
+
+[data-color-scheme='magazine'] .article-body blockquote {
+  margin: 1.35em 0;
+  padding: 18px 22px;
+  border-left-width: 5px;
+  background:
+    linear-gradient(90deg, color-mix(in oklch, var(--accent) 12%, transparent), transparent 58%),
+    color-mix(in oklch, var(--tag-bg) 78%, transparent);
+  font-size: 1.08em;
+  line-height: 1.62;
+}
+
+[data-color-scheme='magazine'] .source-sidebar {
+  background:
+    radial-gradient(ellipse at 12% 0%, color-mix(in oklch, var(--accent) 5%, transparent), transparent 24rem),
+    linear-gradient(180deg, color-mix(in oklch, var(--surface) 78%, transparent), color-mix(in oklch, var(--tag-bg) 72%, transparent));
+  background-size: auto;
+}
+
+[data-color-scheme='magazine'] .source-sidebar-item.active {
+  background:
+    linear-gradient(90deg, color-mix(in oklch, var(--accent) 16%, transparent), transparent 58%) !important;
+  box-shadow:
+    inset 4px 0 0 var(--accent),
+    inset 0 -1px 0 color-mix(in oklch, var(--fg-title) 10%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-color-scheme='magazine'] .article-card:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  [data-color-scheme='magazine'] .article-card-title {
+    font-size: 20px !important;
+    line-height: 1.24 !important;
+  }
+
+  [data-color-scheme='magazine'] .detail-panel-title {
+    font-size: 28px !important;
+  }
+
+  [data-color-scheme='magazine'] .article-body > p:first-of-type::first-letter {
+    float: none;
+    margin: 0;
+    font-size: inherit;
+    line-height: inherit;
+  }
+}
+
 [data-color-scheme='xianxia'] .detail-panel-overlay {
   background:
     radial-gradient(circle at 22% 10%, var(--gold-glow), transparent 30rem),
