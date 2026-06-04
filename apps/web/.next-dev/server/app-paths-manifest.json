@@ -1,4 +1,3 @@
 {
-  "/(main)/inbox/page": "app/(main)/inbox/page.js",
   "/(main)/archive/page": "app/(main)/archive/page.js"
 }
