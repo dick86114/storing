@@ -22,10 +22,23 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [resolved, setResolved] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sharedTheme = params.get('theme') as ThemeMode | null;
+    const sharedScheme = params.get('scheme') || params.get('style');
     const savedTheme = localStorage.getItem('theme') as ThemeMode | null;
     const savedScheme = localStorage.getItem('colorScheme');
-    if (savedTheme) setThemeState(savedTheme);
-    if (savedScheme === 'wechat' || savedScheme === 'glass' || savedScheme === 'aurora' || savedScheme === 'magazine' || savedScheme === 'xianxia') {
+
+    if (sharedTheme === 'light' || sharedTheme === 'dark' || sharedTheme === 'system') {
+      setThemeState(sharedTheme);
+      localStorage.setItem('theme', sharedTheme);
+    } else if (savedTheme) {
+      setThemeState(savedTheme);
+    }
+
+    if (sharedScheme === 'wechat' || sharedScheme === 'glass' || sharedScheme === 'aurora' || sharedScheme === 'magazine' || sharedScheme === 'xianxia') {
+      setColorSchemeState(sharedScheme);
+      localStorage.setItem('colorScheme', sharedScheme);
+    } else if (savedScheme === 'wechat' || savedScheme === 'glass' || savedScheme === 'aurora' || savedScheme === 'magazine' || savedScheme === 'xianxia') {
       setColorSchemeState(savedScheme);
     } else if (savedScheme) {
       // 旧主题（default/spring/summer/autumn/winter 等）统一迁移到微信主题。

@@ -13,6 +13,7 @@ import { DateText } from '@/lib/formatDate';
 import { api } from '@/lib/api';
 import { useBookmark } from '@/hooks/useBookmark';
 import { BookmarkButton } from '@/components/ui/BookmarkButton';
+import { useTheme, type ColorScheme } from '@/components/providers/ThemeProvider';
 
 interface WechatDetailPanelProps {
   articleId: number | null;
@@ -365,6 +366,122 @@ type SharePosterState = {
   blob: Blob;
 };
 
+type ShareThemeSnapshot = {
+  mode: 'light' | 'dark';
+  scheme: ColorScheme;
+  colors?: ShareThemeColors;
+};
+
+type ShareThemeColors = {
+  bg: string;
+  surface: string;
+  surfaceAlt: string;
+  cardBg: string;
+  readingBg: string;
+  fgTitle: string;
+  fg: string;
+  muted: string;
+  border: string;
+  glassBorder: string;
+  accent: string;
+  accentAlt: string;
+};
+
+type SharePosterPalette = {
+  backgroundStops: [number, string][];
+  aurora?: Array<{ x: number; y: number; radius: number; color: string }>;
+  title: string;
+  muted: string;
+  body: string;
+  border: string;
+  card: string;
+  cardInner: string;
+  screenshotBackground: string;
+  accent: string;
+  qrDark: string;
+  qrLight: string;
+  shadow: string;
+  label: string;
+};
+
+function resolveCssColor(value: string, fallback: string) {
+  if (!value) return fallback;
+  const probe = document.createElement('span');
+  probe.style.position = 'fixed';
+  probe.style.left = '-10000px';
+  probe.style.top = '0';
+  probe.style.color = fallback;
+  probe.style.color = value;
+  document.body.appendChild(probe);
+  const color = normalizeCanvasColor(getComputedStyle(probe).color || fallback);
+  probe.remove();
+  return color;
+}
+
+function normalizeCanvasColor(color: string) {
+  const trimmed = color.trim();
+  if (!trimmed.startsWith('oklch(')) return trimmed;
+
+  const match = trimmed.match(/^oklch\(\s*([\d.]+%?)\s+([\d.]+)\s+([\d.]+)(?:deg)?(?:\s*\/\s*([\d.]+%?))?\s*\)$/i);
+  if (!match) return trimmed;
+
+  const l = match[1].endsWith('%') ? Number(match[1].slice(0, -1)) / 100 : Number(match[1]);
+  const c = Number(match[2]);
+  const h = Number(match[3]) * Math.PI / 180;
+  const alphaRaw = match[4];
+  const alpha = alphaRaw
+    ? alphaRaw.endsWith('%')
+      ? Number(alphaRaw.slice(0, -1)) / 100
+      : Number(alphaRaw)
+    : 1;
+
+  const a = c * Math.cos(h);
+  const b = c * Math.sin(h);
+  const lPrime = l + 0.3963377774 * a + 0.2158037573 * b;
+  const mPrime = l - 0.1055613458 * a - 0.0638541728 * b;
+  const sPrime = l - 0.0894841775 * a - 1.2914855480 * b;
+  const l3 = lPrime ** 3;
+  const m3 = mPrime ** 3;
+  const s3 = sPrime ** 3;
+  const linearR = 4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3;
+  const linearG = -1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3;
+  const linearB = -0.0041960863 * l3 - 0.7034186147 * m3 + 1.7076147010 * s3;
+  const toSrgb = (value: number) => {
+    const encoded = value <= 0.0031308 ? 12.92 * value : 1.055 * (value ** (1 / 2.4)) - 0.055;
+    return Math.round(Math.min(1, Math.max(0, encoded)) * 255);
+  };
+  const r = toSrgb(linearR);
+  const g = toSrgb(linearG);
+  const blue = toSrgb(linearB);
+  const safeAlpha = Math.min(1, Math.max(0, Number.isFinite(alpha) ? alpha : 1));
+
+  return safeAlpha < 1 ? `rgba(${r}, ${g}, ${blue}, ${safeAlpha})` : `rgb(${r}, ${g}, ${blue})`;
+}
+
+function readCurrentShareTheme(mode: 'light' | 'dark', scheme: ColorScheme): ShareThemeSnapshot {
+  const styles = getComputedStyle(document.documentElement);
+  const cssVar = (name: string, fallback: string) => resolveCssColor(styles.getPropertyValue(name).trim(), fallback);
+
+  return {
+    mode,
+    scheme,
+    colors: {
+      bg: cssVar('--bg', mode === 'dark' ? '#172033' : '#f7faf7'),
+      surface: cssVar('--surface', mode === 'dark' ? '#1f2937' : '#ffffff'),
+      surfaceAlt: cssVar('--surface-alt', mode === 'dark' ? '#263446' : '#eef5f1'),
+      cardBg: cssVar('--card-bg', mode === 'dark' ? '#1f2937' : '#ffffff'),
+      readingBg: cssVar('--reading-bg', mode === 'dark' ? '#182333' : '#ffffff'),
+      fgTitle: cssVar('--fg-title', mode === 'dark' ? '#f8fafc' : '#111827'),
+      fg: cssVar('--fg', mode === 'dark' ? '#e5e7eb' : '#1f2937'),
+      muted: cssVar('--muted', mode === 'dark' ? '#a8b3c2' : '#667085'),
+      border: cssVar('--border', mode === 'dark' ? '#475569' : '#d0d7de'),
+      glassBorder: cssVar('--glass-border', mode === 'dark' ? 'rgba(255, 255, 255, 0.24)' : 'rgba(255, 255, 255, 0.72)'),
+      accent: cssVar('--accent', mode === 'dark' ? '#5eead4' : '#14b8a6'),
+      accentAlt: cssVar('--accent-alt', mode === 'dark' ? '#a78bfa' : '#8b5cf6'),
+    },
+  };
+}
+
 const deleteConfirmCopy: Record<DeleteConfirmMode, {
   title: string;
   body: string;
@@ -388,7 +505,7 @@ const deleteConfirmCopy: Record<DeleteConfirmMode, {
   },
 };
 
-function buildArticleShareUrl(article: any, scrollPosition: number) {
+function buildArticleShareUrl(article: any, scrollPosition: number, theme: ShareThemeSnapshot) {
   const currentPath = window.location.pathname;
   const viewPath = currentPath.includes('/archive')
     ? '/archive'
@@ -404,8 +521,269 @@ function buildArticleShareUrl(article: any, scrollPosition: number) {
   const url = new URL(viewPath, window.location.origin);
   url.searchParams.set('article', String(article.id));
   url.searchParams.set('scroll', String(Math.round(scrollPosition)));
+  url.searchParams.set('theme', theme.mode);
+  url.searchParams.set('scheme', theme.scheme);
   url.hash = 'reading-position';
   return url.toString();
+}
+
+function getSharePosterPalette(theme: ShareThemeSnapshot): SharePosterPalette {
+  const dark = theme.mode === 'dark';
+  const palettes: Record<ColorScheme, SharePosterPalette> = {
+    wechat: dark ? {
+      backgroundStops: [[0, '#15231d'], [0.55, '#203529'], [1, '#12201a']],
+      title: '#f2fbf5',
+      muted: 'rgba(226, 244, 234, 0.68)',
+      body: '#e7f4ec',
+      border: 'rgba(210, 239, 223, 0.24)',
+      card: 'rgba(24, 42, 34, 0.88)',
+      cardInner: '#172820',
+      screenshotBackground: '#172820',
+      accent: '#4fd184',
+      qrDark: '#163323',
+      qrLight: '#f4fff8',
+      shadow: 'rgba(0, 0, 0, 0.32)',
+      label: '微信绿意',
+    } : {
+      backgroundStops: [[0, '#f7f1e5'], [0.52, '#eef5f1'], [1, '#f3f7ed']],
+      title: '#1f2933',
+      muted: 'rgba(31, 41, 51, 0.58)',
+      body: '#24352d',
+      border: '#dbe7df',
+      card: '#ffffff',
+      cardInner: '#ffffff',
+      screenshotBackground: '#ffffff',
+      accent: '#338a55',
+      qrDark: '#1f2933',
+      qrLight: '#ffffff',
+      shadow: 'rgba(31, 41, 51, 0.16)',
+      label: '微信绿意',
+    },
+    glass: dark ? {
+      backgroundStops: [[0, '#111827'], [0.5, '#223144'], [1, '#151b2a']],
+      aurora: [{ x: 160, y: 160, radius: 360, color: 'rgba(125, 211, 252, 0.22)' }],
+      title: '#f8fbff',
+      muted: 'rgba(226, 232, 240, 0.68)',
+      body: '#e7eef8',
+      border: 'rgba(255, 255, 255, 0.22)',
+      card: 'rgba(255, 255, 255, 0.12)',
+      cardInner: 'rgba(20, 30, 44, 0.78)',
+      screenshotBackground: '#172033',
+      accent: '#93c5fd',
+      qrDark: '#172033',
+      qrLight: '#ffffff',
+      shadow: 'rgba(0, 0, 0, 0.34)',
+      label: '玻璃拟态',
+    } : {
+      backgroundStops: [[0, '#f8fbff'], [0.52, '#edf6ff'], [1, '#f6f2ff']],
+      aurora: [{ x: 180, y: 150, radius: 360, color: 'rgba(147, 197, 253, 0.28)' }],
+      title: '#162033',
+      muted: 'rgba(22, 32, 51, 0.58)',
+      body: '#243248',
+      border: 'rgba(140, 156, 180, 0.42)',
+      card: 'rgba(255, 255, 255, 0.72)',
+      cardInner: '#ffffff',
+      screenshotBackground: '#ffffff',
+      accent: '#3b82f6',
+      qrDark: '#172033',
+      qrLight: '#ffffff',
+      shadow: 'rgba(39, 71, 112, 0.16)',
+      label: '玻璃拟态',
+    },
+    aurora: dark ? {
+      backgroundStops: [[0, '#17233f'], [0.38, '#1f3e49'], [0.72, '#2a2447'], [1, '#17253b']],
+      aurora: [
+        { x: 150, y: 190, radius: 420, color: 'rgba(45, 212, 191, 0.32)' },
+        { x: 940, y: 210, radius: 420, color: 'rgba(196, 181, 253, 0.30)' },
+        { x: 680, y: 900, radius: 520, color: 'rgba(96, 165, 250, 0.22)' },
+      ],
+      title: '#f8fbff',
+      muted: 'rgba(229, 241, 250, 0.72)',
+      body: '#eaf6fb',
+      border: 'rgba(255, 255, 255, 0.28)',
+      card: 'rgba(220, 245, 255, 0.16)',
+      cardInner: 'rgba(28, 49, 62, 0.78)',
+      screenshotBackground: '#1e3440',
+      accent: '#5eead4',
+      qrDark: '#17323b',
+      qrLight: '#f8feff',
+      shadow: 'rgba(7, 20, 35, 0.34)',
+      label: '极光夜色',
+    } : {
+      backgroundStops: [[0, '#edf5ff'], [0.36, '#e9fbf7'], [0.72, '#f4efff'], [1, '#eef8f5']],
+      aurora: [
+        { x: 130, y: 160, radius: 420, color: 'rgba(45, 212, 191, 0.28)' },
+        { x: 960, y: 230, radius: 420, color: 'rgba(196, 181, 253, 0.30)' },
+      ],
+      title: '#10222f',
+      muted: 'rgba(16, 34, 47, 0.58)',
+      body: '#233a44',
+      border: 'rgba(255, 255, 255, 0.78)',
+      card: 'rgba(255, 255, 255, 0.66)',
+      cardInner: '#f9fffd',
+      screenshotBackground: '#f9fffd',
+      accent: '#14b8a6',
+      qrDark: '#10222f',
+      qrLight: '#ffffff',
+      shadow: 'rgba(24, 62, 86, 0.16)',
+      label: '极光晨雾',
+    },
+    magazine: dark ? {
+      backgroundStops: [[0, '#171717'], [0.55, '#27211d'], [1, '#141414']],
+      title: '#faf7f0',
+      muted: 'rgba(244, 235, 220, 0.66)',
+      body: '#f1e8da',
+      border: 'rgba(238, 224, 200, 0.25)',
+      card: '#24211d',
+      cardInner: '#1e1c19',
+      screenshotBackground: '#1e1c19',
+      accent: '#d6a85d',
+      qrDark: '#211d18',
+      qrLight: '#fffaf0',
+      shadow: 'rgba(0, 0, 0, 0.38)',
+      label: '杂志纸感',
+    } : {
+      backgroundStops: [[0, '#fbf7ed'], [0.55, '#f3eadb'], [1, '#fffaf0']],
+      title: '#241f18',
+      muted: 'rgba(36, 31, 24, 0.58)',
+      body: '#342a1f',
+      border: '#ded0b8',
+      card: '#fffaf0',
+      cardInner: '#fffdf7',
+      screenshotBackground: '#fffdf7',
+      accent: '#a46a2a',
+      qrDark: '#241f18',
+      qrLight: '#fffaf0',
+      shadow: 'rgba(75, 55, 35, 0.16)',
+      label: '杂志纸感',
+    },
+    xianxia: dark ? {
+      backgroundStops: [[0, '#10231f'], [0.52, '#17382f'], [1, '#0d1d1b']],
+      aurora: [{ x: 920, y: 180, radius: 380, color: 'rgba(250, 204, 21, 0.18)' }],
+      title: '#f7f4df',
+      muted: 'rgba(242, 232, 196, 0.66)',
+      body: '#eee8c8',
+      border: 'rgba(226, 214, 158, 0.26)',
+      card: '#182d27',
+      cardInner: '#13241f',
+      screenshotBackground: '#13241f',
+      accent: '#d7b45a',
+      qrDark: '#14241f',
+      qrLight: '#fff9df',
+      shadow: 'rgba(0, 0, 0, 0.34)',
+      label: '仙侠卷轴',
+    } : {
+      backgroundStops: [[0, '#fbf7df'], [0.52, '#edf6e5'], [1, '#f8efd0']],
+      aurora: [{ x: 920, y: 180, radius: 380, color: 'rgba(217, 178, 78, 0.20)' }],
+      title: '#272819',
+      muted: 'rgba(39, 40, 25, 0.58)',
+      body: '#343a24',
+      border: '#d8c58e',
+      card: '#fffbe7',
+      cardInner: '#fffdf0',
+      screenshotBackground: '#fffdf0',
+      accent: '#9b7b21',
+      qrDark: '#272819',
+      qrLight: '#fffbe7',
+      shadow: 'rgba(77, 66, 28, 0.16)',
+      label: '仙侠卷轴',
+    },
+  };
+
+  const palette = palettes[theme.scheme];
+  if (!theme.colors) return palette;
+
+  const { colors } = theme;
+  return {
+    ...palette,
+    backgroundStops: [
+      [0, colors.bg],
+      [0.48, colors.surfaceAlt],
+      [1, colors.surface],
+    ],
+    aurora: [
+      { x: 150, y: 190, radius: 420, color: colorWithAlpha(colors.accent, dark ? 0.26 : 0.20) },
+      { x: 930, y: 220, radius: 420, color: colorWithAlpha(colors.accentAlt, dark ? 0.24 : 0.18) },
+    ],
+    title: colors.fgTitle,
+    muted: colorWithAlpha(colors.muted, dark ? 0.78 : 0.64),
+    body: colors.fg,
+    border: colors.glassBorder || colors.border,
+    card: colorWithAlpha(colors.cardBg, dark ? 0.86 : 0.78),
+    cardInner: colors.readingBg,
+    screenshotBackground: colors.readingBg,
+    accent: colors.accent,
+    qrDark: dark ? '#111827' : toHexColor(colors.fgTitle, '#111827'),
+    qrLight: dark ? '#f8fafc' : toHexColor(colors.surface, '#ffffff'),
+    shadow: dark ? 'rgba(0, 0, 0, 0.34)' : colorWithAlpha(colors.fgTitle, 0.14),
+  };
+}
+
+function toHexColor(color: string, fallback: string) {
+  const normalized = normalizeCanvasColor(color);
+  const match = normalized.match(/rgba?\(([^)]+)\)/);
+  if (!match) return normalized.startsWith('#') ? normalized : fallback;
+
+  const [r, g, b] = match[1].split(',').slice(0, 3).map((part) => Number(part.trim()));
+  if (![r, g, b].every(Number.isFinite)) return fallback;
+  const hex = (value: number) => Math.round(Math.min(255, Math.max(0, value))).toString(16).padStart(2, '0');
+  return `#${hex(r)}${hex(g)}${hex(b)}`;
+}
+
+function colorWithAlpha(color: string, alpha: number) {
+  const probe = document.createElement('span');
+  probe.style.position = 'fixed';
+  probe.style.left = '-10000px';
+  probe.style.top = '0';
+  probe.style.color = color;
+  document.body.appendChild(probe);
+  const resolved = getComputedStyle(probe).color;
+  probe.remove();
+
+  const match = resolved.match(/rgba?\(([^)]+)\)/);
+  if (!match) return color;
+  const [r, g, b] = match[1].split(',').slice(0, 3).map((part) => Number(part.trim()));
+  if (![r, g, b].every(Number.isFinite)) return color;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function setCanvasSafeThemeVars(element: HTMLElement, palette: SharePosterPalette) {
+  const safeSurface = palette.cardInner || palette.screenshotBackground;
+  element.style.setProperty('--bg', palette.screenshotBackground);
+  element.style.setProperty('--card-bg', safeSurface);
+  element.style.setProperty('--surface', safeSurface);
+  element.style.setProperty('--surface-alt', palette.card);
+  element.style.setProperty('--nav-bg', palette.card);
+  element.style.setProperty('--reading-bg', palette.screenshotBackground);
+  element.style.setProperty('--fg', palette.body);
+  element.style.setProperty('--fg-title', palette.title);
+  element.style.setProperty('--text', palette.body);
+  element.style.setProperty('--text-secondary', palette.body);
+  element.style.setProperty('--text-muted', palette.muted);
+  element.style.setProperty('--muted', palette.muted);
+  element.style.setProperty('--border', palette.border);
+  element.style.setProperty('--divider', palette.border);
+  element.style.setProperty('--accent', palette.accent);
+  element.style.setProperty('--accent-alt', palette.accent);
+  element.style.setProperty('--accent-soft', colorWithAlpha(palette.accent, 0.16));
+  element.style.setProperty('--tag-bg', palette.card);
+  element.style.setProperty('--fg-soft', colorWithAlpha(palette.body, 0.08));
+  element.style.setProperty('--glass', palette.card);
+  element.style.setProperty('--glass-border', palette.border);
+  element.style.setProperty('--glass-glow', colorWithAlpha(palette.accent, 0.18));
+  element.style.setProperty('--shadow-sm', 'none');
+  element.style.setProperty('--shadow-md', 'none');
+  element.style.setProperty('--shadow-lg', 'none');
+}
+
+async function tryCopyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (error) {
+    console.warn('Clipboard write failed', error);
+    return false;
+  }
 }
 
 function drawRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
@@ -442,6 +820,12 @@ function getProxiedImageUrl(src: string) {
   } catch {
     return src;
   }
+}
+
+function getPosterFontFamily(scheme: ColorScheme) {
+  if (scheme === 'magazine') return '"Iowan Old Style", "Newsreader", Georgia, "Times New Roman", serif';
+  if (scheme === 'xianxia') return '"STKaiti", "Kaiti SC", "Songti SC", serif';
+  return '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", "PingFang SC", sans-serif';
 }
 
 function wrapCanvasText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
@@ -496,13 +880,91 @@ function drawWrappedText({
   return lines.length * lineHeight;
 }
 
-function applyCaptureStyles(element: HTMLElement) {
+function getTextFromHtml(html: string) {
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  return Array.from(container.querySelectorAll('p, div, li'))
+    .map((element) => element.textContent?.replace(/\s+/g, ' ').trim() || '')
+    .filter((text) => text.length > 12)
+    .join('\n');
+}
+
+function getImagesFromHtml(html: string) {
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  return Array.from(container.querySelectorAll<HTMLImageElement>('img'))
+    .map((image) => image.getAttribute('src') || '')
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+function drawContainedImage(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: number, y: number, width: number, height: number, radius: number) {
+  const ratio = Math.min(width / image.naturalWidth, height / image.naturalHeight);
+  const drawWidth = image.naturalWidth * ratio;
+  const drawHeight = image.naturalHeight * ratio;
+  const drawX = x + (width - drawWidth) / 2;
+  const drawY = y + (height - drawHeight) / 2;
+
+  ctx.save();
+  drawRoundRect(ctx, x, y, width, height, radius);
+  ctx.clip();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.64)';
+  ctx.fillRect(x, y, width, height);
+  ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+  ctx.restore();
+}
+
+async function createFallbackShareScreenshot(article: any, palette: SharePosterPalette, scheme: ColorScheme, width: number, height: number) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas context unavailable');
+
+  ctx.clearRect(0, 0, width, height);
+  const inset = 34;
+  let cursorY = 30;
+
+  const imageSources = getImagesFromHtml(article?.contentHtml || '');
+  for (const source of imageSources) {
+    if (cursorY > height - 220) break;
+    try {
+      const image = await loadCanvasImage(getProxiedImageUrl(source));
+      const imageHeight = Math.min(300, Math.max(168, Math.round((width - inset * 2) * 0.48)));
+      drawContainedImage(ctx, image, inset, cursorY, width - inset * 2, imageHeight, 12);
+      cursorY += imageHeight + 30;
+    } catch {
+      // Ignore individual image failures so poster sharing still succeeds.
+    }
+  }
+
+  const text = getTextFromHtml(article?.contentHtml || '') || article?.aiSummary || article?.summary || article?.title || '';
+  ctx.fillStyle = palette.body;
+  ctx.font = `400 24px ${getPosterFontFamily(scheme)}`;
+  const paragraphs = text.split('\n').filter(Boolean).slice(0, 10);
+  for (const paragraph of paragraphs) {
+    if (cursorY > height - 80) break;
+    cursorY += drawWrappedText({
+      ctx,
+      text: paragraph,
+      x: inset,
+      y: cursorY,
+      maxWidth: width - inset * 2,
+      lineHeight: 38,
+      maxLines: 3,
+    }) + 18;
+  }
+
+  return canvas;
+}
+
+function applyCaptureStyles(element: HTMLElement, palette: SharePosterPalette) {
   const tagName = element.tagName.toLowerCase();
   element.removeAttribute('class');
   element.removeAttribute('style');
   element.style.boxSizing = 'border-box';
-  element.style.color = '#1f2933';
-  element.style.borderColor = '#e5e7eb';
+  element.style.color = palette.body;
+  element.style.borderColor = palette.border;
   element.style.boxShadow = 'none';
   element.style.textShadow = 'none';
   element.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
@@ -511,7 +973,7 @@ function applyCaptureStyles(element: HTMLElement) {
     element.style.margin = '18px 0 10px';
     element.style.fontWeight = '650';
     element.style.lineHeight = '1.42';
-    element.style.color = '#111827';
+    element.style.color = palette.title;
   }
   if (tagName === 'h1') element.style.fontSize = '24px';
   if (tagName === 'h2') element.style.fontSize = '21px';
@@ -524,14 +986,14 @@ function applyCaptureStyles(element: HTMLElement) {
     element.style.margin = '0 0 14px';
   }
   if (tagName === 'a') {
-    element.style.color = '#338a55';
+    element.style.color = palette.accent;
     element.style.textDecoration = 'none';
   }
   if (tagName === 'blockquote') {
     element.style.margin = '14px 0';
     element.style.padding = '8px 14px';
-    element.style.borderLeft = '3px solid #48a868';
-    element.style.background = '#f3f6f4';
+    element.style.borderLeft = `3px solid ${palette.accent}`;
+    element.style.background = palette.card;
   }
   if (tagName === 'ul' || tagName === 'ol') {
     element.style.margin = '0 0 14px';
@@ -545,18 +1007,18 @@ function applyCaptureStyles(element: HTMLElement) {
     element.style.margin = '14px 0';
     element.style.padding = '12px';
     element.style.borderRadius = '8px';
-    element.style.background = '#f3f6f4';
+    element.style.background = palette.card;
     element.style.overflow = 'hidden';
   }
   if (tagName === 'code') {
     element.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, monospace';
-    element.style.background = '#f3f6f4';
+    element.style.background = palette.card;
     element.style.borderRadius = '4px';
     element.style.padding = '1px 4px';
   }
   if (tagName === 'button') {
     element.style.border = '0';
-    element.style.background = '#f3f6f4';
+    element.style.background = palette.card;
   }
   if (tagName === 'img') {
     element.style.display = 'block';
@@ -564,7 +1026,7 @@ function applyCaptureStyles(element: HTMLElement) {
     element.style.height = 'auto';
     element.style.margin = '12px 0';
     element.style.borderRadius = '10px';
-    element.style.background = '#ffffff';
+    element.style.background = palette.cardInner;
   }
   if (tagName === 'table') {
     element.style.width = '100%';
@@ -572,7 +1034,7 @@ function applyCaptureStyles(element: HTMLElement) {
     element.style.margin = '14px 0';
   }
   if (tagName === 'td' || tagName === 'th') {
-    element.style.border = '1px solid #e5e7eb';
+    element.style.border = `1px solid ${palette.border}`;
     element.style.padding = '8px';
   }
 }
@@ -590,38 +1052,57 @@ async function waitForCaptureImages(root: HTMLElement) {
   })));
 }
 
-async function createShareCaptureTarget(panel: HTMLDivElement, screenshotHeight: number) {
-  const headerHeight = panel.querySelector('.detail-panel-header')?.getBoundingClientRect().height ?? 0;
-  const captureHeight = Math.max(1, screenshotHeight - headerHeight);
-  const imageSources = Array.from(panel.querySelectorAll<HTMLImageElement>('img')).map((image) => image.currentSrc || image.src);
+async function createShareCaptureTarget(panel: HTMLDivElement, screenshotHeight: number, palette: SharePosterPalette, article: any) {
+  const captureHeight = Math.max(1, screenshotHeight);
+  const sourceRoot = panel.querySelector<HTMLElement>('.article-content-wrap') ?? panel;
+  const panelRect = panel.getBoundingClientRect();
+  const sourceRect = sourceRoot.getBoundingClientRect();
+  const captureWidth = Math.round(sourceRect.width || panel.clientWidth);
+  const sourceTop = Math.round(sourceRect.top - panelRect.top + panel.scrollTop);
+  const sourceScrollTop = Math.max(0, panel.scrollTop - sourceTop);
   const wrapper = document.createElement('div');
   wrapper.style.position = 'fixed';
   wrapper.style.left = '-10000px';
   wrapper.style.top = '0';
-  wrapper.style.width = `${panel.clientWidth}px`;
+  wrapper.style.width = `${captureWidth}px`;
   wrapper.style.height = `${captureHeight}px`;
   wrapper.style.overflow = 'hidden';
-  wrapper.style.background = '#ffffff';
-  wrapper.style.color = '#1f2933';
+  wrapper.style.background = 'transparent';
+  wrapper.style.color = palette.body;
   wrapper.style.font = '17px/1.75 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
   wrapper.style.pointerEvents = 'none';
+  setCanvasSafeThemeVars(wrapper, palette);
 
-  const clonedPanel = panel.cloneNode(true) as HTMLElement;
-  clonedPanel.querySelectorAll('.detail-panel-header, .detail-panel-footer, .share-poster-overlay, .confirm-dialog-overlay, .detail-more-menu, .detail-more-menu-backdrop').forEach((node) => node.remove());
-  clonedPanel.querySelectorAll<HTMLElement>('*').forEach(applyCaptureStyles);
-  applyCaptureStyles(clonedPanel);
+  const capturePanel = document.createElement('div');
+  capturePanel.style.position = 'absolute';
+  capturePanel.style.left = '0';
+  capturePanel.style.top = `-${sourceScrollTop}px`;
+  capturePanel.style.width = `${captureWidth}px`;
+  capturePanel.style.minHeight = `${Math.max(sourceRoot.scrollHeight, captureHeight)}px`;
+  capturePanel.style.padding = '30px 34px';
+  capturePanel.style.boxSizing = 'border-box';
+  capturePanel.style.background = 'transparent';
+  capturePanel.style.overflow = 'visible';
+  capturePanel.style.color = palette.body;
+  capturePanel.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  setCanvasSafeThemeVars(capturePanel, palette);
 
-  clonedPanel.style.position = 'absolute';
-  clonedPanel.style.left = '0';
-  clonedPanel.style.top = `-${panel.scrollTop}px`;
-  clonedPanel.style.width = `${panel.clientWidth}px`;
-  clonedPanel.style.minHeight = `${panel.scrollHeight}px`;
-  clonedPanel.style.padding = '0';
-  clonedPanel.style.background = '#ffffff';
-  clonedPanel.style.overflow = 'visible';
+  const articleBody = document.createElement('div');
+  articleBody.style.fontSize = '17px';
+  articleBody.style.lineHeight = '1.8';
+  articleBody.style.color = palette.body;
+  articleBody.innerHTML = article?.contentHtml || `<p>${article?.aiSummary || article?.summary || article?.title || ''}</p>`;
+  capturePanel.appendChild(articleBody);
 
-  clonedPanel.querySelectorAll<HTMLImageElement>('img').forEach((image, index) => {
-    const source = imageSources[index] || image.getAttribute('src') || '';
+  capturePanel.querySelectorAll<HTMLElement>('*').forEach((element) => applyCaptureStyles(element, palette));
+  applyCaptureStyles(articleBody, palette);
+  articleBody.style.fontSize = '17px';
+  articleBody.style.lineHeight = '1.8';
+  articleBody.style.color = palette.body;
+  articleBody.style.background = 'transparent';
+
+  capturePanel.querySelectorAll<HTMLImageElement>('img').forEach((image) => {
+    const source = image.getAttribute('src') || image.currentSrc || '';
     if (!source) {
       image.remove();
       return;
@@ -637,7 +1118,7 @@ async function createShareCaptureTarget(panel: HTMLDivElement, screenshotHeight:
     image.src = proxiedSource;
   });
 
-  wrapper.appendChild(clonedPanel);
+  wrapper.appendChild(capturePanel);
   document.body.appendChild(wrapper);
   await waitForCaptureImages(wrapper);
 
@@ -651,25 +1132,49 @@ async function createSharePoster({
   article,
   shareUrl,
   panel,
+  theme,
 }: {
   article: any;
   shareUrl: string;
   panel: HTMLDivElement;
+  theme: ShareThemeSnapshot;
 }) {
-  const screenshotHeight = Math.min(panel.clientHeight, 760);
-  const captureTarget = await createShareCaptureTarget(panel, screenshotHeight);
+  const palette = getSharePosterPalette(theme);
+  const screenshotHeight = Math.min(Math.max(panel.clientHeight * 1.45, 1080), 1500, panel.scrollHeight || 1500);
+  const captureTarget = await createShareCaptureTarget(panel, screenshotHeight, palette, article);
   let screenshot: HTMLCanvasElement;
   try {
-    screenshot = await html2canvas(captureTarget.element, {
-      backgroundColor: '#ffffff',
-      height: captureTarget.element.clientHeight,
-      width: captureTarget.element.clientWidth,
-      windowWidth: captureTarget.element.clientWidth,
-      windowHeight: captureTarget.element.clientHeight,
-      logging: false,
-      useCORS: true,
-      scale: Math.min(window.devicePixelRatio || 1, 2),
-    });
+    try {
+      screenshot = await html2canvas(captureTarget.element, {
+        backgroundColor: null,
+        height: captureTarget.element.clientHeight,
+        width: captureTarget.element.clientWidth,
+        windowWidth: captureTarget.element.clientWidth,
+        windowHeight: captureTarget.element.clientHeight,
+        logging: false,
+        useCORS: true,
+        scale: Math.min(window.devicePixelRatio || 1, 2),
+        onclone: (clonedDocument) => {
+          clonedDocument.querySelectorAll('style, link[rel="stylesheet"]').forEach((node) => node.remove());
+          clonedDocument.documentElement.removeAttribute('data-theme');
+          clonedDocument.documentElement.removeAttribute('data-color-scheme');
+          clonedDocument.documentElement.style.background = 'transparent';
+          clonedDocument.documentElement.style.color = palette.body;
+          clonedDocument.body.style.background = 'transparent';
+          clonedDocument.body.style.color = palette.body;
+          setCanvasSafeThemeVars(clonedDocument.documentElement, palette);
+          setCanvasSafeThemeVars(clonedDocument.body, palette);
+          clonedDocument.body.querySelectorAll<HTMLElement>('*').forEach((element) => {
+            setCanvasSafeThemeVars(element, palette);
+            element.style.boxShadow = 'none';
+            element.style.textShadow = 'none';
+          });
+        },
+      });
+    } catch (error) {
+      console.warn('html2canvas share capture failed, using canvas fallback', error);
+      screenshot = await createFallbackShareScreenshot(article, palette, theme.scheme, captureTarget.element.clientWidth, captureTarget.element.clientHeight);
+    }
   } finally {
     captureTarget.cleanup();
   }
@@ -678,24 +1183,34 @@ async function createSharePoster({
     width: 220,
     margin: 1,
     color: {
-      dark: '#1f2933',
-      light: '#ffffff',
+      dark: palette.qrDark,
+      light: palette.qrLight,
     },
   });
   const qrImage = await loadCanvasImage(qrDataUrl);
 
   const posterWidth = 1080;
-  const padding = 64;
-  const titleTop = padding;
+  const padding = 76;
+  const titleFontSize = 46;
+  const titleLineHeight = 60;
+  const titleText = String(article.title || '未命名文章');
+  const titleFont = `${theme.scheme === 'magazine' ? '700' : '680'} ${titleFontSize}px ${getPosterFontFamily(theme.scheme)}`;
   const screenshotWidth = posterWidth - padding * 2;
-  const screenshotInset = 28;
-  const screenshotContentWidth = screenshotWidth - screenshotInset * 2;
+  const screenshotInset = 0;
+  const screenshotContentWidth = screenshotWidth;
   const screenshotScaledHeight = Math.round(screenshot.height * (screenshotContentWidth / screenshot.width));
-  const qrSize = 188;
-  const footerHeight = 276;
-  const titleBlockHeight = 150;
-  const screenshotTop = titleTop + titleBlockHeight;
-  const posterHeight = screenshotTop + screenshotScaledHeight + footerHeight + padding;
+  const qrSize = 168;
+  const footerHeight = 206;
+  const measureCanvas = document.createElement('canvas');
+  const measureCtx = measureCanvas.getContext('2d');
+  if (!measureCtx) throw new Error('Canvas context unavailable');
+  measureCtx.font = titleFont;
+  const titleLineCount = Math.min(wrapCanvasText(measureCtx, titleText, posterWidth - padding * 2).length || 1, 2);
+  const titleVisualHeight = titleFontSize + (titleLineCount - 1) * titleLineHeight;
+  const titleBaseline = padding + titleFontSize;
+  const screenshotTop = padding + titleVisualHeight + padding;
+  const screenshotFooterGap = padding;
+  const posterHeight = screenshotTop + screenshotScaledHeight + screenshotFooterGap + footerHeight + padding;
 
   const canvas = document.createElement('canvas');
   canvas.width = posterWidth;
@@ -704,63 +1219,86 @@ async function createSharePoster({
   if (!ctx) throw new Error('Canvas context unavailable');
 
   const gradient = ctx.createLinearGradient(0, 0, posterWidth, posterHeight);
-  gradient.addColorStop(0, '#f7f1e5');
-  gradient.addColorStop(0.52, '#eef5f1');
-  gradient.addColorStop(1, '#f4f0fb');
+  palette.backgroundStops.forEach(([stop, color]) => gradient.addColorStop(stop, color));
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, posterWidth, posterHeight);
 
-  ctx.fillStyle = '#1f2933';
-  ctx.font = '650 42px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  palette.aurora?.forEach((spot) => {
+    const glow = ctx.createRadialGradient(spot.x, spot.y, 0, spot.x, spot.y, spot.radius);
+    glow.addColorStop(0, spot.color);
+    glow.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, posterWidth, posterHeight);
+  });
+
+  ctx.fillStyle = palette.title;
+  ctx.font = titleFont;
   drawWrappedText({
     ctx,
-    text: String(article.title || '未命名文章'),
+    text: titleText,
     x: padding,
-    y: titleTop + 12,
+    y: titleBaseline,
     maxWidth: posterWidth - padding * 2,
-    lineHeight: 54,
+    lineHeight: titleLineHeight,
     maxLines: 2,
   });
 
-  ctx.fillStyle = 'rgba(31, 41, 51, 0.54)';
-  ctx.font = '400 24px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-  ctx.fillText('当前阅读位置截图', padding, titleTop + 128);
-
   ctx.save();
-  ctx.shadowColor = 'rgba(31, 41, 51, 0.16)';
-  ctx.shadowBlur = 34;
-  ctx.shadowOffsetY = 18;
-  drawRoundRect(ctx, padding, screenshotTop, screenshotWidth, screenshotScaledHeight, 28);
-  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = palette.shadow;
+  ctx.shadowBlur = 28;
+  ctx.shadowOffsetY = 16;
+  drawRoundRect(ctx, padding, screenshotTop, screenshotWidth, screenshotScaledHeight, 24);
+  ctx.fillStyle = palette.card;
   ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = palette.border;
+  ctx.stroke();
   ctx.clip();
   ctx.drawImage(screenshot, padding + screenshotInset, screenshotTop, screenshotContentWidth, screenshotScaledHeight);
   ctx.restore();
 
-  const footerTop = screenshotTop + screenshotScaledHeight + 42;
-  ctx.fillStyle = '#1f2933';
-  ctx.font = '600 34px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-  ctx.fillText('今天藏什么', padding, footerTop + 42);
-
-  ctx.fillStyle = 'rgba(31, 41, 51, 0.68)';
-  ctx.font = '400 26px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-  ctx.fillText('扫码跳转到这篇文章的当前位置', padding, footerTop + 86);
-
-  ctx.fillStyle = 'rgba(31, 41, 51, 0.82)';
-  ctx.font = '500 30px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-  const source = String(article.source || article.author || '未知来源');
-  const clippedSource = source.length > 30 ? `${source.slice(0, 30)}...` : source;
-  ctx.fillText(clippedSource, padding, footerTop + 142, posterWidth - padding * 2 - qrSize - 34);
-
-  const qrX = posterWidth - padding - qrSize;
-  const qrY = footerTop;
+  const footerTop = screenshotTop + screenshotScaledHeight + screenshotFooterGap;
   ctx.save();
-  ctx.shadowColor = 'rgba(31, 41, 51, 0.12)';
-  ctx.shadowBlur = 20;
-  ctx.shadowOffsetY = 8;
-  drawRoundRect(ctx, qrX - 14, qrY - 14, qrSize + 28, qrSize + 28, 24);
-  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = palette.shadow;
+  ctx.shadowBlur = 22;
+  ctx.shadowOffsetY = 10;
+  drawRoundRect(ctx, padding, footerTop, screenshotWidth, 206, 28);
+  ctx.fillStyle = palette.card;
   ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = palette.border;
+  ctx.stroke();
+  ctx.restore();
+
+  const footerPaddingX = 34;
+  const footerTextX = padding + footerPaddingX;
+  const footerTextY = footerTop + 50;
+  ctx.fillStyle = palette.title;
+  ctx.font = `680 32px ${getPosterFontFamily(theme.scheme)}`;
+  ctx.fillText('今天藏什么', footerTextX, footerTextY);
+
+  ctx.fillStyle = palette.muted;
+  ctx.font = `400 23px ${getPosterFontFamily(theme.scheme)}`;
+  ctx.fillText('扫码跳转到这篇文章的当前位置', footerTextX, footerTextY + 42);
+
+  ctx.fillStyle = palette.body;
+  ctx.font = `520 25px ${getPosterFontFamily(theme.scheme)}`;
+  const source = String(article.source || article.author || '未知来源');
+  const clippedSource = source.length > 24 ? `${source.slice(0, 24)}...` : source;
+  ctx.fillText(clippedSource, footerTextX, footerTextY + 94, screenshotWidth - qrSize - footerPaddingX * 3);
+
+  const qrX = posterWidth - padding - footerPaddingX - qrSize;
+  const qrY = footerTop + 19;
+  ctx.save();
+  ctx.shadowColor = palette.shadow;
+  ctx.shadowBlur = 16;
+  ctx.shadowOffsetY = 7;
+  drawRoundRect(ctx, qrX - 12, qrY - 12, qrSize + 24, qrSize + 24, 22);
+  ctx.fillStyle = palette.qrLight;
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = palette.border;
+  ctx.stroke();
   ctx.restore();
   ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
 
@@ -937,6 +1475,7 @@ function DetailContent({
   onOpenImageGallery: (img: HTMLImageElement) => void;
   contentRef: RefObject<HTMLDivElement | null>;
 }) {
+  const { resolved, colorScheme } = useTheme();
   const [moreOpen, setMoreOpen] = useState(false);
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -976,17 +1515,18 @@ function DetailContent({
   async function handleShare() {
     if (!article) return;
     const panel = contentRef.current;
-    const shareUrl = buildArticleShareUrl(article, getScrollPosition());
+    const shareTheme = readCurrentShareTheme(resolved, colorScheme);
+    const shareUrl = buildArticleShareUrl(article, getScrollPosition(), shareTheme);
 
     if (!panel) {
-      await navigator.clipboard.writeText(shareUrl);
-      showToast('分享链接已复制');
+      const copied = await tryCopyText(shareUrl);
+      showToast(copied ? '分享链接已复制' : '暂时无法复制链接，请稍后再试');
       return;
     }
 
     setPendingAction('share');
     try {
-      const poster = await createSharePoster({ article, shareUrl, panel });
+      const poster = await createSharePoster({ article, shareUrl, panel, theme: shareTheme });
       setSharePoster((current) => {
         if (current?.imageUrl) URL.revokeObjectURL(current.imageUrl);
         return {
@@ -998,8 +1538,8 @@ function DetailContent({
       showToast('分享海报已生成');
     } catch (error) {
       console.error(error);
-      await navigator.clipboard.writeText(shareUrl);
-      showToast('生成海报失败，分享链接已复制');
+      const copied = await tryCopyText(shareUrl);
+      showToast(copied ? '生成海报失败，分享链接已复制' : '生成海报失败，且当前浏览器不允许复制链接');
     } finally {
       setPendingAction(null);
     }
@@ -1019,20 +1559,20 @@ function DetailContent({
         });
       } catch (error) {
         if ((error as DOMException)?.name !== 'AbortError') {
-          await navigator.clipboard.writeText(sharePoster.shareUrl);
-          showToast('系统分享失败，链接已复制');
+          const copied = await tryCopyText(sharePoster.shareUrl);
+          showToast(copied ? '系统分享失败，链接已复制' : '系统分享失败，且当前浏览器不允许复制链接');
         }
       }
     } else {
-      await navigator.clipboard.writeText(sharePoster.shareUrl);
-      showToast('当前浏览器不支持图片分享，链接已复制');
+      const copied = await tryCopyText(sharePoster.shareUrl);
+      showToast(copied ? '当前浏览器不支持图片分享，链接已复制' : '当前浏览器不支持图片分享，也暂时不允许复制链接');
     }
   }
 
   async function handleCopyShareUrl() {
     if (!sharePoster) return;
-    await navigator.clipboard.writeText(sharePoster.shareUrl);
-    showToast('分享链接已复制');
+    const copied = await tryCopyText(sharePoster.shareUrl);
+    showToast(copied ? '分享链接已复制' : '当前浏览器不允许复制链接');
   }
 
   function handleDownloadPoster() {
@@ -1083,9 +1623,9 @@ function DetailContent({
   async function handleCopyOriginalUrl() {
     if (!article) return;
     const url = article.originalUrl || window.location.href;
-    await navigator.clipboard.writeText(url);
+    const copied = await tryCopyText(url);
     setMoreOpen(false);
-    showToast('链接已复制');
+    showToast(copied ? '链接已复制' : '当前浏览器不允许复制链接');
   }
 
   function handleOpenOriginalUrl() {
