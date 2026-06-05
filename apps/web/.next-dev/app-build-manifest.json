@@ -16,11 +16,6 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(main)/layout.js"
     ],
-    "/(main)/inbox/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(main)/inbox/page.js"
-    ],
     "/(main)/archive/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",

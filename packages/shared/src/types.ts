@@ -32,6 +32,7 @@ export interface ArticleListItem {
   favoritedAt?: string | null;
   archivedAt?: string | null;
   summary: string;
+  aiSummary?: string | null;
   aiTags: string[];
   aiCategory?: string | null;  // AI 分类
   isFavorited: boolean;
