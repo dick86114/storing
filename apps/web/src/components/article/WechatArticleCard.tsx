@@ -19,7 +19,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
   const [menuOpen, setMenuOpen] = useState(false);
   const menuWrapRef = useRef<HTMLDivElement>(null);
   const tags = article.aiTags?.slice(0, 3) ?? [];
-  const summary = article.summary?.trim();
+  const summary = article.aiSummary?.trim() || article.summary?.trim();
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -101,7 +101,9 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
                   setMenuOpen((prev) => !prev);
                 }}
                 type="button"
+                aria-label="更多操作"
                 aria-expanded={menuOpen}
+                aria-haspopup="menu"
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -109,7 +111,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
                   cursor: 'pointer',
                 }}
               >
-                <MoreOutlined style={{ fontSize: '20px', color: 'var(--text-muted)' }} />
+                <MoreOutlined style={{ fontSize: '20px' }} />
               </button>
 
               {/* 下拉菜单 */}
@@ -190,14 +192,16 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
           )}
         </div>
 
-        <div className="article-card-insight" aria-label="AI 摘要">
-          <span className="article-card-insight-icon" aria-hidden="true">
-            <RobotOutlined />
-          </span>
-          <span className="article-card-insight-text">
-            {summary || 'AI 摘要生成中，稍后会把重点线索整理到这里。'}
-          </span>
-        </div>
+        {summary && (
+          <div className="article-card-insight" aria-label="摘要">
+            <span className="article-card-insight-icon" aria-hidden="true">
+              <RobotOutlined />
+            </span>
+            <span className="article-card-insight-text">
+              {summary}
+            </span>
+          </div>
+        )}
 
         {(tags.length > 0 || article.aiCategory) && (
           <div className="article-card-tags">

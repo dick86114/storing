@@ -73,9 +73,9 @@ function MainContent({ children }: { children: ReactNode }) {
           <main
             className="hide-scrollbar app-main mobile-main"
             style={{
-              height: isAuthenticated ? 'calc(100vh - 110px)' : 'calc(100vh - 56px)',
+              height: isAuthenticated ? 'calc(100dvh - 56px)' : 'calc(100dvh - 56px)',
               overflowY: 'auto',
-              paddingBottom: isAuthenticated ? '66px' : '0',
+              paddingBottom: isAuthenticated ? 'calc(66px + env(safe-area-inset-bottom, 0px))' : '0',
               scrollbarWidth: 'none',
               msOverflowStyle: 'none',
             }}
