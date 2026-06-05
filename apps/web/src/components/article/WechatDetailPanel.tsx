@@ -264,14 +264,46 @@ function ImageGalleryLightbox({
   onClose: () => void;
 }) {
   const [scale, setScale] = useState(1);
-  const [dragStartX, setDragStartX] = useState<number | null>(null);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const ignoreNextClickRef = useRef(false);
+  const lastImageTapAtRef = useRef(0);
+  const gestureRef = useRef<{
+    mode: 'idle' | 'swipe' | 'pan' | 'pinch';
+    startX: number;
+    startY: number;
+    startOffsetX: number;
+    startOffsetY: number;
+    startDistance: number;
+    startScale: number;
+  }>({
+    mode: 'idle',
+    startX: 0,
+    startY: 0,
+    startOffsetX: 0,
+    startOffsetY: 0,
+    startDistance: 0,
+    startScale: 1,
+  });
   const hasPrevious = index > 0;
   const hasNext = index < images.length - 1;
   const imageUrl = images[index];
 
   useEffect(() => {
     setScale(1);
+    setOffset({ x: 0, y: 0 });
+    gestureRef.current.mode = 'idle';
   }, [index]);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const previousTouchAction = document.body.style.touchAction;
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.touchAction = previousTouchAction;
+    };
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -279,8 +311,15 @@ function ImageGalleryLightbox({
       if (event.key === 'ArrowLeft' && hasPrevious) onIndexChange(index - 1);
       if (event.key === 'ArrowRight' && hasNext) onIndexChange(index + 1);
       if ((event.key === '+' || event.key === '=') && scale < 4) setScale((value) => Math.min(4, value + 0.25));
-      if (event.key === '-' && scale > 0.5) setScale((value) => Math.max(0.5, value - 0.25));
-      if (event.key === '0') setScale(1);
+      if (event.key === '-' && scale > 0.5) setScale((value) => {
+        const nextScale = Math.max(0.5, value - 0.25);
+        if (nextScale <= 1) setOffset({ x: 0, y: 0 });
+        return nextScale;
+      });
+      if (event.key === '0') {
+        setScale(1);
+        setOffset({ x: 0, y: 0 });
+      }
     };
 
     document.addEventListener('keydown', handleKeyDown);
@@ -296,12 +335,46 @@ function ImageGalleryLightbox({
     if (hasNext) onIndexChange(index + 1);
   };
 
-  return (
+  const toggleZoom = () => {
+    setScale((value) => {
+      const nextScale = value > 1 ? 1 : 2;
+      if (nextScale === 1) setOffset({ x: 0, y: 0 });
+      return nextScale;
+    });
+  };
+
+  const resetGesture = () => {
+    gestureRef.current.mode = 'idle';
+    gestureRef.current.startDistance = 0;
+  };
+
+  const clampOffset = (x: number, y: number, nextScale = scale) => {
+    if (nextScale <= 1) return { x: 0, y: 0 };
+    const maxX = window.innerWidth * Math.min(0.72, (nextScale - 1) * 0.48);
+    const maxY = window.innerHeight * Math.min(0.72, (nextScale - 1) * 0.48);
+    return {
+      x: Math.max(-maxX, Math.min(maxX, x)),
+      y: Math.max(-maxY, Math.min(maxY, y)),
+    };
+  };
+
+  const getTouchDistance = (touches: React.TouchList) => {
+    const first = touches[0];
+    const second = touches[1];
+    if (!first || !second) return 0;
+    return Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+  };
+
+  const lightbox = (
     <div
       className="image-gallery-lightbox"
       role="dialog"
       aria-modal="true"
       onClick={(event) => {
+        if (ignoreNextClickRef.current) {
+          ignoreNextClickRef.current = false;
+          return;
+        }
         if (event.target !== event.currentTarget) return;
         const clickX = event.clientX;
         const edgeWidth = window.innerWidth * 0.28;
@@ -317,26 +390,98 @@ function ImageGalleryLightbox({
       }}
       onDoubleClick={(event) => {
         event.preventDefault();
-        setScale((value) => (value > 1 ? 1 : 2));
+        toggleZoom();
       }}
       onWheel={(event) => {
         event.preventDefault();
-        setScale((value) => Math.min(4, Math.max(0.5, value + (event.deltaY < 0 ? 0.12 : -0.12))));
+        setScale((value) => {
+          const nextScale = Math.min(4, Math.max(0.5, value + (event.deltaY < 0 ? 0.12 : -0.12)));
+          if (nextScale <= 1) setOffset({ x: 0, y: 0 });
+          return nextScale;
+        });
       }}
       onTouchStart={(event) => {
-        setDragStartX(event.touches[0]?.clientX ?? null);
+        if (event.touches.length >= 2) {
+          event.preventDefault();
+          gestureRef.current = {
+            mode: 'pinch',
+            startX: 0,
+            startY: 0,
+            startOffsetX: offset.x,
+            startOffsetY: offset.y,
+            startDistance: getTouchDistance(event.touches),
+            startScale: scale,
+          };
+          return;
+        }
+
+        const touch = event.touches[0];
+        if (!touch) return;
+        gestureRef.current = {
+          mode: scale > 1 ? 'pan' : 'swipe',
+          startX: touch.clientX,
+          startY: touch.clientY,
+          startOffsetX: offset.x,
+          startOffsetY: offset.y,
+          startDistance: 0,
+          startScale: scale,
+        };
+      }}
+      onTouchMove={(event) => {
+        const gesture = gestureRef.current;
+        if (gesture.mode === 'pinch' && event.touches.length >= 2) {
+          event.preventDefault();
+          ignoreNextClickRef.current = true;
+          const distance = getTouchDistance(event.touches);
+          if (!gesture.startDistance) return;
+          const nextScale = Math.min(4, Math.max(1, gesture.startScale * (distance / gesture.startDistance)));
+          setScale(nextScale);
+          setOffset((value) => clampOffset(value.x, value.y, nextScale));
+          return;
+        }
+
+        if (gesture.mode !== 'pan' || event.touches.length !== 1) return;
+        event.preventDefault();
+        ignoreNextClickRef.current = true;
+        const touch = event.touches[0];
+        if (!touch) return;
+        const nextOffset = clampOffset(
+          gesture.startOffsetX + touch.clientX - gesture.startX,
+          gesture.startOffsetY + touch.clientY - gesture.startY
+        );
+        setOffset(nextOffset);
       }}
       onTouchEnd={(event) => {
-        if (dragStartX === null) return;
-        const endX = event.changedTouches[0]?.clientX ?? dragStartX;
-        const deltaX = endX - dragStartX;
-        if (Math.abs(deltaX) > 44) {
-          if (deltaX > 0) goPrevious();
-          else goNext();
+        const gesture = gestureRef.current;
+        if (gesture.mode === 'swipe') {
+          const touch = event.changedTouches[0];
+          const deltaX = (touch?.clientX ?? gesture.startX) - gesture.startX;
+          const deltaY = (touch?.clientY ?? gesture.startY) - gesture.startY;
+          if (Math.abs(deltaX) > 44 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+            ignoreNextClickRef.current = true;
+            if (deltaX > 0) goPrevious();
+            else goNext();
+          } else if (Math.abs(deltaX) < 12 && Math.abs(deltaY) < 12 && event.target instanceof HTMLImageElement) {
+            const now = Date.now();
+            if (now - lastImageTapAtRef.current < 280) {
+              event.preventDefault();
+              ignoreNextClickRef.current = true;
+              toggleZoom();
+              lastImageTapAtRef.current = 0;
+            } else {
+              lastImageTapAtRef.current = now;
+            }
+          }
         }
-        setDragStartX(null);
+        resetGesture();
+      }}
+      onTouchCancel={() => {
+        resetGesture();
       }}
     >
+      <button className="image-gallery-close" type="button" aria-label="关闭图片预览" onClick={onClose}>
+        <CloseOutlined />
+      </button>
       <div className="image-gallery-stage">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -349,13 +494,15 @@ function ImageGalleryLightbox({
           onDoubleClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            setScale((value) => (value > 1 ? 1 : 2));
+            toggleZoom();
           }}
-          style={{ transform: `scale(${scale})` }}
+          style={{ transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${scale})` }}
         />
       </div>
     </div>
   );
+
+  return createPortal(lightbox, document.body);
 }
 
 type DeleteConfirmMode = 'metadata' | 'permanent';
