@@ -944,12 +944,39 @@ function drawRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, widt
   ctx.closePath();
 }
 
-function loadCanvasImage(src: string) {
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string) {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
+
+function loadCanvasImage(src: string, timeoutMs = 6000) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
     image.crossOrigin = 'anonymous';
-    image.onload = () => resolve(image);
-    image.onerror = reject;
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(`Image load timed out: ${src}`));
+    }, timeoutMs);
+    image.onload = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      resolve(image);
+    };
+    image.onerror = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      reject(new Error(`Image load failed: ${src}`));
+    };
     image.src = src;
   });
 }
@@ -1188,15 +1215,24 @@ function applyCaptureStyles(element: HTMLElement, palette: SharePosterPalette) {
 
 async function waitForCaptureImages(root: HTMLElement) {
   const images = Array.from(root.querySelectorAll<HTMLImageElement>('img'));
-  await Promise.all(images.map((image) => new Promise<void>((resolve) => {
-    if (!image.src || image.complete) {
-      resolve();
-      return;
-    }
-    const finish = () => resolve();
-    image.onload = finish;
-    image.onerror = finish;
-  })));
+  await Promise.all(images.map((image) => withTimeout(
+    new Promise<void>((resolve) => {
+      if (!image.src || image.complete) {
+        resolve();
+        return;
+      }
+
+      const finish = () => {
+        image.removeEventListener('load', finish);
+        image.removeEventListener('error', finish);
+        resolve();
+      };
+      image.addEventListener('load', finish, { once: true });
+      image.addEventListener('error', finish, { once: true });
+    }),
+    4000,
+    `Share capture image timed out: ${image.src}`
+  ).catch(() => undefined)));
 }
 
 async function createShareCaptureTarget(panel: HTMLDivElement, screenshotHeight: number, palette: SharePosterPalette, article: any) {
