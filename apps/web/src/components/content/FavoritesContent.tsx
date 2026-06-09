@@ -8,6 +8,7 @@ import { useArticleContext } from '@/components/providers/ArticleContext';
 import { useAuth } from '@/components/providers/AuthContext';
 import { ArticleList } from '@/components/article/ArticleList';
 import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type ArticleSortOption } from '@/components/article/ArticleSortControl';
+import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { api } from '@/lib/api';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
@@ -115,11 +116,12 @@ function FavoritesContentInner() {
     return () => window.clearTimeout(timer);
   }, [isLoading, page]);
 
-  const refreshList = useCallback(() => {
+  const refreshList = useCallback(async () => {
     setPage(1);
     removingIdsRef.current.clear();
-    void mutate();
-  }, [mutate]);
+    if (page !== 1) return;
+    await mutate();
+  }, [mutate, page]);
 
   const handleSortChange = useCallback((sort: ArticleSortKey) => {
     if (sort === articleSort) return;
@@ -206,86 +208,94 @@ function FavoritesContentInner() {
         </div>
       )}
 
-      {(error || requestTimedOut) && page === 1 ? (
-        <div style={{ color: 'var(--muted)', padding: 'var(--gap-2xl) 16px', textAlign: 'center' }}>
-          <div style={{ marginBottom: 12 }}>收藏列表加载失败，可能是后端或数据库暂时不可用。</div>
-          <button
-            type="button"
-            onClick={() => {
-              setRequestTimedOut(false);
-              mutate();
-            }}
-            style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--card-bg)', color: 'var(--fg)', cursor: 'pointer', padding: '8px 14px' }}
-          >
-            重试
-          </button>
-        </div>
-      ) : isLoading && page === 1 ? (
-        <div style={{ color: 'var(--muted)', padding: 'var(--gap-2xl) 0', textAlign: 'center' }}>加载中…</div>
-      ) : (
-        <>
-          <ArticleSortControl
-            options={FAVORITES_SORT_OPTIONS}
-            value={articleSort}
-            order={articleSortOrder}
-            onChange={handleSortChange}
-            onOrderChange={handleSortOrderChange}
-          />
-          <ArticleList
-            articles={allArticles}
-            hasMore={page < totalPages}
-            loadingMore={isValidating && page > 1}
-            onLoadMore={handleLoadMore}
-            emptyTitle="还没有收藏的文章"
-            onArticleClick={(id) => openArticle(id)}
-            onToggleFavorite={async (id, e) => {
-              e.stopPropagation();
-              const article = allArticles.find(a => a.id === id);
-              if (!article) return;
+      <PullToRefresh
+        onRefresh={async () => {
+          setRequestTimedOut(false);
+          await refreshList();
+        }}
+        disabled={isLoading || isValidating}
+      >
+        {(error || requestTimedOut) && page === 1 ? (
+          <div style={{ color: 'var(--muted)', padding: 'var(--gap-2xl) 16px', textAlign: 'center' }}>
+            <div style={{ marginBottom: 12 }}>收藏列表加载失败，可能是后端或数据库暂时不可用。</div>
+            <button
+              type="button"
+              onClick={() => {
+                setRequestTimedOut(false);
+                mutate();
+              }}
+              style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--card-bg)', color: 'var(--fg)', cursor: 'pointer', padding: '8px 14px' }}
+            >
+              重试
+            </button>
+          </div>
+        ) : isLoading && page === 1 ? (
+          <div style={{ color: 'var(--muted)', padding: 'var(--gap-2xl) 0', textAlign: 'center' }}>加载中…</div>
+        ) : (
+          <>
+            <ArticleSortControl
+              options={FAVORITES_SORT_OPTIONS}
+              value={articleSort}
+              order={articleSortOrder}
+              onChange={handleSortChange}
+              onOrderChange={handleSortOrderChange}
+            />
+            <ArticleList
+              articles={allArticles}
+              hasMore={page < totalPages}
+              loadingMore={isValidating && page > 1}
+              onLoadMore={handleLoadMore}
+              emptyTitle="还没有收藏的文章"
+              onArticleClick={(id) => openArticle(id)}
+              onToggleFavorite={async (id, e) => {
+                e.stopPropagation();
+                const article = allArticles.find(a => a.id === id);
+                if (!article) return;
 
-              // 乐观更新：立即从收藏页移除
-              removingIdsRef.current.add(id);
-              setAllArticles((prev) => prev.filter((a) => a.id !== id));
+                // 乐观更新：立即从收藏页移除
+                removingIdsRef.current.add(id);
+                setAllArticles((prev) => prev.filter((a) => a.id !== id));
 
-              const success = await toggleFavorite(id, true); // 当前是已收藏状态
-              if (success) {
-                removingIdsRef.current.delete(id);
-                showToast('已取消收藏');
-              } else {
-                removingIdsRef.current.delete(id);
-                refreshList();
-                showToast('取消收藏失败，请重试');
-              }
-            }}
-            onArchive={async (id, e) => {
-              e.stopPropagation();
-              const article = allArticles.find(a => a.id === id);
-              if (!article) return;
-
-              const wasArchived = article.isArchived;
-              setAllArticles((prev) => prev.map((a) => a.id === id ? { ...a, isArchived: !wasArchived } : a));
-
-              try {
-                if (wasArchived) {
-                  await api.unarchive(id);
+                const success = await toggleFavorite(id, true); // 当前是已收藏状态
+                if (success) {
+                  removingIdsRef.current.delete(id);
+                  showToast('已取消收藏');
                 } else {
-                  await api.archive(id);
+                  removingIdsRef.current.delete(id);
+                  refreshList();
+                  showToast('取消收藏失败，请重试');
                 }
-                updateArticleInView('favorites', id, { isArchived: !wasArchived });
-                updateArticleInView('archive', id, { isArchived: !wasArchived });
-                updateArticleInView('inbox', id, { isArchived: !wasArchived });
-                refreshCounts();
-                showToast(wasArchived ? '已取消归档' : '已归档');
-              } catch (error) {
-                console.error('Toggle archive from favorites failed:', error);
-                refreshList();
-                showToast(wasArchived ? '取消归档失败，请重试' : '归档失败，请重试');
-              }
-            }}
-            highlightId={highlightId}
-          />
-        </>
-      )}
+              }}
+              onArchive={async (id, e) => {
+                e.stopPropagation();
+                const article = allArticles.find(a => a.id === id);
+                if (!article) return;
+
+                const wasArchived = article.isArchived;
+                setAllArticles((prev) => prev.map((a) => a.id === id ? { ...a, isArchived: !wasArchived } : a));
+
+                try {
+                  if (wasArchived) {
+                    await api.unarchive(id);
+                  } else {
+                    await api.archive(id);
+                  }
+                  updateArticleInView('favorites', id, { isArchived: !wasArchived });
+                  updateArticleInView('archive', id, { isArchived: !wasArchived });
+                  updateArticleInView('inbox', id, { isArchived: !wasArchived });
+                  refreshCounts();
+                  showToast(wasArchived ? '已取消归档' : '已归档');
+                } catch (error) {
+                  console.error('Toggle archive from favorites failed:', error);
+                  refreshList();
+                  showToast(wasArchived ? '取消归档失败，请重试' : '归档失败，请重试');
+                }
+              }}
+              highlightId={highlightId}
+            />
+          </>
+        )}
+      </PullToRefresh>
     </>
   );
 }

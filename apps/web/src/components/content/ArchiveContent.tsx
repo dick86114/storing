@@ -9,6 +9,7 @@ import { ArticleList } from '@/components/article/ArticleList';
 import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type ArticleSortOption } from '@/components/article/ArticleSortControl';
 import { SourceSidebar } from '@/components/archive/SourceSidebar';
 import { SourcePills } from '@/components/archive/SourcePills';
+import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { api } from '@/lib/api';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
@@ -123,11 +124,12 @@ function ArchiveContentInner() {
     window.scrollTo(0, 0);
   }, [articleSortOrder]);
 
-  const refreshList = useCallback(() => {
+  const refreshList = useCallback(async () => {
     setPage(1);
     removingIdsRef.current.clear();
-    void mutate();
-  }, [mutate]);
+    if (page !== 1) return;
+    await mutate();
+  }, [mutate, page]);
 
   useEffect(() => { setMutateFn(refreshList); }, [setMutateFn, refreshList]);
 
@@ -251,6 +253,18 @@ function ArchiveContentInner() {
     </>
   );
 
+  const refreshableArticleListContent = (
+    <PullToRefresh
+      onRefresh={async () => {
+        setRequestTimedOut(false);
+        await refreshList();
+      }}
+      disabled={isLoading || isValidating}
+    >
+      {articleListContent}
+    </PullToRefresh>
+  );
+
   return (
     <div style={{ padding: '0' }}>
       {/* 书签提示弹窗 */}
@@ -341,11 +355,11 @@ function ArchiveContentInner() {
             collapsed={sourceSidebarCollapsed}
             onToggleCollapsed={() => setSourceSidebarCollapsed((collapsed) => !collapsed)}
           />
-          <div style={{ flex: 1, minWidth: 0 }}>{articleListContent}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>{refreshableArticleListContent}</div>
         </div>
       )}
 
-      {isMobile && <div style={{ padding: '8px 16px' }}>{articleListContent}</div>}
+      {isMobile && <div style={{ padding: '8px 16px' }}>{refreshableArticleListContent}</div>}
     </div>
   );
 }

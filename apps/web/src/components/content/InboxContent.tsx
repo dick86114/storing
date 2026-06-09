@@ -8,6 +8,7 @@ import { useArticleContext } from '@/components/providers/ArticleContext';
 import { useAuth } from '@/components/providers/AuthContext';
 import { ArticleList } from '@/components/article/ArticleList';
 import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type ArticleSortOption } from '@/components/article/ArticleSortControl';
+import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { api } from '@/lib/api';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
@@ -113,11 +114,12 @@ function InboxContentInner() {
     return () => window.clearTimeout(timer);
   }, [dataLoading, page]);
 
-  const refreshList = useCallback(() => {
+  const refreshList = useCallback(async () => {
     setPage(1);
     removingIdsRef.current.clear();
-    void mutate();
-  }, [mutate]);
+    if (page !== 1) return;
+    await mutate();
+  }, [mutate, page]);
 
   const handleSortChange = useCallback((sort: ArticleSortKey) => {
     if (sort === articleSort) return;
@@ -191,85 +193,93 @@ function InboxContentInner() {
           </div>
         </div>
       )}
-      {(error || requestTimedOut) && page === 1 ? (
-        <div style={{ color: 'var(--text-muted)', padding: '48px 16px', textAlign: 'center' }}>
-          <div style={{ marginBottom: 12 }}>文章加载失败，可能是后端或数据库暂时不可用。</div>
-          <button
-            type="button"
-            onClick={() => {
-              setRequestTimedOut(false);
-              mutate();
-            }}
-            style={{
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-sm)',
-              background: 'var(--card-bg)',
-              color: 'var(--fg)',
-              cursor: 'pointer',
-              padding: '8px 14px',
-            }}
-          >
-            重试
-          </button>
-        </div>
-      ) : dataLoading && page === 1 ? (
-        <div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>
-      ) : (
-        <>
-          <ArticleSortControl
-            options={INBOX_SORT_OPTIONS}
-            value={articleSort}
-            order={articleSortOrder}
-            onChange={handleSortChange}
-            onOrderChange={handleSortOrderChange}
-          />
-          <ArticleList
-            articles={allArticles}
-            hasMore={page < totalPages}
-            loadingMore={isValidating && page > 1}
-            onLoadMore={handleLoadMore}
-            emptyTitle="所有文章都已处理完毕"
-            onArticleClick={(id) => openArticle(id)}
-            onToggleFavorite={async (id, e) => {
-              e.stopPropagation();
-              const article = allArticles.find(a => a.id === id);
-              if (!article) return;
+      <PullToRefresh
+        onRefresh={async () => {
+          setRequestTimedOut(false);
+          await refreshList();
+        }}
+        disabled={dataLoading || isValidating}
+      >
+        {(error || requestTimedOut) && page === 1 ? (
+          <div style={{ color: 'var(--text-muted)', padding: '48px 16px', textAlign: 'center' }}>
+            <div style={{ marginBottom: 12 }}>文章加载失败，可能是后端或数据库暂时不可用。</div>
+            <button
+              type="button"
+              onClick={() => {
+                setRequestTimedOut(false);
+                mutate();
+              }}
+              style={{
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--card-bg)',
+                color: 'var(--fg)',
+                cursor: 'pointer',
+                padding: '8px 14px',
+              }}
+            >
+              重试
+            </button>
+          </div>
+        ) : dataLoading && page === 1 ? (
+          <div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>
+        ) : (
+          <>
+            <ArticleSortControl
+              options={INBOX_SORT_OPTIONS}
+              value={articleSort}
+              order={articleSortOrder}
+              onChange={handleSortChange}
+              onOrderChange={handleSortOrderChange}
+            />
+            <ArticleList
+              articles={allArticles}
+              hasMore={page < totalPages}
+              loadingMore={isValidating && page > 1}
+              onLoadMore={handleLoadMore}
+              emptyTitle="所有文章都已处理完毕"
+              onArticleClick={(id) => openArticle(id)}
+              onToggleFavorite={async (id, e) => {
+                e.stopPropagation();
+                const article = allArticles.find(a => a.id === id);
+                if (!article) return;
 
-              // 乐观更新：立即从收件箱移除
-              removingIdsRef.current.add(id);
-              setAllArticles((prev) => prev.filter((a) => a.id !== id));
+                // 乐观更新：立即从收件箱移除
+                removingIdsRef.current.add(id);
+                setAllArticles((prev) => prev.filter((a) => a.id !== id));
 
-              const success = await toggleFavorite(id, false);
-              if (success) {
-                removingIdsRef.current.delete(id);
-                showToast('已收藏');
-              } else {
-                removingIdsRef.current.delete(id);
-                refreshList();
-                showToast('收藏失败，请重试');
-              }
-            }}
-            onArchive={async (id, e) => {
-              e.stopPropagation();
+                const success = await toggleFavorite(id, false);
+                if (success) {
+                  removingIdsRef.current.delete(id);
+                  showToast('已收藏');
+                } else {
+                  removingIdsRef.current.delete(id);
+                  refreshList();
+                  showToast('收藏失败，请重试');
+                }
+              }}
+              onArchive={async (id, e) => {
+                e.stopPropagation();
 
-              // 乐观更新：立即从收件箱移除
-              removingIdsRef.current.add(id);
-              setAllArticles((prev) => prev.filter((a) => a.id !== id));
+                // 乐观更新：立即从收件箱移除
+                removingIdsRef.current.add(id);
+                setAllArticles((prev) => prev.filter((a) => a.id !== id));
 
-              const success = await archive(id);
-              if (success) {
-                removingIdsRef.current.delete(id);
-                showToast('已归档');
-              } else {
-                removingIdsRef.current.delete(id);
-                refreshList();
-                showToast('归档失败，请重试');
-              }
-            }}
-            highlightId={highlightId}
-          />
-        </>
-      )}
+                const success = await archive(id);
+                if (success) {
+                  removingIdsRef.current.delete(id);
+                  showToast('已归档');
+                } else {
+                  removingIdsRef.current.delete(id);
+                  refreshList();
+                  showToast('归档失败，请重试');
+                }
+              }}
+              highlightId={highlightId}
+            />
+          </>
+        )}
+      </PullToRefresh>
     </>
   );
 }
