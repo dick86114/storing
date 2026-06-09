@@ -931,6 +931,60 @@ h4 {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+.mobile-main {
+  overscroll-behavior-y: contain;
+}
+.pull-refresh-indicator {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 7px 14px;
+  border: 1px solid var(--glass-border, var(--border));
+  border-radius: 999px;
+  background: var(--card-bg);
+  @supports (color: color-mix(in lab, red, red)) {
+    background: color-mix(in oklch, var(--card-bg) 86%, transparent);
+  }
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 560;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(16px) saturate(1.16);
+  -webkit-backdrop-filter: blur(16px) saturate(1.16);
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 180ms ease, background var(--transition), color var(--transition);
+}
+.pull-refresh-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--accent);
+  @supports (color: color-mix(in lab, red, red)) {
+    border: 2px solid color-mix(in oklch, var(--accent) 20%, transparent);
+  }
+  border-top-color: var(--accent);
+  border-radius: 999px;
+  transform: rotate(0deg);
+}
+.pull-refresh-indicator.refreshing .pull-refresh-spinner {
+  animation: pullRefreshSpin 0.72s linear infinite;
+}
+.pull-refresh-indicator.done .pull-refresh-spinner {
+  border-color: var(--accent);
+  background: linear-gradient(45deg, transparent 42%, var(--accent) 42% 58%, transparent 58%) 25% 50% / 48% 48% no-repeat,
+    linear-gradient(-45deg, transparent 42%, var(--accent) 42% 58%, transparent 58%) 66% 50% / 58% 58% no-repeat;
+}
+@keyframes pullRefreshSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .skeleton-line {
   border-radius: var(--radius-sm);
   background: linear-gradient(
