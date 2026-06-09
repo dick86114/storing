@@ -111,10 +111,132 @@ function hasWechatImageRefs(content: string): boolean {
   return /(mmbiz\.qpic\.cn|mmbiz\.qlogo\.cn|mmbiz\.qpic\.com|mp\.weixin\.qq\.com\/.*?(?:image|img))/i.test(content);
 }
 
+function getReadableTextLength(text: string): number {
+  return text.replace(/\s+/g, '').length;
+}
+
+function hasUsefulMarkdownContent(md: string): boolean {
+  const imageCount = [...md.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)].filter((match) => Boolean(match[1]?.trim())).length;
+  const textOnly = md
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
+    .replace(/\[[^\]]+\]\([^)]+\)/g, '')
+    .trim();
+
+  return getReadableTextLength(textOnly) >= 80 || imageCount > 0;
+}
+
+function hasUsefulHtmlContent(html: string): boolean {
+  const dom = new JSDOM(html);
+  const doc = dom.window.document;
+
+  doc.querySelectorAll('script, style, noscript, template').forEach((node) => node.remove());
+
+  const bodyTextLength = getReadableTextLength(doc.body?.textContent || doc.documentElement.textContent || '');
+  const imageCount = Array.from(doc.querySelectorAll('img')).filter((img) => Boolean(getImgOriginalUrl(img))).length;
+  const hasEmptyWechatShareShell = Boolean(doc.querySelector('#js_article.share_content_page'))
+    && getReadableTextLength(doc.querySelector('#js_base_container')?.textContent || '') === 0
+    && imageCount === 0;
+
+  return !hasEmptyWechatShareShell && (bodyTextLength >= 80 || imageCount > 0);
+}
+
+function hasUsefulContent(content: string, format: 'markdown' | 'html'): boolean {
+  return format === 'html' ? hasUsefulHtmlContent(content) : hasUsefulMarkdownContent(content);
+}
+
+function normalizeRawHtmlFragment(html: string): string {
+  const hasBlockTags = /<\/?(?:article|section|p|div|h[1-6]|blockquote|ul|ol|li|figure|table|pre)\b/i.test(html);
+  if (hasBlockTags) return html;
+
+  return html
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => `<p>${part.replace(/\n/g, '<br />')}</p>`)
+    .join('\n');
+}
+
 function normalizeImageUrl(url: string): string {
-  const trimmed = url.trim();
+  const trimmed = url.trim().replace(/&amp;/g, '&');
   if (trimmed.startsWith('//')) return `https:${trimmed}`;
   return trimmed;
+}
+
+function getRawContentPictureUrls(rawContent: any): string[] {
+  if (!Array.isArray(rawContent?.picture_page_info_list)) return [];
+
+  return rawContent.picture_page_info_list
+    .map((pic: any) => pic?.cdn_url)
+    .filter((url: unknown): url is string => typeof url === 'string' && url.trim().length > 0)
+    .map(normalizeImageUrl);
+}
+
+async function buildHtmlFromRawContent(rawContent: any): Promise<string | null> {
+  if (!rawContent?.content_noencode) return null;
+
+  const html = normalizeRawHtmlFragment(rawContent.content_noencode);
+  const pictureUrls = getRawContentPictureUrls(rawContent);
+  if (pictureUrls.length === 0) return uploadImagesInHtml(html);
+
+  const dom = new JSDOM(html);
+  const doc = dom.window.document;
+  const usedPictureIndexes = new Set<number>();
+  let insertedByReference = false;
+
+  for (const link of Array.from(doc.querySelectorAll<HTMLAnchorElement>('a.wx_img_refer_link[data-seq]'))) {
+    const seq = Number(link.getAttribute('data-seq'));
+    const pictureIndex = Number.isFinite(seq) ? seq - 1 : -1;
+    const pictureUrl = pictureUrls[pictureIndex];
+    if (!pictureUrl) continue;
+
+    usedPictureIndexes.add(pictureIndex);
+    insertedByReference = true;
+
+    const figure = doc.createElement('figure');
+    figure.className = 'wechat-inline-image';
+
+    const img = doc.createElement('img');
+    img.setAttribute('src', pictureUrl);
+    img.setAttribute('alt', link.getAttribute('data-refer') || `图${seq}`);
+    img.setAttribute('loading', 'lazy');
+    figure.appendChild(img);
+
+    const paragraph = link.closest('p, section, div');
+    if (paragraph?.parentNode) {
+      paragraph.parentNode.insertBefore(figure, paragraph.nextSibling);
+    } else {
+      link.parentNode?.insertBefore(figure, link.nextSibling);
+    }
+  }
+
+  if (!insertedByReference) {
+    for (let index = 0; index < pictureUrls.length; index += 1) {
+      const figure = doc.createElement('figure');
+      figure.className = 'wechat-inline-image';
+
+      const img = doc.createElement('img');
+      img.setAttribute('src', pictureUrls[index]);
+      img.setAttribute('alt', `图${index + 1}`);
+      img.setAttribute('loading', 'lazy');
+      figure.appendChild(img);
+      doc.body.appendChild(figure);
+    }
+  } else {
+    for (let index = 0; index < pictureUrls.length; index += 1) {
+      if (usedPictureIndexes.has(index)) continue;
+      const figure = doc.createElement('figure');
+      figure.className = 'wechat-inline-image';
+
+      const img = doc.createElement('img');
+      img.setAttribute('src', pictureUrls[index]);
+      img.setAttribute('alt', `图${index + 1}`);
+      img.setAttribute('loading', 'lazy');
+      figure.appendChild(img);
+      doc.body.appendChild(figure);
+    }
+  }
+
+  return uploadImagesInHtml(doc.body?.innerHTML || html);
 }
 
 function getImgOriginalUrl(img: HTMLImageElement): string | null {
@@ -329,7 +451,7 @@ async function fetchArticleContentFromSources(articleId: number, format: 'markdo
   if (article.originalUrl) {
     try {
       const fetched = await fetchContent(article.originalUrl, format);
-      if (fetched && fetched.length >= 100) {
+      if (fetched && hasUsefulContent(fetched, format)) {
         if (format === 'markdown' && !hasLocalResourceRefs(fetched)) {
           content = fetched;
         } else if (format === 'html') {
@@ -346,8 +468,8 @@ async function fetchArticleContentFromSources(articleId: number, format: 'markdo
 
     if (format === 'html') {
       if (rawContent.content_noencode) {
-        const htmlContent = await uploadImagesInHtml(rawContent.content_noencode);
-        if (htmlContent && htmlContent.length >= 100) {
+        const htmlContent = await buildHtmlFromRawContent(rawContent);
+        if (htmlContent && hasUsefulContent(htmlContent, format)) {
           content = htmlContent;
         }
       }
@@ -374,10 +496,11 @@ async function fetchArticleContentFromSources(articleId: number, format: 'markdo
       if (Array.isArray(rawContent.picture_page_info_list) && rawContent.picture_page_info_list.length > 0) {
         for (const pic of rawContent.picture_page_info_list) {
           if (pic.cdn_url) {
-            const alreadyIncluded = parts.some(p => p.includes(pic.cdn_url));
+            const originalUrl = normalizeImageUrl(pic.cdn_url);
+            const alreadyIncluded = parts.some(p => p.includes(originalUrl));
             if (!alreadyIncluded) {
-              const newUrl = await uploadImage(pic.cdn_url);
-              parts.push(newUrl ? `![图片](${newUrl})` : `![图片](${pic.cdn_url})`);
+              const newUrl = await uploadImage(originalUrl);
+              parts.push(newUrl ? `![图片](${newUrl})` : `![图片](${originalUrl})`);
             }
           }
         }
@@ -433,6 +556,12 @@ export async function getArticleContent(articleId: number, format: 'markdown' | 
   if (format === 'html') {
     // HTML 格式：检查缓存
     if (meta?.contentHtml) {
+      if (!hasUsefulContent(meta.contentHtml, format)) {
+        const content = await fetchArticleContentFromSources(articleId, format);
+        if (!content) return null;
+        await saveArticleContentCache(articleId, format, content);
+        return content;
+      }
       if (hasWechatImageRefs(meta.contentHtml)) {
         refreshArticleContentCache(articleId, format).catch((e) =>
           console.error(`Background HTML cache refresh failed for article ${articleId}:`, (e as Error).message)
@@ -443,6 +572,12 @@ export async function getArticleContent(articleId: number, format: 'markdown' | 
   } else {
     // Markdown 格式：检查缓存（排除本地资源引用的脏缓存）
     if (meta?.contentMd) {
+      if (!hasUsefulContent(meta.contentMd, format)) {
+        const content = await fetchArticleContentFromSources(articleId, format);
+        if (!content) return null;
+        await saveArticleContentCache(articleId, format, content);
+        return content;
+      }
       if (hasLocalResourceRefs(meta.contentMd) || hasWechatImageRefs(meta.contentMd)) {
         refreshArticleContentCache(articleId, format).catch((e) =>
           console.error(`Background Markdown cache refresh failed for article ${articleId}:`, (e as Error).message)
