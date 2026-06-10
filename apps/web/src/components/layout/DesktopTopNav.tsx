@@ -93,7 +93,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
         }}
       >
         {/* 左侧：Logo + 标题 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+        <div className="desktop-nav-brand" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
           <Image
             src="/logo.png"
             alt="乾坤戒"
@@ -105,10 +105,10 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
         </div>
 
         {/* 竖线分隔 */}
-        <div style={{ width: '1px', height: '20px', background: 'var(--divider)', margin: '0 20px', flexShrink: 0 }} />
+        <div className="desktop-nav-divider" style={{ width: '1px', height: '20px', background: 'var(--divider)', margin: '0 20px', flexShrink: 0 }} />
 
         {/* 中间：胶囊 Tab（居中）—— 游客不显示但保留占位 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, justifyContent: 'center' }}>
+        <div className="desktop-nav-tabs" style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, justifyContent: 'center' }}>
           {isAuthenticated && tabs.map((tab, index) => {
             const isActive = activeIndex === index;
             const count = counts[tab.key as keyof typeof counts] ?? 0;
@@ -153,8 +153,9 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
         </div>
 
         {/* 右侧：搜索 + 用户菜单 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+        <div className="desktop-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
           <button
+            className="desktop-search-trigger"
             onClick={onSearchOpen}
             type="button"
             style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer' }}
@@ -163,6 +164,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
           </button>
           <div ref={menuWrapRef} onBlurCapture={handleMenuBlur} style={{ position: 'relative' }}>
             <button
+              className="desktop-user-trigger"
               onClick={() => setMenuOpen(!menuOpen)}
               type="button"
               style={{

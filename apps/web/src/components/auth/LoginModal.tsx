@@ -14,6 +14,20 @@ export function LoginModal({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const inputStyle = {
+    width: '100%',
+    height: 44,
+    padding: '0 14px',
+    border: '1px solid var(--border)',
+    borderRadius: 10,
+    background: 'var(--surface)',
+    color: 'var(--text)',
+    WebkitTextFillColor: 'var(--text)',
+    caretColor: 'var(--accent)',
+    fontSize: 15,
+    outline: 'none',
+    boxSizing: 'border-box' as const,
+  };
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -123,18 +137,10 @@ export function LoginModal({ onClose }: { onClose: () => void }) {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               style={{
-                width: '100%',
-                height: 44,
-                padding: '0 14px',
-                border: '1px solid var(--border)',
-                borderRadius: 10,
-                background: 'var(--bg)',
-                color: 'var(--fg)',
-                fontSize: 15,
-                outline: 'none',
-                boxSizing: 'border-box',
+                ...inputStyle,
               }}
               placeholder="admin"
+              className="auth-modal-input"
             />
           </div>
 
@@ -149,19 +155,11 @@ export function LoginModal({ onClose }: { onClose: () => void }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 style={{
-                  width: '100%',
-                  height: 44,
-                  padding: '0 14px',
+                  ...inputStyle,
                   paddingRight: 44,
-                  border: '1px solid var(--border)',
-                  borderRadius: 10,
-                  background: 'var(--bg)',
-                  color: 'var(--fg)',
-                  fontSize: 15,
-                  outline: 'none',
-                  boxSizing: 'border-box',
                 }}
                 placeholder="请输入密码"
+                className="auth-modal-input"
               />
               <button
                 type="button"

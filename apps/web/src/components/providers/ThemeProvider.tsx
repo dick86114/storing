@@ -16,9 +16,33 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+function readInitialTheme(): ThemeMode {
+  if (typeof window === 'undefined') return 'system';
+
+  const params = new URLSearchParams(window.location.search);
+  const sharedTheme = params.get('theme') as ThemeMode | null;
+  const savedTheme = localStorage.getItem('theme') as ThemeMode | null;
+
+  if (sharedTheme === 'light' || sharedTheme === 'dark' || sharedTheme === 'system') return sharedTheme;
+  if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') return savedTheme;
+  return 'system';
+}
+
+function readInitialColorScheme(): ColorScheme {
+  if (typeof window === 'undefined') return 'wechat';
+
+  const params = new URLSearchParams(window.location.search);
+  const sharedScheme = params.get('scheme') || params.get('style');
+  const savedScheme = localStorage.getItem('colorScheme');
+
+  if (sharedScheme === 'wechat' || sharedScheme === 'glass' || sharedScheme === 'aurora' || sharedScheme === 'magazine' || sharedScheme === 'xianxia') return sharedScheme;
+  if (savedScheme === 'wechat' || savedScheme === 'glass' || savedScheme === 'aurora' || savedScheme === 'magazine' || savedScheme === 'xianxia') return savedScheme;
+  return 'wechat';
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeMode>('system');
-  const [colorScheme, setColorSchemeState] = useState<ColorScheme>('wechat');
+  const [theme, setThemeState] = useState<ThemeMode>(readInitialTheme);
+  const [colorScheme, setColorSchemeState] = useState<ColorScheme>(readInitialColorScheme);
   const [resolved, setResolved] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
