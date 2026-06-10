@@ -13,9 +13,10 @@ interface WechatArticleCardProps {
   onArchive: (e: React.MouseEvent) => void;
   showMenu?: boolean;
   highlight?: boolean;
+  featured?: boolean;
 }
 
-export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchive, showMenu = true, highlight }: WechatArticleCardProps) {
+export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchive, showMenu = true, highlight, featured = false }: WechatArticleCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuWrapRef = useRef<HTMLDivElement>(null);
   const tags = article.aiTags?.slice(0, 3) ?? [];
@@ -56,7 +57,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
 
   return (
     <div
-      className={`article-card wechat-article-card${highlight ? ' highlighted' : ''}${menuOpen ? ' article-card--menu-open' : ''}`}
+      className={`article-card wechat-article-card${featured ? ' article-card--featured' : ''}${highlight ? ' highlighted' : ''}${menuOpen ? ' article-card--menu-open' : ''}`}
       onClick={onClick}
       style={{
         position: 'relative',

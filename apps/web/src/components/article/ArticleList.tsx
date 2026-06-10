@@ -68,7 +68,7 @@ export function ArticleList({
           gap: '16px',
         }}
       >
-        {articles.map((article) => (
+        {articles.map((article, index) => (
           <WechatArticleCard
             key={article.id}
             article={article}
@@ -77,6 +77,7 @@ export function ArticleList({
             onArchive={(e) => onArchive(article.id, e)}
             showMenu={showMenu}
             highlight={highlightId === article.id}
+            featured={index === 0}
           />
         ))}
       </div>
