@@ -22,6 +22,21 @@ interface WechatDetailPanelProps {
   isDesktop?: boolean;
 }
 
+function findCachedArticleListItem(cache: unknown, articleId: number | null) {
+  if (!articleId || !cache || typeof (cache as any).keys !== 'function' || typeof (cache as any).get !== 'function') {
+    return null;
+  }
+
+  for (const key of (cache as any).keys()) {
+    if (typeof key !== 'string' || !key.startsWith('articles:')) continue;
+    const data = (cache as any).get(key);
+    const article = data?.articles?.find?.((item: any) => item?.id === articleId);
+    if (article) return article;
+  }
+
+  return null;
+}
+
 function isMeaningfulContentElement(element: Element) {
   const text = element.textContent?.replace(/\s+/g, '').trim() || '';
   if (text.length > 0) return true;
@@ -94,8 +109,8 @@ function getReadableArticleHtml(html: string) {
 }
 
 export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: WechatDetailPanelProps) {
-  const { data: article, isLoading, mutate: mutateArticle } = useArticle(articleId);
-  const { mutate: globalMutate } = useSWRConfig();
+  const { data: article, error: articleError, isLoading, mutate: mutateArticle } = useArticle(articleId);
+  const { mutate: globalMutate, cache } = useSWRConfig();
   const { showToast } = useToast();
   const { isAuthenticated } = useAuth();
   const { saveBookmark } = useBookmark();
@@ -110,6 +125,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
     () => (article?.contentHtml ? getReadableArticleHtml(article.contentHtml) : ''),
     [article?.contentHtml]
   );
+  const fallbackArticle = useMemo(() => findCachedArticleListItem(cache, articleId), [cache, articleId]);
 
   // 监听滚动位置
   useEffect(() => {
@@ -256,7 +272,9 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
         >
           <DetailContent
             article={article}
+            fallbackArticle={fallbackArticle}
             readableContentHtml={readableContentHtml}
+            articleError={articleError}
             isLoading={isLoading}
             onClose={onClose}
             onMutate={onMutate}
@@ -304,7 +322,9 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
     >
       <DetailContent
         article={article}
+        fallbackArticle={fallbackArticle}
         readableContentHtml={readableContentHtml}
+        articleError={articleError}
         isLoading={isLoading}
         onClose={onClose}
         onMutate={onMutate}
@@ -1710,7 +1730,9 @@ function SharePosterDialog({
 // 详情内容组件
 function DetailContent({
   article,
+  fallbackArticle,
   readableContentHtml,
+  articleError,
   isLoading,
   onClose,
   onMutate,
@@ -1724,7 +1746,9 @@ function DetailContent({
   contentRef,
 }: {
   article: any;
+  fallbackArticle: any;
   readableContentHtml: string;
+  articleError?: Error;
   isLoading: boolean;
   onClose: () => void;
   onMutate: () => void;
@@ -1743,6 +1767,8 @@ function DetailContent({
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [deleteConfirmMode, setDeleteConfirmMode] = useState<DeleteConfirmMode | null>(null);
   const [sharePoster, setSharePoster] = useState<SharePosterState | null>(null);
+  const originalUrl = article?.originalUrl || fallbackArticle?.originalUrl || '';
+  const titleForFallback = article?.title || fallbackArticle?.title || '这篇文章';
 
   useEffect(() => {
     return () => {
@@ -1888,17 +1914,16 @@ function DetailContent({
   const showAISkeleton = pendingAction === 'ai';
 
   async function handleCopyOriginalUrl() {
-    if (!article) return;
-    const url = article.originalUrl || window.location.href;
+    const url = originalUrl || window.location.href;
     const copied = await tryCopyText(url);
     setMoreOpen(false);
     showToast(copied ? '链接已复制' : '当前浏览器不允许复制链接');
   }
 
   function handleOpenOriginalUrl() {
-    if (!article?.originalUrl) return;
+    if (!originalUrl) return;
     setMoreOpen(false);
-    window.open(article.originalUrl, '_blank', 'noopener,noreferrer');
+    window.open(originalUrl, '_blank', 'noopener,noreferrer');
   }
 
   async function confirmDeleteArticle() {
@@ -2007,7 +2032,7 @@ function DetailContent({
                       <CopyOutlined />
                       <span>复制原文链接</span>
                     </button>
-                    {article?.originalUrl && (
+                    {originalUrl && (
                       <button className="app-menu-item detail-more-menu-item" type="button" onClick={handleOpenOriginalUrl}>
                         <ExportOutlined />
                         <span>打开原文</span>
@@ -2029,7 +2054,7 @@ function DetailContent({
                       <CopyOutlined />
                       <span>复制链接</span>
                     </button>
-                    {article?.originalUrl && (
+                    {originalUrl && (
                       <button className="app-menu-item detail-more-menu-item" type="button" onClick={handleOpenOriginalUrl}>
                         <ExportOutlined />
                         <span>打开正文</span>
@@ -2208,74 +2233,82 @@ function DetailContent({
               <div style={{ color: 'var(--text-muted)' }}>正在加载正文...</div>
             )}
           </div>
+        </>
+      ) : (
+        <div className="article-content-wrap" style={{ padding: '24px 16px', color: 'var(--text-muted)', lineHeight: 1.7 }}>
+          {articleError ? '正文暂时无法加载，可以先通过底部入口阅读原文。' : '正在加载正文...'}
+        </div>
+      )}
 
-          {/* 底部操作栏 */}
-          <footer
-            className="detail-panel-footer"
+      {/* 底部操作栏 */}
+      <footer
+        className="detail-panel-footer"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          height: '66px',
+          padding: '12px 16px',
+          background: 'var(--nav-bg)',
+          borderTop: '0.5px solid var(--divider)',
+          position: 'sticky',
+          bottom: 0,
+        }}
+      >
+        {/* 左侧：阅读原文 */}
+        {originalUrl ? (
+          <a
+            href={originalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
             style={{
               display: 'flex',
-              justifyContent: 'space-between',
               alignItems: 'center',
-              height: '66px',
-              padding: '12px 16px',
-              background: 'var(--nav-bg)',
-              borderTop: '0.5px solid var(--divider)',
-              position: 'sticky',
-              bottom: 0,
+              gap: '6px',
+              color: 'var(--accent)',
+              textDecoration: 'none',
+              fontSize: '14px',
             }}
           >
-            {/* 左侧：阅读原文 */}
-            {article.originalUrl && (
-              <a
-                href={article.originalUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  color: 'var(--accent)',
-                  textDecoration: 'none',
-                  fontSize: '14px',
-                }}
-              >
-                <LinkOutlined style={{ fontSize: '18px' }} />
-                阅读原文
-              </a>
-            )}
+            <LinkOutlined style={{ fontSize: '18px' }} />
+            阅读原文
+          </a>
+        ) : (
+          <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>{titleForFallback} 的原文链接加载中</span>
+        )}
 
-            {/* 右侧：操作按钮 —— 游客只显示分享 */}
-            <div className="detail-panel-footer-actions">
-              {/* 书签按钮 —— 所有用户可用 */}
-              <BookmarkButton onClick={handleSaveBookmark} />
-              {isAuthenticated && (
-                <>
-                  <button className="detail-panel-action-btn" onClick={handleArchive} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
-                    {article.isArchived ? (
-                      <FolderFilled style={{ fontSize: '20px', color: 'var(--accent)' }} />
-                    ) : (
-                      <FolderOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
-                    )}
-                    <span className="detail-panel-action-label" style={{ fontSize: '11px', color: article.isArchived ? 'var(--accent)' : 'var(--text-muted)' }}>{article.isArchived ? '取消归档' : '归档'}</span>
-                  </button>
-                  <button className={`detail-panel-action-btn${article.isFavorited ? ' favorited' : ''}`} onClick={handleFavorite} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
-                    {article.isFavorited ? (
-                      <HeartFilled style={{ fontSize: '20px', color: 'var(--accent)' }} />
-                    ) : (
-                      <HeartOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
-                    )}
-                    <span className="detail-panel-action-label" style={{ fontSize: '11px', color: article.isFavorited ? 'var(--accent)' : 'var(--text-muted)' }}>收藏</span>
-                  </button>
-                </>
-              )}
-              <button className="detail-panel-action-btn" onClick={handleShare} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
-                <ShareAltOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
-                <span className="detail-panel-action-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{pendingAction === 'share' ? '生成中' : '分享'}</span>
+        {/* 右侧：操作按钮 —— 游客只显示分享 */}
+        <div className="detail-panel-footer-actions">
+          {/* 书签按钮 —— 所有用户可用 */}
+          {article && <BookmarkButton onClick={handleSaveBookmark} />}
+          {article && isAuthenticated && (
+            <>
+              <button className="detail-panel-action-btn" onClick={handleArchive} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                {article.isArchived ? (
+                  <FolderFilled style={{ fontSize: '20px', color: 'var(--accent)' }} />
+                ) : (
+                  <FolderOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
+                )}
+                <span className="detail-panel-action-label" style={{ fontSize: '11px', color: article.isArchived ? 'var(--accent)' : 'var(--text-muted)' }}>{article.isArchived ? '取消归档' : '归档'}</span>
               </button>
-            </div>
-          </footer>
-        </>
-      ) : null}
+              <button className={`detail-panel-action-btn${article.isFavorited ? ' favorited' : ''}`} onClick={handleFavorite} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                {article.isFavorited ? (
+                  <HeartFilled style={{ fontSize: '20px', color: 'var(--accent)' }} />
+                ) : (
+                  <HeartOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
+                )}
+                <span className="detail-panel-action-label" style={{ fontSize: '11px', color: article.isFavorited ? 'var(--accent)' : 'var(--text-muted)' }}>收藏</span>
+              </button>
+            </>
+          )}
+          {article && (
+            <button className="detail-panel-action-btn" onClick={handleShare} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+              <ShareAltOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
+              <span className="detail-panel-action-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{pendingAction === 'share' ? '生成中' : '分享'}</span>
+            </button>
+          )}
+        </div>
+      </footer>
     </>
   );
 }
