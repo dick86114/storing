@@ -226,6 +226,7 @@ export function SourcePills({
 
       {showModal && createPortal(
         <div
+          className="source-modal-overlay"
           style={{
             position: 'fixed',
             top: 0,
