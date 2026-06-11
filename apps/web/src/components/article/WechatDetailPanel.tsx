@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useSWRConfig } from 'swr';
 import html2canvas from 'html2canvas';
@@ -22,6 +22,77 @@ interface WechatDetailPanelProps {
   isDesktop?: boolean;
 }
 
+function isMeaningfulContentElement(element: Element) {
+  const text = element.textContent?.replace(/\s+/g, '').trim() || '';
+  if (text.length > 0) return true;
+
+  return Array.from(element.querySelectorAll('img')).some((image) => {
+    const src = image.getAttribute('src') || image.getAttribute('data-src') || '';
+    const alt = image.getAttribute('alt') || '';
+    return Boolean(src && !/cover_image|avatar/i.test(alt));
+  });
+}
+
+function isLeadingCoverBlock(element: Element) {
+  const text = element.textContent?.replace(/\s+/g, '').trim() || '';
+  const images = Array.from(element.querySelectorAll('img'));
+  if (text || images.length !== 1) return false;
+
+  const image = images[0];
+  const imageClass = image.getAttribute('class') || '';
+  const alt = image.getAttribute('alt') || '';
+  return (
+    /cover_image|avatar/i.test(alt) ||
+    image.hasAttribute('data-cropselx2') ||
+    imageClass.includes('rich_pages') ||
+    imageClass.includes('wxw-img')
+  );
+}
+
+function isLeadingPromoBlock(element: Element) {
+  const text = element.textContent?.replace(/\s+/g, ' ').trim() || '';
+  return /飞书云文档|更多玩法应用案例|复制：?https?:\/\//.test(text);
+}
+
+function getReadableArticleHtml(html: string) {
+  if (typeof document === 'undefined' || !html.trim()) return html;
+
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  const contentRoot = container.querySelector<HTMLElement>('#js_content') ?? container;
+
+  contentRoot
+    .querySelectorAll(
+      [
+        'script',
+        'style',
+        'iframe',
+        '#js_row_immersive_stream_wrap',
+        '.wx_row_immersive_stream_wrap',
+        '#js_novel_card',
+        '.novel-card',
+        '.rich_media_tool',
+        '.rich_media_extra',
+        '.qr_code_pc_outer',
+      ].join(',')
+    )
+    .forEach((node) => node.remove());
+
+  if (contentRoot.firstElementChild && isLeadingCoverBlock(contentRoot.firstElementChild)) {
+    contentRoot.firstElementChild.remove();
+  }
+
+  while (contentRoot.firstElementChild && isLeadingPromoBlock(contentRoot.firstElementChild)) {
+    contentRoot.firstElementChild.remove();
+  }
+
+  while (contentRoot.firstElementChild && !isMeaningfulContentElement(contentRoot.firstElementChild)) {
+    contentRoot.firstElementChild.remove();
+  }
+
+  return contentRoot.innerHTML.trim() || html;
+}
+
 export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: WechatDetailPanelProps) {
   const { data: article, isLoading, mutate: mutateArticle } = useArticle(articleId);
   const { mutate: globalMutate } = useSWRConfig();
@@ -35,6 +106,10 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   const appliedSharedScrollRef = useRef<string | null>(null);
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
+  const readableContentHtml = useMemo(
+    () => (article?.contentHtml ? getReadableArticleHtml(article.contentHtml) : ''),
+    [article?.contentHtml]
+  );
 
   // 监听滚动位置
   useEffect(() => {
@@ -50,7 +125,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   }, [articleId]);
 
   useEffect(() => {
-    if (!articleId || isLoading || !article?.contentHtml) return;
+    if (!articleId || isLoading || !readableContentHtml) return;
 
     const params = new URLSearchParams(window.location.search);
     const articleParam = params.get('article');
@@ -104,7 +179,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
       stopped = true;
       images.forEach((img) => img.removeEventListener('load', applyScroll));
     };
-  }, [articleId, article?.contentHtml, isLoading]);
+  }, [articleId, readableContentHtml, isLoading]);
 
   function refreshCounts() {
     globalMutate('count:inbox');
@@ -181,6 +256,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
         >
           <DetailContent
             article={article}
+            readableContentHtml={readableContentHtml}
             isLoading={isLoading}
             onClose={onClose}
             onMutate={onMutate}
@@ -228,6 +304,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
     >
       <DetailContent
         article={article}
+        readableContentHtml={readableContentHtml}
         isLoading={isLoading}
         onClose={onClose}
         onMutate={onMutate}
@@ -1633,6 +1710,7 @@ function SharePosterDialog({
 // 详情内容组件
 function DetailContent({
   article,
+  readableContentHtml,
   isLoading,
   onClose,
   onMutate,
@@ -1646,6 +1724,7 @@ function DetailContent({
   contentRef,
 }: {
   article: any;
+  readableContentHtml: string;
   isLoading: boolean;
   onClose: () => void;
   onMutate: () => void;
@@ -1709,7 +1788,12 @@ function DetailContent({
 
     setPendingAction('share');
     try {
-      const poster = await createSharePoster({ article, shareUrl, panel, theme: shareTheme });
+      const poster = await createSharePoster({
+        article: { ...article, contentHtml: readableContentHtml || article.contentHtml },
+        shareUrl,
+        panel,
+        theme: shareTheme,
+      });
       setSharePoster((current) => {
         if (current?.imageUrl) URL.revokeObjectURL(current.imageUrl);
         return {
@@ -2114,11 +2198,11 @@ function DetailContent({
               onOpenImageGallery(img as HTMLImageElement);
             }}
           >
-            {article.contentHtml ? (
+            {readableContentHtml ? (
               <div 
                 className="article-body"
                 style={{ fontSize: '17px', color: 'var(--text-secondary)', lineHeight: 1.8 }}
-                dangerouslySetInnerHTML={{ __html: article.contentHtml }}
+                dangerouslySetInnerHTML={{ __html: readableContentHtml }}
               />
             ) : (
               <div style={{ color: 'var(--text-muted)' }}>正在加载正文...</div>
