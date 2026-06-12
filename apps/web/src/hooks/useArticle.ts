@@ -8,3 +8,9 @@ export function useArticle(id: number | null, format: 'markdown' | 'html' = 'htm
     revalidateOnFocus: false,
   });
 }
+
+export function useArticleMeta(id: number | null) {
+  return useSWR(id ? `article-meta:${id}` : null, () => api.getArticleMeta(id!), {
+    revalidateOnFocus: false,
+  });
+}
