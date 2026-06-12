@@ -6,7 +6,7 @@ import { useSWRConfig } from 'swr';
 import html2canvas from 'html2canvas';
 import QRCode from 'qrcode';
 import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, LinkOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, DeleteOutlined, UpOutlined, DownOutlined, ExclamationCircleOutlined, CloseOutlined } from '@ant-design/icons';
-import { useArticle } from '@/hooks/useArticle';
+import { useArticle, useArticleMeta } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/providers/AuthContext';
 import { DateText } from '@/lib/formatDate';
@@ -110,6 +110,7 @@ function getReadableArticleHtml(html: string) {
 
 export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: WechatDetailPanelProps) {
   const { data: article, error: articleError, isLoading, mutate: mutateArticle } = useArticle(articleId);
+  const { data: articleMeta } = useArticleMeta(articleId);
   const { mutate: globalMutate, cache } = useSWRConfig();
   const { showToast } = useToast();
   const { isAuthenticated } = useAuth();
@@ -125,7 +126,8 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
     () => (article?.contentHtml ? getReadableArticleHtml(article.contentHtml) : ''),
     [article?.contentHtml]
   );
-  const fallbackArticle = useMemo(() => findCachedArticleListItem(cache, articleId), [cache, articleId]);
+  const cachedArticle = useMemo(() => findCachedArticleListItem(cache, articleId), [cache, articleId]);
+  const fallbackArticle = articleMeta || cachedArticle;
 
   // 监听滚动位置
   useEffect(() => {
@@ -1768,7 +1770,7 @@ function DetailContent({
   const [deleteConfirmMode, setDeleteConfirmMode] = useState<DeleteConfirmMode | null>(null);
   const [sharePoster, setSharePoster] = useState<SharePosterState | null>(null);
   const originalUrl = article?.originalUrl || fallbackArticle?.originalUrl || '';
-  const titleForFallback = article?.title || fallbackArticle?.title || '这篇文章';
+  const originalLinkStatus = articleError ? '原文链接暂时不可用' : '原文链接加载中';
 
   useEffect(() => {
     return () => {
@@ -2274,7 +2276,7 @@ function DetailContent({
             阅读原文
           </a>
         ) : (
-          <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>{titleForFallback} 的原文链接加载中</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>{originalLinkStatus}</span>
         )}
 
         {/* 右侧：操作按钮 —— 游客只显示分享 */}

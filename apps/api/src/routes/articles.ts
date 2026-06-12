@@ -87,6 +87,47 @@ async function ensureMetadata(articleId: number) {
   };
 }
 
+async function getArticleRecord(id: number) {
+  const [article] = await db
+    .select({
+      id: articles.id,
+      title: articles.title,
+      author: articles.author,
+      source: articles.source,
+      originalUrl: articles.originalUrl,
+      publishTime: articles.publishTime,
+      articleCoverImage: articles.coverImage,
+      metadataCoverImage: articleMetadata.coverImage,
+      summary: articles.summary,
+      commentary: articles.commentary,
+      tags: articles.tags,
+      readStatus: articles.readStatus,
+      createdAt: articles.createdAt,
+      isFavorited: articleMetadata.isFavorited,
+      isArchived: articleMetadata.isArchived,
+      aiSummary: articleMetadata.aiSummary,
+      aiCategory: articleMetadata.aiCategory,
+      aiTags: articleMetadata.aiTags,
+    })
+    .from(articles)
+    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .where(eq(articles.id, id));
+
+  return article ?? null;
+}
+
+function serializeArticleRecord(article: NonNullable<Awaited<ReturnType<typeof getArticleRecord>>>) {
+  const { articleCoverImage, metadataCoverImage, ...rest } = article;
+
+  return {
+    ...rest,
+    coverImage: metadataCoverImage || articleCoverImage,
+    isFavorited: article.isFavorited ?? false,
+    isArchived: article.isArchived ?? false,
+    aiTags: article.aiTags ?? [],
+  };
+}
+
 /**
  * GET /articles — 文章列表
  * 游客只能访问 archive 视图
@@ -179,6 +220,25 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
 });
 
 /**
+ * GET /articles/:id/meta — 单篇文章轻量信息
+ * 不等待正文抓取，用于详情加载/失败时仍然展示原文入口
+ */
+articlesRoutes.get('/articles/:id/meta', optionalAuth, async (c) => {
+  const idParam = c.req.param('id');
+  if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
+  const id = parseInt(idParam);
+
+  const article = await getArticleRecord(id);
+  if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
+
+  if (!isAuthenticated(c) && !article.isArchived) {
+    return c.json({ error: { code: 'FORBIDDEN', message: '请登录后访问' } }, 403);
+  }
+
+  return c.json(serializeArticleRecord(article));
+});
+
+/**
  * GET /articles/:id — 单篇文章详情
  * 游客只能查看归档文章
  */
@@ -188,35 +248,7 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
   const id = parseInt(idParam);
   const format = c.req.query('format') || 'markdown';
 
-  // 先查询 metadata 看是否已有图床封面图
-  const [meta] = await db
-    .select({ coverImage: articleMetadata.coverImage })
-    .from(articleMetadata)
-    .where(eq(articleMetadata.articleId, id));
-
-  const [article] = await db
-    .select({
-      id: articles.id,
-      title: articles.title,
-      author: articles.author,
-      source: articles.source,
-      originalUrl: articles.originalUrl,
-      publishTime: articles.publishTime,
-      coverImage: articles.coverImage,
-      summary: articles.summary,
-      commentary: articles.commentary,
-      tags: articles.tags,
-      readStatus: articles.readStatus,
-      createdAt: articles.createdAt,
-      isFavorited: articleMetadata.isFavorited,
-      isArchived: articleMetadata.isArchived,
-      aiSummary: articleMetadata.aiSummary,
-      aiCategory: articleMetadata.aiCategory,
-      aiTags: articleMetadata.aiTags,
-    })
-    .from(articles)
-    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
-    .where(eq(articles.id, id));
+  const article = await getArticleRecord(id);
 
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
@@ -226,7 +258,7 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
   }
 
   // 登录用户首次访问时，异步处理封面图（如果 metadata 尚无封面图）
-  if (isAuthenticated(c) && !meta?.coverImage) {
+  if (isAuthenticated(c) && !article.metadataCoverImage) {
     processCoverImage(id).catch((e) => console.error('Cover image process failed:', e.message));
   }
 
@@ -236,17 +268,12 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
     return null;
   });
 
-  // 封面图优先使用图床 URL（如果有）
-  const finalCoverImage = meta?.coverImage || article.coverImage;
+  const serializedArticle = serializeArticleRecord(article);
 
   return c.json({
-    ...article,
-    coverImage: finalCoverImage,
+    ...serializedArticle,
     contentMd: format === 'markdown' ? content : null,
     contentHtml: format === 'html' ? content : null,
-    isFavorited: article.isFavorited ?? false,
-    isArchived: article.isArchived ?? false,
-    aiTags: article.aiTags ?? [],
   });
 });
 
