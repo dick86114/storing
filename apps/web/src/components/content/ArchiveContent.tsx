@@ -342,7 +342,10 @@ function ArchiveContentInner() {
       )}
 
       {!isMobile && (
-        <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
+        <div
+          className={`archive-desktop-layout${sourceSidebarCollapsed ? ' archive-desktop-layout--source-collapsed' : ''}`}
+          style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}
+        >
           <SourceSidebar
             sources={sources}
             activeSource={activeSource}
