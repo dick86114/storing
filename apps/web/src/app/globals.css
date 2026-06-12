@@ -450,24 +450,29 @@ h4 {
   transition: opacity 160ms ease, transform 180ms ease, background var(--transition), color var(--transition);
 }
 
-.pull-refresh-spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid color-mix(in oklch, var(--accent) 20%, transparent);
-  border-top-color: var(--accent);
-  border-radius: 999px;
-  transform: rotate(0deg);
+.pull-refresh-status-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+  font-size: 14px;
+  transition: transform 180ms ease, color var(--transition);
 }
 
-.pull-refresh-indicator.refreshing .pull-refresh-spinner {
+.pull-refresh-indicator.ready .pull-refresh-status-icon {
+  transform: rotate(180deg);
+}
+
+.pull-refresh-indicator.refreshing .pull-refresh-status-icon {
   animation: pullRefreshSpin 0.72s linear infinite;
 }
 
-.pull-refresh-indicator.done .pull-refresh-spinner {
-  border-color: var(--accent);
-  background:
-    linear-gradient(45deg, transparent 42%, var(--accent) 42% 58%, transparent 58%) 25% 50% / 48% 48% no-repeat,
-    linear-gradient(-45deg, transparent 42%, var(--accent) 42% 58%, transparent 58%) 66% 50% / 58% 58% no-repeat;
+.pull-refresh-indicator.done .pull-refresh-status-icon {
+  color: var(--accent);
+  animation: none;
 }
 
 @keyframes pullRefreshSpin {

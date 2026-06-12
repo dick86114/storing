@@ -1,6 +1,7 @@
 'use client';
 
 import { type ReactNode, useRef, useState } from 'react';
+import { CheckOutlined, DownOutlined, LoadingOutlined } from '@ant-design/icons';
 
 type PullState = 'idle' | 'pulling' | 'ready' | 'refreshing' | 'done';
 
@@ -98,6 +99,12 @@ export function PullToRefresh({ children, onRefresh, disabled = false, className
         ? '已刷新'
         : '下拉刷新';
 
+  const icon = state === 'refreshing'
+    ? <LoadingOutlined />
+    : state === 'done'
+      ? <CheckOutlined />
+      : <DownOutlined />;
+
   return (
     <div
       className={className}
@@ -113,14 +120,14 @@ export function PullToRefresh({ children, onRefresh, disabled = false, className
       }}
     >
       <div
-        className={`pull-refresh-indicator${state === 'refreshing' ? ' refreshing' : ''}${state === 'done' ? ' done' : ''}`}
+        className={`pull-refresh-indicator ${state}`}
         aria-hidden={state === 'idle'}
         style={{
           opacity: distance > 0 || state === 'refreshing' || state === 'done' ? 1 : 0,
           transform: `translate(-50%, ${Math.max(-42, distance * -1 - 6)}px)`,
         }}
       >
-        <span className="pull-refresh-spinner" />
+        <span className="pull-refresh-status-icon">{icon}</span>
         <span>{label}</span>
       </div>
       {children}
