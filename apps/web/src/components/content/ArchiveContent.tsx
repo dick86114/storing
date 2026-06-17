@@ -362,7 +362,7 @@ function ArchiveContentInner() {
         </div>
       )}
 
-      {isMobile && <div style={{ padding: '8px 16px' }}>{refreshableArticleListContent}</div>}
+      {isMobile && <div className="mobile-content-frame" style={{ padding: '8px 16px' }}>{refreshableArticleListContent}</div>}
     </div>
   );
 }
