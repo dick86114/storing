@@ -5416,7 +5416,7 @@ body.detail-panel-open .bottom-tab-bar {
     flex: 0 0 auto !important;
     justify-content: flex-start !important;
     gap: 20px !important;
-    margin-left: 18px;
+    margin-left: auto;
   }
 
   [data-color-scheme='magazine'] .top-tab-button {
@@ -5460,13 +5460,14 @@ body.detail-panel-open .bottom-tab-bar {
 
   [data-color-scheme='magazine'] .desktop-nav-actions {
     order: 0;
-    flex: 1 1 auto !important;
-    justify-content: space-between;
-    min-width: 0;
-    margin-left: 18px;
+    display: contents !important;
   }
 
   [data-color-scheme='magazine'] .desktop-search-trigger {
+    order: 0;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
     width: min(440px, 34vw);
     height: 38px;
     display: flex;
@@ -5474,10 +5475,17 @@ body.detail-panel-open .bottom-tab-bar {
     justify-content: flex-start;
     gap: 10px;
     padding: 0 14px !important;
+    margin-left: 0;
     border: 1px solid var(--mag-sidebar-border) !important;
     border-radius: 7px;
     background: oklch(100% 0 0 / 0.07) !important;
     color: var(--mag-nav-muted);
+  }
+
+  [data-color-scheme='magazine'] .desktop-user-menu-wrap {
+    order: 2;
+    flex: 0 0 auto;
+    margin-left: 18px;
   }
 
   [data-color-scheme='magazine'] .desktop-search-trigger::after {
