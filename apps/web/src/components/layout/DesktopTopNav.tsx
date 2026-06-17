@@ -162,7 +162,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
           >
             <SearchOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
           </button>
-          <div ref={menuWrapRef} onBlurCapture={handleMenuBlur} style={{ position: 'relative' }}>
+          <div className="desktop-user-menu-wrap" ref={menuWrapRef} onBlurCapture={handleMenuBlur} style={{ position: 'relative' }}>
             <button
               className="desktop-user-trigger"
               onClick={() => setMenuOpen(!menuOpen)}
