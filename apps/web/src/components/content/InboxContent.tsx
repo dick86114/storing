@@ -286,7 +286,7 @@ function InboxContentInner() {
 
 export function InboxContent() {
   return (
-    <div style={{ padding: '8px 16px' }}>
+    <div className="mobile-content-frame" style={{ padding: '8px 16px' }}>
       <Suspense fallback={<div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>}>
         <InboxContentInner />
       </Suspense>

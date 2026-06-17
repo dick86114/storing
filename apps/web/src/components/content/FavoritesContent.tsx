@@ -302,7 +302,7 @@ function FavoritesContentInner() {
 
 export function FavoritesContent() {
   return (
-    <div style={{ padding: '8px 16px' }}>
+    <div className="mobile-content-frame" style={{ padding: '8px 16px' }}>
       <Suspense fallback={<div style={{ color: 'var(--muted)', padding: 'var(--gap-2xl) 0', textAlign: 'center' }}>加载中…</div>}>
         <FavoritesContentInner />
       </Suspense>
