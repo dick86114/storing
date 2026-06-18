@@ -904,35 +904,35 @@ function getSharePosterPalette(theme: ShareThemeSnapshot): SharePosterPalette {
       label: '杂志纸感',
     },
     xianxia: dark ? {
-      backgroundStops: [[0, '#10231f'], [0.52, '#17382f'], [1, '#0d1d1b']],
-      aurora: [{ x: 920, y: 180, radius: 380, color: 'rgba(250, 204, 21, 0.18)' }],
-      title: '#f7f4df',
-      muted: 'rgba(242, 232, 196, 0.66)',
-      body: '#eee8c8',
-      border: 'rgba(226, 214, 158, 0.26)',
-      card: '#182d27',
-      cardInner: '#13241f',
-      screenshotBackground: '#13241f',
-      accent: '#d7b45a',
-      qrDark: '#14241f',
-      qrLight: '#fff9df',
+      backgroundStops: [[0, '#071916'], [0.52, '#102b27'], [1, '#071312']],
+      aurora: [{ x: 900, y: 170, radius: 420, color: 'rgba(126, 211, 190, 0.18)' }],
+      title: '#f4fff9',
+      muted: 'rgba(218, 239, 231, 0.68)',
+      body: '#d9eee6',
+      border: 'rgba(174, 219, 202, 0.26)',
+      card: '#10231f',
+      cardInner: '#0b1b18',
+      screenshotBackground: '#0b1b18',
+      accent: '#9edeca',
+      qrDark: '#071916',
+      qrLight: '#f3fff9',
       shadow: 'rgba(0, 0, 0, 0.34)',
-      label: '仙侠卷轴',
+      label: '仙府玉简',
     } : {
-      backgroundStops: [[0, '#fbf7df'], [0.52, '#edf6e5'], [1, '#f8efd0']],
-      aurora: [{ x: 920, y: 180, radius: 380, color: 'rgba(217, 178, 78, 0.20)' }],
-      title: '#272819',
-      muted: 'rgba(39, 40, 25, 0.58)',
-      body: '#343a24',
-      border: '#d8c58e',
-      card: '#fffbe7',
-      cardInner: '#fffdf0',
-      screenshotBackground: '#fffdf0',
-      accent: '#9b7b21',
-      qrDark: '#272819',
-      qrLight: '#fffbe7',
-      shadow: 'rgba(77, 66, 28, 0.16)',
-      label: '仙侠卷轴',
+      backgroundStops: [[0, '#f7fffb'], [0.52, '#e9f6f0'], [1, '#f8fbf4']],
+      aurora: [{ x: 920, y: 180, radius: 420, color: 'rgba(97, 171, 151, 0.18)' }],
+      title: '#19322f',
+      muted: 'rgba(25, 50, 47, 0.58)',
+      body: '#274541',
+      border: '#c9ddd5',
+      card: '#fbfffb',
+      cardInner: '#ffffff',
+      screenshotBackground: '#ffffff',
+      accent: '#2f8b7b',
+      qrDark: '#19322f',
+      qrLight: '#f7fffb',
+      shadow: 'rgba(35, 78, 70, 0.16)',
+      label: '仙府玉简',
     },
   };
 
@@ -1097,7 +1097,7 @@ function getProxiedImageUrl(src: string) {
 
 function getPosterFontFamily(scheme: ColorScheme) {
   if (scheme === 'magazine') return '"Iowan Old Style", "Newsreader", Georgia, "Times New Roman", serif';
-  if (scheme === 'xianxia') return '"STKaiti", "Kaiti SC", "Songti SC", serif';
+  if (scheme === 'xianxia') return '"PingFang SC", "Songti SC", "Microsoft YaHei", sans-serif';
   return '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", "PingFang SC", sans-serif';
 }
 

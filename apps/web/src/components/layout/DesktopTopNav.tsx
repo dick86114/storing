@@ -215,6 +215,18 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
                     zIndex: 1000,
                   }}
                 >
+                  {isAuthenticated && (
+                    <div className="app-menu-user">
+                      <span className="app-menu-user-seal" aria-hidden="true">
+                        <UserOutlined style={{ fontSize: '16px' }} />
+                      </span>
+                      <span className="app-menu-user-copy">
+                        <span className="app-menu-user-name">{user?.username}</span>
+                        <span className="app-menu-user-meta">仙府玉简</span>
+                      </span>
+                    </div>
+                  )}
+                  <div className="app-menu-section-label">夜昼</div>
                   {(['light', 'dark', 'system'] as const).map((mode) => (
                     <button
                       key={mode}
@@ -246,6 +258,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
                   <div className="app-menu-divider" />
                   <ThemeStyleMenu onSelect={() => setMenuOpen(false)} />
                   <div className="app-menu-divider" />
+                  <div className="app-menu-section-label">操作</div>
                   {isAuthenticated ? (
                     <>
                       <button

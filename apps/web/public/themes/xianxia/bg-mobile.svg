@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 1400" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="mobilePaper" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fbfaf4"/>
+      <stop offset=".54" stop-color="#edf6f2"/>
+      <stop offset="1" stop-color="#d8eee8"/>
+    </linearGradient>
+    <radialGradient id="topGlow" cx=".7" cy=".08" r=".46">
+      <stop offset="0" stop-color="#a7ddd4" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="mist">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency=".7" numOctaves="3" seed="41"/>
+      <feColorMatrix type="matrix" values=".16 0 0 0 .8 0 .16 0 0 .78 0 0 .14 0 .7 0 0 0 .18 0"/>
+    </filter>
+  </defs>
+  <rect width="780" height="1400" fill="url(#mobilePaper)"/>
+  <rect width="780" height="1400" fill="url(#topGlow)"/>
+  <rect width="780" height="1400" filter="url(#grain)" opacity=".26"/>
+  <g opacity=".14" stroke="#418b83" stroke-width="1">
+    <path d="M90 0v1400M210 0v1400M330 0v1400M450 0v1400M570 0v1400M690 0v1400"/>
+    <path d="M0 140h780M0 280h780M0 420h780M0 560h780M0 700h780M0 840h780M0 980h780M0 1120h780"/>
+  </g>
+  <g fill="none" stroke="#b9a76e" stroke-width="2" opacity=".44">
+    <path d="M44 72h138m-138 0c34 0 28-28 64-28h38"/>
+    <path d="M566 76h150m-150 0c36 0 32-28 70-28h34"/>
+    <path d="M58 1268h148m-148 0c38 0 30 28 72 28h34"/>
+    <path d="M544 1280h154m-154 0c36 0 30 28 72 28h32"/>
+  </g>
+  <g opacity=".18" fill="none" stroke="#72afa8" stroke-width="12" stroke-linecap="round" filter="url(#mist)">
+    <path d="M-40 194c84-58 142 10 220-22 70-28 106-80 198-36"/>
+    <path d="M416 192c64-46 126-34 174-10 52 26 100 4 148-24"/>
+    <path d="M-72 1110c112-72 188 20 286-26 90-42 132-96 236-44"/>
+  </g>
+  <g opacity=".72">
+    <path fill="#b8d9d3" d="M-80 1220 70 976l80 112 76-166 104 214 78-132 98 216Z"/>
+    <path fill="#9bc5bf" opacity=".78" d="M216 1248 356 948l74 138 92-202 98 250 76-150 142 264Z"/>
+    <path fill="#7aa8a2" opacity=".36" d="M500 1260 640 994l70 126 88-172 82 204 70-128 88 236Z"/>
+  </g>
+  <g opacity=".52" fill="#5d8c86">
+    <path d="M338 1022h78v88h-78z"/>
+    <path d="M318 1020h118l-59-48z"/>
+    <path d="M360 972h34v-32h-34z"/>
+  </g>
+  <g fill="#fff" opacity=".22">
+    <circle cx="118" cy="190" r="2"/>
+    <circle cx="532" cy="152" r="2"/>
+    <circle cx="668" cy="320" r="2"/>
+    <circle cx="220" cy="446" r="1.5"/>
+  </g>
+</svg>

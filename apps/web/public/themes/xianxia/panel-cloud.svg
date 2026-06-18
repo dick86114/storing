@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 520" preserveAspectRatio="none">
+  <defs>
+    <radialGradient id="jade" cx=".84" cy=".16" r=".54">
+      <stop offset="0" stop-color="#9eddd3" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="gold" cx=".08" cy=".92" r=".46">
+      <stop offset="0" stop-color="#cbb574" stop-opacity=".16"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency=".64" numOctaves="3" seed="51"/>
+      <feColorMatrix type="matrix" values=".12 0 0 0 .72 0 .12 0 0 .72 0 0 .1 0 .66 0 0 0 .12 0"/>
+    </filter>
+  </defs>
+  <rect width="520" height="520" fill="url(#jade)"/>
+  <rect width="520" height="520" fill="url(#gold)"/>
+  <rect width="520" height="520" filter="url(#grain)" opacity=".22"/>
+  <g fill="none" stroke="#b9a76e" stroke-width="1.8" opacity=".5">
+    <path d="M26 54h92m-92 0c24 0 18-22 46-22h24"/>
+    <path d="M390 58h102m-102 0c24 0 22-22 50-22h20"/>
+    <path d="M32 456h98m-98 0c24 0 20 22 50 22h24"/>
+    <path d="M386 462h108m-108 0c26 0 20 22 52 22h22"/>
+  </g>
+  <g fill="none" stroke="#5fa99e" stroke-width="7" stroke-linecap="round" opacity=".16">
+    <path d="M-20 170c56-42 96 8 154-18 52-24 76-60 142-24"/>
+    <path d="M292 154c48-36 88-22 124-4 44 20 72-4 112-24"/>
+    <path d="M-16 374c62-44 106 8 166-16 54-22 82-62 148-24"/>
+  </g>
+  <g stroke="#5fa99e" stroke-width=".8" opacity=".15">
+    <path d="M0 86h520M0 174h520M0 262h520M0 350h520M0 438h520"/>
+    <path d="M86 0v520M174 0v520M262 0v520M350 0v520M438 0v520"/>
+  </g>
+</svg>
