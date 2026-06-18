@@ -68,6 +68,12 @@ export function SourceSidebar({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFromModal, setSelectedFromModal] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const isTouchViewport = () => (
+    typeof window !== 'undefined'
+    && (window.matchMedia('(hover: none) and (pointer: coarse)').matches || window.innerWidth < 768)
+  );
 
   const displayCount = 10;
   const allSources = [{ source: 'all', count: totalCount }, ...sources];
@@ -138,6 +144,14 @@ export function SourceSidebar({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleEscape);
     };
+  }, [showModal]);
+
+  useEffect(() => {
+    if (!showModal || isTouchViewport()) return;
+    const focusTimer = window.setTimeout(() => {
+      searchInputRef.current?.focus({ preventScroll: true });
+    }, 80);
+    return () => window.clearTimeout(focusTimer);
   }, [showModal]);
 
   useEffect(() => {
@@ -394,11 +408,11 @@ export function SourceSidebar({
 
             <div style={{ marginBottom: '20px' }}>
               <input
+                ref={searchInputRef}
                 type="text"
                 placeholder="搜索来源..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                autoFocus
                 style={{
                   width: '100%',
                   padding: '12px 16px',
