@@ -9,7 +9,7 @@ const styleOptions: Array<{ key: ColorScheme; label: string; description: string
   { key: 'glass', label: '玻璃', description: '通透柔和', icon: 'glass' },
   { key: 'aurora', label: '极光', description: '柔彩晶窗', icon: 'aurora' },
   { key: 'magazine', label: '杂志', description: '纸感阅读', icon: 'magazine' },
-  { key: 'xianxia', label: '修仙', description: '仙雾灵卷', icon: 'xianxia' },
+  { key: 'xianxia', label: '修仙', description: '仙府玉简', icon: 'xianxia' },
 ];
 
 interface ThemeStyleMenuProps {
