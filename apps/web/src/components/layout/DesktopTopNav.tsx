@@ -26,7 +26,7 @@ interface DesktopTopNavProps {
 export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }: DesktopTopNavProps) {
   const router = useRouter();
   const { isAuthenticated, user, logout } = useAuth();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, colorScheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
@@ -222,7 +222,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
                       </span>
                       <span className="app-menu-user-copy">
                         <span className="app-menu-user-name">{user?.username}</span>
-                        <span className="app-menu-user-meta">仙府玉简</span>
+                        {colorScheme === 'xianxia' && <span className="app-menu-user-meta">仙府玉简</span>}
                       </span>
                     </div>
                   )}

@@ -16,7 +16,7 @@ interface MobileTopNavProps {
 
 export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
   const { isAuthenticated, user, logout } = useAuth();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, colorScheme } = useTheme();
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
@@ -187,7 +187,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                       </span>
                       <span className="app-menu-user-copy">
                         <span className="app-menu-user-name">{user?.username}</span>
-                        <span className="app-menu-user-meta">仙府玉简</span>
+                        {colorScheme === 'xianxia' && <span className="app-menu-user-meta">仙府玉简</span>}
                       </span>
                     </div>
                     <div style={{ height: '1px', background: 'rgba(255,255,255,0.2)', margin: '8px 12px' }} />

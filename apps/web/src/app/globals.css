@@ -1787,6 +1787,49 @@ body {
   transition: color var(--transition), background var(--transition), transform var(--transition), opacity var(--transition);
 }
 
+.app-menu-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+}
+
+.app-menu-user-seal {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+}
+
+.app-menu-user-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+  line-height: 1.2;
+}
+
+.app-menu-user-name,
+.app-menu-user-meta {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-menu-user-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.app-menu-user-meta {
+  color: color-mix(in oklch, var(--menu-text) 62%, transparent);
+  font-size: 11px;
+}
+
 .app-menu-item {
   position: relative;
   overflow: hidden;
@@ -6306,7 +6349,7 @@ body.detail-panel-open .bottom-tab-bar {
 }
 
 [data-color-scheme='xianxia'] .desktop-main-shell {
-  width: min(1480px, calc(100vw - 42px));
+  width: min(1680px, calc(100vw - 42px));
   min-height: calc(100vh - 92px);
   padding: 22px !important;
   border: 1px solid var(--glass-border);
@@ -6332,7 +6375,7 @@ body.detail-panel-open .bottom-tab-bar {
 
 [data-color-scheme='xianxia'] .desktop-top-nav {
   top: 12px;
-  width: min(1480px, calc(100vw - 42px));
+  width: min(1680px, calc(100vw - 42px));
   height: 62px !important;
   margin: 12px auto 0;
   padding: 0 24px !important;
@@ -6791,7 +6834,18 @@ body.detail-panel-open .bottom-tab-bar {
   }
 
   [data-color-scheme='xianxia'] .source-pills {
-    padding-top: 10px;
+    padding-top: 8px !important;
+    padding-bottom: 16px !important;
+  }
+
+  [data-color-scheme='xianxia'] .source-pills > div:first-child {
+    margin-bottom: 14px !important;
+    padding-bottom: 10px;
+    border-bottom-color: color-mix(in oklch, var(--accent) 20%, transparent) !important;
+  }
+
+  [data-color-scheme='xianxia'] .source-pills .source-sort-button {
+    margin-bottom: 0 !important;
   }
 
   [data-color-scheme='xianxia'] .article-card {
@@ -7169,7 +7223,7 @@ body.detail-panel-open .bottom-tab-bar {
 /* Jade Immortal Archive: illustrated background and jade menus. */
 [data-color-scheme='xianxia'] body {
   background:
-    url('/themes/xianxia/bg-light.svg') center / cover fixed no-repeat,
+    url('/themes/xianxia/bg-light.svg') center top / cover no-repeat,
     radial-gradient(circle at 78% 10%, color-mix(in oklch, var(--accent) 13%, transparent), transparent 28rem),
     radial-gradient(circle at 12% 88%, color-mix(in oklch, var(--accent-alt) 13%, transparent), transparent 30rem),
     linear-gradient(145deg, var(--bg) 0%, color-mix(in oklch, var(--surface-alt) 18%, var(--bg)) 48%, color-mix(in oklch, white 28%, var(--bg)) 100%) !important;
@@ -7177,7 +7231,7 @@ body.detail-panel-open .bottom-tab-bar {
 
 [data-color-scheme='xianxia'][data-theme='dark'] body {
   background:
-    url('/themes/xianxia/bg-dark.svg') center / cover fixed no-repeat,
+    url('/themes/xianxia/bg-dark.svg') center top / cover no-repeat,
     radial-gradient(circle at 78% 12%, color-mix(in oklch, var(--accent) 13%, transparent), transparent 26rem),
     radial-gradient(circle at 10% 88%, color-mix(in oklch, var(--accent-alt) 10%, transparent), transparent 30rem),
     linear-gradient(145deg, oklch(8.5% 0.022 188), var(--bg) 48%, oklch(15.5% 0.033 184)) !important;
@@ -7192,7 +7246,7 @@ body.detail-panel-open .bottom-tab-bar {
     linear-gradient(165deg, transparent 0 55%, color-mix(in oklch, var(--accent) 8%, transparent) 56% 62%, transparent 63%),
     linear-gradient(24deg, transparent 0 70%, color-mix(in oklch, var(--accent-alt) 10%, transparent) 71% 75%, transparent 76%),
     repeating-linear-gradient(90deg, transparent 0 72px, color-mix(in oklch, var(--accent) 5%, transparent) 73px 74px);
-  animation: xianxiaMistDrift 18s ease-in-out infinite alternate;
+  animation: none;
 }
 
 [data-color-scheme='xianxia'][data-theme='dark'] body::before {
@@ -7544,14 +7598,14 @@ body.detail-panel-open .bottom-tab-bar {
 @media (max-width: 767px) {
   [data-color-scheme='xianxia'] body {
     background:
-      url('/themes/xianxia/bg-mobile.svg') center top / cover fixed no-repeat,
+      url('/themes/xianxia/bg-mobile.svg') center top / cover no-repeat,
       linear-gradient(145deg, var(--bg), color-mix(in oklch, var(--surface-alt) 18%, var(--bg))) !important;
   }
 
   [data-color-scheme='xianxia'][data-theme='dark'] body {
     background:
       linear-gradient(color-mix(in oklch, var(--bg) 78%, transparent), color-mix(in oklch, var(--bg) 88%, transparent)),
-      url('/themes/xianxia/bg-mobile.svg') center top / cover fixed no-repeat,
+      url('/themes/xianxia/bg-mobile.svg') center top / cover no-repeat,
       linear-gradient(145deg, oklch(8.5% 0.022 188), var(--bg)) !important;
   }
 
@@ -7591,7 +7645,7 @@ body.detail-panel-open .bottom-tab-bar {
 
   [data-color-scheme='xianxia'][data-theme='light'] .desktop-main-shell,
   [data-color-scheme='xianxia']:not([data-theme='dark']) .desktop-main-shell {
-    width: min(1488px, calc(100vw - 28px));
+    width: min(1680px, calc(100vw - 28px));
     min-height: calc(100vh - 86px);
     padding: 12px 15px 34px !important;
     border-radius: 14px;
@@ -7602,8 +7656,8 @@ body.detail-panel-open .bottom-tab-bar {
       inset 0 0 0 1px oklch(100% 0 0 / 0.62),
       inset 0 0 0 2px oklch(70% 0.065 84 / 0.14),
       0 18px 48px oklch(32% 0.024 174 / 0.11);
-    backdrop-filter: blur(8px) saturate(1.04);
-    -webkit-backdrop-filter: blur(8px) saturate(1.04);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   [data-color-scheme='xianxia'][data-theme='light'] .desktop-main-shell > div,
@@ -7619,7 +7673,7 @@ body.detail-panel-open .bottom-tab-bar {
   [data-color-scheme='xianxia'][data-theme='light'] .desktop-main-shell > div::after,
   [data-color-scheme='xianxia']:not([data-theme='dark']) .desktop-main-shell > div::after {
     content: '';
-    position: fixed;
+    position: absolute;
     left: 16px;
     right: 16px;
     bottom: 12px;
@@ -7636,8 +7690,8 @@ body.detail-panel-open .bottom-tab-bar {
 
   [data-color-scheme='xianxia'][data-theme='light'] .article-stream,
   [data-color-scheme='xianxia']:not([data-theme='dark']) .article-stream {
-    grid-template-columns: repeat(auto-fill, minmax(300px, 360px)) !important;
-    justify-content: space-between;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+    justify-content: stretch;
     gap: 22px 26px !important;
   }
 
@@ -7801,7 +7855,13 @@ body.detail-panel-open .bottom-tab-bar {
   [data-color-scheme='xianxia'][data-theme='light'] .desktop-main-shell,
   [data-color-scheme='xianxia'][data-theme='dark'] .desktop-main-shell,
   [data-color-scheme='xianxia']:not([data-theme='dark']) .desktop-main-shell {
+    width: min(1680px, calc(100vw - 28px)) !important;
     padding-top: 3px !important;
+  }
+
+  [data-color-scheme='xianxia'] .article-stream {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+    justify-content: stretch !important;
   }
 
   [data-color-scheme='xianxia'] .archive-desktop-layout {
@@ -7810,6 +7870,95 @@ body.detail-panel-open .bottom-tab-bar {
 
   [data-color-scheme='xianxia'] .archive-desktop-layout--source-collapsed .source-sidebar--collapsed {
     top: 8px !important;
+  }
+}
+
+/* Performance pass for Jade Immortal Archive: keep the look, reduce repaint-heavy layers. */
+[data-color-scheme='xianxia'] body::before {
+  transform: none !important;
+  will-change: auto !important;
+}
+
+[data-color-scheme='xianxia'] .desktop-main-shell::after,
+[data-color-scheme='xianxia'] .desktop-main-shell > div::after {
+  filter: none !important;
+  will-change: auto !important;
+}
+
+[data-color-scheme='xianxia'] .article-stream {
+  contain: layout style;
+}
+
+[data-color-scheme='xianxia'] .wechat-article-card,
+[data-color-scheme='xianxia'] .article-card {
+  contain: layout paint style;
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 46%, transparent),
+    0 8px 18px color-mix(in oklch, var(--fg-title) 8%, transparent) !important;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease !important;
+}
+
+[data-color-scheme='xianxia'] .wechat-article-card:hover,
+[data-color-scheme='xianxia'] .article-card:hover {
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 50%, transparent),
+    0 10px 22px color-mix(in oklch, var(--fg-title) 10%, transparent) !important;
+}
+
+[data-color-scheme='xianxia'] .wechat-article-card::after,
+[data-color-scheme='xianxia'] .article-card::after,
+[data-color-scheme='xianxia'] .article-card-cover::after,
+[data-color-scheme='xianxia'] .ai-summary-block::after {
+  animation: none !important;
+  will-change: auto !important;
+}
+
+[data-color-scheme='xianxia'] .article-card-cover {
+  filter: none !important;
+  box-shadow: none !important;
+}
+
+[data-color-scheme='xianxia'] .detail-panel-header,
+[data-color-scheme='xianxia'] .detail-panel-footer {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+@media (max-width: 767px) {
+  [data-color-scheme='xianxia'] body::before {
+    opacity: 0.24 !important;
+  }
+
+  [data-color-scheme='xianxia'] body::after {
+    opacity: 0.14 !important;
+  }
+
+  [data-color-scheme='xianxia'] .wechat-article-card,
+  [data-color-scheme='xianxia'] .article-card {
+    box-shadow: 0 6px 14px color-mix(in oklch, var(--fg-title) 7%, transparent) !important;
+  }
+
+  [data-color-scheme='xianxia'] .wechat-article-card > .article-card-inner {
+    padding: 14px 16px 13px !important;
+  }
+
+  [data-color-scheme='xianxia'] .wechat-article-card .article-card-main {
+    margin-bottom: 10px;
+  }
+
+  [data-color-scheme='xianxia'] .wechat-article-card .article-card-heading {
+    margin-bottom: 10px !important;
+  }
+
+  [data-color-scheme='xianxia'] .wechat-article-card .article-card-tags {
+    gap: 6px;
+    margin-top: 10px !important;
+    margin-bottom: 10px !important;
+  }
+
+  [data-color-scheme='xianxia'] .wechat-article-card .article-card-cover {
+    margin-top: 0 !important;
+    margin-bottom: 12px !important;
   }
 }
 
@@ -8584,14 +8733,77 @@ body.detail-panel-open .bottom-tab-bar {
   color: var(--muted) !important;
 }
 
+[data-color-scheme='aurora'] .user-menu {
+  min-width: 260px !important;
+  padding: 10px !important;
+  overflow: hidden;
+}
+
+[data-color-scheme='aurora'] .app-menu-user {
+  margin: 0 0 8px !important;
+  padding: 10px 12px !important;
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--surface) 42%, transparent);
+}
+
+[data-color-scheme='aurora'] .app-menu-user-seal {
+  color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 13%, transparent);
+}
+
+[data-color-scheme='aurora'] .app-menu-user-copy {
+  flex: 1;
+}
+
+[data-color-scheme='aurora'] .app-menu-user-meta,
+[data-color-scheme='aurora'] .app-menu-section-label,
+[data-color-scheme='aurora'] .theme-menu-label {
+  color: var(--muted) !important;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+[data-color-scheme='aurora'] .app-menu-section-label,
+[data-color-scheme='aurora'] .theme-menu-label {
+  padding: 6px 8px 7px !important;
+}
+
+[data-color-scheme='aurora'] .app-menu-item,
+[data-color-scheme='aurora'] .theme-style-option {
+  min-height: 38px;
+  margin: 2px 0 !important;
+  padding: 8px 10px !important;
+  border-radius: 12px !important;
+  font-size: 14px !important;
+}
+
+[data-color-scheme='aurora'] .theme-style-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+[data-color-scheme='aurora'] .theme-style-copy {
+  min-width: 0;
+}
+
+[data-color-scheme='aurora'] .theme-style-title,
+[data-color-scheme='aurora'] .theme-style-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 [data-color-scheme='aurora'][data-theme='light'] .app-menu-item:hover,
 [data-color-scheme='aurora'][data-theme='light'] .app-menu-item.active,
 [data-color-scheme='aurora'][data-theme='light'] .theme-style-option:hover,
 [data-color-scheme='aurora'][data-theme='light'] .theme-style-option.active,
+[data-color-scheme='aurora'][data-theme='light'] .theme-style-option[aria-pressed='true'],
 [data-color-scheme='aurora']:not([data-theme='dark']) .app-menu-item:hover,
 [data-color-scheme='aurora']:not([data-theme='dark']) .app-menu-item.active,
 [data-color-scheme='aurora']:not([data-theme='dark']) .theme-style-option:hover,
-[data-color-scheme='aurora']:not([data-theme='dark']) .theme-style-option.active {
+[data-color-scheme='aurora']:not([data-theme='dark']) .theme-style-option.active,
+[data-color-scheme='aurora']:not([data-theme='dark']) .theme-style-option[aria-pressed='true'] {
   color: var(--accent) !important;
   background:
     radial-gradient(circle at 14% 0%, color-mix(in oklch, var(--accent) 22%, transparent), transparent 58%),
@@ -8602,10 +8814,12 @@ body.detail-panel-open .bottom-tab-bar {
 [data-color-scheme='aurora'][data-theme='light'] .app-menu-item.active *,
 [data-color-scheme='aurora'][data-theme='light'] .theme-style-option:hover *,
 [data-color-scheme='aurora'][data-theme='light'] .theme-style-option.active *,
+[data-color-scheme='aurora'][data-theme='light'] .theme-style-option[aria-pressed='true'] *,
 [data-color-scheme='aurora']:not([data-theme='dark']) .app-menu-item:hover *,
 [data-color-scheme='aurora']:not([data-theme='dark']) .app-menu-item.active *,
 [data-color-scheme='aurora']:not([data-theme='dark']) .theme-style-option:hover *,
-[data-color-scheme='aurora']:not([data-theme='dark']) .theme-style-option.active * {
+[data-color-scheme='aurora']:not([data-theme='dark']) .theme-style-option.active *,
+[data-color-scheme='aurora']:not([data-theme='dark']) .theme-style-option[aria-pressed='true'] * {
   color: var(--accent) !important;
 }
 
@@ -9456,6 +9670,12 @@ body.detail-panel-open .bottom-tab-bar {
   [data-color-scheme='magazine'] .detail-panel .detail-panel-content .ai-summary-block {
     margin-right: 0 !important;
     margin-left: 0 !important;
+  }
+}
+
+@media (min-width: 768px) {
+  html[data-color-scheme='xianxia'] .archive-desktop-layout.archive-desktop-layout--source-collapsed .source-sidebar.source-sidebar--collapsed {
+    top: 8px !important;
   }
 }
 
