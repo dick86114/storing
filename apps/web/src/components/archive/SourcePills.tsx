@@ -46,6 +46,12 @@ export function SourcePills({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFromModal, setSelectedFromModal] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const isTouchViewport = () => (
+    typeof window !== 'undefined'
+    && (window.matchMedia('(hover: none) and (pointer: coarse)').matches || window.innerWidth < 768)
+  );
 
   const displayCount = 10;
   const allSources = [{ source: 'all', count: totalCount }, ...sources];
@@ -117,6 +123,14 @@ export function SourcePills({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleEscape);
     };
+  }, [showModal]);
+
+  useEffect(() => {
+    if (!showModal || isTouchViewport()) return;
+    const focusTimer = window.setTimeout(() => {
+      searchInputRef.current?.focus({ preventScroll: true });
+    }, 80);
+    return () => window.clearTimeout(focusTimer);
   }, [showModal]);
 
   useEffect(() => {
@@ -276,11 +290,11 @@ export function SourcePills({
                 <path d="m21 21-4.3-4.3" />
               </svg>
               <input
+                ref={searchInputRef}
                 type="text"
                 placeholder="搜索来源..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                autoFocus
                 style={{
                   border: 'none',
                   background: 'none',

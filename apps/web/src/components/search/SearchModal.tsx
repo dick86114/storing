@@ -17,6 +17,11 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
   const { highlightAndOpen } = useArticleContext();
   const { isAuthenticated } = useAuth();
 
+  const isTouchViewport = useCallback(() => (
+    typeof window !== 'undefined'
+    && (window.matchMedia('(hover: none) and (pointer: coarse)').matches || window.innerWidth < 768)
+  ), []);
+
   const handleSelect = useCallback(async (article: any) => {
     onClose();
     
@@ -41,10 +46,20 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
   }, [highlightAndOpen, onClose, router]);
 
   useEffect(() => {
-    inputRef.current?.focus();
     document.body.style.overflow = 'hidden';
+
+    if (!isTouchViewport()) {
+      const focusTimer = window.setTimeout(() => {
+        inputRef.current?.focus({ preventScroll: true });
+      }, 80);
+      return () => {
+        window.clearTimeout(focusTimer);
+        document.body.style.overflow = '';
+      };
+    }
+
     return () => { document.body.style.overflow = ''; };
-  }, []);
+  }, [isTouchViewport]);
 
   useEffect(() => {
     setSelectedIdx(0);
@@ -52,9 +67,10 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
 
   // 键盘导航时自动滚动到选中项
   useEffect(() => {
+    if (isTouchViewport() || results.length === 0) return;
     const el = document.querySelector(`[data-search-idx="${selectedIdx}"]`);
     el?.scrollIntoView({ block: 'nearest' });
-  }, [selectedIdx]);
+  }, [isTouchViewport, results.length, selectedIdx]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

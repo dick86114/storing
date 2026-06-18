@@ -9362,6 +9362,100 @@ body.detail-panel-open .bottom-tab-bar {
   }
 }
 
+@media (max-width: 767px), (hover: none) and (pointer: coarse) {
+  .search-modal-overlay {
+    align-items: flex-start !important;
+    padding: 88px 16px 16px !important;
+    background: color-mix(in oklch, var(--bg) 88%, transparent) !important;
+    animation: mobileSearchOverlayIn 0.12s ease-out both !important;
+    contain: paint;
+  }
+
+  .search-modal-panel {
+    width: min(100%, 560px) !important;
+    max-height: min(78vh, 640px);
+    border-radius: 22px !important;
+    animation: mobileSearchPanelIn 0.14s ease-out both !important;
+    transform: translateZ(0);
+    will-change: transform, opacity;
+    contain: layout paint;
+  }
+
+  .source-modal-overlay {
+    align-items: flex-start !important;
+    justify-content: center !important;
+    padding: 92px 16px 16px !important;
+    background: color-mix(in oklch, var(--bg) 88%, transparent) !important;
+    animation: mobileSearchOverlayIn 0.12s ease-out both !important;
+    contain: paint;
+  }
+
+  .source-modal-panel {
+    width: min(100%, 560px) !important;
+    max-width: 560px !important;
+    max-height: min(76vh, 640px) !important;
+    padding: 10px !important;
+    border-radius: 22px !important;
+    animation: mobileSearchPanelIn 0.14s ease-out both !important;
+    transform: translateZ(0);
+    will-change: transform, opacity;
+    contain: layout paint;
+  }
+
+  [data-color-scheme='xianxia'] .search-modal-overlay {
+    background:
+      linear-gradient(180deg, color-mix(in oklch, var(--bg) 84%, transparent), color-mix(in oklch, var(--surface) 72%, transparent)) !important;
+  }
+
+  [data-color-scheme='xianxia'] .source-modal-overlay {
+    background:
+      linear-gradient(180deg, color-mix(in oklch, var(--bg) 84%, transparent), color-mix(in oklch, var(--surface) 72%, transparent)) !important;
+  }
+
+  [data-color-scheme='xianxia'] .search-modal-panel {
+    padding: 10px;
+    background:
+      linear-gradient(145deg, color-mix(in oklch, var(--surface) 90%, transparent), color-mix(in oklch, var(--surface-alt) 58%, transparent)),
+      var(--glass) !important;
+  }
+
+  [data-color-scheme='xianxia'] .source-modal-panel {
+    background:
+      linear-gradient(145deg, color-mix(in oklch, var(--surface) 90%, transparent), color-mix(in oklch, var(--surface-alt) 58%, transparent)),
+      var(--glass) !important;
+  }
+
+  [data-color-scheme='xianxia'] .search-modal-panel::after {
+    content: none;
+  }
+
+  .search-modal-panel > div:nth-child(2),
+  .source-modal-panel > div:last-child {
+    max-height: min(56vh, 430px) !important;
+    overscroll-behavior: contain;
+  }
+
+  .source-modal-panel input {
+    font-size: 16px !important;
+  }
+}
+
+@keyframes mobileSearchOverlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes mobileSearchPanelIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
 @media (min-width: 768px) {
   [data-color-scheme='magazine'] .desktop-top-nav {
     position: fixed !important;
