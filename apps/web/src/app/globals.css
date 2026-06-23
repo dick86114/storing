@@ -9365,6 +9365,9 @@ body.detail-panel-open .bottom-tab-bar {
 @media (max-width: 767px), (hover: none) and (pointer: coarse) {
   .search-modal-overlay {
     align-items: flex-start !important;
+    height: 100svh !important;
+    min-height: 100svh !important;
+    overflow: hidden !important;
     padding: 88px 16px 16px !important;
     background: color-mix(in oklch, var(--bg) 88%, transparent) !important;
     animation: mobileSearchOverlayIn 0.12s ease-out both !important;
@@ -9373,7 +9376,7 @@ body.detail-panel-open .bottom-tab-bar {
 
   .search-modal-panel {
     width: min(100%, 560px) !important;
-    max-height: min(78vh, 640px);
+    max-height: min(calc(100svh - 120px), 640px) !important;
     border-radius: 22px !important;
     animation: mobileSearchPanelIn 0.14s ease-out both !important;
     transform: translateZ(0);
@@ -9384,6 +9387,9 @@ body.detail-panel-open .bottom-tab-bar {
   .source-modal-overlay {
     align-items: flex-start !important;
     justify-content: center !important;
+    height: 100svh !important;
+    min-height: 100svh !important;
+    overflow: hidden !important;
     padding: 92px 16px 16px !important;
     background: color-mix(in oklch, var(--bg) 88%, transparent) !important;
     animation: mobileSearchOverlayIn 0.12s ease-out both !important;
@@ -9393,7 +9399,7 @@ body.detail-panel-open .bottom-tab-bar {
   .source-modal-panel {
     width: min(100%, 560px) !important;
     max-width: 560px !important;
-    max-height: min(76vh, 640px) !important;
+    max-height: min(calc(100svh - 124px), 640px) !important;
     padding: 10px !important;
     border-radius: 22px !important;
     animation: mobileSearchPanelIn 0.14s ease-out both !important;
@@ -9431,8 +9437,71 @@ body.detail-panel-open .bottom-tab-bar {
 
   .search-modal-panel > div:nth-child(2),
   .source-modal-panel > div:last-child {
-    max-height: min(56vh, 430px) !important;
+    max-height: min(calc(100svh - 224px), 430px) !important;
     overscroll-behavior: contain;
+  }
+
+  .search-modal-overlay:has(input:focus),
+  .source-modal-overlay:has(input:focus),
+  .search-modal-panel:has(input:focus),
+  .source-modal-panel:has(input:focus) {
+    animation: none !important;
+    will-change: auto !important;
+  }
+
+  .search-modal-input-row:focus-within .search-modal-icon,
+  [data-color-scheme='magazine'] .search-modal-input-row:focus-within .search-modal-icon {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .search-modal-input-row:focus-within,
+  .source-modal-panel > div:first-child:focus-within,
+  [data-color-scheme='magazine'] .search-modal-input-row:focus-within,
+  [data-color-scheme='magazine'] .source-modal-panel > div:first-child:focus-within {
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  .search-modal-panel input:focus,
+  .source-modal-panel input:focus {
+    outline: none !important;
+  }
+
+  .search-modal-panel input,
+  .source-modal-panel input {
+    min-height: 28px !important;
+    line-height: 28px !important;
+    caret-color: var(--accent) !important;
+  }
+
+  .search-modal-input-row {
+    min-height: 50px !important;
+  }
+
+  .search-modal-help {
+    align-items: center !important;
+    gap: 14px !important;
+    padding: 10px 14px !important;
+  }
+
+  .search-modal-help span {
+    gap: 6px !important;
+    line-height: 24px !important;
+  }
+
+  .search-modal-help kbd {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 28px !important;
+    height: 24px !important;
+    padding: 0 7px !important;
+    border-radius: 8px !important;
+    line-height: 1 !important;
+    font-size: 11px !important;
+    font-family: var(--font-mono) !important;
+    box-sizing: border-box;
   }
 
   .source-modal-panel input {
