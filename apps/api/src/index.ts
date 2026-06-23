@@ -7,8 +7,11 @@ import { articlesRoutes } from './routes/articles.js';
 import { searchRoutes } from './routes/search.js';
 import { healthRoutes } from './routes/health.js';
 import { authRoutes } from './routes/auth.js';
+import { wikiRoutes } from './routes/wiki.js';
 import { db } from './db/index.js';
 import { users } from './db/schema.js';
+import { initWikiSchema } from './services/wiki.service.js';
+import { startWikiWorker } from './services/wiki.worker.js';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 
@@ -21,6 +24,7 @@ app.route('/api/v1', healthRoutes);
 app.route('/api/v1', authRoutes);
 app.route('/api/v1', articlesRoutes);
 app.route('/api/v1', searchRoutes);
+app.route('/api/v1', wikiRoutes);
 
 app.onError((err, c) => {
   console.error(err);
@@ -60,6 +64,8 @@ async function initAdmin() {
 // 启动服务
 async function startServer() {
   await initAdmin();
+  await initWikiSchema().catch((err) => console.error('初始化 Wiki 表失败:', err));
+  startWikiWorker();
   serve({ fetch: app.fetch, port: 1052 }, (info) => {
     console.log(`API server running on http://localhost:${info.port}`);
   });

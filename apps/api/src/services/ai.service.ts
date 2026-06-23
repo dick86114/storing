@@ -17,15 +17,20 @@ const PROVIDERS: Record<string, { baseUrl: string; defaultModel: string; envKey:
   siliconflow:{ baseUrl: 'https://api.siliconflow.cn/v1',                defaultModel: 'Qwen/Qwen2.5-7B-Instruct',         envKey: 'SILICONFLOW_API_KEY' },
 };
 
+type AIProviderOptions = {
+  provider?: string;
+  model?: string;
+};
+
 // 统一 AI 调用接口
-async function callAI(system: string, user: string, maxTokens = 1024): Promise<string> {
-  const provider = process.env.AI_PROVIDER || 'anthropic';
+async function callAI(system: string, user: string, maxTokens = 1024, options: AIProviderOptions = {}): Promise<string> {
+  const provider = options.provider || process.env.AI_PROVIDER || 'anthropic';
 
   // Anthropic SDK
   if (provider === 'anthropic') {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' });
     const message = await anthropic.messages.create({
-      model: process.env.AI_MODEL || 'claude-haiku-4-5-20251001',
+      model: options.model || process.env.AI_MODEL || 'claude-haiku-4-5-20251001',
       max_tokens: maxTokens,
       system,
       messages: [{ role: 'user', content: user }],
@@ -39,7 +44,7 @@ async function callAI(system: string, user: string, maxTokens = 1024): Promise<s
     return callOpenAICompatible(
       process.env.CUSTOM_AI_BASE_URL || '',
       process.env.CUSTOM_AI_API_KEY || '',
-      process.env.CUSTOM_AI_MODEL || 'gpt-4o-mini',
+      options.model || process.env.CUSTOM_AI_MODEL || 'gpt-4o-mini',
       system, user, maxTokens,
     );
   }
@@ -51,9 +56,23 @@ async function callAI(system: string, user: string, maxTokens = 1024): Promise<s
   }
 
   const apiKey = process.env[preset.envKey] || '';
-  const model = process.env.AI_MODEL || preset.defaultModel;
+  const model = options.model || process.env.AI_MODEL || preset.defaultModel;
 
   return callOpenAICompatible(preset.baseUrl, apiKey, model, system, user, maxTokens);
+}
+
+export function getWikiAIConfig() {
+  const provider = process.env.WIKI_AI_PROVIDER || process.env.AI_PROVIDER || 'deepseek';
+  const preset = PROVIDERS[provider];
+  return {
+    provider,
+    model: process.env.WIKI_AI_MODEL || process.env.AI_MODEL || preset?.defaultModel || 'deepseek-v4-flash',
+  };
+}
+
+export async function callWikiAI(system: string, user: string, maxTokens = 2048): Promise<string> {
+  const config = getWikiAIConfig();
+  return callAI(system, user, maxTokens, config);
 }
 
 /** OpenAI 兼容 API 统一调用 */
@@ -171,4 +190,3 @@ export async function generateSummaryAndTags(articleId: number): Promise<void> {
   // 生成标签（不传分类）
   await generateTags(articleId, title, summary);
 }
-

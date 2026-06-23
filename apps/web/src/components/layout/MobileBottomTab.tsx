@@ -2,16 +2,17 @@
 
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers/AuthContext';
-import { AppstoreOutlined, HeartOutlined, FolderOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, HeartOutlined, FolderOutlined, BookOutlined } from '@ant-design/icons';
 
 const tabs = [
   { key: 'inbox', label: '收件箱', href: '/inbox', Icon: AppstoreOutlined },
   { key: 'favorites', label: '收藏', href: '/favorites', Icon: HeartOutlined },
   { key: 'archive', label: '归档', href: '/archive', Icon: FolderOutlined },
+  { key: 'wiki', label: 'Wiki', href: '/wiki', Icon: BookOutlined },
 ];
 
 interface MobileBottomTabProps {
-  counts: { inbox: number; favorites: number; archive: number };
+  counts: { inbox: number; favorites: number; archive: number; wiki?: number };
   activeIndex: number;
   onTabChange: (index: number) => void;
 }
