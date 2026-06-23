@@ -15,7 +15,7 @@ import { InboxContent } from '@/components/content/InboxContent';
 import { FavoritesContent } from '@/components/content/FavoritesContent';
 import { ArchiveContent } from '@/components/content/ArchiveContent';
 
-const TAB_KEYS = ['inbox', 'favorites', 'archive'];
+const TAB_KEYS = ['inbox', 'favorites', 'archive', 'wiki'];
 
 function MainContent({ children }: { children: ReactNode }) {
   const counts = useCounts();
@@ -26,7 +26,7 @@ function MainContent({ children }: { children: ReactNode }) {
   useDoubleBackExit();
 
   // 当前 tab 索引
-  const activeIndex = TAB_KEYS.findIndex(key => pathname === `/${key}`);
+  const activeIndex = TAB_KEYS.findIndex(key => pathname === `/${key}` || pathname.startsWith(`/${key}/`));
   const [currentTabIndex, setCurrentTabIndex] = useState(activeIndex >= 0 ? activeIndex : 0);
 
   // 检测是否为移动端
@@ -47,7 +47,7 @@ function MainContent({ children }: { children: ReactNode }) {
 
   // 监听路由变化同步 tab 索引
   useEffect(() => {
-    const index = TAB_KEYS.findIndex(key => pathname === `/${key}`);
+    const index = TAB_KEYS.findIndex(key => pathname === `/${key}` || pathname.startsWith(`/${key}/`));
     if (index >= 0) {
       setCurrentTabIndex(index);
     }

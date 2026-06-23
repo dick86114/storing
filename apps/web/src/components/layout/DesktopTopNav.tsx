@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, PlusCircleOutlined, AppstoreOutlined, HeartOutlined, FolderOutlined, SunOutlined, MoonOutlined, DesktopOutlined } from '@ant-design/icons';
+import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, PlusCircleOutlined, AppstoreOutlined, HeartOutlined, FolderOutlined, SunOutlined, MoonOutlined, DesktopOutlined, BookOutlined } from '@ant-design/icons';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { LoginModal } from '@/components/auth/LoginModal';
@@ -14,11 +14,12 @@ const tabs = [
   { key: 'inbox', label: '收件箱', href: '/inbox', Icon: AppstoreOutlined },
   { key: 'favorites', label: '收藏', href: '/favorites', Icon: HeartOutlined },
   { key: 'archive', label: '归档', href: '/archive', Icon: FolderOutlined },
+  { key: 'wiki', label: 'Wiki', href: '/wiki', Icon: BookOutlined },
 ];
 
 interface DesktopTopNavProps {
   onSearchOpen: () => void;
-  counts: { inbox: number; favorites: number; archive: number };
+  counts: { inbox: number; favorites: number; archive: number; wiki?: number };
   activeIndex: number;
   onTabChange: (index: number) => void;
 }

@@ -79,6 +79,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       // 同时设置 theme 和 colorScheme
       document.documentElement.setAttribute('data-theme', r);
       document.documentElement.setAttribute('data-color-scheme', colorScheme);
+      document.documentElement.style.colorScheme = r;
     };
     update();
     mq.addEventListener('change', update);

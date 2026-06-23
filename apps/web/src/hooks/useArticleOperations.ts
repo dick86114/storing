@@ -52,9 +52,7 @@ export function useArticleOperations() {
    * 刷新计数
    */
   function refreshCounts() {
-    globalMutate('count:inbox');
-    globalMutate('count:favorites');
-    globalMutate('count:archive');
+    globalMutate('counts');
     globalMutate('categories');
   }
 
