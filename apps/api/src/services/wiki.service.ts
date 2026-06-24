@@ -1689,6 +1689,41 @@ export async function buildWikiMarkdownExport() {
   return { generatedAt: new Date().toISOString(), files };
 }
 
+export async function buildWikiPageMarkdownExport(slug: string) {
+  await initWikiSchema();
+  const detail = await getWikiPage(slug);
+  if (!detail) return null;
+
+  const sourcesById = new Map<number, any>((detail.sources || []).map((source: any) => [source.id, source]));
+  const claimsById = new Map<number, any>((detail.claims || []).map((claim: any) => [claim.id, claim]));
+  const frontmatter = [
+    '---',
+    `title: ${yamlScalar(detail.title)}`,
+    `type: ${yamlScalar(detail.pageType)}`,
+    `updated_at: ${yamlScalar(detail.updatedAt)}`,
+    `source_count: ${(detail.sources || []).length}`,
+    `related_pages: [${(detail.relatedPages || []).map((related: any) => yamlScalar(related.title)).join(', ')}]`,
+    `claims: [${(detail.claims || []).slice(0, 40).map((claim: any) => claim.id).join(', ')}]`,
+    '---',
+    '',
+  ].join('\n');
+  const content = `${frontmatter}# ${detail.title}\n\n${(detail.blocks || [])
+    .map((block: WikiBlock) => blockToMarkdown(block, sourcesById, claimsById))
+    .join('\n')}`;
+
+  await appendWikiLog('export', `导出 Wiki 页面：${detail.title}`, {
+    pageId: detail.id,
+    details: `导出单篇 Markdown：${detail.slug}.md。`,
+    payload: { slug: detail.slug },
+  });
+
+  return {
+    generatedAt: new Date().toISOString(),
+    filename: `${detail.slug}.md`,
+    content,
+  };
+}
+
 function pageTypeLabelForExport(type: string) {
   if (type === 'analysis') return '分析页';
   if (type === 'concept') return '概念';

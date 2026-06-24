@@ -372,6 +372,8 @@ function WikiAskDock({
   }
 
   return (
+    <>
+    <button type="button" className="wiki-ask-click-away" aria-label="收起问知识库" tabIndex={-1} onClick={() => setOpen(false)} />
     <section className={`wiki-ask-dock${expanded ? ' wiki-ask-dock-expanded' : ''}`} aria-label="问知识库对话框">
       <div className="wiki-ask-dock-head">
         <div>
@@ -456,6 +458,7 @@ function WikiAskDock({
         </button>
       </form>
     </section>
+    </>
   );
 }
 
@@ -508,8 +511,6 @@ export function WikiHomeContent() {
   const [isRebuildingAll, setIsRebuildingAll] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLinting, setIsLinting] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportResult, setExportResult] = useState<{ generatedAt: string; files: Array<{ path: string; content: string }> } | null>(null);
   const [statView, setStatView] = useState<WikiStatKey | null>(null);
   const [taskError, setTaskError] = useState<string | null>(null);
   const [askOpen, setAskOpen] = useState(false);
@@ -651,21 +652,6 @@ export function WikiHomeContent() {
       setTaskError(error?.message || 'Wiki 健康检查失败');
     } finally {
       setIsLinting(false);
-    }
-  };
-
-  const handleExportMarkdown = async () => {
-    if (isExporting) return;
-    setIsExporting(true);
-    setTaskError(null);
-    try {
-      const result = await api.exportWikiMarkdown();
-      setExportResult(result);
-      await mutate();
-    } catch (error: any) {
-      setTaskError(error?.message || 'Markdown 导出失败');
-    } finally {
-      setIsExporting(false);
     }
   };
 
@@ -837,16 +823,9 @@ export function WikiHomeContent() {
           <div className="wiki-section-heading">
             <div>
               <h2>演化日志</h2>
-              <p>记录 ingest、页面合并、健康检查和导出事件。</p>
+              <p>记录 ingest、页面合并、健康检查和单页导出事件。</p>
             </div>
-            {isAuthenticated && (
-              <button type="button" className="wiki-secondary-action" onClick={handleExportMarkdown} disabled={isExporting}>
-                {isExporting ? <SyncOutlined spin /> : <DownloadOutlined />}
-                {isExporting ? '导出中' : '导出 Markdown'}
-              </button>
-            )}
           </div>
-          {exportResult && <div className="wiki-export-result">已生成 {exportResult.files.length} 个 Markdown 文件。</div>}
           {logEntries.length === 0 ? (
             <div className="wiki-empty wiki-compact-empty">还没有演化日志。</div>
           ) : (
@@ -981,9 +960,6 @@ export function WikiHomeContent() {
               </button>
               <button type="button" className="wiki-sidebar-item" onClick={handleLint} disabled={isLinting}>
                 {isLinting ? '检查中' : '健康检查 / Lint'}
-              </button>
-              <button type="button" className="wiki-sidebar-item" onClick={handleExportMarkdown} disabled={isExporting}>
-                {isExporting ? '导出中' : '导出 Markdown'}
               </button>
               <button type="button" className="wiki-sidebar-item wiki-sidebar-item-danger" onClick={() => setRebuildConfirmOpen(true)} disabled={isRebuildingAll}>
                 {isRebuildingAll ? '重建中' : '全量重建 Wiki'}
@@ -1154,6 +1130,9 @@ export function WikiPageContent() {
   const { openArticle } = useArticleContext();
   const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
   const { data, error, isLoading, mutate } = useSWR(slug ? `wiki:page:${slug}` : null, () => api.getWikiPage(slug), { revalidateOnFocus: false });
+  const [isRebuildingPage, setIsRebuildingPage] = useState(false);
+  const [isExportingPage, setIsExportingPage] = useState(false);
+  const [pageActionError, setPageActionError] = useState<string | null>(null);
 
   if (isLoading) {
     return <div className="wiki-page-shell"><div className="wiki-loading">正在读取 Wiki 页面...</div></div>;
@@ -1172,8 +1151,39 @@ export function WikiPageContent() {
   const claimsById = new Map<number, any>(claims.map((claim: any) => [claim.id, claim]));
 
   const handleRebuild = async () => {
-    await api.rebuildWikiPage(data.id);
-    await mutate();
+    if (isRebuildingPage) return;
+    setIsRebuildingPage(true);
+    setPageActionError(null);
+    try {
+      await api.rebuildWikiPage(data.id);
+      await mutate();
+    } catch (error: any) {
+      setPageActionError(error?.message || '重建本页失败');
+    } finally {
+      setIsRebuildingPage(false);
+    }
+  };
+
+  const handleExportPage = async () => {
+    if (isExportingPage || !slug) return;
+    setIsExportingPage(true);
+    setPageActionError(null);
+    try {
+      const result = await api.exportWikiPageMarkdown(slug);
+      const blob = new Blob([result.content], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = result.filename || `${slug}.md`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error: any) {
+      setPageActionError(error?.message || '导出 Markdown 失败');
+    } finally {
+      setIsExportingPage(false);
+    }
   };
 
   return (
@@ -1199,11 +1209,19 @@ export function WikiPageContent() {
               <p>版本 v{data.version} · 最近生成 {formatDate(data.lastGeneratedAt)}</p>
             </div>
             {isAuthenticated && (
-              <button type="button" className="wiki-secondary-action" onClick={handleRebuild}>
-                <ReloadOutlined /> 重建本页
-              </button>
+              <div className="wiki-doc-actions">
+                <button type="button" className="wiki-secondary-action" onClick={handleExportPage} disabled={isExportingPage}>
+                  {isExportingPage ? <SyncOutlined spin /> : <DownloadOutlined />}
+                  {isExportingPage ? '导出中' : '导出 Markdown'}
+                </button>
+                <button type="button" className="wiki-secondary-action" onClick={handleRebuild} disabled={isRebuildingPage}>
+                  {isRebuildingPage ? <SyncOutlined spin /> : <ReloadOutlined />}
+                  {isRebuildingPage ? '重建中' : '重建本页'}
+                </button>
+              </div>
             )}
           </div>
+          {pageActionError && <div className="wiki-job-error">{pageActionError}</div>}
           <div className="wiki-doc-body">
             {blocks.length ? blocks.map((block, index) => renderBlock(block, index, sourcesById, claimsById, openArticle)) : <div className="wiki-empty">本页还没有生成内容。</div>}
           </div>
