@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import useSWR from 'swr';
-import { ArrowLeftOutlined, BookOutlined, BranchesOutlined, ClockCircleOutlined, FileTextOutlined, LinkOutlined, ReloadOutlined, RobotOutlined, SearchOutlined, SyncOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, BookOutlined, BranchesOutlined, ClockCircleOutlined, ClusterOutlined, DatabaseOutlined, DownloadOutlined, FileSearchOutlined, FileTextOutlined, LinkOutlined, ReloadOutlined, RobotOutlined, SearchOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
+import { useAuth } from '@/components/providers/AuthContext';
 import { useArticleContext } from '@/components/providers/ArticleContext';
 import { api } from '@/lib/api';
 
@@ -19,6 +20,9 @@ type WikiStatus = {
   failed_jobs?: number;
   failed_articles?: number;
   runner_active?: boolean;
+  chunks?: number;
+  claims?: number;
+  lint_findings?: number;
 };
 
 type WikiPageSummary = {
@@ -35,6 +39,7 @@ type WikiPageSummary = {
   lastGeneratedAt?: string | null;
   last_generated_at?: string | null;
   source_count?: number;
+  claim_count?: number;
 };
 
 type WikiBlock = {
@@ -42,9 +47,10 @@ type WikiBlock = {
   type: string;
   text?: string;
   level?: number;
-  items?: Array<{ text: string; sources?: number[] }>;
+  items?: Array<{ text: string; sources?: number[]; claims?: number[] }>;
   articleIds?: number[];
   pageIds?: number[];
+  claims?: number[];
 };
 
 type WikiJob = {
@@ -74,6 +80,31 @@ type WikiArticleSummary = {
   archived_at?: string | null;
 };
 
+type WikiLogEntry = {
+  id: number;
+  eventType?: string;
+  event_type?: string;
+  title: string;
+  details?: string | null;
+  createdAt?: string | null;
+  created_at?: string | null;
+};
+
+type WikiLintFinding = {
+  id: number;
+  findingType?: string;
+  finding_type?: string;
+  severity: string;
+  title: string;
+  details?: string | null;
+  pageId?: number | null;
+  page_id?: number | null;
+  createdAt?: string | null;
+  created_at?: string | null;
+};
+
+type WikiStatKey = 'articles' | 'indexed' | 'pages' | 'chunks' | 'claims' | 'lint' | 'running' | 'pending' | 'failed' | 'log';
+
 const WIKI_TYPES = [
   { key: 'all', label: '全部页面', help: '所有由归档文章生成的 Wiki 页面。' },
   { key: 'topic', label: '主题', help: '围绕文章主题、来源或专题聚合出的长页面。' },
@@ -86,12 +117,25 @@ function formatDate(value?: string | null) {
   return new Date(value).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-function StatusPill({ label, value }: { label: string; value: number | undefined }) {
+function CompactStat({
+  active,
+  icon,
+  label,
+  value,
+  onClick,
+}: {
+  active?: boolean;
+  icon: ReactNode;
+  label: string;
+  value: number | undefined;
+  onClick: () => void;
+}) {
   return (
-    <span className="wiki-status-pill">
+    <button type="button" className={`wiki-compact-stat${active ? ' active' : ''}`} onClick={onClick}>
+      <span className="wiki-compact-stat-icon">{icon}</span>
       <span>{label}</span>
       <strong>{value ?? 0}</strong>
-    </span>
+    </button>
   );
 }
 
@@ -157,36 +201,55 @@ function JobList({
   );
 }
 
-function WikiHeader({
+function WikiCommandBar({
   status,
+  searchInput,
+  setSearchInput,
+  onSearch,
   onUpdate,
   isUpdating,
+  canOperate,
 }: {
   status?: WikiStatus;
-  onUpdate?: () => void;
+  searchInput: string;
+  setSearchInput: (value: string) => void;
+  onSearch: (event?: FormEvent) => void;
+  onUpdate: () => void;
   isUpdating?: boolean;
+  canOperate?: boolean;
 }) {
   return (
-    <section className="wiki-hero">
-      <div>
+    <section className="wiki-command-bar">
+      <div className="wiki-command-title">
         <div className="wiki-eyebrow"><BookOutlined /> 自动知识库</div>
         <h1>知识库 Wiki</h1>
-        <p>
-          由 {status?.archived ?? 0} 篇归档文章自动整理，当前生成 {status?.pages ?? 0} 个 Wiki 页面。
-          {status?.pending_jobs ? ` 还有 ${status.pending_jobs} 个任务等待处理。` : ' 知识库处于可浏览状态。'}
-        </p>
+        <span>{status?.pages ?? 0} 页 · {status?.claims ?? 0} 条声明 · {status?.pending_jobs ?? 0} 个待处理</span>
       </div>
-      {onUpdate && (
-        <button className="wiki-primary-action" type="button" onClick={onUpdate} disabled={isUpdating}>
-          {isUpdating ? <SyncOutlined spin /> : <ReloadOutlined />}
-          {isUpdating ? '更新中' : '更新知识库'}
-        </button>
-      )}
+      <form className="wiki-command-search" onSubmit={onSearch}>
+        <SearchOutlined />
+        <input
+          value={searchInput}
+          onChange={(event) => setSearchInput(event.target.value)}
+          placeholder="搜索 Wiki 页面、概念、来源文章..."
+        />
+        <button type="submit" aria-label="搜索">搜索</button>
+      </form>
+      <div className="wiki-command-actions">
+        {canOperate ? (
+          <button className="wiki-primary-action" type="button" onClick={onUpdate} disabled={isUpdating} title="扫描归档文章并处理一小批 Wiki 队列">
+            {isUpdating ? <SyncOutlined spin /> : <ReloadOutlined />}
+            {isUpdating ? '更新中' : '更新'}
+          </button>
+        ) : (
+          <span className="wiki-readonly-note">只读</span>
+        )}
+      </div>
     </section>
   );
 }
 
 export function WikiHomeContent() {
+  const { isAuthenticated } = useAuth();
   const { openArticle } = useArticleContext();
   const [activeType, setActiveType] = useState('all');
   const { data, error, isLoading, mutate } = useSWR(
@@ -202,7 +265,10 @@ export function WikiHomeContent() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRebuildingAll, setIsRebuildingAll] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [taskView, setTaskView] = useState<'pending' | 'failed' | null>(null);
+  const [isLinting, setIsLinting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportResult, setExportResult] = useState<{ generatedAt: string; files: Array<{ path: string; content: string }> } | null>(null);
+  const [statView, setStatView] = useState<WikiStatKey | null>(null);
   const [taskError, setTaskError] = useState<string | null>(null);
   const [rebuildConfirmOpen, setRebuildConfirmOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
@@ -212,6 +278,8 @@ export function WikiHomeContent() {
   const pendingJobs = (data?.jobs ?? []) as WikiJob[];
   const failedJobs = (data?.failedJobs ?? []) as WikiJob[];
   const recentArticles = (data?.recentArticles ?? []) as WikiArticleSummary[];
+  const logEntries = (data?.log ?? []) as WikiLogEntry[];
+  const lintFindings = (data?.lint ?? []) as WikiLintFinding[];
   const meta = data?.meta ?? {};
   const status = data?.status as WikiStatus | undefined;
   const { data: searchData, isLoading: isSearching } = useSWR(
@@ -231,10 +299,10 @@ export function WikiHomeContent() {
     setTaskError(null);
     try {
       await api.updateWiki(4);
-      setTaskView('pending');
+      setStatView('pending');
       await mutate();
     } catch (error: any) {
-      setTaskView('failed');
+      setStatView('failed');
       setTaskError(error?.message || '更新知识库失败');
       await mutate();
     } finally {
@@ -248,10 +316,10 @@ export function WikiHomeContent() {
     setTaskError(null);
     try {
       await api.processWikiJobs(4);
-      setTaskView('pending');
+      setStatView('pending');
       await mutate();
     } catch (error: any) {
-      setTaskView('failed');
+      setStatView('failed');
       setTaskError(error?.message || '处理 Wiki 队列失败');
       await mutate();
     } finally {
@@ -266,7 +334,7 @@ export function WikiHomeContent() {
       await api.retryFailedWikiJobs(4);
       await mutate();
     } catch (error: any) {
-      setTaskView('failed');
+      setStatView('failed');
       setTaskError(error?.message || '重试失败任务失败');
       await mutate();
     } finally {
@@ -279,10 +347,10 @@ export function WikiHomeContent() {
     setTaskError(null);
     try {
       await api.rebuildAllWiki(4);
-      setTaskView('pending');
+      setStatView('pending');
       await mutate();
     } catch (error: any) {
-      setTaskView('failed');
+      setStatView('failed');
       setTaskError(error?.message || '全量重建 Wiki 失败');
       await mutate();
     } finally {
@@ -305,6 +373,192 @@ export function WikiHomeContent() {
     }
   };
 
+  const handleLint = async () => {
+    if (isLinting) return;
+    setIsLinting(true);
+    setTaskError(null);
+    try {
+      await api.lintWiki();
+      await mutate();
+    } catch (error: any) {
+      setTaskError(error?.message || 'Wiki 健康检查失败');
+    } finally {
+      setIsLinting(false);
+    }
+  };
+
+  const handleExportMarkdown = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    setTaskError(null);
+    try {
+      const result = await api.exportWikiMarkdown();
+      setExportResult(result);
+      await mutate();
+    } catch (error: any) {
+      setTaskError(error?.message || 'Markdown 导出失败');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const renderStatDetail = () => {
+    if (!statView) return null;
+    if (statView === 'articles' || statView === 'indexed') {
+      return (
+        <section className="wiki-stat-detail">
+          <div className="wiki-section-heading">
+            <div>
+              <h2>来源文章</h2>
+              <p>这些归档文章是 Wiki 的 raw sources，会被切块、抽取声明并合并进页面。</p>
+            </div>
+          </div>
+          {recentArticles.length === 0 ? (
+            <div className="wiki-empty wiki-compact-empty">还没有文章进入 Wiki。</div>
+          ) : (
+            <div className="wiki-recent-list wiki-inline-list">
+              {recentArticles.map((article) => (
+                <button key={article.id} type="button" onClick={() => openArticle(article.id)}>
+                  <strong>{article.title}</strong>
+                  <span>{article.source || '未知来源'} · {article.status || 'pending'} · {formatDate(article.lastIndexedAt || article.last_indexed_at || article.archivedAt || article.archived_at)}</span>
+                  {article.summary && <small>{article.summary}</small>}
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+      );
+    }
+    if (statView === 'pages') {
+      return (
+        <section className="wiki-stat-detail">
+          <div className="wiki-section-heading">
+            <div>
+              <h2>页面分类</h2>
+              <p>点击分类可切换主列表，只看对应类型的 Wiki 页面。</p>
+            </div>
+          </div>
+          <div className="wiki-type-strip">
+            {WIKI_TYPES.map((item) => (
+              <button key={item.key} type="button" className={activeType === item.key ? 'active' : ''} onClick={() => setActiveType(item.key)}>
+                <span>{item.label}</span>
+                <strong>{typeCount(item.key)}</strong>
+              </button>
+            ))}
+          </div>
+        </section>
+      );
+    }
+    if (statView === 'claims') {
+      return (
+        <section className="wiki-stat-detail">
+          <div className="wiki-section-heading">
+            <div>
+              <h2>知识声明</h2>
+              <p>Claims 是从 raw chunks 抽取出的可追溯结论。打开页面可查看具体 claim 与来源。</p>
+            </div>
+          </div>
+          <div className="wiki-mini-page-list">
+            {pages.slice(0, 8).map((page) => (
+              <Link key={page.id} href={`/wiki/${encodeURIComponent(page.slug)}`}>
+                <strong>{page.title}</strong>
+                <span>{page.claim_count ?? 0} claims · {page.source_count ?? 0} 来源</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      );
+    }
+    if (statView === 'lint') {
+      return (
+        <section className="wiki-stat-detail">
+          <div className="wiki-section-heading">
+            <div>
+              <h2>知识库健康</h2>
+              <p>低来源、缺少引用和失败任务会在这里提示。</p>
+            </div>
+            {isAuthenticated && (
+              <button type="button" className="wiki-secondary-action" onClick={handleLint} disabled={isLinting}>
+                {isLinting ? <SyncOutlined spin /> : <WarningOutlined />}
+                {isLinting ? '检查中' : '运行 Lint'}
+              </button>
+            )}
+          </div>
+          {lintFindings.length === 0 ? (
+            <div className="wiki-empty wiki-compact-empty">当前没有开放的健康问题。</div>
+          ) : (
+            <div className="wiki-finding-list">
+              {lintFindings.map((finding) => (
+                <div key={finding.id} className={`wiki-finding-item wiki-finding-${finding.severity || 'info'}`}>
+                  <strong>{finding.title}</strong>
+                  <span>{finding.findingType || finding.finding_type} · {formatDate(finding.createdAt || finding.created_at)}</span>
+                  {finding.details && <p>{finding.details}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      );
+    }
+    if (statView === 'pending') {
+      return (
+        <JobList
+          title="待处理任务"
+          jobs={pendingJobs}
+          empty="当前没有待处理任务。"
+          action={isAuthenticated ? handleProcess : undefined}
+          actionLabel="继续处理队列"
+          isBusy={isProcessing}
+        />
+      );
+    }
+    if (statView === 'failed') {
+      return (
+        <JobList
+          title="失败任务"
+          jobs={failedJobs}
+          empty="当前没有失败任务。"
+          action={isAuthenticated ? handleRetry : undefined}
+          actionLabel="重试失败任务"
+          isBusy={isRetrying}
+        />
+      );
+    }
+    if (statView === 'log') {
+      return (
+        <section className="wiki-stat-detail">
+          <div className="wiki-section-heading">
+            <div>
+              <h2>演化日志</h2>
+              <p>记录 ingest、页面合并、健康检查和导出事件。</p>
+            </div>
+            {isAuthenticated && (
+              <button type="button" className="wiki-secondary-action" onClick={handleExportMarkdown} disabled={isExporting}>
+                {isExporting ? <SyncOutlined spin /> : <DownloadOutlined />}
+                {isExporting ? '导出中' : '导出 Markdown'}
+              </button>
+            )}
+          </div>
+          {exportResult && <div className="wiki-export-result">已生成 {exportResult.files.length} 个 Markdown 文件。</div>}
+          {logEntries.length === 0 ? (
+            <div className="wiki-empty wiki-compact-empty">还没有演化日志。</div>
+          ) : (
+            <div className="wiki-log-list">
+              {logEntries.map((entry) => (
+                <div key={entry.id} className="wiki-log-item">
+                  <strong>{entry.title}</strong>
+                  <span>{entry.eventType || entry.event_type} · {formatDate(entry.createdAt || entry.created_at)}</span>
+                  {entry.details && <p>{entry.details}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      );
+    }
+    return null;
+  };
+
   if (isLoading) {
     return <div className="wiki-page-shell"><div className="wiki-loading">正在读取知识库...</div></div>;
   }
@@ -312,7 +566,14 @@ export function WikiHomeContent() {
   if (error) {
     return (
       <div className="wiki-page-shell">
-        <WikiHeader status={status} />
+        <WikiCommandBar
+          status={status}
+          searchInput={searchInput}
+          setSearchInput={setSearchInput}
+          onSearch={handleSearch}
+          onUpdate={handleUpdate}
+          canOperate={false}
+        />
         <div className="wiki-empty">知识库加载失败，请确认已登录并且 API 服务可用。</div>
       </div>
     );
@@ -320,19 +581,18 @@ export function WikiHomeContent() {
 
   return (
     <div className="wiki-page-shell">
-      <WikiHeader status={status} onUpdate={handleUpdate} isUpdating={isUpdating} />
+      <WikiCommandBar
+        status={status}
+        searchInput={searchInput}
+        setSearchInput={setSearchInput}
+        onSearch={handleSearch}
+        onUpdate={handleUpdate}
+        isUpdating={isUpdating}
+        canOperate={isAuthenticated}
+      />
 
-      <section className="wiki-search-panel">
-        <form className="wiki-search-form" onSubmit={handleSearch}>
-          <SearchOutlined />
-          <input
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="搜索 Wiki 页面、概念、来源文章..."
-          />
-          <button type="submit">搜索</button>
-        </form>
-        {searchQuery && (
+      {searchQuery && (
+        <section className="wiki-search-panel">
           <div className="wiki-search-results">
             <div className="wiki-section-heading">
               <div>
@@ -368,44 +628,24 @@ export function WikiHomeContent() {
               </div>
             </div>
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
       <section className="wiki-dashboard">
-        <StatusPill label="归档文章" value={status?.archived} />
-        <StatusPill label="已编译" value={status?.indexed} />
-        <StatusPill label="Wiki 页面" value={status?.pages} />
-        <StatusPill label="处理中" value={status?.running_jobs || (status?.runner_active ? 1 : 0)} />
-        <button type="button" className="wiki-status-button" onClick={() => setTaskView(taskView === 'pending' ? null : 'pending')}>
-          <StatusPill label="待处理任务" value={status?.pending_jobs} />
-        </button>
-        <button type="button" className="wiki-status-button" onClick={() => setTaskView(taskView === 'failed' ? null : 'failed')}>
-          <StatusPill label="失败任务" value={status?.failed_jobs} />
-        </button>
+        <CompactStat active={statView === 'articles'} icon={<DatabaseOutlined />} label="归档" value={status?.archived} onClick={() => setStatView(statView === 'articles' ? null : 'articles')} />
+        <CompactStat active={statView === 'pages'} icon={<BookOutlined />} label="页面" value={status?.pages} onClick={() => { setActiveType('all'); setStatView(statView === 'pages' ? null : 'pages'); }} />
+        <CompactStat active={statView === 'claims'} icon={<ClusterOutlined />} label="声明" value={status?.claims} onClick={() => setStatView(statView === 'claims' ? null : 'claims')} />
+        <CompactStat active={statView === 'lint'} icon={<WarningOutlined />} label="健康" value={status?.lint_findings} onClick={() => setStatView(statView === 'lint' ? null : 'lint')} />
+        <CompactStat active={statView === 'pending'} icon={<ClockCircleOutlined />} label="待处理" value={status?.pending_jobs} onClick={() => setStatView(statView === 'pending' ? null : 'pending')} />
+        <CompactStat active={statView === 'failed'} icon={<FileSearchOutlined />} label="失败" value={status?.failed_jobs} onClick={() => setStatView(statView === 'failed' ? null : 'failed')} />
+        <CompactStat active={statView === 'log'} icon={<BranchesOutlined />} label="日志" value={logEntries.length} onClick={() => setStatView(statView === 'log' ? null : 'log')} />
       </section>
 
-      {taskError && <div className="wiki-job-error">{taskError}</div>}
+      {!isAuthenticated && <div className="wiki-readonly-banner">当前为游客只读模式：可以浏览 Wiki 页面、搜索和打开归档来源文章，维护操作需登录。</div>}
 
-      {taskView === 'pending' && (
-        <JobList
-          title="待处理任务"
-          jobs={pendingJobs}
-          empty="当前没有待处理任务。"
-          action={handleProcess}
-          actionLabel="继续处理队列"
-          isBusy={isProcessing}
-        />
-      )}
-      {taskView === 'failed' && (
-        <JobList
-          title="失败任务"
-          jobs={failedJobs}
-          empty="当前没有失败任务。"
-          action={handleRetry}
-          actionLabel="重试失败任务"
-          isBusy={isRetrying}
-        />
-      )}
+      {isAuthenticated && taskError && <div className="wiki-job-error">{taskError}</div>}
+
+      {renderStatDetail()}
 
       <section className="wiki-layout">
         <aside className="wiki-sidebar">
@@ -428,13 +668,23 @@ export function WikiHomeContent() {
             <div>版本记录：{meta.versions ?? 0}</div>
             <div>模型：{meta.provider || 'default'} / {meta.model || 'default'}</div>
           </div>
-          <div className="wiki-sidebar-title">维护</div>
-          <button type="button" className="wiki-sidebar-item" onClick={handleRetry} disabled={isRetrying}>
-            {isRetrying ? '重试中' : '重试失败任务'}
-          </button>
-          <button type="button" className="wiki-sidebar-item wiki-sidebar-item-danger" onClick={() => setRebuildConfirmOpen(true)} disabled={isRebuildingAll}>
-            {isRebuildingAll ? '重建中' : '全量重建 Wiki'}
-          </button>
+          {isAuthenticated && (
+            <>
+              <div className="wiki-sidebar-title">维护</div>
+              <button type="button" className="wiki-sidebar-item" onClick={handleRetry} disabled={isRetrying}>
+                {isRetrying ? '重试中' : '重试失败任务'}
+              </button>
+              <button type="button" className="wiki-sidebar-item" onClick={handleLint} disabled={isLinting}>
+                {isLinting ? '检查中' : '健康检查 / Lint'}
+              </button>
+              <button type="button" className="wiki-sidebar-item" onClick={handleExportMarkdown} disabled={isExporting}>
+                {isExporting ? '导出中' : '导出 Markdown'}
+              </button>
+              <button type="button" className="wiki-sidebar-item wiki-sidebar-item-danger" onClick={() => setRebuildConfirmOpen(true)} disabled={isRebuildingAll}>
+                {isRebuildingAll ? '重建中' : '全量重建 Wiki'}
+              </button>
+            </>
+          )}
         </aside>
 
         <main className="wiki-main">
@@ -467,38 +717,16 @@ export function WikiHomeContent() {
                   <p>{page.summary || '等待页面合并器补全摘要。'}</p>
                   <div className="wiki-card-meta">
                     <span><ClockCircleOutlined /> {formatDate(page.lastGeneratedAt || page.last_generated_at || page.updatedAt || page.updated_at)}</span>
-                    <span><BranchesOutlined /> {page.source_count ?? 0} 来源</span>
+                    <span><BranchesOutlined /> {page.source_count ?? 0} 来源 · {page.claim_count ?? 0} 声明</span>
                   </div>
                 </Link>
               ))}
             </div>
           )}
-
-          <section className="wiki-recent-articles">
-            <div className="wiki-section-heading">
-              <div>
-                <h2>最近进入 Wiki 的文章</h2>
-                <p>这些归档文章会作为 Wiki 页面和来源引用的原始资料。</p>
-              </div>
-            </div>
-            {recentArticles.length === 0 ? (
-              <div className="wiki-empty">还没有文章进入 Wiki。</div>
-            ) : (
-              <div className="wiki-recent-list">
-                {recentArticles.map((article) => (
-                  <button key={article.id} type="button" onClick={() => openArticle(article.id)}>
-                    <strong>{article.title}</strong>
-                    <span>{article.source || '未知来源'} · {article.status || 'pending'} · {formatDate(article.lastIndexedAt || article.last_indexed_at || article.archivedAt || article.archived_at)}</span>
-                    {article.summary && <small>{article.summary}</small>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
         </main>
       </section>
 
-      {rebuildConfirmOpen && (
+      {isAuthenticated && rebuildConfirmOpen && (
         <div className="wiki-confirm-overlay" role="presentation" onMouseDown={() => !isRebuildingAll && setRebuildConfirmOpen(false)}>
           <section
             className="wiki-confirm-panel"
@@ -526,7 +754,7 @@ export function WikiHomeContent() {
   );
 }
 
-function renderBlock(block: WikiBlock, index: number, sourcesById: Map<number, any>, onOpenSource: (id: number) => void) {
+function renderBlock(block: WikiBlock, index: number, sourcesById: Map<number, any>, claimsById: Map<number, any>, onOpenSource: (id: number) => void) {
   const id = blockId(block, index);
   if (block.type === 'summary') return <div key={id} id={id} className="wiki-doc-summary">{block.text}</div>;
   if (block.type === 'heading') {
@@ -539,7 +767,16 @@ function renderBlock(block: WikiBlock, index: number, sourcesById: Map<number, a
         {(block.items || []).map((item, index) => (
           <li key={`${id}-${index}`}>
             <span>{item.text}</span>
-            {item.sources?.length ? <small>来源 {item.sources.map((id) => sourcesById.get(id)?.title || `#${id}`).join('、')}</small> : null}
+            <small className="wiki-citation-row">
+              {item.sources?.map((id) => (
+                <button key={`source-${id}`} type="button" onClick={() => onOpenSource(id)}>
+                  来源：{sourcesById.get(id)?.title || `#${id}`}
+                </button>
+              ))}
+              {item.claims?.map((id) => (
+                <span key={`claim-${id}`}>Claim #{id}{claimsById.get(id)?.confidence ? ` · ${claimsById.get(id).confidence}%` : ''}</span>
+              ))}
+            </small>
           </li>
         ))}
       </ul>
@@ -563,6 +800,7 @@ function renderBlock(block: WikiBlock, index: number, sourcesById: Map<number, a
 }
 
 export function WikiPageContent() {
+  const { isAuthenticated } = useAuth();
   const params = useParams<{ slug: string }>();
   const { openArticle } = useArticleContext();
   const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
@@ -579,7 +817,10 @@ export function WikiPageContent() {
   const blocks = (data.blocks || []) as WikiBlock[];
   const sources = data.sources || [];
   const relatedPages = data.relatedPages || [];
+  const claims = data.claims || [];
+  const versions = data.versions || [];
   const sourcesById = new Map<number, any>(sources.map((source: any) => [source.id, source]));
+  const claimsById = new Map<number, any>(claims.map((claim: any) => [claim.id, claim]));
 
   const handleRebuild = async () => {
     await api.rebuildWikiPage(data.id);
@@ -608,12 +849,14 @@ export function WikiPageContent() {
               <h1>{data.title}</h1>
               <p>版本 v{data.version} · 最近生成 {formatDate(data.lastGeneratedAt)}</p>
             </div>
-            <button type="button" className="wiki-secondary-action" onClick={handleRebuild}>
-              <ReloadOutlined /> 重建本页
-            </button>
+            {isAuthenticated && (
+              <button type="button" className="wiki-secondary-action" onClick={handleRebuild}>
+                <ReloadOutlined /> 重建本页
+              </button>
+            )}
           </div>
           <div className="wiki-doc-body">
-            {blocks.length ? blocks.map((block, index) => renderBlock(block, index, sourcesById, openArticle)) : <div className="wiki-empty">本页还没有生成内容。</div>}
+            {blocks.length ? blocks.map((block, index) => renderBlock(block, index, sourcesById, claimsById, openArticle)) : <div className="wiki-empty">本页还没有生成内容。</div>}
           </div>
         </article>
 
@@ -626,8 +869,21 @@ export function WikiPageContent() {
               relatedPages.map((page: any) => (
                 <Link key={page.id} href={`/wiki/${encodeURIComponent(page.slug)}`}>
                   <strong><LinkOutlined /> {page.title}</strong>
-                  <span>{pageTypeLabel(pageTypeOf(page))}</span>
+                  <span>{pageTypeLabel(pageTypeOf(page))} · {page.reason || '相关页面'}</span>
                 </Link>
+              ))
+            )}
+          </div>
+          <div className="wiki-context-card">
+            <h3>知识声明</h3>
+            {claims.length === 0 ? (
+              <p>暂无 claim 引用。</p>
+            ) : (
+              claims.slice(0, 10).map((claim: any) => (
+                <button key={claim.id} type="button" onClick={() => claim.article_id && openArticle(claim.article_id)}>
+                  <strong>{claim.claim}</strong>
+                  <span>{claim.article_title || '来源文章'} · {claim.confidence ?? 70}%</span>
+                </button>
               ))
             )}
           </div>
@@ -641,6 +897,19 @@ export function WikiPageContent() {
                   <strong>{source.title}</strong>
                   <span>{source.source || '未知来源'}</span>
                 </button>
+              ))
+            )}
+          </div>
+          <div className="wiki-context-card">
+            <h3>版本记录</h3>
+            {versions.length === 0 ? (
+              <p>暂无版本。</p>
+            ) : (
+              versions.map((version: any) => (
+                <div key={version.id} className="wiki-version-row">
+                  <strong>v{version.version}</strong>
+                  <span>{formatDate(version.createdAt || version.created_at)} · {(version.sourceArticleIds || version.source_article_ids || []).length} 来源</span>
+                </div>
               ))
             )}
           </div>

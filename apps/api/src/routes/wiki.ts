@@ -1,29 +1,55 @@
 import { Hono } from 'hono';
-import { requireAuth } from '../middleware/auth.js';
+import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import {
+  buildWikiMarkdownExport,
   enqueueAllArchivedForWiki,
   enqueueArticleForWiki,
   enqueuePageRebuild,
   getWikiArticleStatus,
+  getWikiGraph,
   getWikiHome,
+  getWikiIndex,
   getWikiJobs,
+  getWikiLintFindings,
+  getWikiLog,
   getWikiPage,
   getWikiStatus,
   processWikiJobs,
+  reconcileWikiClaims,
   rebuildAllWiki,
   retryFailedWikiJobs,
+  runWikiLint,
   searchWiki,
 } from '../services/wiki.service.js';
 
 export const wikiRoutes = new Hono();
 
-wikiRoutes.get('/wiki', requireAuth, async (c) => {
+wikiRoutes.get('/wiki', optionalAuth, async (c) => {
   const data = await getWikiHome(c.req.query('type'));
   return c.json(data);
 });
 
-wikiRoutes.get('/wiki/status', requireAuth, async (c) => {
+wikiRoutes.get('/wiki/status', optionalAuth, async (c) => {
   return c.json(await getWikiStatus());
+});
+
+wikiRoutes.get('/wiki/index', optionalAuth, async (c) => {
+  return c.json(await getWikiIndex());
+});
+
+wikiRoutes.get('/wiki/log', optionalAuth, async (c) => {
+  const limit = Number(c.req.query('limit') || 50);
+  return c.json(await getWikiLog(limit));
+});
+
+wikiRoutes.get('/wiki/graph', optionalAuth, async (c) => {
+  return c.json(await getWikiGraph());
+});
+
+wikiRoutes.get('/wiki/lint', optionalAuth, async (c) => {
+  const status = c.req.query('status') || 'open';
+  const limit = Number(c.req.query('limit') || 50);
+  return c.json(await getWikiLintFindings(status, limit));
 });
 
 wikiRoutes.get('/wiki/jobs', requireAuth, async (c) => {
@@ -32,13 +58,13 @@ wikiRoutes.get('/wiki/jobs', requireAuth, async (c) => {
   return c.json({ jobs: await getWikiJobs(status, limit) });
 });
 
-wikiRoutes.get('/wiki/search', requireAuth, async (c) => {
+wikiRoutes.get('/wiki/search', optionalAuth, async (c) => {
   const q = c.req.query('q') || '';
   const limit = Number(c.req.query('limit') || 20);
   return c.json(await searchWiki(q, limit));
 });
 
-wikiRoutes.get('/wiki/pages/:slug', requireAuth, async (c) => {
+wikiRoutes.get('/wiki/pages/:slug', optionalAuth, async (c) => {
   const slug = c.req.param('slug');
   if (!slug) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing slug' } }, 400);
   const page = await getWikiPage(slug);
@@ -72,6 +98,26 @@ wikiRoutes.post('/wiki/retry-failed', requireAuth, async (c) => {
 wikiRoutes.post('/wiki/rebuild-all', requireAuth, async (c) => {
   const result = await rebuildAllWiki(Number(c.req.query('limit') || 4));
   return c.json(result);
+});
+
+wikiRoutes.post('/wiki/lint', requireAuth, async (c) => {
+  return c.json(await runWikiLint());
+});
+
+wikiRoutes.post('/wiki/export-markdown', requireAuth, async (c) => {
+  return c.json(await buildWikiMarkdownExport());
+});
+
+wikiRoutes.post('/wiki/claims/reconcile', requireAuth, async (c) => {
+  return c.json(await reconcileWikiClaims());
+});
+
+wikiRoutes.post('/wiki/ask', requireAuth, async (c) => {
+  return c.json({ error: { code: 'NOT_IMPLEMENTED', message: 'Wiki 问答接口已预留，将在第二阶段实现。' } }, 501);
+});
+
+wikiRoutes.post('/wiki/answers/:id/file', requireAuth, async (c) => {
+  return c.json({ error: { code: 'NOT_IMPLEMENTED', message: '问答回写 Wiki 页面将在第二阶段实现。' } }, 501);
 });
 
 wikiRoutes.post('/wiki/articles/:id/reindex', requireAuth, async (c) => {
