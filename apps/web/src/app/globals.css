@@ -10061,6 +10061,14 @@ body.detail-panel-open .bottom-tab-bar {
   color: currentColor;
 }
 
+.wiki-compact-stat:focus-visible,
+.wiki-back-link:focus-visible,
+.wiki-ask-dock-actions button:focus-visible,
+.wiki-ask-floating-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .wiki-search-panel {
   margin: 0 0 14px;
 }
@@ -10331,6 +10339,16 @@ body.detail-panel-open .bottom-tab-bar {
   font-size: 12px;
 }
 
+.wiki-ask-click-away {
+  position: fixed;
+  inset: 0;
+  z-index: 79;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
+}
+
 .wiki-ask-dock {
   position: fixed;
   right: max(24px, env(safe-area-inset-right));
@@ -10339,10 +10357,14 @@ body.detail-panel-open .bottom-tab-bar {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto auto;
   width: min(460px, calc(100vw - 48px));
+  min-width: 360px;
+  min-height: 420px;
   max-height: min(720px, calc(100vh - 96px));
   border: 1px solid var(--border);
   border-radius: 22px;
   overflow: hidden;
+  resize: both;
+  overscroll-behavior: contain;
   color: var(--text);
   background: color-mix(in oklch, var(--card-bg) 94%, transparent);
   box-shadow: 0 24px 80px color-mix(in oklch, black 22%, transparent);
@@ -10351,6 +10373,7 @@ body.detail-panel-open .bottom-tab-bar {
 
 .wiki-ask-dock-expanded {
   width: min(920px, calc(100vw - 64px));
+  height: min(760px, calc(100vh - 72px));
   max-height: calc(100vh - 72px);
 }
 
@@ -10412,6 +10435,8 @@ body.detail-panel-open .bottom-tab-bar {
   max-height: 520px;
   padding: 14px;
   overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .wiki-ask-dock-expanded .wiki-ask-messages {
@@ -10725,7 +10750,7 @@ body.detail-panel-open .bottom-tab-bar {
 }
 
 .wiki-doc-layout {
-  grid-template-columns: 210px minmax(0, 820px) 280px;
+  grid-template-columns: 190px minmax(0, 880px) 300px;
   justify-content: center;
 }
 
@@ -10773,11 +10798,16 @@ body.detail-panel-open .bottom-tab-bar {
 .wiki-back-link {
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 42px;
+  height: 42px;
   padding: 0;
-  margin-bottom: 10px;
-  font-size: 16px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 17px;
+  color: var(--accent);
+  background: color-mix(in oklch, var(--accent-soft) 44%, var(--surface));
+  box-shadow: 0 10px 22px color-mix(in oklch, var(--accent) 8%, transparent);
 }
 
 .wiki-sidebar-item {
@@ -10901,6 +10931,7 @@ body.detail-panel-open .bottom-tab-bar {
 .wiki-main,
 .wiki-doc {
   padding: 22px;
+  min-width: 0;
 }
 
 .wiki-section-heading,
@@ -10910,6 +10941,18 @@ body.detail-panel-open .bottom-tab-bar {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 18px;
+}
+
+.wiki-doc-title-row > div:first-child {
+  min-width: 0;
+}
+
+.wiki-doc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .wiki-section-heading h2 {
@@ -10976,6 +11019,11 @@ body.detail-panel-open .bottom-tab-bar {
   color: var(--text);
   font-size: 16px;
   line-height: 1.85;
+  overflow-wrap: anywhere;
+}
+
+.wiki-doc-body p {
+  margin: 0 0 18px;
 }
 
 .wiki-doc-summary {
@@ -10995,6 +11043,7 @@ body.detail-panel-open .bottom-tab-bar {
 .wiki-doc-list {
   display: grid;
   gap: 10px;
+  margin: 0 0 20px;
   padding-left: 22px;
 }
 
@@ -11230,7 +11279,58 @@ body.detail-panel-open .bottom-tab-bar {
   }
 
   .wiki-dashboard {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+    overflow-x: auto;
+    padding: 2px 0 4px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .wiki-compact-stat {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr;
+    place-items: center;
+    min-width: 44px;
+    min-height: 42px;
+    padding: 8px 4px;
+    border-radius: 14px;
+    scroll-snap-align: start;
+  }
+
+  .wiki-compact-stat-icon {
+    width: 26px;
+    height: 26px;
+    background: transparent;
+    font-size: 18px;
+  }
+
+  .wiki-compact-stat > span:not(.wiki-compact-stat-icon) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .wiki-compact-stat strong {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    display: grid;
+    place-items: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border: 1px solid color-mix(in oklch, var(--accent) 24%, var(--border));
+    border-radius: 999px;
+    color: var(--accent);
+    background: var(--card-bg);
+    font-size: 10px;
+    line-height: 1;
   }
 
   .wiki-search-columns {
@@ -11250,24 +11350,29 @@ body.detail-panel-open .bottom-tab-bar {
     right: 10px;
     bottom: calc(78px + env(safe-area-inset-bottom));
     width: calc(100vw - 20px);
+    min-width: 0;
+    min-height: 0;
     max-height: min(74vh, 720px);
     border-radius: 20px;
+    resize: none;
   }
 
   .wiki-ask-dock.wiki-ask-dock-expanded {
-    right: 0;
-    bottom: 0;
-    width: 100vw;
-    max-height: calc(100vh - 12px);
-    border-radius: 22px 22px 0 0;
+    top: calc(86px + env(safe-area-inset-top));
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    width: calc(100vw - 16px);
+    height: auto;
+    max-height: none;
+    border-radius: 22px;
   }
 
   .wiki-ask-messages {
-    max-height: calc(74vh - 150px);
+    max-height: calc(74vh - 168px);
   }
 
   .wiki-ask-dock-expanded .wiki-ask-messages {
-    max-height: calc(100vh - 190px);
+    max-height: calc(100vh - 292px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   }
 
   .wiki-answer-head {
@@ -11286,8 +11391,32 @@ body.detail-panel-open .bottom-tab-bar {
     position: static;
   }
 
+  .wiki-doc-toc {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+  }
+
+  .wiki-doc-toc .wiki-sidebar-title {
+    margin: 0;
+  }
+
+  .wiki-doc-toc a:not(.wiki-back-link) {
+    grid-column: 1 / -1;
+  }
+
   .wiki-sidebar {
     display: none;
+  }
+
+  .wiki-doc-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .wiki-doc-actions .wiki-secondary-action {
+    flex: 1 1 150px;
   }
 
   .wiki-card-grid {

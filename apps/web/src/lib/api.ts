@@ -159,6 +159,9 @@ export const api = {
   exportWikiMarkdown: () =>
     fetchJSON<any>('/wiki/export-markdown', { method: 'POST', timeoutMs: 120000 }),
 
+  exportWikiPageMarkdown: (slug: string) =>
+    fetchJSON<any>(`/wiki/pages/${encodeURIComponent(slug)}/export-markdown`, { method: 'POST', timeoutMs: 120000 }),
+
   reconcileWikiClaims: () =>
     fetchJSON<any>('/wiki/claims/reconcile', { method: 'POST', timeoutMs: 120000 }),
 

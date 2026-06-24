@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import {
   buildWikiMarkdownExport,
+  buildWikiPageMarkdownExport,
   enqueueAllArchivedForWiki,
   enqueueArticleForWiki,
   enqueuePageRebuild,
@@ -114,6 +115,14 @@ wikiRoutes.post('/wiki/lint', requireAuth, async (c) => {
 
 wikiRoutes.post('/wiki/export-markdown', requireAuth, async (c) => {
   return c.json(await buildWikiMarkdownExport());
+});
+
+wikiRoutes.post('/wiki/pages/:slug/export-markdown', requireAuth, async (c) => {
+  const slug = c.req.param('slug');
+  if (!slug) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing slug' } }, 400);
+  const result = await buildWikiPageMarkdownExport(slug);
+  if (!result) return c.json({ error: { code: 'NOT_FOUND', message: 'Wiki page not found' } }, 404);
+  return c.json(result);
 });
 
 wikiRoutes.post('/wiki/claims/reconcile', requireAuth, async (c) => {
