@@ -117,6 +117,18 @@ export const api = {
   getWikiStatus: () =>
     fetchJSON<any>('/wiki/status'),
 
+  getWikiIndex: () =>
+    fetchJSON<any>('/wiki/index', { timeoutMs: 30000 }),
+
+  getWikiLog: (limit = 50) =>
+    fetchJSON<any>(`/wiki/log?limit=${limit}`, { timeoutMs: 30000 }),
+
+  getWikiGraph: () =>
+    fetchJSON<any>('/wiki/graph', { timeoutMs: 30000 }),
+
+  getWikiLint: (status = 'open', limit = 50) =>
+    fetchJSON<any>(`/wiki/lint?status=${encodeURIComponent(status)}&limit=${limit}`, { timeoutMs: 30000 }),
+
   getWikiJobs: (status = 'pending', limit = 30) =>
     fetchJSON<any>(`/wiki/jobs?status=${encodeURIComponent(status)}&limit=${limit}`),
 
@@ -137,6 +149,15 @@ export const api = {
 
   rebuildAllWiki: (limit = 4) =>
     fetchJSON<any>(`/wiki/rebuild-all?limit=${limit}`, { method: 'POST', timeoutMs: 120000 }),
+
+  lintWiki: () =>
+    fetchJSON<any>('/wiki/lint', { method: 'POST', timeoutMs: 120000 }),
+
+  exportWikiMarkdown: () =>
+    fetchJSON<any>('/wiki/export-markdown', { method: 'POST', timeoutMs: 120000 }),
+
+  reconcileWikiClaims: () =>
+    fetchJSON<any>('/wiki/claims/reconcile', { method: 'POST', timeoutMs: 120000 }),
 
   reindexWikiArticle: (id: number) =>
     fetchJSON<any>(`/wiki/articles/${id}/reindex`, { method: 'POST', timeoutMs: 120000 }),

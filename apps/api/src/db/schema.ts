@@ -108,6 +108,45 @@ export const wikiPageSources = pgTable('wiki_page_sources', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+export const wikiSourceChunks = pgTable('wiki_source_chunks', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').notNull().references(() => articles.id),
+  chunkKey: text('chunk_key').notNull(),
+  heading: text('heading'),
+  content: text('content').notNull(),
+  contentHash: text('content_hash'),
+  ordinal: integer('ordinal').notNull().default(0),
+  metadata: jsonb('metadata'),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const wikiClaims = pgTable('wiki_claims', {
+  id: serial('id').primaryKey(),
+  articleId: integer('article_id').notNull().references(() => articles.id),
+  chunkId: integer('chunk_id').references(() => wikiSourceChunks.id),
+  claim: text('claim').notNull(),
+  evidence: text('evidence'),
+  topics: text('topics').array(),
+  entities: text('entities').array(),
+  confidence: integer('confidence').notNull().default(70),
+  status: text('status').notNull().default('active'),
+  relationType: text('relation_type').notNull().default('supports'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const wikiPageClaims = pgTable('wiki_page_claims', {
+  id: serial('id').primaryKey(),
+  pageId: integer('page_id').notNull().references(() => wikiPages.id),
+  claimId: integer('claim_id').notNull().references(() => wikiClaims.id),
+  relevance: integer('relevance').notNull().default(80),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
 export const wikiLinks = pgTable('wiki_links', {
   id: serial('id').primaryKey(),
   fromPageId: integer('from_page_id').notNull().references(() => wikiPages.id),
@@ -140,6 +179,30 @@ export const wikiJobs = pgTable('wiki_jobs', {
   scheduledAt: timestamp('scheduled_at').defaultNow(),
   startedAt: timestamp('started_at'),
   finishedAt: timestamp('finished_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const wikiLogEntries = pgTable('wiki_log_entries', {
+  id: serial('id').primaryKey(),
+  eventType: text('event_type').notNull(),
+  title: text('title').notNull(),
+  details: text('details'),
+  articleId: integer('article_id').references(() => articles.id),
+  pageId: integer('page_id').references(() => wikiPages.id),
+  payload: jsonb('payload'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const wikiLintFindings = pgTable('wiki_lint_findings', {
+  id: serial('id').primaryKey(),
+  findingType: text('finding_type').notNull(),
+  severity: text('severity').notNull().default('info'),
+  title: text('title').notNull(),
+  details: text('details'),
+  pageId: integer('page_id').references(() => wikiPages.id),
+  articleId: integer('article_id').references(() => articles.id),
+  status: text('status').notNull().default('open'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
