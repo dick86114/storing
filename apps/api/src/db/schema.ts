@@ -219,3 +219,18 @@ export const wikiEmbeddings = pgTable('wiki_embeddings', {
   metadata: jsonb('metadata'),
   createdAt: timestamp('created_at').defaultNow(),
 });
+
+export const wikiAnswers = pgTable('wiki_answers', {
+  id: serial('id').primaryKey(),
+  question: text('question').notNull(),
+  answer: text('answer').notNull(),
+  citations: jsonb('citations'),
+  sourcePageIds: integer('source_page_ids').array(),
+  sourceArticleIds: integer('source_article_ids').array(),
+  modelProvider: text('model_provider'),
+  modelName: text('model_name'),
+  status: text('status').notNull().default('answered'),
+  filedPageId: integer('filed_page_id').references(() => wikiPages.id),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});

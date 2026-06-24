@@ -6,6 +6,7 @@ import {
   articleMetadata,
   wikiArticleExtracts,
   wikiArticles,
+  wikiAnswers,
   wikiClaims,
   wikiJobs,
   wikiLinks,
@@ -45,6 +46,21 @@ type ArticleExtract = {
   suggestedPages: string[];
   sourceQuotes: Array<{ text: string; articleId?: number }>;
 };
+
+type WikiAskCitation = {
+  id: string;
+  type: 'page' | 'claim' | 'chunk';
+  title: string;
+  excerpt?: string;
+  pageId?: number;
+  slug?: string;
+  articleId?: number;
+  articleTitle?: string;
+  claimId?: number;
+  chunkId?: number;
+};
+
+type WikiPageTarget = { title: string; type: 'topic' | 'concept' | 'index' };
 
 const WIKI_TABLE_SQL = [
   `CREATE TABLE IF NOT EXISTS wiki_articles (
@@ -204,6 +220,21 @@ const WIKI_TABLE_SQL = [
     metadata JSONB,
     created_at TIMESTAMP DEFAULT NOW()
   )`,
+  `CREATE TABLE IF NOT EXISTS wiki_answers (
+    id SERIAL PRIMARY KEY,
+    question TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    citations JSONB,
+    source_page_ids INTEGER[],
+    source_article_ids INTEGER[],
+    model_provider TEXT,
+    model_name TEXT,
+    status TEXT NOT NULL DEFAULT 'answered',
+    filed_page_id INTEGER REFERENCES wiki_pages(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  )`,
+  `CREATE INDEX IF NOT EXISTS wiki_answers_created_idx ON wiki_answers(created_at DESC)`,
 ];
 
 let schemaReady = false;
@@ -276,6 +307,34 @@ function parseJSONPayload(raw: string) {
 
 function asArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map((item) => String(item || '').trim()).filter(Boolean) : [];
+}
+
+function normalizeWikiTitle(value: string | null | undefined) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/[《》「」『』【】[\]（）()：:，,。.!！?？、/\\_\-—~·`'"“”‘’]/g, '')
+    .trim();
+}
+
+function isWeakDerivedTitle(title: string) {
+  const normalized = normalizeWikiTitle(title);
+  return /(指南|教程|攻略|大全|推荐|实践|方案|配置|部署指南|部署教程|使用教程|应用部署)$/.test(normalized);
+}
+
+function textContainsTerm(text: string | null | undefined, term: string | null | undefined) {
+  const normalizedText = normalizeWikiTitle(text);
+  const normalizedTerm = normalizeWikiTitle(term);
+  return Boolean(normalizedText && normalizedTerm && normalizedText.includes(normalizedTerm));
+}
+
+function termMatchesAny(term: string, values: Array<string | null | undefined>) {
+  const normalizedTerm = normalizeWikiTitle(term);
+  if (!normalizedTerm) return false;
+  return values.some((value) => {
+    const normalizedValue = normalizeWikiTitle(value);
+    return Boolean(normalizedValue && (normalizedValue === normalizedTerm || normalizedValue.includes(normalizedTerm) || normalizedTerm.includes(normalizedValue)));
+  });
 }
 
 function clampConfidence(value: unknown) {
@@ -489,7 +548,12 @@ async function generateExtractWithAI(article: {
   "suggestedPages": ["建议更新的 Wiki 页面标题"],
   "sourceQuotes": [{"text":"可引用原文短句"}]
 }
-要求：suggestedPages 2-5 个，facts 3-8 条，语言跟随文章。`;
+要求：
+- suggestedPages 1-3 个，只写最值得维护的长期 Wiki 页面。
+- 优先使用产品名、项目名、技术名、明确概念名，例如 MonkeyCode、Obsidian、Docker Compose。
+- 不要把应用场景、文章写法或泛化动作单独变成页面，例如“家庭服务器部署指南”“使用教程”“配置方案”“实践经验”。
+- 如果文章只围绕一个核心实体，suggestedPages 只返回这个核心实体。
+- facts 3-8 条，语言跟随文章。`;
   const user = `标题：${article.title || ''}
 来源：${article.source || ''}
 摘要：${article.summary || ''}
@@ -608,9 +672,13 @@ function pageTypeForTitle(title: string, preferredType?: string) {
   return title.includes('索引') ? 'index' : 'topic';
 }
 
-async function upsertPage(title: string, preferredType?: 'topic' | 'concept' | 'index') {
-  const slug = slugForTitle(title);
-  const [existing] = await db.select().from(wikiPages).where(eq(wikiPages.slug, slug));
+async function upsertPage(title: string, preferredType?: 'topic' | 'concept' | 'index' | 'analysis') {
+  let slug = slugForTitle(title);
+  let [existing] = await db.select().from(wikiPages).where(eq(wikiPages.slug, slug));
+  if (existing && existing.title !== title) {
+    slug = `${slug}-${contentHash(title).slice(0, 8)}`;
+    [existing] = await db.select().from(wikiPages).where(eq(wikiPages.slug, slug));
+  }
   if (existing) {
     if (preferredType && existing.pageType !== preferredType) {
       const [updated] = await db.update(wikiPages)
@@ -669,6 +737,90 @@ async function getSharedEntities(minSources = 2) {
     WHERE source_count >= ${minSources}
   `);
   return new Set(rows.rows.map((row: any) => String(row.entity)));
+}
+
+async function getExistingPageTitleSet() {
+  const rows = await db.select({ title: wikiPages.title }).from(wikiPages).where(eq(wikiPages.status, 'active'));
+  return new Set(rows.map((row) => normalizeWikiTitle(row.title)));
+}
+
+function scorePageTarget(title: string, extract: ArticleExtract, article: { title: string | null; source: string | null }) {
+  const normalizedTitle = normalizeWikiTitle(title);
+  if (!normalizedTitle || normalizedTitle.length < 2) return -20;
+
+  let score = 0;
+  const exactEntity = extract.entities.some((entity) => normalizeWikiTitle(entity) === normalizedTitle);
+  const exactTopic = extract.topics.some((topic) => normalizeWikiTitle(topic) === normalizedTitle);
+
+  if (exactEntity) score += 10;
+  else if (termMatchesAny(title, extract.entities)) score += 5;
+
+  if (exactTopic) score += 5;
+  else if (termMatchesAny(title, extract.topics)) score += 2;
+
+  if (normalizeWikiTitle(extract.suggestedPages[0]) === normalizedTitle) score += 8;
+  if (textContainsTerm(article.title, title)) score += 8;
+  if (textContainsTerm(article.source, title)) score += 2;
+
+  if (isWeakDerivedTitle(title) && !exactEntity) score -= 6;
+  if (!termMatchesAny(title, [...extract.entities, ...extract.topics]) && !textContainsTerm(article.title, title)) score -= 6;
+
+  return score;
+}
+
+function claimMatchesPageTitle(title: string, claim: { claim: string; evidence?: string | null; topics?: string[] | null; entities?: string[] | null }) {
+  if (termMatchesAny(title, claim.entities || [])) return true;
+  if (termMatchesAny(title, claim.topics || [])) return true;
+  if (textContainsTerm(claim.claim, title) || textContainsTerm(claim.evidence, title)) return true;
+  return false;
+}
+
+function claimIdsForPageTitle(title: string, claims: Array<{ id: number; claim: string; evidence?: string | null; topics?: string[] | null; entities?: string[] | null }>) {
+  const matched = claims.filter((claim) => claimMatchesPageTitle(title, claim)).map((claim) => claim.id);
+  return matched.length ? matched : claims.map((claim) => claim.id);
+}
+
+async function selectPageTargets(extract: ArticleExtract, article: { title: string | null; source: string | null }): Promise<WikiPageTarget[]> {
+  const sharedEntities = await getSharedEntities(2);
+  const existingPages = await getExistingPageTitleSet();
+  const candidates = uniq([
+    ...extract.suggestedPages,
+    ...extract.entities,
+    ...extract.topics,
+  ], 24);
+
+  const ranked = candidates
+    .map((title) => {
+      const score = scorePageTarget(title, extract, article);
+      const normalized = normalizeWikiTitle(title);
+      const shared = extract.entities.some((entity) => normalizeWikiTitle(entity) === normalized && sharedEntities.has(entity));
+      const existing = existingPages.has(normalized);
+      const exactEntity = extract.entities.some((entity) => normalizeWikiTitle(entity) === normalized);
+      return { title, normalized, score, shared, existing, exactEntity };
+    })
+    .filter((item) => item.score >= 4 || item.shared || item.existing)
+    .sort((a, b) => {
+      if (a.exactEntity !== b.exactEntity) return a.exactEntity ? -1 : 1;
+      if (a.score !== b.score) return b.score - a.score;
+      if (a.shared !== b.shared) return a.shared ? -1 : 1;
+      if (a.existing !== b.existing) return a.existing ? -1 : 1;
+      return 0;
+    });
+
+  const selected: WikiPageTarget[] = [];
+  for (const item of ranked) {
+    if (selected.some((target) => normalizeWikiTitle(target.title) === item.normalized)) continue;
+    if (selected.length > 0 && !item.shared && !item.existing) continue;
+    const type: WikiPageTarget['type'] = item.shared && item.exactEntity ? 'concept' : item.title.includes('索引') ? 'index' : 'topic';
+    selected.push({ title: item.title, type });
+    if (selected.length >= 2) break;
+  }
+
+  if (selected.length > 0) return selected;
+
+  const fallbackTitle = extract.entities[0] || extract.topics[0] || article.source || '资料索引';
+  const fallbackType: WikiPageTarget['type'] = fallbackTitle.includes('索引') ? 'index' : 'topic';
+  return [{ title: fallbackTitle, type: fallbackType }];
 }
 
 async function syncPageLinks(pageIds: number[]) {
@@ -751,6 +903,19 @@ async function extractArticleJob(articleId: number) {
   });
 
   const claims = await replaceArticleClaims(articleId, extract, chunks);
+  const previousPages = await db
+    .select({ pageId: wikiPageSources.pageId })
+    .from(wikiPageSources)
+    .where(and(eq(wikiPageSources.articleId, articleId), eq(wikiPageSources.active, true)));
+  await db.update(wikiPageSources)
+    .set({ active: false, updatedAt: new Date() })
+    .where(eq(wikiPageSources.articleId, articleId));
+  await db.execute(sql`
+    UPDATE wiki_page_claims pc
+    SET active = false, updated_at = NOW()
+    FROM wiki_claims c
+    WHERE pc.claim_id = c.id AND c.article_id = ${articleId}
+  `);
   await appendWikiLog('ingest', `编译来源：${article.title || `文章 #${articleId}`}`, {
     articleId,
     details: `生成 ${chunks.length} 个原文块、${claims.length} 条知识声明。`,
@@ -761,19 +926,15 @@ async function extractArticleJob(articleId: number) {
     },
   });
 
-  const topicTitles = (extract.suggestedPages.length ? extract.suggestedPages : fallbackExtract(article, content).suggestedPages).slice(0, 3);
-  const sharedEntities = await getSharedEntities(2);
-  const conceptTitles = uniq(extract.entities || [], 6).filter((entity) => sharedEntities.has(entity));
-  const pageTargets = [
-    ...topicTitles.map((title) => ({ title, type: title.includes('索引') ? 'index' as const : 'topic' as const })),
-    ...conceptTitles.map((title) => ({ title, type: 'concept' as const })),
-  ];
+  const pageTargets = await selectPageTargets(extract, article);
 
   const pageIds: number[] = [];
+  const claimsByPageId = new Map<number, number[]>();
   for (const target of pageTargets) {
     const page = await upsertPage(target.title, target.type);
     await attachArticleToPage(page.id, articleId);
     pageIds.push(page.id);
+    claimsByPageId.set(page.id, claimIdsForPageTitle(target.title, claims));
   }
   await syncPageLinks(pageIds);
 
@@ -782,8 +943,14 @@ async function extractArticleJob(articleId: number) {
     .where(eq(wikiArticles.articleId, articleId));
 
   for (const pageId of pageIds) {
-    await attachClaimsToPage(pageId, claims.map((claim) => claim.id));
+    await attachClaimsToPage(pageId, claimsByPageId.get(pageId) || claims.map((claim) => claim.id));
     await enqueueJob('merge_page', { pageId }, 3);
+  }
+  const stalePageIds = previousPages
+    .map((row) => row.pageId)
+    .filter((pageId) => !pageIds.includes(pageId));
+  if (stalePageIds.length > 0) {
+    await enqueueJob('reconcile_pages', { pageIds: stalePageIds, articleId, reason: 'article_targets_changed' }, 2);
   }
 }
 
@@ -885,8 +1052,20 @@ async function mergePageJob(pageId: number) {
   }
 
   const articleIds = rows.map((row) => row.articleId);
-  const claimsResult = articleIds.length
-    ? await db.execute(sql`
+  let claimsResult = await db.execute(sql`
+      SELECT c.id, c.article_id AS "articleId", c.claim, c.evidence, c.topics, c.entities, c.confidence, c.relation_type AS "relationType",
+             ch.heading, ch.ordinal AS chunk_ordinal
+      FROM wiki_page_claims pc
+      INNER JOIN wiki_claims c ON c.id = pc.claim_id
+      LEFT JOIN wiki_source_chunks ch ON ch.id = c.chunk_id
+      WHERE pc.page_id = ${pageId}
+        AND pc.active = true
+        AND c.status = 'active'
+      ORDER BY pc.relevance DESC, c.confidence DESC, c.updated_at DESC
+      LIMIT 80
+    `);
+  if (claimsResult.rows.length === 0 && articleIds.length) {
+    claimsResult = await db.execute(sql`
       SELECT c.id, c.article_id AS "articleId", c.claim, c.evidence, c.topics, c.entities, c.confidence, c.relation_type AS "relationType",
              ch.heading, ch.ordinal AS chunk_ordinal
       FROM wiki_claims c
@@ -895,8 +1074,8 @@ async function mergePageJob(pageId: number) {
         AND c.article_id IN (${sql.join(articleIds.map((id) => sql`${id}`), sql`, `)})
       ORDER BY c.confidence DESC, c.updated_at DESC
       LIMIT 80
-    `)
-    : { rows: [] };
+    `);
+  }
   const claims = claimsResult.rows as any[];
 
   let pageContent: { summary: string; blocks: WikiBlock[] } | null = null;
@@ -1511,6 +1690,7 @@ export async function buildWikiMarkdownExport() {
 }
 
 function pageTypeLabelForExport(type: string) {
+  if (type === 'analysis') return '分析页';
   if (type === 'concept') return '概念';
   if (type === 'index') return '资料索引';
   return '主题';
@@ -1530,6 +1710,276 @@ export async function reconcileWikiClaims() {
     payload: { duplicateGroups: duplicateRows.rows.length },
   });
   return { duplicateGroups: duplicateRows.rows.length };
+}
+
+function questionTerms(question: string) {
+  const normalized = question.trim().replace(/\s+/g, ' ');
+  const asciiTerms = normalized
+    .split(/[^\p{L}\p{N}]+/u)
+    .map((term) => term.trim())
+    .filter((term) => term.length >= 2);
+  return uniq([normalized, ...asciiTerms], 8);
+}
+
+function likeClauses(terms: string[], expressions: ReturnType<typeof sql>[]) {
+  const patterns = terms.map((term) => `%${term}%`);
+  const clauses = patterns.flatMap((pattern) => expressions.map((expression) => sql`${expression} ILIKE ${pattern}`));
+  return clauses.length ? sql`(${sql.join(clauses, sql` OR `)})` : sql`TRUE`;
+}
+
+async function retrieveWikiAskContext(question: string) {
+  await initWikiSchema();
+  const terms = questionTerms(question);
+  const pageWhere = likeClauses(terms, [sql`p.title`, sql`p.summary`, sql`p.blocks::text`]);
+  const claimWhere = likeClauses(terms, [sql`c.claim`, sql`c.evidence`, sql`array_to_string(c.topics, ' ')`, sql`array_to_string(c.entities, ' ')`, sql`a.title`, sql`ch.content`]);
+  const chunkWhere = likeClauses(terms, [sql`ch.heading`, sql`ch.content`, sql`a.title`, sql`a.source`]);
+
+  let pages = await db.execute(sql`
+    SELECT p.id, p.title, p.slug, p.page_type, p.summary,
+      COUNT(DISTINCT s.article_id)::int AS source_count,
+      COUNT(DISTINCT pc.claim_id)::int AS claim_count
+    FROM wiki_pages p
+    LEFT JOIN wiki_page_sources s ON s.page_id = p.id AND s.active = true
+    LEFT JOIN wiki_page_claims pc ON pc.page_id = p.id AND pc.active = true
+    WHERE p.status = 'active' AND ${pageWhere}
+    GROUP BY p.id
+    ORDER BY source_count DESC, claim_count DESC, p.updated_at DESC
+    LIMIT 8
+  `);
+
+  let claims = await db.execute(sql`
+    SELECT c.id, c.claim, c.evidence, c.confidence, c.article_id, a.title AS article_title,
+      ch.id AS chunk_id, ch.heading, ch.content, ch.ordinal
+    FROM wiki_claims c
+    LEFT JOIN articles a ON a.id = c.article_id
+    LEFT JOIN wiki_source_chunks ch ON ch.id = c.chunk_id
+    INNER JOIN article_metadata m ON m.article_id = c.article_id AND m.is_archived = true
+    WHERE c.status = 'active' AND ${claimWhere}
+    ORDER BY c.confidence DESC, c.updated_at DESC
+    LIMIT 18
+  `);
+
+  let chunks = await db.execute(sql`
+    SELECT ch.id, ch.article_id, ch.heading, ch.content, ch.ordinal, a.title AS article_title, a.source
+    FROM wiki_source_chunks ch
+    INNER JOIN articles a ON a.id = ch.article_id
+    INNER JOIN article_metadata m ON m.article_id = ch.article_id AND m.is_archived = true
+    WHERE ch.active = true AND ${chunkWhere}
+    ORDER BY ch.ordinal ASC
+    LIMIT 10
+  `);
+
+  if (pages.rows.length === 0 && claims.rows.length === 0 && chunks.rows.length === 0) {
+    pages = await db.execute(sql`
+      SELECT p.id, p.title, p.slug, p.page_type, p.summary,
+        COUNT(DISTINCT s.article_id)::int AS source_count,
+        COUNT(DISTINCT pc.claim_id)::int AS claim_count
+      FROM wiki_pages p
+      LEFT JOIN wiki_page_sources s ON s.page_id = p.id AND s.active = true
+      LEFT JOIN wiki_page_claims pc ON pc.page_id = p.id AND pc.active = true
+      WHERE p.status = 'active'
+      GROUP BY p.id
+      ORDER BY source_count DESC, claim_count DESC, p.updated_at DESC
+      LIMIT 6
+    `);
+    claims = await db.execute(sql`
+      SELECT c.id, c.claim, c.evidence, c.confidence, c.article_id, a.title AS article_title,
+        ch.id AS chunk_id, ch.heading, ch.content, ch.ordinal
+      FROM wiki_claims c
+      LEFT JOIN articles a ON a.id = c.article_id
+      LEFT JOIN wiki_source_chunks ch ON ch.id = c.chunk_id
+      INNER JOIN article_metadata m ON m.article_id = c.article_id AND m.is_archived = true
+      WHERE c.status = 'active'
+      ORDER BY c.confidence DESC, c.updated_at DESC
+      LIMIT 12
+    `);
+  }
+
+  const citations: WikiAskCitation[] = [
+    ...(pages.rows as any[]).map((page, index) => ({
+      id: `P${index + 1}`,
+      type: 'page' as const,
+      title: page.title,
+      excerpt: page.summary || '',
+      pageId: Number(page.id),
+      slug: page.slug,
+    })),
+    ...(claims.rows as any[]).map((claim, index) => ({
+      id: `C${index + 1}`,
+      type: 'claim' as const,
+      title: claim.article_title || `Claim #${claim.id}`,
+      excerpt: claim.claim,
+      articleId: Number(claim.article_id),
+      articleTitle: claim.article_title,
+      claimId: Number(claim.id),
+      chunkId: claim.chunk_id ? Number(claim.chunk_id) : undefined,
+    })),
+    ...(chunks.rows as any[]).map((chunk, index) => ({
+      id: `R${index + 1}`,
+      type: 'chunk' as const,
+      title: chunk.article_title || `Chunk #${chunk.id}`,
+      excerpt: String(chunk.content || '').slice(0, 360),
+      articleId: Number(chunk.article_id),
+      articleTitle: chunk.article_title,
+      chunkId: Number(chunk.id),
+    })),
+  ];
+
+  return {
+    pages: pages.rows,
+    claims: claims.rows,
+    chunks: chunks.rows,
+    citations,
+  };
+}
+
+function fallbackWikiAnswer(question: string, citations: WikiAskCitation[]) {
+  if (citations.length === 0) return '当前 Wiki 里还没有足够的归档资料回答这个问题。';
+  const points = citations.slice(0, 5).map((citation) => `- ${citation.excerpt || citation.title} [${citation.id}]`);
+  return [`基于当前归档知识库，和“${question}”最相关的信息如下：`, '', ...points].join('\n');
+}
+
+type WikiAskHistoryItem = {
+  question: string;
+  answer: string;
+};
+
+async function generateWikiAnswer(question: string, citations: WikiAskCitation[], history: WikiAskHistoryItem[] = []) {
+  if (!wikiAIHasApiKey()) return fallbackWikiAnswer(question, citations);
+  const context = citations.map((citation) => `[${citation.id}] ${citation.type} | ${citation.title}\n${citation.excerpt || ''}`).join('\n\n');
+  const conversation = history
+    .slice(-5)
+    .map((item, index) => `第 ${index + 1} 轮\n用户：${item.question}\n助手：${item.answer}`)
+    .join('\n\n');
+  const system = `你是 Storing 的知识库问答助手。只能基于提供的 Wiki 上下文回答，不允许编造外部事实。
+回答要求：
+- 中文回答，清晰、实用。
+- 结论后用 [P1]、[C2]、[R3] 这样的引用标记注明来源。
+- 如果资料不足，要明确说“不足以确定”，并指出还缺什么资料。
+- 如果用户在追问，请结合最近对话理解代词和省略表达，但事实仍必须来自 Wiki 上下文。
+- 不要输出 JSON。`;
+  const user = `问题：${question}
+
+最近对话：
+${conversation || '无'}
+
+Wiki 上下文：
+${context.slice(0, 18000)}`;
+  return callWikiAI(system, user, 2200);
+}
+
+export async function getWikiAnswers(limit = 20) {
+  await initWikiSchema();
+  return db
+    .select()
+    .from(wikiAnswers)
+    .orderBy(desc(wikiAnswers.createdAt))
+    .limit(Math.min(Math.max(limit, 1), 50));
+}
+
+export async function askWiki(question: string, history: WikiAskHistoryItem[] = []) {
+  await initWikiSchema();
+  const cleanQuestion = question.trim();
+  if (cleanQuestion.length < 2) {
+    throw new Error('问题太短，请输入更具体的问题。');
+  }
+  const storedHistory = await getWikiAnswers(5);
+  const mergedHistory = [
+    ...storedHistory.reverse().map((item) => ({ question: item.question, answer: item.answer })),
+    ...history,
+  ].slice(-5);
+  const context = await retrieveWikiAskContext(cleanQuestion);
+  const answer = await generateWikiAnswer(cleanQuestion, context.citations, mergedHistory);
+  const config = getWikiAIConfig();
+  const sourcePageIds = [...new Set(context.citations.map((citation) => citation.pageId).filter((id): id is number => Number.isFinite(id)))];
+  const sourceArticleIds = [...new Set(context.citations.map((citation) => citation.articleId).filter((id): id is number => Number.isFinite(id)))];
+  const [row] = await db.insert(wikiAnswers).values({
+    question: cleanQuestion,
+    answer,
+    citations: context.citations,
+    sourcePageIds,
+    sourceArticleIds,
+    modelProvider: config.provider,
+    modelName: config.model,
+    updatedAt: new Date(),
+  }).returning();
+  await appendWikiLog('qa_answered', '知识库问答', {
+    details: cleanQuestion,
+    payload: { answerId: row.id, citationCount: context.citations.length },
+  });
+  return { ...row, context: { citations: context.citations } };
+}
+
+function answerTitle(question: string) {
+  const normalized = question.replace(/[?？。！!]+$/g, '').trim();
+  return `问答：${normalized.slice(0, 28) || '知识库分析'}`;
+}
+
+export async function fileWikiAnswer(answerId: number) {
+  await initWikiSchema();
+  const [answer] = await db.select().from(wikiAnswers).where(eq(wikiAnswers.id, answerId));
+  if (!answer) throw new Error('问答记录不存在。');
+
+  const title = answerTitle(answer.question);
+  const page = await upsertPage(title, 'analysis');
+  const citations = (answer.citations || []) as WikiAskCitation[];
+  const sourceArticleIds = [...new Set((answer.sourceArticleIds || []).filter((id) => Number.isFinite(id)))];
+  for (const articleId of sourceArticleIds) {
+    await attachArticleToPage(page.id, articleId);
+  }
+  const citationItems = citations.slice(0, 12).map((citation) => ({
+    text: `${citation.title}${citation.excerpt ? `：${citation.excerpt}` : ''}`,
+    sources: citation.articleId ? [citation.articleId] : undefined,
+    claims: citation.claimId ? [citation.claimId] : undefined,
+  }));
+  const citationClaimIds = citations
+    .map((citation) => citation.claimId)
+    .filter((id): id is number => Number.isFinite(id));
+  const blocks: WikiBlock[] = normalizeBlocks([
+    { id: 'summary', type: 'summary', text: answer.answer.slice(0, 260) },
+    { id: 'question-heading', type: 'heading', level: 2, text: '问题' },
+    { id: 'question', type: 'paragraph', text: answer.question },
+    { id: 'answer-heading', type: 'heading', level: 2, text: '回答' },
+    { id: 'answer', type: 'paragraph', text: answer.answer },
+    { id: 'citations-heading', type: 'heading', level: 2, text: '引用依据' },
+    { id: 'citations', type: 'bullet_list', items: citationItems },
+    { id: 'sources-heading', type: 'heading', level: 2, text: '来源文章' },
+    { id: 'sources', type: 'source_list', articleIds: sourceArticleIds },
+  ]);
+  const nextVersion = (page.version || 0) + 1;
+  const config = getWikiAIConfig();
+  await db.update(wikiPages).set({
+    summary: answer.answer.slice(0, 260),
+    blocks,
+    status: 'active',
+    version: nextVersion,
+    lastGeneratedAt: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(wikiPages.id, page.id));
+  await db.insert(wikiPageVersions).values({
+    pageId: page.id,
+    version: nextVersion,
+    summary: answer.answer.slice(0, 260),
+    blocks,
+    sourceArticleIds,
+    modelProvider: config.provider,
+    modelName: config.model,
+  });
+  await db.update(wikiPageClaims)
+    .set({ active: false, updatedAt: new Date() })
+    .where(eq(wikiPageClaims.pageId, page.id));
+  await attachClaimsToPage(page.id, citationClaimIds);
+  await db.update(wikiAnswers).set({
+    status: 'filed',
+    filedPageId: page.id,
+    updatedAt: new Date(),
+  }).where(eq(wikiAnswers.id, answerId));
+  await appendWikiLog('qa_filed', `沉淀问答：${title}`, {
+    pageId: page.id,
+    details: answer.question,
+    payload: { answerId, sourceArticleIds },
+  });
+  return { answerId, pageId: page.id, slug: page.slug, title };
 }
 
 export async function rebuildAllWiki(limit = 4) {

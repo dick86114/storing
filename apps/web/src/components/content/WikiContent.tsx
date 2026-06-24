@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import useSWR from 'swr';
-import { ArrowLeftOutlined, BookOutlined, BranchesOutlined, ClockCircleOutlined, ClusterOutlined, DatabaseOutlined, DownloadOutlined, FileSearchOutlined, FileTextOutlined, LinkOutlined, ReloadOutlined, RobotOutlined, SearchOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, ArrowsAltOutlined, BookOutlined, BranchesOutlined, ClockCircleOutlined, ClusterOutlined, DatabaseOutlined, DownloadOutlined, FileSearchOutlined, FileTextOutlined, LinkOutlined, MessageOutlined, ReloadOutlined, RobotOutlined, SaveOutlined, SearchOutlined, SendOutlined, ShrinkOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useArticleContext } from '@/components/providers/ArticleContext';
 import { api } from '@/lib/api';
@@ -103,6 +103,30 @@ type WikiLintFinding = {
   created_at?: string | null;
 };
 
+type WikiAnswerCitation = {
+  id: string;
+  type: 'page' | 'claim' | 'chunk';
+  title: string;
+  excerpt?: string;
+  pageId?: number;
+  slug?: string;
+  articleId?: number;
+  articleTitle?: string;
+  claimId?: number;
+  chunkId?: number;
+};
+
+type WikiAnswer = {
+  id: number;
+  question: string;
+  answer: string;
+  citations?: WikiAnswerCitation[];
+  context?: { citations?: WikiAnswerCitation[] };
+  status?: string;
+  filedPageId?: number | null;
+  filed_page_id?: number | null;
+};
+
 type WikiStatKey = 'articles' | 'indexed' | 'pages' | 'chunks' | 'claims' | 'lint' | 'running' | 'pending' | 'failed' | 'log';
 
 const WIKI_TYPES = [
@@ -110,6 +134,7 @@ const WIKI_TYPES = [
   { key: 'topic', label: '主题', help: '围绕文章主题、来源或专题聚合出的长页面。' },
   { key: 'concept', label: '概念', help: '从文章中抽取出的实体、工具、技术名词或关键概念。' },
   { key: 'index', label: '资料索引', help: '低价值或暂时难以归类的内容会先进入索引页。' },
+  { key: 'analysis', label: '分析页', help: '从高价值问答或人工触发沉淀出的分析型页面。' },
 ];
 
 function formatDate(value?: string | null) {
@@ -144,6 +169,7 @@ function pageTypeOf(page: WikiPageSummary | any) {
 }
 
 function pageTypeLabel(type: string) {
+  if (type === 'analysis') return '分析页';
   if (type === 'concept') return '概念';
   if (type === 'index') return '资料索引';
   return '主题';
@@ -201,22 +227,248 @@ function JobList({
   );
 }
 
+function renderInlineMarkdown(
+  text: string,
+  citationsById: Map<string, WikiAnswerCitation> = new Map(),
+  onOpenSource?: (id: number) => void
+) {
+  const nodes: ReactNode[] = [];
+  const parts = text.split(/(\*\*[^*]+\*\*|\[[PCR]\d+\])/g);
+  parts.forEach((part, index) => {
+    if (!part) return;
+    if (part.startsWith('**') && part.endsWith('**')) {
+      nodes.push(<strong key={index}>{part.slice(2, -2)}</strong>);
+      return;
+    }
+    const citationMatch = part.match(/^\[([PCR]\d+)\]$/);
+    if (citationMatch) {
+      const citationId = citationMatch[1];
+      const citation = citationsById.get(citationId);
+      if (citation?.slug) {
+        nodes.push(
+          <Link key={index} className="wiki-inline-citation" href={`/wiki/${encodeURIComponent(citation.slug)}`}>
+            [{citationId}]
+          </Link>
+        );
+        return;
+      }
+      if (citation?.articleId) {
+        nodes.push(
+          <button key={index} type="button" className="wiki-inline-citation" onClick={() => onOpenSource?.(citation.articleId!)}>
+            [{citationId}]
+          </button>
+        );
+        return;
+      }
+      nodes.push(
+        <span key={index} className="wiki-inline-citation wiki-inline-citation-disabled">
+          [{citationId}]
+        </span>
+      );
+      return;
+    }
+    nodes.push(part);
+  });
+  return nodes;
+}
+
+function MarkdownAnswer({
+  text,
+  citations = [],
+  onOpenSource,
+}: {
+  text: string;
+  citations?: WikiAnswerCitation[];
+  onOpenSource: (id: number) => void;
+}) {
+  const citationsById = new Map(citations.map((citation) => [citation.id, citation]));
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const blocks: ReactNode[] = [];
+  let listItems: string[] = [];
+
+  const flushList = () => {
+    if (listItems.length === 0) return;
+    const items = listItems;
+    listItems = [];
+    blocks.push(
+      <ul key={`list-${blocks.length}`}>
+        {items.map((item, index) => (
+          <li key={index}>{renderInlineMarkdown(item, citationsById, onOpenSource)}</li>
+        ))}
+      </ul>
+    );
+  };
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushList();
+      return;
+    }
+    const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      flushList();
+      blocks.push(<h3 key={`heading-${blocks.length}`}>{renderInlineMarkdown(heading[2], citationsById, onOpenSource)}</h3>);
+      return;
+    }
+    const bullet = trimmed.match(/^[-*]\s+(.+)$/);
+    if (bullet) {
+      listItems.push(bullet[1]);
+      return;
+    }
+    const numbered = trimmed.match(/^\d+\.\s+(.+)$/);
+    if (numbered) {
+      listItems.push(numbered[1]);
+      return;
+    }
+    flushList();
+    blocks.push(<p key={`paragraph-${blocks.length}`}>{renderInlineMarkdown(trimmed, citationsById, onOpenSource)}</p>);
+  });
+  flushList();
+
+  return <div className="wiki-answer-text">{blocks}</div>;
+}
+
+function WikiAskDock({
+  open,
+  setOpen,
+  expanded,
+  setExpanded,
+  question,
+  setQuestion,
+  answers,
+  isAsking,
+  isFiling,
+  filingAnswerId,
+  error,
+  onAsk,
+  onFile,
+  onOpenSource,
+}: {
+  open: boolean;
+  setOpen: (value: boolean) => void;
+  expanded: boolean;
+  setExpanded: (value: boolean) => void;
+  question: string;
+  setQuestion: (value: string) => void;
+  answers: WikiAnswer[];
+  isAsking?: boolean;
+  isFiling?: boolean;
+  filingAnswerId?: number | null;
+  error?: string | null;
+  onAsk: (event: FormEvent) => void;
+  onFile: (answer: WikiAnswer) => void;
+  onOpenSource: (id: number) => void;
+}) {
+  const latestCount = answers.length;
+  if (!open) {
+    return (
+      <button type="button" className="wiki-ask-floating-trigger" onClick={() => setOpen(true)}>
+        <MessageOutlined />
+        <span>问知识库</span>
+        {latestCount > 0 && <strong>{latestCount}</strong>}
+      </button>
+    );
+  }
+
+  return (
+    <section className={`wiki-ask-dock${expanded ? ' wiki-ask-dock-expanded' : ''}`} aria-label="问知识库对话框">
+      <div className="wiki-ask-dock-head">
+        <div>
+          <h2><MessageOutlined /> 问知识库</h2>
+          <p>保留最近问答，可连续追问，回答仍会附来源。</p>
+        </div>
+        <div className="wiki-ask-dock-actions">
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            aria-label={expanded ? '缩小问知识库' : '放大问知识库'}
+            title={expanded ? '缩小问知识库' : '放大问知识库'}
+          >
+            {expanded ? <ShrinkOutlined /> : <ArrowsAltOutlined />}
+            <span>{expanded ? '缩小' : '放大'}</span>
+          </button>
+          <button type="button" onClick={() => setOpen(false)} aria-label="收起问知识库">收起</button>
+        </div>
+      </div>
+
+      <div className="wiki-ask-messages">
+        {answers.length === 0 ? (
+          <div className="wiki-ask-empty">
+            <RobotOutlined />
+            <strong>可以问归档文章里的任何问题</strong>
+            <span>例如：哪些 NAS 方案适合家庭服务器？Obsidian 插件有哪些值得装？</span>
+          </div>
+        ) : (
+          answers.map((answer) => {
+            const citations = answer.citations || answer.context?.citations || [];
+            return (
+              <article key={answer.id} className="wiki-ask-message">
+                <div className="wiki-question-bubble">{answer.question}</div>
+                <div className="wiki-answer-card">
+                  <div className="wiki-answer-head">
+                    <span>回答 #{answer.id}</span>
+                    <button
+                      type="button"
+                      className="wiki-secondary-action"
+                      onClick={() => onFile(answer)}
+                      disabled={isFiling || answer.status === 'filed' || Boolean(answer.filedPageId || answer.filed_page_id)}
+                    >
+                      {isFiling && filingAnswerId === answer.id ? <SyncOutlined spin /> : <SaveOutlined />}
+                      {answer.status === 'filed' || answer.filedPageId || answer.filed_page_id ? '已沉淀' : '沉淀'}
+                    </button>
+                  </div>
+                  <MarkdownAnswer text={answer.answer} citations={citations} onOpenSource={onOpenSource} />
+                  {citations.length > 0 && (
+                    <div className="wiki-answer-citations">
+                      {citations.slice(0, 6).map((citation) => (
+                        citation.slug ? (
+                          <Link key={citation.id} href={`/wiki/${encodeURIComponent(citation.slug)}`}>
+                            <strong>{citation.id} · {citation.title}</strong>
+                            {citation.excerpt && <span>{citation.excerpt}</span>}
+                          </Link>
+                        ) : (
+                          <button key={citation.id} type="button" onClick={() => citation.articleId && onOpenSource(citation.articleId)} disabled={!citation.articleId}>
+                            <strong>{citation.id} · {citation.title}</strong>
+                            {citation.excerpt && <span>{citation.excerpt}</span>}
+                          </button>
+                        )
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </article>
+            );
+          })
+        )}
+      </div>
+
+      {error && <div className="wiki-job-error">{error}</div>}
+      <form className="wiki-ask-form wiki-ask-dock-form" onSubmit={onAsk}>
+        <input
+          value={question}
+          onChange={(event) => setQuestion(event.target.value)}
+          placeholder="继续追问知识库..."
+        />
+        <button type="submit" disabled={isAsking || question.trim().length < 2}>
+          {isAsking ? <SyncOutlined spin /> : <SendOutlined />}
+          {isAsking ? '思考中' : '提问'}
+        </button>
+      </form>
+    </section>
+  );
+}
+
 function WikiCommandBar({
   status,
   searchInput,
   setSearchInput,
   onSearch,
-  onUpdate,
-  isUpdating,
-  canOperate,
 }: {
   status?: WikiStatus;
   searchInput: string;
   setSearchInput: (value: string) => void;
   onSearch: (event?: FormEvent) => void;
-  onUpdate: () => void;
-  isUpdating?: boolean;
-  canOperate?: boolean;
 }) {
   return (
     <section className="wiki-command-bar">
@@ -234,16 +486,6 @@ function WikiCommandBar({
         />
         <button type="submit" aria-label="搜索">搜索</button>
       </form>
-      <div className="wiki-command-actions">
-        {canOperate ? (
-          <button className="wiki-primary-action" type="button" onClick={onUpdate} disabled={isUpdating} title="扫描归档文章并处理一小批 Wiki 队列">
-            {isUpdating ? <SyncOutlined spin /> : <ReloadOutlined />}
-            {isUpdating ? '更新中' : '更新'}
-          </button>
-        ) : (
-          <span className="wiki-readonly-note">只读</span>
-        )}
-      </div>
     </section>
   );
 }
@@ -270,6 +512,15 @@ export function WikiHomeContent() {
   const [exportResult, setExportResult] = useState<{ generatedAt: string; files: Array<{ path: string; content: string }> } | null>(null);
   const [statView, setStatView] = useState<WikiStatKey | null>(null);
   const [taskError, setTaskError] = useState<string | null>(null);
+  const [askOpen, setAskOpen] = useState(false);
+  const [askExpanded, setAskExpanded] = useState(false);
+  const [askQuestion, setAskQuestion] = useState('');
+  const [askAnswers, setAskAnswers] = useState<WikiAnswer[]>([]);
+  const [askError, setAskError] = useState<string | null>(null);
+  const [isAsking, setIsAsking] = useState(false);
+  const [isFilingAnswer, setIsFilingAnswer] = useState(false);
+  const [filingAnswerId, setFilingAnswerId] = useState<number | null>(null);
+  const [updateConfirmOpen, setUpdateConfirmOpen] = useState(false);
   const [rebuildConfirmOpen, setRebuildConfirmOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -287,7 +538,17 @@ export function WikiHomeContent() {
     () => api.searchWiki(searchQuery, 12),
     { revalidateOnFocus: false }
   );
+  const { data: answerHistory, mutate: mutateAnswerHistory } = useSWR(
+    isAuthenticated ? 'wiki:answers:recent' : null,
+    () => api.getWikiAnswers(20),
+    { revalidateOnFocus: false }
+  );
   const activeTypeMeta = WIKI_TYPES.find((item) => item.key === activeType) ?? WIKI_TYPES[0];
+
+  useEffect(() => {
+    const answers = (answerHistory?.answers ?? []) as WikiAnswer[];
+    setAskAnswers(answers.slice().reverse());
+  }, [answerHistory]);
 
   const typeCount = (type: string) => {
     if (type === 'all') return status?.pages ?? 0;
@@ -295,6 +556,7 @@ export function WikiHomeContent() {
   };
 
   const handleUpdate = async () => {
+    if (isUpdating) return;
     setIsUpdating(true);
     setTaskError(null);
     try {
@@ -308,6 +570,11 @@ export function WikiHomeContent() {
     } finally {
       setIsUpdating(false);
     }
+  };
+
+  const handleConfirmUpdate = async () => {
+    setUpdateConfirmOpen(false);
+    await handleUpdate();
   };
 
   const handleProcess = async () => {
@@ -399,6 +666,46 @@ export function WikiHomeContent() {
       setTaskError(error?.message || 'Markdown 导出失败');
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleAskWiki = async (event: FormEvent) => {
+    event.preventDefault();
+    const question = askQuestion.trim();
+    if (question.length < 2 || isAsking) return;
+    setIsAsking(true);
+    setAskError(null);
+    try {
+      const history = askAnswers.slice(-5).map((item) => ({ question: item.question, answer: item.answer }));
+      const result = await api.askWiki(question, history);
+      setAskAnswers((items) => [...items, result]);
+      setAskQuestion('');
+      await mutateAnswerHistory();
+    } catch (error: any) {
+      setAskError(error?.message || '知识库问答失败');
+    } finally {
+      setIsAsking(false);
+    }
+  };
+
+  const handleFileAnswer = async (answer: WikiAnswer) => {
+    if (!answer || isFilingAnswer) return;
+    setIsFilingAnswer(true);
+    setFilingAnswerId(answer.id);
+    setAskError(null);
+    try {
+      const result = await api.fileWikiAnswer(answer.id);
+      setAskAnswers((items) => items.map((item) => (
+        item.id === answer.id ? { ...item, status: 'filed', filedPageId: result.pageId } : item
+      )));
+      setActiveType('analysis');
+      await mutateAnswerHistory();
+      await mutate();
+    } catch (error: any) {
+      setAskError(error?.message || '沉淀问答失败');
+    } finally {
+      setIsFilingAnswer(false);
+      setFilingAnswerId(null);
     }
   };
 
@@ -571,8 +878,6 @@ export function WikiHomeContent() {
           searchInput={searchInput}
           setSearchInput={setSearchInput}
           onSearch={handleSearch}
-          onUpdate={handleUpdate}
-          canOperate={false}
         />
         <div className="wiki-empty">知识库加载失败，请确认已登录并且 API 服务可用。</div>
       </div>
@@ -586,9 +891,6 @@ export function WikiHomeContent() {
         searchInput={searchInput}
         setSearchInput={setSearchInput}
         onSearch={handleSearch}
-        onUpdate={handleUpdate}
-        isUpdating={isUpdating}
-        canOperate={isAuthenticated}
       />
 
       {searchQuery && (
@@ -671,6 +973,9 @@ export function WikiHomeContent() {
           {isAuthenticated && (
             <>
               <div className="wiki-sidebar-title">维护</div>
+              <button type="button" className="wiki-sidebar-item" onClick={() => setUpdateConfirmOpen(true)} disabled={isUpdating}>
+                {isUpdating ? '更新中' : '更新知识库'}
+              </button>
               <button type="button" className="wiki-sidebar-item" onClick={handleRetry} disabled={isRetrying}>
                 {isRetrying ? '重试中' : '重试失败任务'}
               </button>
@@ -703,7 +1008,7 @@ export function WikiHomeContent() {
             <div className="wiki-empty">
               <RobotOutlined />
               <strong>还没有 Wiki 页面</strong>
-              <span>点击“更新知识库”，系统会读取当前归档文章并生成主题页。</span>
+              <span>可在左侧维护区更新知识库，系统会读取当前归档文章并生成主题页。</span>
             </div>
           ) : (
             <div className="wiki-card-grid">
@@ -725,6 +1030,50 @@ export function WikiHomeContent() {
           )}
         </main>
       </section>
+
+      {isAuthenticated && (
+        <WikiAskDock
+          open={askOpen}
+          setOpen={setAskOpen}
+          expanded={askExpanded}
+          setExpanded={setAskExpanded}
+          question={askQuestion}
+          setQuestion={setAskQuestion}
+          answers={askAnswers}
+          isAsking={isAsking}
+          isFiling={isFilingAnswer}
+          filingAnswerId={filingAnswerId}
+          error={askError}
+          onAsk={handleAskWiki}
+          onFile={handleFileAnswer}
+          onOpenSource={openArticle}
+        />
+      )}
+
+      {isAuthenticated && updateConfirmOpen && (
+        <div className="wiki-confirm-overlay" role="presentation" onMouseDown={() => !isUpdating && setUpdateConfirmOpen(false)}>
+          <section
+            className="wiki-confirm-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="wiki-update-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="wiki-eyebrow"><ReloadOutlined /> 维护任务</div>
+            <h2 id="wiki-update-title">更新知识库</h2>
+            <p>系统会扫描当前已归档文章，创建或推进 Wiki 编译队列，并处理一批待处理任务。文章较多时后台可能持续运行一段时间，期间可以继续浏览页面。</p>
+            <div className="wiki-confirm-actions">
+              <button type="button" className="wiki-secondary-action" onClick={() => setUpdateConfirmOpen(false)} disabled={isUpdating}>
+                取消
+              </button>
+              <button type="button" className="wiki-primary-action" onClick={handleConfirmUpdate} disabled={isUpdating}>
+                {isUpdating ? <SyncOutlined spin /> : <ReloadOutlined />}
+                {isUpdating ? '更新中' : '确认更新'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {isAuthenticated && rebuildConfirmOpen && (
         <div className="wiki-confirm-overlay" role="presentation" onMouseDown={() => !isRebuildingAll && setRebuildConfirmOpen(false)}>
