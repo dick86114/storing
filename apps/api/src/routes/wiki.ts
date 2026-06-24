@@ -5,6 +5,9 @@ import {
   enqueueAllArchivedForWiki,
   enqueueArticleForWiki,
   enqueuePageRebuild,
+  askWiki,
+  fileWikiAnswer,
+  getWikiAnswers,
   getWikiArticleStatus,
   getWikiGraph,
   getWikiHome,
@@ -56,6 +59,11 @@ wikiRoutes.get('/wiki/jobs', requireAuth, async (c) => {
   const status = c.req.query('status') || 'pending';
   const limit = Number(c.req.query('limit') || 30);
   return c.json({ jobs: await getWikiJobs(status, limit) });
+});
+
+wikiRoutes.get('/wiki/answers', requireAuth, async (c) => {
+  const limit = Number(c.req.query('limit') || 20);
+  return c.json({ answers: await getWikiAnswers(limit) });
 });
 
 wikiRoutes.get('/wiki/search', optionalAuth, async (c) => {
@@ -113,11 +121,16 @@ wikiRoutes.post('/wiki/claims/reconcile', requireAuth, async (c) => {
 });
 
 wikiRoutes.post('/wiki/ask', requireAuth, async (c) => {
-  return c.json({ error: { code: 'NOT_IMPLEMENTED', message: 'Wiki 问答接口已预留，将在第二阶段实现。' } }, 501);
+  const body = await c.req.json().catch(() => ({}));
+  const question = String(body.question || '').trim();
+  if (!question) return c.json({ error: { code: 'BAD_REQUEST', message: '请输入要询问知识库的问题。' } }, 400);
+  return c.json(await askWiki(question, Array.isArray(body.history) ? body.history : []));
 });
 
 wikiRoutes.post('/wiki/answers/:id/file', requireAuth, async (c) => {
-  return c.json({ error: { code: 'NOT_IMPLEMENTED', message: '问答回写 Wiki 页面将在第二阶段实现。' } }, 501);
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: { code: 'BAD_REQUEST', message: 'Invalid answer id' } }, 400);
+  return c.json(await fileWikiAnswer(id));
 });
 
 wikiRoutes.post('/wiki/articles/:id/reindex', requireAuth, async (c) => {

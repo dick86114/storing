@@ -132,6 +132,9 @@ export const api = {
   getWikiJobs: (status = 'pending', limit = 30) =>
     fetchJSON<any>(`/wiki/jobs?status=${encodeURIComponent(status)}&limit=${limit}`),
 
+  getWikiAnswers: (limit = 20) =>
+    fetchJSON<any>(`/wiki/answers?limit=${limit}`, { timeoutMs: 30000 }),
+
   searchWiki: (q: string, limit = 20) =>
     fetchJSON<any>(`/wiki/search?q=${encodeURIComponent(q)}&limit=${limit}`, { timeoutMs: 30000 }),
 
@@ -158,6 +161,12 @@ export const api = {
 
   reconcileWikiClaims: () =>
     fetchJSON<any>('/wiki/claims/reconcile', { method: 'POST', timeoutMs: 120000 }),
+
+  askWiki: (question: string, history?: Array<{ question: string; answer: string }>) =>
+    fetchJSON<any>('/wiki/ask', { method: 'POST', body: JSON.stringify({ question, history }), timeoutMs: 120000 }),
+
+  fileWikiAnswer: (id: number) =>
+    fetchJSON<any>(`/wiki/answers/${id}/file`, { method: 'POST', timeoutMs: 120000 }),
 
   reindexWikiArticle: (id: number) =>
     fetchJSON<any>(`/wiki/articles/${id}/reindex`, { method: 'POST', timeoutMs: 120000 }),
