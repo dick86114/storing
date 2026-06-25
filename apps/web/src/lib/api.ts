@@ -107,6 +107,18 @@ export const api = {
   getCounts: () =>
     fetchJSON<{ inbox: number; favorites: number; archive: number; wiki?: number }>('/counts'),
 
+  createCollectJob: (url: string) =>
+    fetchJSON<any>('/collect', { method: 'POST', body: JSON.stringify({ url }), timeoutMs: 30000 }),
+
+  getCollectJobs: (limit = 12) =>
+    fetchJSON<any>(`/collect/jobs?limit=${limit}`, { timeoutMs: 30000 }),
+
+  getCollectJob: (id: number) =>
+    fetchJSON<any>(`/collect/jobs/${id}`, { timeoutMs: 30000 }),
+
+  retryCollectJob: (id: number) =>
+    fetchJSON<any>(`/collect/jobs/${id}/retry`, { method: 'POST', timeoutMs: 30000 }),
+
   getWikiHome: (type = 'all') => {
     const params = new URLSearchParams();
     if (type && type !== 'all') params.set('type', type);

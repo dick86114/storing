@@ -14,13 +14,15 @@ import { useDoubleBackExit } from '@/hooks/useDoubleBackExit';
 import { InboxContent } from '@/components/content/InboxContent';
 import { FavoritesContent } from '@/components/content/FavoritesContent';
 import { ArchiveContent } from '@/components/content/ArchiveContent';
+import { QuickCollectButton } from '@/components/content/QuickCollectButton';
 
-const TAB_KEYS = ['inbox', 'favorites', 'archive', 'wiki'];
+const TAB_KEYS = ['inbox', 'favorites', 'archive', 'wiki', 'collect'];
 const TAB_LABELS: Record<string, string> = {
   inbox: '收件箱',
   favorites: '收藏',
   archive: '归档',
   wiki: 'Wiki',
+  collect: '采集',
 };
 
 function RouteSwitchLoading({ label }: { label: string }) {
@@ -140,6 +142,7 @@ function MainContent({ children }: { children: ReactNode }) {
 
       {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} />}
       <WechatDetailPanel articleId={selectedId} onClose={closeArticle} onMutate={mutateList} isDesktop={!isMobile} />
+      {isAuthenticated && <QuickCollectButton />}
     </>
   );
 }

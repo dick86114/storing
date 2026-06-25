@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, PlusCircleOutlined, AppstoreOutlined, HeartOutlined, FolderOutlined, SunOutlined, MoonOutlined, DesktopOutlined, BookOutlined } from '@ant-design/icons';
+import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, PlusCircleOutlined, AppstoreOutlined, HeartOutlined, FolderOutlined, SunOutlined, MoonOutlined, DesktopOutlined, BookOutlined, CloudUploadOutlined } from '@ant-design/icons';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { LoginModal } from '@/components/auth/LoginModal';
@@ -15,6 +15,7 @@ const tabs = [
   { key: 'favorites', label: '收藏', href: '/favorites', Icon: HeartOutlined },
   { key: 'archive', label: '归档', href: '/archive', Icon: FolderOutlined },
   { key: 'wiki', label: 'Wiki', href: '/wiki', Icon: BookOutlined },
+  { key: 'collect', label: '采集', href: '/collect', Icon: CloudUploadOutlined },
 ];
 
 interface DesktopTopNavProps {
@@ -115,7 +116,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
         <div className="desktop-nav-tabs" style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, justifyContent: 'center' }}>
           {visibleTabs.map((tab) => {
             const isActive = activeIndex === tab.index;
-            const count = counts[tab.key as keyof typeof counts] ?? 0;
+            const count = tab.key === 'collect' ? null : counts[tab.key as keyof typeof counts] ?? 0;
 
             return (
               <button
@@ -139,18 +140,20 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
                 <span style={{ fontSize: '13px', fontWeight: isActive ? 500 : 400, color: isActive ? 'var(--accent)' : 'var(--text-secondary)' }}>
                   {tab.label}
                 </span>
-                <span
-                  className="top-tab-count"
-                  style={{
-                    padding: '1px 7px',
-                    background: isActive ? 'var(--accent-soft)' : 'var(--tag-bg)',
-                    color: isActive ? 'var(--accent)' : 'var(--text-muted)',
-                    fontSize: '11px',
-                    borderRadius: '10px',
-                  }}
-                >
-                  {count}
-                </span>
+                {count !== null && (
+                  <span
+                    className="top-tab-count"
+                    style={{
+                      padding: '1px 7px',
+                      background: isActive ? 'var(--accent-soft)' : 'var(--tag-bg)',
+                      color: isActive ? 'var(--accent)' : 'var(--text-muted)',
+                      fontSize: '11px',
+                      borderRadius: '10px',
+                    }}
+                  >
+                    {count}
+                  </span>
+                )}
               </button>
             );
           })}

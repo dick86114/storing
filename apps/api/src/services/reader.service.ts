@@ -253,6 +253,9 @@ function getImgOriginalUrl(img: HTMLImageElement): string | null {
 
   for (const attr of candidateAttrs) {
     const value = img.getAttribute(attr);
+    if (value?.startsWith('data:image/')) {
+      return value;
+    }
     if (value && !value.startsWith('data:')) {
       return normalizeImageUrl(value);
     }
@@ -261,22 +264,49 @@ function getImgOriginalUrl(img: HTMLImageElement): string | null {
   return null;
 }
 
-/** 上传单张图片到图床，返回新 URL */
-async function uploadImage(imageUrl: string): Promise<string | null> {
-  try {
-    // 下载图片
-    const imgRes = await fetch(imageUrl, {
-      headers: { 'User-Agent': 'StoringBot/1.0', 'Referer': 'https://mp.weixin.qq.com/' },
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!imgRes.ok) return null;
+function getDataImageBlob(dataUrl: string): { blob: Blob; filename: string } | null {
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) return null;
 
-    const buffer = await imgRes.arrayBuffer();
-    const blob = new Blob([buffer]);
+  const [, mime, base64] = match;
+  try {
+    const buffer = Buffer.from(base64, 'base64');
+    const extension = mime.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+    return { blob: new Blob([buffer], { type: mime }), filename: `image.${extension}` };
+  } catch {
+    return null;
+  }
+}
+
+/** 上传单张图片到图床，返回新 URL */
+export async function uploadImage(imageUrl: string): Promise<string | null> {
+  try {
+    let blob: Blob;
+    let filename = 'image.jpg';
+
+    if (imageUrl.startsWith('data:image/')) {
+      const dataImage = getDataImageBlob(imageUrl);
+      if (!dataImage) return null;
+      blob = dataImage.blob;
+      filename = dataImage.filename;
+    } else {
+      // 下载图片
+      const imgRes = await fetch(imageUrl, {
+        headers: { 'User-Agent': 'StoringBot/1.0', 'Referer': 'https://mp.weixin.qq.com/' },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!imgRes.ok) return null;
+
+      const buffer = await imgRes.arrayBuffer();
+      const type = imgRes.headers.get('content-type') || undefined;
+      blob = new Blob([buffer], type ? { type } : undefined);
+      const urlExt = imageUrl.split('?')[0]?.match(/\.(png|jpe?g|webp|gif|avif)$/i)?.[1];
+      if (urlExt) filename = `image.${urlExt.toLowerCase().replace('jpeg', 'jpg')}`;
+    }
 
     // 上传到图床
     const form = new FormData();
-    form.append('file', blob, 'image.jpg');
+    form.append('file', blob, filename);
 
     const uploadRes = await fetch(`${IMG_HOST}/api/upload/private`, {
       method: 'POST',
@@ -347,7 +377,7 @@ async function uploadImagesInMarkdown(md: string): Promise<string> {
 }
 
 /** 批量上传 HTML 中的图片到图床并替换 URL（优先处理 data-src，最终赋给 src，限制并发） */
-async function uploadImagesInHtml(html: string): Promise<string> {
+export async function uploadImagesInHtml(html: string): Promise<string> {
   const dom = new JSDOM(html);
   const doc = dom.window.document;
   const imgs = Array.from(doc.querySelectorAll('img'));
@@ -633,8 +663,8 @@ export async function processCoverImage(articleId: number): Promise<string | nul
 
   if (!coverImageUrl) return null;
 
-  // 上传到图床
-  const uploadedUrl = await uploadImage(coverImageUrl);
+  // 上传到图床；如果采集流程已经上传过，直接复用。
+  const uploadedUrl = coverImageUrl.startsWith(IMG_HOST) ? coverImageUrl : await uploadImage(coverImageUrl);
   if (!uploadedUrl) {
     console.error(`Cover image upload failed for article ${articleId}: ${coverImageUrl}`);
     return null;
