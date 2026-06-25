@@ -191,7 +191,6 @@ function CollectJobCard({ job, onRetry, onDelete }: { job: CollectJob; onRetry?:
 export function CollectContent() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
-  const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [visibleCount, setVisibleCount] = useState(12);
   const { data, mutate } = useSWR(isAuthenticated ? `collect:jobs:${visibleCount}` : null, () => api.getCollectJobs(visibleCount, 0), {
     refreshInterval: (latest) => {
@@ -199,20 +198,6 @@ export function CollectContent() {
       return jobs.some((job: CollectJob) => job.status === 'pending' || job.status === 'running') ? 1800 : 0;
     },
   });
-  const { data: activeJobData } = useSWR(activeJobId ? `collect:job:${activeJobId}` : null, () => api.getCollectJob(activeJobId as number), {
-    refreshInterval: (latest) => {
-      const status = latest?.job?.status;
-      return status === 'pending' || status === 'running' ? 1200 : 0;
-    },
-  });
-
-  useEffect(() => {
-    if (!activeJobData?.job) return;
-    mutate();
-    if (activeJobData.job.status === 'completed' && activeJobData.job.articleId) {
-      router.prefetch(`/archive?article=${activeJobData.job.articleId}`);
-    }
-  }, [activeJobData, mutate, router]);
 
   const jobs = useMemo<CollectJob[]>(() => data?.jobs || [], [data]);
   const hasMoreJobs = Boolean(data?.hasMore);
@@ -232,28 +217,24 @@ export function CollectContent() {
     return null;
   }
 
-  const handleSubmitted = (job: CollectJob) => {
-    setActiveJobId(job.id);
+  const handleSubmitted = () => {
     mutate();
   };
 
   const handleRetry = async (id: number) => {
     await api.retryCollectJob(id);
-    setActiveJobId(id);
     mutate();
   };
 
   const handleDelete = async (id: number) => {
     if (!window.confirm('只删除这条采集记录，不会删除已入库文章。确定删除吗？')) return;
     await api.deleteCollectJob(id);
-    if (activeJobId === id) setActiveJobId(null);
     mutate();
   };
 
   const handleClearFinished = async () => {
     if (!window.confirm('只清空已完成和失败的采集记录，运行中的任务会保留。确定清空吗？')) return;
     await api.clearFinishedCollectJobs();
-    setActiveJobId(null);
     setVisibleCount(12);
     mutate();
   };
@@ -270,11 +251,6 @@ export function CollectContent() {
 
       <section className="collect-panel">
         <CollectForm onSubmitted={handleSubmitted} />
-        {activeJobData?.job && (
-          <div className="collect-active-job">
-            <CollectJobCard job={activeJobData.job} onRetry={handleRetry} onDelete={handleDelete} />
-          </div>
-        )}
       </section>
 
       <section className="collect-history">

@@ -444,14 +444,6 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
             overflowY: 'auto',
           }}
         >
-          <button
-            type="button"
-            className="detail-panel-resize-handle"
-            aria-label={isDetailPanelFullscreen ? '双击恢复详情页宽度，拖动调整宽度' : '拖动调整详情页宽度，双击全屏'}
-            title={isDetailPanelFullscreen ? '双击恢复，拖动调整宽度' : '拖动调宽，双击全屏'}
-            onPointerDown={handleResizePointerDown}
-            onDoubleClick={handleResizeDoubleClick}
-          />
           <DetailContent
             article={article}
             fallbackArticle={fallbackArticle}
@@ -470,6 +462,15 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
             contentRef={contentRef}
           />
         </div>
+        <button
+          type="button"
+          className={`detail-panel-resize-handle${isDetailPanelFullscreen ? ' detail-panel-resize-handle--fullscreen' : ''}${isResizingDetailPanel ? ' detail-panel-resize-handle--active' : ''}`}
+          aria-label={isDetailPanelFullscreen ? '双击恢复详情页宽度，拖动调整宽度' : '拖动调整详情页宽度，双击全屏'}
+          title={isDetailPanelFullscreen ? '双击恢复，拖动调整宽度' : '拖动调宽，双击全屏'}
+          style={{ ['--detail-panel-current-width' as string]: currentDetailPanelWidth }}
+          onPointerDown={handleResizePointerDown}
+          onDoubleClick={handleResizeDoubleClick}
+        />
         {galleryIndex !== null && (
           <ImageGalleryLightbox
             images={galleryImages}
