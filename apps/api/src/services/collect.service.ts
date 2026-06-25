@@ -3,8 +3,9 @@ import { promisify } from 'util';
 import { mkdtemp, readFile, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { isIP } from 'net';
 import { JSDOM } from 'jsdom';
-import { desc, eq, sql } from 'drizzle-orm';
+import { desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { articleMetadata, articles, collectJobs } from '../db/schema.js';
 import { generateSummaryAndTags } from './ai.service.js';
@@ -44,24 +45,55 @@ function isWechatUrl(url: string) {
 
 function normalizeCollectUrl(rawUrl: string) {
   const trimmed = rawUrl.trim();
+  if (!trimmed || /\s/.test(trimmed)) {
+    throw new Error('请输入有效的网页链接');
+  }
   const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  const url = new URL(withProtocol);
+  let url: URL;
+  try {
+    url = new URL(withProtocol);
+  } catch {
+    throw new Error('请输入有效的网页链接');
+  }
   url.hash = '';
   return url.toString();
+}
+
+function isPrivateIpv4(host: string) {
+  const parts = host.split('.').map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return true;
+  const [first, second] = parts;
+  return (
+    first === 10 ||
+    first === 127 ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168) ||
+    (first === 169 && second === 254) ||
+    first === 0
+  );
+}
+
+function isPrivateIpv6(host: string) {
+  const normalized = host.toLowerCase();
+  return normalized === '::1' || normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe80:');
 }
 
 function isSafeCollectUrl(url: URL) {
   if (!['http:', 'https:'].includes(url.protocol)) return false;
   const host = url.hostname.toLowerCase();
   if (
+    !host ||
     host === 'localhost' ||
-    host === '127.0.0.1' ||
-    host === '0.0.0.0' ||
-    host === '::1' ||
     host.endsWith('.local')
   ) {
     return false;
   }
+
+  const ipVersion = isIP(host);
+  if (ipVersion === 4) return !isPrivateIpv4(host);
+  if (ipVersion === 6) return !isPrivateIpv6(host);
+
+  if (!host.includes('.') || host.startsWith('.') || host.endsWith('.')) return false;
   return true;
 }
 
@@ -457,7 +489,7 @@ export async function createCollectJob(rawUrl: string) {
   const normalizedUrl = normalizeCollectUrl(rawUrl);
   const parsed = new URL(normalizedUrl);
   if (!isSafeCollectUrl(parsed)) {
-    throw new Error('仅支持采集公开的 http/https 网页链接');
+    throw new Error('请输入有效的公开网页链接');
   }
 
   const method: CollectMethod = isWechatUrl(normalizedUrl) ? 'reader' : 'singlefile';
@@ -507,10 +539,40 @@ export async function getCollectJob(jobId: number) {
   return job ?? null;
 }
 
-export async function listCollectJobs(limit = 12) {
-  return db
+export async function listCollectJobs(limit = 12, offset = 0) {
+  const safeLimit = Math.min(Math.max(limit, 1), 100);
+  const safeOffset = Math.max(offset, 0);
+  const jobs = await db
     .select()
     .from(collectJobs)
     .orderBy(desc(collectJobs.createdAt))
-    .limit(limit);
+    .limit(safeLimit)
+    .offset(safeOffset);
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(collectJobs);
+
+  return {
+    jobs,
+    total,
+    hasMore: safeOffset + jobs.length < total,
+  };
+}
+
+export async function deleteCollectJob(jobId: number) {
+  const job = await getCollectJob(jobId);
+  if (!job) return { deleted: false, reason: 'not_found' as const };
+  if (job.status === 'running') return { deleted: false, reason: 'running' as const };
+
+  await db.delete(collectJobs).where(eq(collectJobs.id, jobId));
+  return { deleted: true, reason: null };
+}
+
+export async function clearFinishedCollectJobs() {
+  const deleted = await db
+    .delete(collectJobs)
+    .where(inArray(collectJobs.status, ['completed', 'failed']))
+    .returning({ id: collectJobs.id });
+
+  return { deletedCount: deleted.length };
 }
