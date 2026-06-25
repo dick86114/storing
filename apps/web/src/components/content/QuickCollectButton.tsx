@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { CloseOutlined, CloudUploadOutlined, PlusOutlined } from '@ant-design/icons';
 import { CollectForm } from '@/components/content/CollectContent';
@@ -30,16 +31,25 @@ export function QuickCollectButton() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [job, setJob] = useState<CollectJob | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
+    document.body.classList.add('quick-collect-open');
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.classList.remove('quick-collect-open');
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [open]);
 
   useEffect(() => {
@@ -67,47 +77,50 @@ export function QuickCollectButton() {
     router.push(`/archive?article=${job.articleId}`);
   };
 
+  const overlay = open && mounted ? createPortal(
+    <>
+      <button
+        className="quick-collect-scrim"
+        type="button"
+        aria-label="关闭快速采集"
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setOpen(false);
+        }}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+      />
+      <div className="quick-collect-panel">
+        <div className="quick-collect-head">
+          <span><CloudUploadOutlined /> 快速采集</span>
+          <button type="button" aria-label="关闭快速采集" onClick={() => setOpen(false)}>
+            <CloseOutlined />
+          </button>
+        </div>
+        <CollectForm compact onSubmitted={handleSubmitted} />
+        {job && (
+          <div className={`quick-collect-status quick-collect-status--${job.status}`}>
+            <strong>{job.title || stageLabels[job.stage] || '采集中'}</strong>
+            <p>{job.error || stageLabels[job.stage] || job.status}</p>
+            {job.status === 'completed' && job.articleId && (
+              <button type="button" onClick={handleOpenArticle}>进入归档阅读</button>
+            )}
+          </div>
+        )}
+      </div>
+    </>,
+    document.body
+  ) : null;
+
   return (
     <>
       <button className="quick-collect-trigger" type="button" aria-label="快速采集网页" onClick={() => setOpen(true)}>
         <PlusOutlined />
       </button>
-      {open && (
-        <>
-          <button
-            className="quick-collect-scrim"
-            type="button"
-            aria-label="关闭快速采集"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              setOpen(false);
-            }}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-          />
-          <div className="quick-collect-panel">
-            <div className="quick-collect-head">
-              <span><CloudUploadOutlined /> 快速采集</span>
-              <button type="button" aria-label="关闭快速采集" onClick={() => setOpen(false)}>
-                <CloseOutlined />
-              </button>
-            </div>
-            <CollectForm compact onSubmitted={handleSubmitted} />
-            {job && (
-              <div className={`quick-collect-status quick-collect-status--${job.status}`}>
-                <strong>{job.title || stageLabels[job.stage] || '采集中'}</strong>
-                <p>{job.error || stageLabels[job.stage] || job.status}</p>
-                {job.status === 'completed' && job.articleId && (
-                  <button type="button" onClick={handleOpenArticle}>进入归档阅读</button>
-                )}
-              </div>
-            )}
-          </div>
-        </>
-      )}
+      {overlay}
     </>
   );
 }
