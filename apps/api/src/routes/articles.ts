@@ -4,6 +4,7 @@ import { articles, articleMetadata } from '../db/schema.js';
 import { eq, and, asc, desc, count, sql, or, isNull } from 'drizzle-orm';
 import { generateSummaryAndTags } from '../services/ai.service.js';
 import { getArticleContent, processCoverImage } from '../services/reader.service.js';
+import { enqueueArticleForWiki, processWikiJobs, removeArticleFromWiki } from '../services/wiki.service.js';
 import { requireAuth, optionalAuth, isAuthenticated } from '../middleware/auth.js';
 
 export const articlesRoutes = new Hono();
@@ -333,6 +334,7 @@ articlesRoutes.post('/articles/:id/archive', requireAuth, async (c) => {
   // 异步触发 AI 摘要和标签生成、封面图处理
   generateSummaryAndTags(id).catch((e) => console.error('AI summary/tags failed:', e.message));
   processCoverImage(id).catch((e) => console.error('Cover image process failed:', e.message));
+  enqueueArticleForWiki(id).then(() => processWikiJobs(3)).catch((e) => console.error('Wiki enqueue failed:', e.message));
 
   return c.json({ articleId: id, isArchived: true });
 });
@@ -357,6 +359,8 @@ articlesRoutes.post('/articles/:id/unarchive', requireAuth, async (c) => {
     .update(articleMetadata)
     .set(updateValues)
     .where(eq(articleMetadata.articleId, id));
+
+  removeArticleFromWiki(id).then(() => processWikiJobs(3)).catch((e) => console.error('Wiki remove failed:', e.message));
 
   return c.json({ articleId: id, isArchived: false });
 });
@@ -425,6 +429,7 @@ articlesRoutes.delete('/articles/:id', requireAuth, async (c) => {
   const [article] = await db.select({ id: articles.id }).from(articles).where(eq(articles.id, id));
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
+  await removeArticleFromWiki(id).catch((e) => console.error('Wiki remove failed:', e.message));
   await db.delete(articleMetadata).where(eq(articleMetadata.articleId, id));
 
   return c.json({ articleId: id, deleted: true, scope: 'metadata' });
@@ -442,6 +447,7 @@ articlesRoutes.delete('/articles/:id/permanent', requireAuth, async (c) => {
   const [article] = await db.select({ id: articles.id }).from(articles).where(eq(articles.id, id));
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
+  await removeArticleFromWiki(id).catch((e) => console.error('Wiki remove failed:', e.message));
   await db.delete(articleMetadata).where(eq(articleMetadata.articleId, id));
   await db.delete(articles).where(eq(articles.id, id));
 
@@ -459,7 +465,7 @@ articlesRoutes.get('/counts', optionalAuth, async (c) => {
       LEFT JOIN article_metadata m ON a.id = m.article_id
       WHERE m.is_archived = true
     `);
-    return c.json({ inbox: 0, favorites: 0, archive: Number(result.rows[0]?.archive || 0) });
+    return c.json({ inbox: 0, favorites: 0, archive: Number(result.rows[0]?.archive || 0), wiki: 0 });
   }
 
   // 登录用户获取所有计数（使用单个 SQL 查询）
@@ -473,7 +479,8 @@ articlesRoutes.get('/counts', optionalAuth, async (c) => {
        WHERE m.is_favorited = true) as favorites,
       (SELECT COUNT(*) FROM articles a
        LEFT JOIN article_metadata m ON a.id = m.article_id
-       WHERE m.is_archived = true) as archive
+       WHERE m.is_archived = true) as archive,
+      (SELECT COUNT(*) FROM wiki_pages WHERE status = 'active') as wiki
   `);
 
   const row = result.rows[0];
@@ -481,6 +488,7 @@ articlesRoutes.get('/counts', optionalAuth, async (c) => {
     inbox: Number(row?.inbox || 0),
     favorites: Number(row?.favorites || 0),
     archive: Number(row?.archive || 0),
+    wiki: Number(row?.wiki || 0),
   });
 });
 
