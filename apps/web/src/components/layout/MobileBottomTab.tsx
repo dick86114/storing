@@ -2,13 +2,14 @@
 
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers/AuthContext';
-import { AppstoreOutlined, HeartOutlined, FolderOutlined, BookOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, HeartOutlined, FolderOutlined, BookOutlined, CloudUploadOutlined } from '@ant-design/icons';
 
 const tabs = [
   { key: 'inbox', label: '收件箱', href: '/inbox', Icon: AppstoreOutlined },
   { key: 'favorites', label: '收藏', href: '/favorites', Icon: HeartOutlined },
   { key: 'archive', label: '归档', href: '/archive', Icon: FolderOutlined },
   { key: 'wiki', label: 'Wiki', href: '/wiki', Icon: BookOutlined },
+  { key: 'collect', label: '采集', href: '/collect', Icon: CloudUploadOutlined },
 ];
 
 interface MobileBottomTabProps {
@@ -50,7 +51,7 @@ export function MobileBottomTab({ counts, activeIndex, onTabChange }: MobileBott
     >
       {visibleTabs.map((tab) => {
         const isActive = activeIndex === tab.index;
-        const count = counts[tab.key as keyof typeof counts] ?? 0;
+        const count = tab.key === 'collect' ? 0 : counts[tab.key as keyof typeof counts] ?? 0;
 
         return (
           <button

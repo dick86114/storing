@@ -8,10 +8,12 @@ import { searchRoutes } from './routes/search.js';
 import { healthRoutes } from './routes/health.js';
 import { authRoutes } from './routes/auth.js';
 import { wikiRoutes } from './routes/wiki.js';
+import { collectRoutes } from './routes/collect.js';
 import { db } from './db/index.js';
 import { users } from './db/schema.js';
 import { initWikiSchema } from './services/wiki.service.js';
 import { startWikiWorker } from './services/wiki.worker.js';
+import { initCollectSchema } from './services/collect.service.js';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 
@@ -25,6 +27,7 @@ app.route('/api/v1', authRoutes);
 app.route('/api/v1', articlesRoutes);
 app.route('/api/v1', searchRoutes);
 app.route('/api/v1', wikiRoutes);
+app.route('/api/v1', collectRoutes);
 
 app.onError((err, c) => {
   console.error(err);
@@ -64,6 +67,7 @@ async function initAdmin() {
 // 启动服务
 async function startServer() {
   await initAdmin();
+  await initCollectSchema().catch((err) => console.error('初始化采集表失败:', err));
   await initWikiSchema().catch((err) => console.error('初始化 Wiki 表失败:', err));
   startWikiWorker();
   serve({ fetch: app.fetch, port: 1052 }, (info) => {

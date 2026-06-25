@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useSWRConfig } from 'swr';
 import useSWR from 'swr';
@@ -15,6 +15,10 @@ import { api } from '@/lib/api';
 import { useBookmark } from '@/hooks/useBookmark';
 import { BookmarkButton } from '@/components/ui/BookmarkButton';
 import { useTheme, type ColorScheme } from '@/components/providers/ThemeProvider';
+
+const DETAIL_PANEL_DEFAULT_WIDTH = 750;
+const DETAIL_PANEL_MIN_WIDTH = 560;
+const DETAIL_PANEL_WIDTH_STORAGE_KEY = 'storing:detail-panel-width';
 
 interface WechatDetailPanelProps {
   articleId: number | null;
@@ -70,11 +74,94 @@ function isLeadingPromoBlock(element: Element) {
   return /飞书云文档|更多玩法应用案例|复制：?https?:\/\//.test(text);
 }
 
+function removeCapturedPageChrome(root: Document | Element) {
+  root
+    .querySelectorAll(
+      [
+        '#header',
+        '#footer',
+        '#masthead',
+        '#colophon',
+        '.site-header',
+        '.site-footer',
+        '.primary-navigation',
+        '.secondary-navigation',
+        '.main-navigation',
+        '.mobile-navigation',
+        '.navigation',
+        '.navbar',
+        '.nav-menu',
+        '.fixed-header',
+        '.fixed-footer',
+        '.fixed-bottom',
+        '[role="navigation"]',
+        '[role="banner"]',
+        '[role="contentinfo"]',
+      ].join(',')
+    )
+    .forEach((node) => node.remove());
+}
+
+function scopeCapturedCss(css: string) {
+  return css
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/@(?:font-face|keyframes|-webkit-keyframes)[\s\S]*?\}\s*/g, '')
+    .replace(/([^{}@]+)\{([^{}]*)\}/g, (match, selectorText: string, body: string) => {
+      const scopedSelectors = selectorText
+        .split(',')
+        .map((selector) => selector.trim())
+        .filter(Boolean)
+        .map((selector) => {
+          if (/^(html|body|:root)(?:\b|[\s.#[:>+~])/.test(selector)) {
+            return selector.replace(/^(html|body|:root)/, '.manual-capture-page');
+          }
+          if (selector.startsWith('.manual-capture-page')) return selector;
+          return `.manual-capture-page ${selector}`;
+        });
+
+      if (scopedSelectors.length === 0) return match;
+
+      const safeBody = body
+        .replace(/position\s*:\s*(fixed|sticky)\s*!?/gi, 'position: static !')
+        .replace(/overflow(?:-y)?\s*:\s*(auto|scroll)\s*!?/gi, 'overflow: visible !')
+        .replace(/height\s*:\s*100vh\s*!?/gi, 'height: auto !')
+        .replace(/min-height\s*:\s*100vh\s*!?/gi, 'min-height: 0 !');
+
+      return `${scopedSelectors.join(', ')} {${safeBody}}`;
+    });
+}
+
 function getReadableArticleHtml(html: string) {
   if (typeof document === 'undefined' || !html.trim()) return html;
 
+  if (html.includes('data-storing-capture="singlefile"') || html.includes("data-storing-capture='singlefile'")) {
+    const parsed = new DOMParser().parseFromString(html, 'text/html');
+    parsed.querySelectorAll('script,noscript').forEach((node) => node.remove());
+    removeCapturedPageChrome(parsed);
+    parsed.querySelectorAll('a[href]').forEach((link) => {
+      link.setAttribute('target', '_blank');
+      link.setAttribute('rel', 'noopener noreferrer');
+    });
+
+    const styles = Array.from(parsed.head.querySelectorAll('style'))
+      .map((style) => `<style data-manual-capture-style="true">${scopeCapturedCss(style.textContent || '')}</style>`)
+      .join('\n');
+    const body = parsed.body;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'manual-capture-page';
+    wrapper.setAttribute('data-capture-source', parsed.documentElement.getAttribute('data-capture-source') || '');
+    wrapper.innerHTML = body.innerHTML;
+
+    return [styles, wrapper.outerHTML].filter(Boolean).join('\n').trim() || html;
+  }
+
   const container = document.createElement('div');
   container.innerHTML = html;
+  if (container.querySelector('.manual-capture-page')) {
+    container.querySelectorAll('script,noscript').forEach((node) => node.remove());
+    removeCapturedPageChrome(container);
+    return container.innerHTML.trim() || html;
+  }
   const contentRoot = container.querySelector<HTMLElement>('#js_content') ?? container;
 
   contentRoot
@@ -121,8 +208,12 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   const scrollPositionRef = useRef(0);
   const contentRef = useRef<HTMLDivElement>(null);
   const appliedSharedScrollRef = useRef<string | null>(null);
+  const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
+  const [detailPanelWidth, setDetailPanelWidth] = useState(DETAIL_PANEL_DEFAULT_WIDTH);
+  const [isDetailPanelFullscreen, setIsDetailPanelFullscreen] = useState(false);
+  const [isResizingDetailPanel, setIsResizingDetailPanel] = useState(false);
   const readableContentHtml = useMemo(
     () => (article?.contentHtml ? getReadableArticleHtml(article.contentHtml) : ''),
     [article?.contentHtml]
@@ -209,20 +300,99 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   useEffect(() => {
     if (articleId) {
       const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      const previousHtmlOverflow = document.documentElement.style.overflow;
+      const previousHtmlPaddingRight = document.documentElement.style.paddingRight;
+      const previousBodyOverflow = document.body.style.overflow;
+      const previousBodyPaddingRight = document.body.style.paddingRight;
+      document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
       if (scrollbarWidth > 0) {
+        document.documentElement.style.paddingRight = `${scrollbarWidth}px`;
         document.body.style.paddingRight = `${scrollbarWidth}px`;
       }
       document.body.classList.add('detail-panel-open');
       return () => {
-        document.body.style.overflow = '';
-        document.body.style.paddingRight = '';
+        document.documentElement.style.overflow = previousHtmlOverflow;
+        document.documentElement.style.paddingRight = previousHtmlPaddingRight;
+        document.body.style.overflow = previousBodyOverflow;
+        document.body.style.paddingRight = previousBodyPaddingRight;
         document.body.classList.remove('detail-panel-open');
       };
     }
   }, [articleId]);
 
   const getScrollPosition = () => scrollPositionRef.current;
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isDesktop) return;
+
+    const savedWidth = Number(window.localStorage.getItem(DETAIL_PANEL_WIDTH_STORAGE_KEY));
+    const maxWidth = Math.max(DETAIL_PANEL_MIN_WIDTH, window.innerWidth - 96);
+    if (Number.isFinite(savedWidth) && savedWidth > 0) {
+      setDetailPanelWidth(Math.min(Math.max(savedWidth, DETAIL_PANEL_MIN_WIDTH), maxWidth));
+    }
+  }, [isDesktop]);
+
+  useEffect(() => {
+    if (!isDesktop) return;
+
+    const handleResize = () => {
+      setDetailPanelWidth((width) => Math.min(width, Math.max(DETAIL_PANEL_MIN_WIDTH, window.innerWidth - 96)));
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isDesktop]);
+
+  const currentDetailPanelWidth = isDetailPanelFullscreen
+    ? (typeof window === 'undefined' ? '100vw' : `${window.innerWidth}px`)
+    : `${detailPanelWidth}px`;
+
+  const handleResizePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!isDesktop) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    dragStateRef.current = {
+      startX: event.clientX,
+      startWidth: isDetailPanelFullscreen ? window.innerWidth : detailPanelWidth,
+    };
+    setIsResizingDetailPanel(true);
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const state = dragStateRef.current;
+      if (!state) return;
+
+      const maxWidth = Math.max(DETAIL_PANEL_MIN_WIDTH, window.innerWidth - 96);
+      const nextWidth = state.startWidth + (state.startX - moveEvent.clientX);
+      if (isDetailPanelFullscreen) setIsDetailPanelFullscreen(false);
+      setDetailPanelWidth(Math.min(Math.max(nextWidth, DETAIL_PANEL_MIN_WIDTH), maxWidth));
+    };
+
+    const handlePointerUp = () => {
+      dragStateRef.current = null;
+      setIsResizingDetailPanel(false);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+
+      setDetailPanelWidth((width) => {
+        window.localStorage.setItem(DETAIL_PANEL_WIDTH_STORAGE_KEY, String(Math.round(width)));
+        return width;
+      });
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+  };
+
+  const handleResizeDoubleClick = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    if (!isDesktop) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDetailPanelFullscreen((value) => !value);
+  };
 
   const openImageGallery = (img: HTMLImageElement) => {
     const container = contentRef.current?.querySelector('.article-body');
@@ -249,7 +419,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
             position: 'fixed',
             top: 0,
             left: 0,
-            right: '750px',
+            right: currentDetailPanelWidth,
             bottom: 0,
             background: 'rgba(0, 0, 0, 0.3)',
             backdropFilter: 'blur(2px)',
@@ -259,13 +429,14 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
         {/* 详情面板 */}
         <div
           ref={contentRef}
-          className="detail-panel wechat-detail-panel"
+          className={`detail-panel wechat-detail-panel${isDetailPanelFullscreen ? ' detail-panel--fullscreen' : ''}${isResizingDetailPanel ? ' detail-panel--resizing' : ''}`}
           data-scroll-container="detail"
           style={{
             position: 'fixed',
             top: 0,
             right: 0,
-            width: '750px',
+            width: currentDetailPanelWidth,
+            ['--detail-panel-current-width' as string]: currentDetailPanelWidth,
             height: '100vh',
             background: 'var(--card-bg)',
             borderLeft: '1px solid var(--divider)',
@@ -273,6 +444,14 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
             overflowY: 'auto',
           }}
         >
+          <button
+            type="button"
+            className="detail-panel-resize-handle"
+            aria-label={isDetailPanelFullscreen ? '双击恢复详情页宽度，拖动调整宽度' : '拖动调整详情页宽度，双击全屏'}
+            title={isDetailPanelFullscreen ? '双击恢复，拖动调整宽度' : '拖动调宽，双击全屏'}
+            onPointerDown={handleResizePointerDown}
+            onDoubleClick={handleResizeDoubleClick}
+          />
           <DetailContent
             article={article}
             fallbackArticle={fallbackArticle}
@@ -2277,8 +2456,8 @@ function DetailContent({
               <div 
                 className="article-body"
                 style={{ fontSize: '17px', color: 'var(--text-secondary)', lineHeight: 1.8 }}
-                dangerouslySetInnerHTML={{ __html: readableContentHtml }}
-              />
+            dangerouslySetInnerHTML={{ __html: readableContentHtml }}
+          />
             ) : (
               <div style={{ color: 'var(--text-muted)' }}>正在加载正文...</div>
             )}
@@ -2303,6 +2482,10 @@ function DetailContent({
           borderTop: '0.5px solid var(--divider)',
           position: 'sticky',
           bottom: 0,
+          zIndex: 40,
+          width: '100%',
+          boxSizing: 'border-box',
+          marginBottom: '-1px',
         }}
       >
         {/* 左侧：阅读原文 */}

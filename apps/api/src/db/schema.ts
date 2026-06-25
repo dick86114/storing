@@ -57,6 +57,22 @@ export const articleMetadata = pgTable('article_metadata', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+export const collectJobs = pgTable('collect_jobs', {
+  id: serial('id').primaryKey(),
+  url: text('url').notNull(),
+  normalizedUrl: text('normalized_url').notNull(),
+  status: text('status').notNull().default('pending'),
+  stage: text('stage').notNull().default('queued'),
+  method: text('method').notNull().default('singlefile'),
+  articleId: integer('article_id').references(() => articles.id),
+  title: text('title'),
+  error: text('error'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+  startedAt: timestamp('started_at'),
+  finishedAt: timestamp('finished_at'),
+});
+
 export const wikiArticles = pgTable('wiki_articles', {
   id: serial('id').primaryKey(),
   articleId: integer('article_id').notNull().unique().references(() => articles.id),
