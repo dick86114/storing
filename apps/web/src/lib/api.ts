@@ -110,14 +110,20 @@ export const api = {
   createCollectJob: (url: string) =>
     fetchJSON<any>('/collect', { method: 'POST', body: JSON.stringify({ url }), timeoutMs: 30000 }),
 
-  getCollectJobs: (limit = 12) =>
-    fetchJSON<any>(`/collect/jobs?limit=${limit}`, { timeoutMs: 30000 }),
+  getCollectJobs: (limit = 12, offset = 0) =>
+    fetchJSON<any>(`/collect/jobs?limit=${limit}&offset=${offset}`, { timeoutMs: 30000 }),
 
   getCollectJob: (id: number) =>
     fetchJSON<any>(`/collect/jobs/${id}`, { timeoutMs: 30000 }),
 
   retryCollectJob: (id: number) =>
     fetchJSON<any>(`/collect/jobs/${id}/retry`, { method: 'POST', timeoutMs: 30000 }),
+
+  deleteCollectJob: (id: number) =>
+    fetchJSON<any>(`/collect/jobs/${id}`, { method: 'DELETE', timeoutMs: 30000 }),
+
+  clearFinishedCollectJobs: () =>
+    fetchJSON<any>('/collect/jobs', { method: 'DELETE', timeoutMs: 30000 }),
 
   getWikiHome: (type = 'all') => {
     const params = new URLSearchParams();
