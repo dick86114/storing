@@ -5914,6 +5914,8 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   background: var(--accent);
   box-shadow: 0 14px 34px color-mix(in oklch, var(--accent) 24%, transparent);
   cursor: pointer;
+  contain: layout paint style;
+  transform: translateZ(0);
 }
 
 .quick-collect-trigger .anticon {
@@ -5927,6 +5929,8 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   border: 0;
   background: transparent;
   cursor: default;
+  touch-action: none;
+  contain: strict;
 }
 
 .quick-collect-panel {
@@ -5938,8 +5942,23 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: var(--card-bg);
+  background: color-mix(in oklch, var(--card-bg) 96%, var(--bg));
   box-shadow: var(--shadow-lg);
+  contain: layout paint style;
+  isolation: isolate;
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+[data-color-scheme='aurora'] body.quick-collect-open::before,
+[data-color-scheme='aurora'] body.quick-collect-open::after {
+  animation-play-state: paused !important;
+  will-change: auto !important;
+}
+
+[data-color-scheme='aurora'] .quick-collect-panel {
+  background:
+    linear-gradient(135deg, color-mix(in oklch, var(--surface) 88%, var(--bg)), color-mix(in oklch, var(--card-bg) 94%, var(--bg))) !important;
 }
 
 .quick-collect-head {
@@ -5973,12 +5992,14 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   align-items: stretch;
   min-height: 64px;
   border-radius: var(--radius-md);
+  gap: 0;
+  overflow: hidden;
 }
 
 .collect-form--compact .collect-input-shell textarea {
   min-height: 60px;
   max-height: 112px;
-  padding: 8px 0;
+  padding: 12px 14px;
   resize: vertical;
 }
 
@@ -5989,7 +6010,9 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   min-width: 44px;
   min-height: 60px;
   padding: 0;
-  border-radius: 14px;
+  border-width: 0 0 0 1px;
+  border-radius: 0;
+  border-left-color: color-mix(in oklch, var(--accent) 24%, var(--border));
 }
 
 .collect-form--compact .collect-input-shell button > span:not(.anticon) {
@@ -6242,6 +6265,8 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
     right: 18px;
     bottom: calc(142px + env(safe-area-inset-bottom, 0px));
     width: calc(100vw - 36px);
+    background: color-mix(in oklch, var(--card-bg) 98%, var(--bg));
+    box-shadow: 0 14px 34px color-mix(in oklch, black 22%, transparent);
   }
 }
 
