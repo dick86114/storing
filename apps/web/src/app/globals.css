@@ -11169,44 +11169,64 @@ body.detail-panel-open .bottom-tab-bar {
 
 .wiki-doc-list {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   margin: 0 0 20px;
   padding-left: 22px;
 }
 
-.wiki-doc-list li small {
-  display: block;
-  margin-top: 4px;
-  color: var(--text-muted);
-  font-size: 12px;
+.wiki-doc-list li {
+  padding-left: 2px;
+}
+
+.wiki-doc-list-text {
+  display: inline;
 }
 
 .wiki-citation-row {
-  display: flex !important;
+  display: inline-flex !important;
+  align-items: baseline;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 3px;
+  margin-left: 8px;
+  vertical-align: baseline;
 }
 
 .wiki-citation-row button,
 .wiki-citation-row span {
-  min-height: 24px;
-  padding: 2px 8px;
-  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  min-height: 18px;
+  padding: 1px 5px;
+  border: 1px solid color-mix(in oklch, var(--accent) 16%, transparent);
   border-radius: 999px;
   color: var(--accent);
-  background: var(--accent-soft);
+  background: color-mix(in oklch, var(--accent-soft) 45%, transparent);
   font: inherit;
-  font-size: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  vertical-align: 0.12em;
+  opacity: 0.72;
 }
 
 .wiki-citation-row button {
   cursor: pointer;
 }
 
+.wiki-citation-row button:hover {
+  opacity: 1;
+  border-color: color-mix(in oklch, var(--accent) 34%, var(--border));
+  background: color-mix(in oklch, var(--accent-soft) 72%, var(--surface));
+}
+
 .wiki-source-list-inline {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-top: 16px;
+  padding-top: 2px;
 }
 
 .wiki-source-list-inline span,
@@ -11220,12 +11240,39 @@ body.detail-panel-open .bottom-tab-bar {
 
 .wiki-source-list-inline span,
 .wiki-source-list-inline button {
-  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(100%, 520px);
+  min-height: 34px;
+  padding: 6px 11px;
+  border-color: color-mix(in oklch, var(--accent) 22%, var(--border));
+  border-radius: 999px;
+  color: var(--accent);
+  background: color-mix(in oklch, var(--accent-soft) 54%, var(--surface));
+  font-size: 13px;
+  line-height: 1.45;
+  box-shadow: 0 8px 18px color-mix(in oklch, var(--accent) 6%, transparent);
+  transition: transform 0.16s ease, border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.wiki-source-list-inline button svg {
+  flex: 0 0 auto;
+  font-size: 12px;
 }
 
 .wiki-source-list-inline button {
-  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
+}
+
+.wiki-source-list-inline button:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklch, var(--accent) 42%, var(--border));
+  background: color-mix(in oklch, var(--accent-soft) 76%, var(--surface));
+  box-shadow: 0 12px 24px color-mix(in oklch, var(--accent) 10%, transparent);
 }
 
 .wiki-context-card h3 {
