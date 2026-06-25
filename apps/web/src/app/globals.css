@@ -931,9 +931,9 @@ h4 {
   position: fixed;
   top: 0;
   bottom: 0;
-  right: calc(var(--detail-panel-current-width, 750px) - 32px);
+  left: calc(100vw - var(--detail-panel-current-width, 750px) - 36px);
   z-index: 2147483647;
-  width: 64px;
+  width: 72px;
   height: 100vh;
   padding: 0;
   border: 0;
@@ -942,6 +942,10 @@ h4 {
   box-shadow: none;
   cursor: ew-resize;
   touch-action: none;
+}
+
+.detail-panel-resize-handle--fullscreen {
+  left: -36px;
 }
 
 .detail-panel-resize-handle::before {
@@ -962,7 +966,7 @@ h4 {
 
 .detail-panel-resize-handle:hover::before,
 .detail-panel-resize-handle:focus-visible::before,
-.detail-panel--resizing .detail-panel-resize-handle::before {
+.detail-panel-resize-handle--active::before {
   width: 5px;
   height: 58px;
   background: var(--accent);
@@ -5724,10 +5728,6 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   margin: 10px 16px 0;
   color: #d14343;
   font-size: 13px;
-}
-
-.collect-active-job {
-  margin-top: 14px;
 }
 
 .collect-history {
