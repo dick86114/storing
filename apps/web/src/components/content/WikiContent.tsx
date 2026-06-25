@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import type { FormEvent, ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { FormEvent, PointerEvent, ReactNode } from 'react';
 import useSWR from 'swr';
 import { ArrowLeftOutlined, ArrowsAltOutlined, BookOutlined, BranchesOutlined, ClockCircleOutlined, ClusterOutlined, DatabaseOutlined, DownloadOutlined, FileSearchOutlined, FileTextOutlined, LinkOutlined, MessageOutlined, ReloadOutlined, RobotOutlined, SaveOutlined, SearchOutlined, SendOutlined, ShrinkOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
 import { useAuth } from '@/components/providers/AuthContext';
@@ -361,9 +361,48 @@ function WikiAskDock({
   onOpenSource: (id: number) => void;
 }) {
   const latestCount = answers.length;
+  const dockRef = useRef<HTMLElement | null>(null);
+  const openExpanded = () => {
+    setExpanded(true);
+    setOpen(true);
+  };
+
+  const handleResizePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+    const dock = dockRef.current;
+    if (!dock) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startRect = dock.getBoundingClientRect();
+    const minWidth = 360;
+    const minHeight = 420;
+    const maxWidth = Math.max(minWidth, window.innerWidth - 32);
+    const maxHeight = Math.max(minHeight, window.innerHeight - 32);
+
+    const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+    const handlePointerMove = (moveEvent: globalThis.PointerEvent) => {
+      const nextWidth = clamp(startRect.width + startX - moveEvent.clientX, minWidth, maxWidth);
+      const nextHeight = clamp(startRect.height + startY - moveEvent.clientY, minHeight, maxHeight);
+      dock.style.width = `${Math.round(nextWidth)}px`;
+      dock.style.height = `${Math.round(nextHeight)}px`;
+      dock.style.maxHeight = 'none';
+    };
+    const cleanup = () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', cleanup);
+      window.removeEventListener('pointercancel', cleanup);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', cleanup);
+    window.addEventListener('pointercancel', cleanup);
+  };
+
   if (!open) {
     return (
-      <button type="button" className="wiki-ask-floating-trigger" onClick={() => setOpen(true)}>
+      <button type="button" className="wiki-ask-floating-trigger" onClick={openExpanded}>
         <MessageOutlined />
         <span>问知识库</span>
         {latestCount > 0 && <strong>{latestCount}</strong>}
@@ -374,7 +413,14 @@ function WikiAskDock({
   return (
     <>
     <button type="button" className="wiki-ask-click-away" aria-label="收起问知识库" tabIndex={-1} onClick={() => setOpen(false)} />
-    <section className={`wiki-ask-dock${expanded ? ' wiki-ask-dock-expanded' : ''}`} aria-label="问知识库对话框">
+    <section ref={dockRef} className={`wiki-ask-dock${expanded ? ' wiki-ask-dock-expanded' : ''}`} aria-label="问知识库对话框">
+      <button
+        type="button"
+        className="wiki-ask-resize-cue"
+        aria-label="拖动调整问知识库窗口大小"
+        title="拖动调整窗口大小"
+        onPointerDown={handleResizePointerDown}
+      />
       <div className="wiki-ask-dock-head">
         <div>
           <h2><MessageOutlined /> 问知识库</h2>
@@ -383,6 +429,7 @@ function WikiAskDock({
         <div className="wiki-ask-dock-actions">
           <button
             type="button"
+            className="wiki-ask-expand-toggle"
             onClick={() => setExpanded(!expanded)}
             aria-label={expanded ? '缩小问知识库' : '放大问知识库'}
             title={expanded ? '缩小问知识库' : '放大问知识库'}

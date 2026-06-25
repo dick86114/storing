@@ -20,8 +20,9 @@ interface MobileBottomTabProps {
 export function MobileBottomTab({ counts, activeIndex, onTabChange }: MobileBottomTabProps) {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
-
-  if (!isAuthenticated) return null;
+  const visibleTabs = tabs
+    .map((tab, index) => ({ ...tab, index }))
+    .filter((tab) => isAuthenticated || tab.key === 'archive' || tab.key === 'wiki');
 
   const handleTabClick = (index: number, href: string) => {
     onTabChange(index);
@@ -47,15 +48,15 @@ export function MobileBottomTab({ counts, activeIndex, onTabChange }: MobileBott
         zIndex: 100,
       }}
     >
-      {tabs.map((tab, index) => {
-        const isActive = activeIndex === index;
+      {visibleTabs.map((tab) => {
+        const isActive = activeIndex === tab.index;
         const count = counts[tab.key as keyof typeof counts] ?? 0;
 
         return (
           <button
             key={tab.key}
             className={`bottom-tab-button${isActive ? ' active' : ''}`}
-            onClick={() => handleTabClick(index, tab.href)}
+            onClick={() => handleTabClick(tab.index, tab.href)}
             type="button"
             style={{
               position: 'relative',

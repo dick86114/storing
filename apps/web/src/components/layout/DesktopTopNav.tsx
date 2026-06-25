@@ -45,6 +45,9 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
     dark: '深色模式',
     system: '跟随系统',
   };
+  const visibleTabs = tabs
+    .map((tab, index) => ({ ...tab, index }))
+    .filter((tab) => isAuthenticated || tab.key === 'archive' || tab.key === 'wiki');
 
   const handleMenuBlur = () => {
     window.setTimeout(() => {
@@ -108,17 +111,17 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
         {/* 竖线分隔 */}
         <div className="desktop-nav-divider" style={{ width: '1px', height: '20px', background: 'var(--divider)', margin: '0 20px', flexShrink: 0 }} />
 
-        {/* 中间：胶囊 Tab（居中）—— 游客不显示但保留占位 */}
+        {/* 中间：胶囊 Tab（居中） */}
         <div className="desktop-nav-tabs" style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, justifyContent: 'center' }}>
-          {isAuthenticated && tabs.map((tab, index) => {
-            const isActive = activeIndex === index;
+          {visibleTabs.map((tab) => {
+            const isActive = activeIndex === tab.index;
             const count = counts[tab.key as keyof typeof counts] ?? 0;
 
             return (
               <button
                 key={tab.key}
                 className={`top-tab-button${isActive ? ' active' : ''}`}
-                onClick={() => { onTabChange(index); router.push(tab.href, { scroll: false }); }}
+                onClick={() => { onTabChange(tab.index); router.push(tab.href, { scroll: false }); }}
                 type="button"
                 style={{
                   display: 'flex',
