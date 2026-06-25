@@ -1138,17 +1138,31 @@ function renderBlock(block: WikiBlock, index: number, sourcesById: Map<number, a
       <ul key={id} id={id} className="wiki-doc-list">
         {(block.items || []).map((item, index) => (
           <li key={`${id}-${index}`}>
-            <span>{item.text}</span>
-            <small className="wiki-citation-row">
-              {item.sources?.map((id) => (
-                <button key={`source-${id}`} type="button" onClick={() => onOpenSource(id)}>
-                  来源：{sourcesById.get(id)?.title || `#${id}`}
-                </button>
-              ))}
-              {item.claims?.map((id) => (
-                <span key={`claim-${id}`}>Claim #{id}{claimsById.get(id)?.confidence ? ` · ${claimsById.get(id).confidence}%` : ''}</span>
-              ))}
-            </small>
+            <span className="wiki-doc-list-text">
+              {item.text}
+              {Boolean(item.sources?.length || item.claims?.length) && (
+                <small className="wiki-citation-row" aria-label="来源和声明">
+                  {item.sources?.map((id, sourceIndex) => (
+                    <button
+                      key={`source-${id}`}
+                      type="button"
+                      onClick={() => onOpenSource(id)}
+                      title={sourcesById.get(id)?.title || `来源 #${id}`}
+                    >
+                      S{sourceIndex + 1}
+                    </button>
+                  ))}
+                  {item.claims?.map((id) => (
+                    <span
+                      key={`claim-${id}`}
+                      title={`${claimsById.get(id)?.claim || `Claim #${id}`}${claimsById.get(id)?.confidence ? ` · ${claimsById.get(id).confidence}%` : ''}`}
+                    >
+                      C{id}
+                    </span>
+                  ))}
+                </small>
+              )}
+            </span>
           </li>
         ))}
       </ul>
@@ -1161,6 +1175,7 @@ function renderBlock(block: WikiBlock, index: number, sourcesById: Map<number, a
           const source = sourcesById.get(id);
           return source ? (
             <button key={id} type="button" onClick={() => onOpenSource(id)}>
+              <LinkOutlined />
               {source.title}
             </button>
           ) : null;
