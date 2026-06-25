@@ -15,7 +15,41 @@ import { InboxContent } from '@/components/content/InboxContent';
 import { FavoritesContent } from '@/components/content/FavoritesContent';
 import { ArchiveContent } from '@/components/content/ArchiveContent';
 
-const TAB_KEYS = ['inbox', 'favorites', 'archive'];
+const TAB_KEYS = ['inbox', 'favorites', 'archive', 'wiki'];
+const TAB_LABELS: Record<string, string> = {
+  inbox: '收件箱',
+  favorites: '收藏',
+  archive: '归档',
+  wiki: 'Wiki',
+};
+
+function RouteSwitchLoading({ label }: { label: string }) {
+  return (
+    <div className="route-switch-loading" role="status" aria-live="polite">
+      <div className="route-switch-loading-head">
+        <span className="route-switch-spinner" />
+        <strong>正在打开 {label}</strong>
+      </div>
+      <div className="route-switch-loading-grid">
+        <div className="route-switch-card">
+          <span />
+          <span />
+          <span />
+        </div>
+        <div className="route-switch-card">
+          <span />
+          <span />
+          <span />
+        </div>
+        <div className="route-switch-card route-switch-card-muted">
+          <span />
+          <span />
+          <span />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function MainContent({ children }: { children: ReactNode }) {
   const counts = useCounts();
@@ -26,8 +60,10 @@ function MainContent({ children }: { children: ReactNode }) {
   useDoubleBackExit();
 
   // 当前 tab 索引
-  const activeIndex = TAB_KEYS.findIndex(key => pathname === `/${key}`);
+  const activeIndex = TAB_KEYS.findIndex(key => pathname === `/${key}` || pathname.startsWith(`/${key}/`));
   const [currentTabIndex, setCurrentTabIndex] = useState(activeIndex >= 0 ? activeIndex : 0);
+  const isRouteSwitching = activeIndex >= 0 && currentTabIndex !== activeIndex;
+  const pendingTabLabel = TAB_LABELS[TAB_KEYS[currentTabIndex]] || '页面';
 
   // 检测是否为移动端
   const [isMobile, setIsMobile] = useState(false);
@@ -47,7 +83,7 @@ function MainContent({ children }: { children: ReactNode }) {
 
   // 监听路由变化同步 tab 索引
   useEffect(() => {
-    const index = TAB_KEYS.findIndex(key => pathname === `/${key}`);
+    const index = TAB_KEYS.findIndex(key => pathname === `/${key}` || pathname.startsWith(`/${key}/`));
     if (index >= 0) {
       setCurrentTabIndex(index);
     }
@@ -75,12 +111,12 @@ function MainContent({ children }: { children: ReactNode }) {
             style={{
               height: isAuthenticated ? 'calc(100dvh - 56px)' : 'calc(100dvh - 56px)',
               overflowY: 'auto',
-              paddingBottom: isAuthenticated ? 'calc(66px + env(safe-area-inset-bottom, 0px))' : '0',
+              paddingBottom: 'calc(66px + env(safe-area-inset-bottom, 0px))',
               scrollbarWidth: 'none',
               msOverflowStyle: 'none',
             }}
           >
-            {children}
+            {isRouteSwitching ? <RouteSwitchLoading label={pendingTabLabel} /> : children}
           </main>
           <MobileBottomTab
             counts={counts}
@@ -96,7 +132,7 @@ function MainContent({ children }: { children: ReactNode }) {
           <DesktopTopNav onSearchOpen={() => setSearchOpen(true)} counts={counts} activeIndex={currentTabIndex} onTabChange={setCurrentTabIndex} />
           <main className="app-main desktop-main desktop-workbench" style={{ minHeight: 'calc(100vh - 56px)', background: 'var(--bg)' }}>
             <div className="desktop-main-shell" style={{ margin: '0 auto', padding: '0 24px' }}>
-              {children}
+              {isRouteSwitching ? <RouteSwitchLoading label={pendingTabLabel} /> : children}
             </div>
           </main>
         </>

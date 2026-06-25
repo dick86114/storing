@@ -105,5 +105,78 @@ export const api = {
   },
 
   getCounts: () =>
-    fetchJSON<{ inbox: number; favorites: number; archive: number }>('/counts'),
+    fetchJSON<{ inbox: number; favorites: number; archive: number; wiki?: number }>('/counts'),
+
+  getWikiHome: (type = 'all') => {
+    const params = new URLSearchParams();
+    if (type && type !== 'all') params.set('type', type);
+    const query = params.toString();
+    return fetchJSON<any>(`/wiki${query ? `?${query}` : ''}`, { timeoutMs: 30000 });
+  },
+
+  getWikiStatus: () =>
+    fetchJSON<any>('/wiki/status'),
+
+  getWikiIndex: () =>
+    fetchJSON<any>('/wiki/index', { timeoutMs: 30000 }),
+
+  getWikiLog: (limit = 50) =>
+    fetchJSON<any>(`/wiki/log?limit=${limit}`, { timeoutMs: 30000 }),
+
+  getWikiGraph: () =>
+    fetchJSON<any>('/wiki/graph', { timeoutMs: 30000 }),
+
+  getWikiLint: (status = 'open', limit = 50) =>
+    fetchJSON<any>(`/wiki/lint?status=${encodeURIComponent(status)}&limit=${limit}`, { timeoutMs: 30000 }),
+
+  getWikiJobs: (status = 'pending', limit = 30) =>
+    fetchJSON<any>(`/wiki/jobs?status=${encodeURIComponent(status)}&limit=${limit}`),
+
+  getWikiAnswers: (limit = 20) =>
+    fetchJSON<any>(`/wiki/answers?limit=${limit}`, { timeoutMs: 30000 }),
+
+  searchWiki: (q: string, limit = 20) =>
+    fetchJSON<any>(`/wiki/search?q=${encodeURIComponent(q)}&limit=${limit}`, { timeoutMs: 30000 }),
+
+  getWikiPage: (slug: string) =>
+    fetchJSON<any>(`/wiki/pages/${encodeURIComponent(slug)}`, { timeoutMs: 30000 }),
+
+  updateWiki: (limit = 8) =>
+    fetchJSON<any>(`/wiki/update?limit=${limit}`, { method: 'POST', timeoutMs: 120000 }),
+
+  processWikiJobs: (limit = 8) =>
+    fetchJSON<any>(`/wiki/process?limit=${limit}`, { method: 'POST', timeoutMs: 120000 }),
+
+  retryFailedWikiJobs: (limit = 8) =>
+    fetchJSON<any>(`/wiki/retry-failed?limit=${limit}`, { method: 'POST', timeoutMs: 120000 }),
+
+  rebuildAllWiki: (limit = 4) =>
+    fetchJSON<any>(`/wiki/rebuild-all?limit=${limit}`, { method: 'POST', timeoutMs: 120000 }),
+
+  lintWiki: () =>
+    fetchJSON<any>('/wiki/lint', { method: 'POST', timeoutMs: 120000 }),
+
+  exportWikiMarkdown: () =>
+    fetchJSON<any>('/wiki/export-markdown', { method: 'POST', timeoutMs: 120000 }),
+
+  exportWikiPageMarkdown: (slug: string) =>
+    fetchJSON<any>(`/wiki/pages/${encodeURIComponent(slug)}/export-markdown`, { method: 'POST', timeoutMs: 120000 }),
+
+  reconcileWikiClaims: () =>
+    fetchJSON<any>('/wiki/claims/reconcile', { method: 'POST', timeoutMs: 120000 }),
+
+  askWiki: (question: string, history?: Array<{ question: string; answer: string }>) =>
+    fetchJSON<any>('/wiki/ask', { method: 'POST', body: JSON.stringify({ question, history }), timeoutMs: 120000 }),
+
+  fileWikiAnswer: (id: number) =>
+    fetchJSON<any>(`/wiki/answers/${id}/file`, { method: 'POST', timeoutMs: 120000 }),
+
+  reindexWikiArticle: (id: number) =>
+    fetchJSON<any>(`/wiki/articles/${id}/reindex`, { method: 'POST', timeoutMs: 120000 }),
+
+  getWikiArticleStatus: (id: number) =>
+    fetchJSON<any>(`/wiki/articles/${id}/status`),
+
+  rebuildWikiPage: (id: number) =>
+    fetchJSON<any>(`/wiki/pages/${id}/rebuild`, { method: 'POST', timeoutMs: 120000 }),
 };

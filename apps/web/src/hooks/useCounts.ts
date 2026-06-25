@@ -20,6 +20,7 @@ export function useCounts() {
     inbox: data?.inbox ?? 0,
     favorites: data?.favorites ?? 0,
     archive: data?.archive ?? 0,
+    wiki: data?.wiki ?? 0,
     refreshCounts,
   };
 }

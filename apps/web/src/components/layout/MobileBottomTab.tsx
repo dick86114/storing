@@ -2,16 +2,17 @@
 
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers/AuthContext';
-import { AppstoreOutlined, HeartOutlined, FolderOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, HeartOutlined, FolderOutlined, BookOutlined } from '@ant-design/icons';
 
 const tabs = [
   { key: 'inbox', label: '收件箱', href: '/inbox', Icon: AppstoreOutlined },
   { key: 'favorites', label: '收藏', href: '/favorites', Icon: HeartOutlined },
   { key: 'archive', label: '归档', href: '/archive', Icon: FolderOutlined },
+  { key: 'wiki', label: 'Wiki', href: '/wiki', Icon: BookOutlined },
 ];
 
 interface MobileBottomTabProps {
-  counts: { inbox: number; favorites: number; archive: number };
+  counts: { inbox: number; favorites: number; archive: number; wiki?: number };
   activeIndex: number;
   onTabChange: (index: number) => void;
 }
@@ -19,8 +20,9 @@ interface MobileBottomTabProps {
 export function MobileBottomTab({ counts, activeIndex, onTabChange }: MobileBottomTabProps) {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
-
-  if (!isAuthenticated) return null;
+  const visibleTabs = tabs
+    .map((tab, index) => ({ ...tab, index }))
+    .filter((tab) => isAuthenticated || tab.key === 'archive' || tab.key === 'wiki');
 
   const handleTabClick = (index: number, href: string) => {
     onTabChange(index);
@@ -46,15 +48,15 @@ export function MobileBottomTab({ counts, activeIndex, onTabChange }: MobileBott
         zIndex: 100,
       }}
     >
-      {tabs.map((tab, index) => {
-        const isActive = activeIndex === index;
+      {visibleTabs.map((tab) => {
+        const isActive = activeIndex === tab.index;
         const count = counts[tab.key as keyof typeof counts] ?? 0;
 
         return (
           <button
             key={tab.key}
             className={`bottom-tab-button${isActive ? ' active' : ''}`}
-            onClick={() => handleTabClick(index, tab.href)}
+            onClick={() => handleTabClick(tab.index, tab.href)}
             type="button"
             style={{
               position: 'relative',
