@@ -11091,6 +11091,29 @@ body.detail-panel-open .bottom-tab-bar {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 14px;
+  transition: opacity 0.16s ease;
+}
+
+.wiki-mobile-type-nav {
+  display: none;
+}
+
+.wiki-card-grid-loading {
+  opacity: 0.58;
+  pointer-events: none;
+}
+
+.wiki-inline-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: color-mix(in oklch, var(--surface) 72%, transparent);
+  font-size: 12px;
 }
 
 .wiki-card {
@@ -11503,9 +11526,9 @@ body.detail-panel-open .bottom-tab-bar {
     grid-template-columns: none;
     gap: 8px;
     overflow-x: auto;
-    margin-right: -14px;
-    margin-left: -14px;
-    padding: 2px 14px 6px;
+    margin-right: 0;
+    margin-left: 0;
+    padding: 2px 0 6px;
     scroll-snap-type: x proximity;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
@@ -11686,6 +11709,62 @@ body.detail-panel-open .bottom-tab-bar {
 
   .wiki-sidebar {
     display: none;
+  }
+
+  .wiki-mobile-type-nav {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    margin: -4px 0 16px;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .wiki-mobile-type-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .wiki-mobile-type-nav button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    background: var(--surface);
+    font: inherit;
+    cursor: pointer;
+    scroll-snap-align: start;
+  }
+
+  .wiki-mobile-type-nav button.active {
+    color: var(--accent);
+    border-color: color-mix(in oklch, var(--accent) 26%, var(--border));
+    background: var(--accent-soft);
+  }
+
+  .wiki-mobile-type-nav span {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .wiki-mobile-type-nav strong {
+    display: grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    color: var(--accent);
+    background: color-mix(in oklch, var(--accent-soft) 72%, var(--card-bg));
+    font-size: 11px;
+    line-height: 1;
   }
 
   .wiki-doc-actions {

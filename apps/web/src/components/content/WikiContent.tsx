@@ -549,6 +549,7 @@ export function WikiHomeContent() {
     () => api.getWikiHome(activeType),
     {
       revalidateOnFocus: false,
+      keepPreviousData: true,
       refreshInterval: (latest) => latest?.status?.pending_jobs || latest?.status?.running_jobs || latest?.status?.runner_active ? 3500 : 0,
     }
   );
@@ -581,6 +582,7 @@ export function WikiHomeContent() {
   const lintFindings = (data?.lint ?? []) as WikiLintFinding[];
   const meta = data?.meta ?? {};
   const status = data?.status as WikiStatus | undefined;
+  const isTypeSwitching = isLoading && Boolean(data);
   const { data: searchData, isLoading: isSearching } = useSWR(
     searchQuery ? `wiki:search:${searchQuery}` : null,
     () => api.searchWiki(searchQuery, 12),
@@ -892,7 +894,7 @@ export function WikiHomeContent() {
     return null;
   };
 
-  if (isLoading) {
+  if (isLoading && !data) {
     return <div className="wiki-page-shell"><div className="wiki-loading">正在读取知识库...</div></div>;
   }
 
@@ -989,7 +991,6 @@ export function WikiHomeContent() {
               <strong>{typeCount(item.key)}</strong>
             </button>
           ))}
-          <div className="wiki-sidebar-note">{activeTypeMeta.help}</div>
           <div className="wiki-sidebar-title">状态摘要</div>
           <div className="wiki-sidebar-note">
             <div>最近更新：{formatDate(meta.last_updated_at || meta.lastUpdatedAt || meta.last_finished_at)}</div>
@@ -1016,6 +1017,19 @@ export function WikiHomeContent() {
         </aside>
 
         <main className="wiki-main">
+          <div className="wiki-mobile-type-nav" aria-label="Wiki 目录筛选">
+            {WIKI_TYPES.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={activeType === item.key ? 'active' : ''}
+                onClick={() => setActiveType(item.key)}
+              >
+                <span>{item.label}</span>
+                <strong>{typeCount(item.key)}</strong>
+              </button>
+            ))}
+          </div>
           <div className="wiki-section-heading">
             <div>
               <h2>{activeTypeMeta.label}</h2>
@@ -1025,6 +1039,7 @@ export function WikiHomeContent() {
               {isRefreshing ? <SyncOutlined spin /> : <ReloadOutlined />}
               {isRefreshing ? '刷新中' : '刷新列表'}
             </button>
+            {isTypeSwitching && <span className="wiki-inline-loading"><SyncOutlined spin /> 筛选中</span>}
           </div>
 
           {pages.length === 0 ? (
@@ -1034,7 +1049,7 @@ export function WikiHomeContent() {
               <span>可在左侧维护区更新知识库，系统会读取当前归档文章并生成主题页。</span>
             </div>
           ) : (
-            <div className="wiki-card-grid">
+            <div className={`wiki-card-grid${isTypeSwitching ? ' wiki-card-grid-loading' : ''}`}>
               {pages.map((page) => (
                 <Link key={page.id} className="wiki-card" href={`/wiki/${encodeURIComponent(page.slug)}`}>
                   <div className="wiki-card-top">
