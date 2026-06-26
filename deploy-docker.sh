@@ -139,12 +139,12 @@ echo ""
 
 echo "=== 拉取最新镜像 ==="
 cd "$SCRIPT_DIR"
-docker-compose pull
+docker-compose pull storing singlefile
 if [ $? -ne 0 ]; then
-  echo "❌ 镜像拉取失败"
+  echo "❌ Docker 镜像拉取失败"
   exit 1
 fi
-echo "✓ 镜像拉取完成"
+echo "✓ Docker 镜像拉取完成"
 echo ""
 
 echo "=== 启动 Docker 容器 ==="

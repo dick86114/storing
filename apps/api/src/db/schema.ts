@@ -64,6 +64,7 @@ export const collectJobs = pgTable('collect_jobs', {
   status: text('status').notNull().default('pending'),
   stage: text('stage').notNull().default('queued'),
   method: text('method').notNull().default('singlefile'),
+  captureStrategy: text('capture_strategy'),
   articleId: integer('article_id').references(() => articles.id),
   title: text('title'),
   error: text('error'),

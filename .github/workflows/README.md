@@ -66,7 +66,12 @@ CI workflow会在每次代码推送或Pull Request时自动运行，确保代码
 
 ## 功能说明
 
-这个workflow会自动构建Docker镜像并上传到DockerHub，支持以下触发方式：
+这个workflow会自动构建Docker镜像并上传到DockerHub。现在会推送两个镜像：
+
+- `storing`：主服务镜像，包含 Web + API
+- `storing-singlefile`：网页采集 sidecar，包含浏览器环境和 SingleFile 服务
+
+支持以下触发方式：
 
 1. **推送到main/master分支** - 自动构建并推送latest标签
 2. **创建版本标签** - 自动构建并推送版本标签（如v1.0.0）
@@ -81,7 +86,7 @@ CI workflow会在每次代码推送或Pull Request时自动运行，确保代码
 
 1. 登录 [DockerHub](https://hub.docker.com/)
 2. 点击 "Create Repository"
-3. 仓库名设置为：`storing`（或你喜欢的名称）
+3. 仓库名设置为：`storing` 和 `storing-singlefile`（或你喜欢的名称）
 4. 设置为公开或私有（根据需求）
 
 ### 2. 配置GitHub Secrets
@@ -105,6 +110,7 @@ CI workflow会在每次代码推送或Pull Request时自动运行，确保代码
 ```yaml
 env:
   DOCKER_IMAGE: storing  # 修改为你的镜像名称
+  SINGLEFILE_IMAGE: storing-singlefile  # 修改为网页采集镜像名称
 ```
 
 ## 镜像标签说明
@@ -123,12 +129,15 @@ env:
 ```bash
 # 拉取最新版本
 docker pull your-username/storing:latest
+docker pull your-username/storing-singlefile:latest
 
 # 拉取特定版本
 docker pull your-username/storing:v1.0.0
+docker pull your-username/storing-singlefile:v1.0.0
 
 # 拉取特定分支
 docker pull your-username/storing:main
+docker pull your-username/storing-singlefile:main
 ```
 
 ### 运行容器
@@ -204,6 +213,8 @@ docker run -d \
 ## 注意事项
 
 1. **确保Dockerfile正确** - workflow使用项目根目录的Dockerfile
+   - 主服务：`Dockerfile`
+   - 网页采集：`docker/singlefile/Dockerfile`
 2. **配置正确的Secrets** - 否则无法推送到DockerHub
 3. **版本标签格式** - 使用 `v` 开头的格式，如 `v1.0.0`
 4. **测试环境变量** - PR测试时使用测试环境变量，不会暴露真实配置
@@ -229,5 +240,6 @@ docker run -d \
 
 - `.github/workflows/docker.yml` - Workflow配置文件
 - `Dockerfile` - Docker镜像构建文件
+- `docker/singlefile/Dockerfile` - SingleFile sidecar镜像构建文件
 - `DOCKER.md` - DockerHub仓库描述文件
 - `docker-compose.yml` - 本地部署配置文件

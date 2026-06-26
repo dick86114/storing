@@ -22,6 +22,7 @@ const COLLECT_TABLE_SQL = `
     status TEXT NOT NULL DEFAULT 'pending',
     stage TEXT NOT NULL DEFAULT 'queued',
     method TEXT NOT NULL DEFAULT 'singlefile',
+    capture_strategy TEXT,
     article_id INTEGER REFERENCES articles(id) ON DELETE SET NULL,
     title TEXT,
     error TEXT,
@@ -34,6 +35,7 @@ const COLLECT_TABLE_SQL = `
 
 type CollectJobStatus = 'pending' | 'running' | 'completed' | 'failed';
 type CollectMethod = 'reader' | 'singlefile';
+type CollectCaptureStrategy = 'wechat_reader' | 'singlefile_sidecar' | 'singlefile_command' | 'singlefile_docker' | 'singlefile_npx';
 
 function isWechatUrl(url: string) {
   try {
@@ -105,11 +107,47 @@ function getSingleFileCommand() {
   return process.env.SINGLEFILE_COMMAND || 'single-file';
 }
 
+function getSingleFileServiceUrl() {
+  const value = process.env.SINGLEFILE_SERVICE_URL?.trim();
+  return value ? value.replace(/\/+$/, '') : null;
+}
+
+function getInitialSingleFileStrategy(): CollectCaptureStrategy {
+  return getSingleFileServiceUrl() ? 'singlefile_sidecar' : 'singlefile_command';
+}
+
 function getSingleFileArgs(url: string) {
   return [
     '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     '--browser-arg=--disable-blink-features=AutomationControlled',
   ];
+}
+
+async function runSingleFileWithService(url: string, timeoutMs: number) {
+  const serviceUrl = getSingleFileServiceUrl();
+  if (!serviceUrl) throw new Error('未配置 SingleFile 服务地址');
+
+  const res = await fetch(`${serviceUrl}/capture`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const text = await res.text();
+  let body: any = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = null;
+  }
+
+  if (!res.ok) {
+    throw new Error(body?.error || `SingleFile 服务返回异常：${res.status}`);
+  }
+
+  const html = typeof body?.html === 'string' ? body.html : '';
+  if (!html.trim()) throw new Error('SingleFile 服务没有返回 HTML 内容');
+  return html;
 }
 
 async function runSingleFileWithDocker(url: string, timeoutMs: number, maxBuffer: number) {
@@ -150,33 +188,58 @@ async function runSingleFileWithNpx(url: string, timeoutMs: number) {
   }
 }
 
-async function runSingleFile(url: string) {
+async function runSingleFile(url: string): Promise<{ html: string; strategy: CollectCaptureStrategy }> {
   const command = getSingleFileCommand();
   const timeoutMs = Number(process.env.SINGLEFILE_TIMEOUT_MS || 180000);
   const maxBuffer = Number(process.env.SINGLEFILE_MAX_BUFFER || 80 * 1024 * 1024);
+  const serviceUrl = getSingleFileServiceUrl();
 
-  try {
+  const runLocalCommand = async () => {
     if (command.includes(' ')) {
       const { stdout } = await execFileAsync('/bin/sh', ['-lc', `${command} ${shellQuote(url)}`], {
         timeout: timeoutMs,
         maxBuffer,
       });
-      return stdout;
+      return { html: stdout, strategy: 'singlefile_command' as const };
     }
 
     const { stdout } = await execFileAsync(command, [url], { timeout: timeoutMs, maxBuffer });
-    return stdout;
-  } catch (e) {
-    const error = e as NodeJS.ErrnoException;
-    if (command === 'single-file' && error.code === 'ENOENT') {
+    return { html: stdout, strategy: 'singlefile_command' as const };
+  };
+
+  const runLocalFallback = async () => {
+    try {
+      return await runLocalCommand();
+    } catch (e) {
+      const error = e as NodeJS.ErrnoException;
+      if (command === 'single-file' && error.code === 'ENOENT') {
+        try {
+          return { html: await runSingleFileWithDocker(url, timeoutMs, maxBuffer), strategy: 'singlefile_docker' as const };
+        } catch {
+          return { html: await runSingleFileWithNpx(url, timeoutMs), strategy: 'singlefile_npx' as const };
+        }
+      }
+      throw e;
+    }
+  };
+
+  if (serviceUrl) {
+    try {
+      return { html: await runSingleFileWithService(url, timeoutMs), strategy: 'singlefile_sidecar' as const };
+    } catch (serviceError) {
+      if (process.env.SINGLEFILE_SERVICE_FALLBACK_LOCAL === 'false') throw serviceError;
+      const serviceMessage = serviceError instanceof Error ? serviceError.message : String(serviceError);
+      console.warn(`SingleFile service failed, fallback to local command: ${serviceMessage}`);
       try {
-        return await runSingleFileWithDocker(url, timeoutMs, maxBuffer);
-      } catch {
-        return runSingleFileWithNpx(url, timeoutMs);
+        return await runLocalFallback();
+      } catch (fallbackError) {
+        const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+        throw new Error(`SingleFile 服务失败：${serviceMessage}；本地兜底也失败：${fallbackMessage}`);
       }
     }
-    throw e;
   }
+
+  return runLocalFallback();
 }
 
 function extractTitle(doc: Document, fallbackUrl: string) {
@@ -426,7 +489,7 @@ async function processWechatJob(jobId: number, normalizedUrl: string) {
     method: 'reader',
   });
 
-  await updateCollectJob(jobId, { stage: 'reader_fetch', articleId, title });
+  await updateCollectJob(jobId, { stage: 'reader_fetch', captureStrategy: 'wechat_reader', articleId, title });
   await Promise.allSettled([getArticleContent(articleId, 'html'), getArticleContent(articleId, 'markdown')]);
   const pageMeta = await fetchWechatPageMeta(normalizedUrl);
   if (pageMeta?.title || pageMeta?.source) {
@@ -448,11 +511,11 @@ async function processWechatJob(jobId: number, normalizedUrl: string) {
 }
 
 async function processSingleFileJob(jobId: number, normalizedUrl: string) {
-  await updateCollectJob(jobId, { stage: 'capturing' });
-  const rawHtml = await runSingleFile(normalizedUrl);
+  await updateCollectJob(jobId, { stage: 'capturing', captureStrategy: getInitialSingleFileStrategy() });
+  const { html: rawHtml, strategy } = await runSingleFile(normalizedUrl);
   if (!rawHtml.trim()) throw new Error('SingleFile 没有返回 HTML 内容');
 
-  await updateCollectJob(jobId, { stage: 'uploading_images' });
+  await updateCollectJob(jobId, { stage: 'uploading_images', captureStrategy: strategy });
   const prepared = prepareCapturedDocument(rawHtml, normalizedUrl);
   const [uploadedHtml, uploadedCoverImage] = await Promise.all([
     uploadImagesInCapturedDocument(prepared.html, normalizedUrl),
@@ -483,6 +546,16 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string) {
 
 export async function initCollectSchema() {
   await db.execute(sql.raw(COLLECT_TABLE_SQL));
+  await db.execute(sql.raw(`ALTER TABLE collect_jobs ADD COLUMN IF NOT EXISTS capture_strategy TEXT`));
+  const defaultSingleFileStrategy = getInitialSingleFileStrategy();
+  await db.execute(sql.raw(`
+    UPDATE collect_jobs
+    SET capture_strategy = CASE
+      WHEN method = 'reader' THEN 'wechat_reader'
+      ELSE '${defaultSingleFileStrategy}'
+    END
+    WHERE capture_strategy IS NULL
+  `));
 }
 
 export async function createCollectJob(rawUrl: string) {
@@ -501,6 +574,7 @@ export async function createCollectJob(rawUrl: string) {
       status: 'pending',
       stage: 'queued',
       method,
+      captureStrategy: method === 'reader' ? 'wechat_reader' : null,
     })
     .returning();
 
@@ -534,9 +608,17 @@ export async function processCollectJob(jobId: number) {
   return updated;
 }
 
+function normalizeCollectJobStrategy<T extends typeof collectJobs.$inferSelect>(job: T) {
+  if (job.captureStrategy) return job;
+  return {
+    ...job,
+    captureStrategy: job.method === 'reader' ? 'wechat_reader' : getInitialSingleFileStrategy(),
+  };
+}
+
 export async function getCollectJob(jobId: number) {
   const [job] = await db.select().from(collectJobs).where(eq(collectJobs.id, jobId)).limit(1);
-  return job ?? null;
+  return job ? normalizeCollectJobStrategy(job) : null;
 }
 
 export async function listCollectJobs(limit = 12, offset = 0) {
@@ -553,7 +635,7 @@ export async function listCollectJobs(limit = 12, offset = 0) {
     .from(collectJobs);
 
   return {
-    jobs,
+    jobs: jobs.map(normalizeCollectJobStrategy),
     total,
     hasMore: safeOffset + jobs.length < total,
   };

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { CloseOutlined, CloudUploadOutlined, PlusOutlined } from '@ant-design/icons';
 import { CollectForm } from '@/components/content/CollectContent';
 import { api } from '@/lib/api';
+import { useArticleContext } from '@/components/providers/ArticleContext';
 
 type CollectJob = {
   id: number;
@@ -29,6 +30,7 @@ const stageLabels: Record<string, string> = {
 
 export function QuickCollectButton() {
   const router = useRouter();
+  const { openArticle } = useArticleContext();
   const [open, setOpen] = useState(false);
   const [job, setJob] = useState<CollectJob | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -74,7 +76,8 @@ export function QuickCollectButton() {
   const handleOpenArticle = () => {
     if (!job?.articleId) return;
     setOpen(false);
-    router.push(`/archive?article=${job.articleId}`);
+    openArticle(job.articleId);
+    router.push('/archive');
   };
 
   const overlay = open && mounted ? createPortal(

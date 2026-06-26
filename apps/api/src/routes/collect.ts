@@ -17,6 +17,7 @@ function serializeJob(job: any) {
     status: job.status,
     stage: job.stage,
     method: job.method,
+    captureStrategy: job.captureStrategy ?? job.capture_strategy ?? null,
     articleId: job.articleId,
     title: job.title,
     error: job.error,
