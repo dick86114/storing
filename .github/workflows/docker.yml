@@ -43,6 +43,7 @@ on:
 
 env:
   DOCKER_IMAGE: storing
+  SINGLEFILE_IMAGE: storing-singlefile
   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
 
 jobs:
@@ -84,7 +85,22 @@ jobs:
             type=raw,value=${{ steps.date.outputs.date }}
             type=raw,value=${{ github.event.inputs.image_tag }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag != '' }}
 
-      - name: Build and push Docker image
+      - name: Extract metadata for SingleFile sidecar
+        id: meta-singlefile
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.SINGLEFILE_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.date.outputs.date }}
+            type=raw,value=${{ github.event.inputs.image_tag }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag != '' }}
+
+      - name: Build and push main Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -94,6 +110,18 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          platforms: ${{ github.event.inputs.build_platforms || 'linux/amd64' }}
+
+      - name: Build and push SingleFile sidecar image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./docker/singlefile
+          file: ./docker/singlefile/Dockerfile
+          push: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || github.event.inputs.push_image == 'true') }}
+          tags: ${{ steps.meta-singlefile.outputs.tags }}
+          labels: ${{ steps.meta-singlefile.outputs.labels }}
+          cache-from: type=gha,scope=singlefile
+          cache-to: type=gha,mode=max,scope=singlefile
           platforms: ${{ github.event.inputs.build_platforms || 'linux/amd64' }}
 
       - name: Update Docker Hub description
@@ -126,19 +154,39 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build test SingleFile sidecar image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./docker/singlefile
+          file: ./docker/singlefile/Dockerfile
+          push: false
+          tags: storing-singlefile:test
+          load: true
+          cache-from: type=gha,scope=singlefile
+          cache-to: type=gha,mode=max,scope=singlefile
+
       - name: Run container test
         run: |
+          docker run -d --name singlefile-test-container \
+            -p 13000:3000 \
+            storing-singlefile:test
+
           docker run -d --name test-container \
             -p 1051:1050 -p 1053:1052 \
             -e DATABASE_URL="postgresql://test:test@localhost:5432/test" \
             -e AI_PROVIDER="deepseek" \
             -e DEEPSEEK_API_KEY="test-key" \
+            -e SINGLEFILE_SERVICE_URL="http://host.docker.internal:13000" \
+            --add-host=host.docker.internal:host-gateway \
             storing:test
           
           sleep 10
           
           curl -f http://localhost:1051 || exit 1
           curl -f http://localhost:1053/api/v1/health || exit 1
+          curl -f http://localhost:13000/health || exit 1
           
           docker stop test-container
           docker rm test-container
+          docker stop singlefile-test-container
+          docker rm singlefile-test-container

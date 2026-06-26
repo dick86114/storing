@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { ApiOutlined, CheckCircleOutlined, ClockCircleOutlined, CloudUploadOutlined, DeleteOutlined, EnterOutlined, ExclamationCircleOutlined, LinkOutlined, LoadingOutlined, ReloadOutlined } from '@ant-design/icons';
+import { ApiOutlined, CheckCircleOutlined, ClockCircleOutlined, CloudServerOutlined, CloudUploadOutlined, CodeSandboxOutlined, DeleteOutlined, DockerOutlined, EnterOutlined, ExclamationCircleOutlined, GlobalOutlined, LinkOutlined, LoadingOutlined, NodeIndexOutlined, ReloadOutlined } from '@ant-design/icons';
 import { api } from '@/lib/api';
 import { useAuth } from '@/components/providers/AuthContext';
+import { useArticleContext } from '@/components/providers/ArticleContext';
 
 type CollectJob = {
   id: number;
@@ -14,6 +15,8 @@ type CollectJob = {
   status: 'pending' | 'running' | 'completed' | 'failed';
   stage: string;
   method: 'reader' | 'singlefile';
+  captureStrategy?: 'wechat_reader' | 'singlefile_sidecar' | 'singlefile_command' | 'singlefile_docker' | 'singlefile_npx' | null;
+  capture_strategy?: 'wechat_reader' | 'singlefile_sidecar' | 'singlefile_command' | 'singlefile_docker' | 'singlefile_npx' | null;
   articleId?: number | null;
   title?: string | null;
   error?: string | null;
@@ -41,6 +44,50 @@ function getJobIcon(job: CollectJob) {
 
 function getJobLabel(job: CollectJob) {
   return stageLabels[job.stage] || stageLabels[job.status] || '处理中';
+}
+
+function getCaptureMeta(job: CollectJob) {
+  const strategy = job.captureStrategy || job.capture_strategy || (job.method === 'reader' ? 'wechat_reader' : 'singlefile_pending');
+  const map = {
+    wechat_reader: {
+      label: '微信',
+      title: '微信公众号正文接口：沿用现有微信文章抓取链路',
+      Icon: ApiOutlined,
+      tone: 'reader',
+    },
+    singlefile_sidecar: {
+      label: 'Sidecar',
+      title: '网页镜像 Sidecar：通过 compose 中的 singlefile 浏览器服务抓取',
+      Icon: CloudServerOutlined,
+      tone: 'sidecar',
+    },
+    singlefile_command: {
+      label: 'SingleFile',
+      title: '本机 single-file 命令：直接调用运行环境里的 SingleFile CLI',
+      Icon: GlobalOutlined,
+      tone: 'command',
+    },
+    singlefile_docker: {
+      label: 'Docker',
+      title: 'Docker 兜底：通过本机 Docker 运行 SingleFile 镜像抓取',
+      Icon: DockerOutlined,
+      tone: 'docker',
+    },
+    singlefile_npx: {
+      label: 'npx',
+      title: 'npx 兜底：临时运行 single-file-cli 抓取',
+      Icon: NodeIndexOutlined,
+      tone: 'npx',
+    },
+    singlefile_pending: {
+      label: '镜像',
+      title: '网页镜像：当前任务还没返回实际执行方式；完成后应显示 Sidecar、SingleFile、Docker 或 npx',
+      Icon: CodeSandboxOutlined,
+      tone: 'pending',
+    },
+  } as const;
+
+  return map[strategy as keyof typeof map] || map.singlefile_pending;
 }
 
 function validateCollectUrl(rawUrl: string) {
@@ -153,8 +200,17 @@ export function CollectForm({ compact = false, onSubmitted }: CollectFormProps) 
 
 function CollectJobCard({ job, onRetry, onDelete }: { job: CollectJob; onRetry?: (id: number) => void; onDelete?: (id: number) => void }) {
   const router = useRouter();
+  const { openArticle } = useArticleContext();
   const canOpen = job.status === 'completed' && job.articleId;
   const canDelete = job.status !== 'running';
+  const captureMeta = getCaptureMeta(job);
+  const CaptureIcon = captureMeta.Icon;
+
+  const handleOpenArticle = () => {
+    if (!job.articleId) return;
+    openArticle(job.articleId);
+    router.push('/archive');
+  };
 
   return (
     <article className={`collect-job-card collect-job-card--${job.status}`}>
@@ -162,14 +218,17 @@ function CollectJobCard({ job, onRetry, onDelete }: { job: CollectJob; onRetry?:
       <div className="collect-job-main">
         <div className="collect-job-head">
           <strong>{job.title || job.normalizedUrl || job.url}</strong>
-          <span>{job.method === 'reader' ? '微信接口' : '网页镜像'}</span>
+          <span className={`collect-method-badge collect-method-badge--${captureMeta.tone}`} title={captureMeta.title}>
+            <CaptureIcon />
+            <span>{captureMeta.label}</span>
+          </span>
         </div>
         <p>{job.error || getJobLabel(job)}</p>
         <div className="collect-job-url">{job.normalizedUrl}</div>
       </div>
       <div className="collect-job-actions">
         {canOpen && (
-          <button type="button" onClick={() => router.push(`/archive?article=${job.articleId}`)}>
+          <button type="button" onClick={handleOpenArticle}>
             查看
           </button>
         )}
@@ -241,15 +300,10 @@ export function CollectContent() {
 
   return (
     <div className="collect-page-shell">
-      <section className="collect-hero">
-        <div>
+      <section className="collect-entry">
+        <div className="collect-entry-head">
           <span className="collect-kicker"><CloudUploadOutlined /> 手动采集</span>
-          <h1>网页采集</h1>
         </div>
-        <ApiOutlined className="collect-hero-mark" />
-      </section>
-
-      <section className="collect-panel">
         <CollectForm onSubmitted={handleSubmitted} />
       </section>
 
@@ -259,13 +313,15 @@ export function CollectContent() {
             <h2>最近采集</h2>
             <p>任务会在后台继续运行，完成后可直接进入归档阅读。</p>
           </div>
-          <button className="collect-refresh-button" type="button" onClick={() => mutate()} aria-label="刷新最近采集" title="刷新">
-            <ReloadOutlined />
-          </button>
-          <button className="collect-clear-button" type="button" onClick={handleClearFinished} disabled={jobs.every((job) => job.status === 'pending' || job.status === 'running')}>
-            <DeleteOutlined />
-            <span>清空记录</span>
-          </button>
+          <div className="collect-section-actions">
+            <button className="collect-refresh-button" type="button" onClick={() => mutate()} aria-label="刷新最近采集" title="刷新">
+              <ReloadOutlined />
+            </button>
+            <button className="collect-clear-button" type="button" onClick={handleClearFinished} disabled={jobs.every((job) => job.status === 'pending' || job.status === 'running')}>
+              <DeleteOutlined />
+              <span>清空记录</span>
+            </button>
+          </div>
         </div>
         <div className="collect-job-list">
           {jobs.length > 0 ? jobs.map((job) => <CollectJobCard key={job.id} job={job} onRetry={handleRetry} onDelete={handleDelete} />) : (

@@ -76,11 +76,14 @@ docker run -d \
 #### 使用docker-compose
 ```bash
 # 生产环境
+docker-compose pull
 docker-compose up -d
 
 # 开发环境（支持源码挂载）
-docker-compose -f docker-compose.dev.yml up -d
+docker-compose -f docker-compose.dev.yml up -d --build
 ```
+
+`docker-compose.yml` 会同时启动主服务 `storing` 和网页采集服务 `singlefile`。普通网页采集会优先走 SingleFile sidecar 的无头浏览器抓取，微信公众号链接仍走现有正文接口。
 
 ## 部署方式
 
@@ -113,6 +116,9 @@ DEEPSEEK_API_KEY=your-api-key
 
 # 文章抓取服务（可选）
 READER_API_BASE=https://your-reader-service
+
+# 网页采集服务（docker-compose 默认提供）
+SINGLEFILE_SERVICE_URL=http://singlefile:3000
 
 # 图片上传服务（可选）
 IMG_HOST=https://your-image-host

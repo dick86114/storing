@@ -19,8 +19,11 @@ cp .env.example .env
 ### 2. 构建并启动
 
 ```bash
-# 构建镜像并启动服务
-docker-compose up -d --build
+# 拉取 GitHub Actions 推送到 DockerHub 的镜像
+docker-compose pull
+
+# 启动服务
+docker-compose up -d
 
 # 查看运行状态
 docker-compose ps
@@ -28,6 +31,11 @@ docker-compose ps
 # 查看日志
 docker-compose logs -f
 ```
+
+启动后会有两个容器：
+
+- `storing`：Web + API 主服务
+- `storing-singlefile`：网页采集 sidecar，使用无头浏览器运行 SingleFile，把普通网页保存成完整 HTML
 
 ### 3. 访问服务
 
@@ -53,7 +61,35 @@ docker exec -it storing sh
 
 # 查看容器资源使用
 docker stats storing
+
+# 单独查看网页采集服务日志
+docker-compose logs -f singlefile
+
+# 只重建网页采集服务
+docker-compose up -d --build singlefile
 ```
+
+---
+
+## 网页采集 / SingleFile
+
+手动采集普通网页时，API 会优先调用 `SINGLEFILE_SERVICE_URL` 指向的 SingleFile 服务。`docker-compose.yml` 默认已经内置：
+
+```env
+SINGLEFILE_SERVICE_URL=http://singlefile:3000
+SINGLEFILE_TIMEOUT_MS=180000
+SINGLEFILE_MAX_BUFFER=83886080
+```
+
+这不是普通 `fetch` 抓取，而是由 `storing-singlefile` 容器启动无头浏览器加载网页，再用 SingleFile 保存完整 HTML。这样对前端渲染页面、懒加载图片和基础机器人检测会更友好。
+
+如果 sidecar 抓取失败，API 默认会继续尝试本地兜底链路：`single-file` 命令、Docker CLI、`npx single-file-cli`。如果你的服务器只希望使用 sidecar，避免 API 容器里尝试其他方式，可以在 `.env` 中增加：
+
+```env
+SINGLEFILE_SERVICE_FALLBACK_LOCAL=false
+```
+
+注意：强验证码、登录墙、付费墙或必须人工交互的网站仍可能无法抓取。
 
 ---
 
@@ -105,12 +141,12 @@ services:
 
 ---
 
-## 单镜像架构说明
+## 容器架构说明
 
-本项目采用单镜像架构，将前端和后端打包在一起：
+本项目主服务仍采用单镜像架构，将前端和后端打包在一起；网页采集使用独立 SingleFile sidecar：
 
-- **优点**：部署简单、镜像体积小、无需多容器编排
-- **运行方式**：容器启动时同时运行 API 和 Web 服务
+- **storing**：同时运行 API 和 Web 服务
+- **singlefile**：只负责浏览器级网页镜像抓取，不对外暴露端口
 - **端口**：1050（前端）、1052（API）
 
-镜像大小约 **200-300MB**（Node.js Alpine + 构建产物）。
+主服务镜像大小约 **200-300MB**（Node.js Alpine + 构建产物）。SingleFile sidecar 包含浏览器运行环境，体积会明显更大，这是为了保证网页采集还原度。

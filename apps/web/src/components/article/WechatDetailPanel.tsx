@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useSWRConfig } from 'swr';
 import useSWR from 'swr';
@@ -196,6 +196,105 @@ function getReadableArticleHtml(html: string) {
   return contentRoot.innerHTML.trim() || html;
 }
 
+function isSingleFileCaptureHtml(html?: string | null) {
+  if (!html) return false;
+  return html.includes('data-storing-capture="singlefile"') || html.includes("data-storing-capture='singlefile'");
+}
+
+function createCapturedFrameHtml(html: string) {
+  if (typeof document === 'undefined' || !html.trim()) return html;
+
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  parsed.querySelectorAll('script,noscript').forEach((node) => node.remove());
+  parsed.querySelectorAll('a[href]').forEach((link) => {
+    link.setAttribute('target', '_blank');
+    link.setAttribute('rel', 'noopener noreferrer');
+  });
+
+  let base = parsed.head.querySelector('base');
+  if (!base) {
+    base = parsed.createElement('base');
+    parsed.head.prepend(base);
+  }
+  base.setAttribute('target', '_blank');
+
+  const style = parsed.createElement('style');
+  style.setAttribute('data-storing-frame-guard', 'true');
+  style.textContent = `
+    html, body { min-height: 0 !important; }
+    body { margin: 0; overflow-x: hidden; }
+    img, video, canvas, svg { max-width: 100%; }
+  `;
+  parsed.head.append(style);
+
+  return `<!doctype html>\n${parsed.documentElement.outerHTML}`;
+}
+
+function CapturedArticleFrame({ html, title }: { html: string; title?: string | null }) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const srcDoc = useMemo(() => createCapturedFrameHtml(html), [html]);
+
+  const updateHeight = useCallback(() => {
+    const iframe = iframeRef.current;
+    const doc = iframe?.contentDocument;
+    if (!iframe || !doc) return;
+
+    const body = doc.body;
+    const documentElement = doc.documentElement;
+    const height = Math.max(
+      body?.scrollHeight || 0,
+      body?.offsetHeight || 0,
+      documentElement?.scrollHeight || 0,
+      documentElement?.offsetHeight || 0,
+      420
+    );
+    iframe.style.height = `${height}px`;
+  }, []);
+
+  const handleLoad = useCallback(() => {
+    const iframe = iframeRef.current;
+    const doc = iframe?.contentDocument;
+    if (!iframe || !doc) return;
+
+    updateHeight();
+    resizeObserverRef.current?.disconnect();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(updateHeight);
+      if (doc.body) observer.observe(doc.body);
+      if (doc.documentElement) observer.observe(doc.documentElement);
+      observer.observe(iframe);
+      resizeObserverRef.current = observer;
+    }
+
+    Array.from(doc.images).forEach((image) => {
+      if (image.complete) return;
+      image.addEventListener('load', updateHeight, { once: true });
+      image.addEventListener('error', updateHeight, { once: true });
+    });
+
+    window.setTimeout(updateHeight, 120);
+    window.setTimeout(updateHeight, 600);
+  }, [updateHeight]);
+
+  useEffect(() => {
+    return () => resizeObserverRef.current?.disconnect();
+  }, []);
+
+  return (
+    <iframe
+      ref={iframeRef}
+      className="captured-page-frame"
+      title={title ? `${title} - 网页镜像` : '网页镜像'}
+      srcDoc={srcDoc}
+      sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+      scrolling="no"
+      onLoad={handleLoad}
+    />
+  );
+}
+
 export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: WechatDetailPanelProps) {
   const { data: article, error: articleError, isLoading, mutate: mutateArticle } = useArticle(articleId);
   const { data: articleMeta } = useArticleMeta(articleId);
@@ -214,9 +313,10 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   const [detailPanelWidth, setDetailPanelWidth] = useState(DETAIL_PANEL_DEFAULT_WIDTH);
   const [isDetailPanelFullscreen, setIsDetailPanelFullscreen] = useState(false);
   const [isResizingDetailPanel, setIsResizingDetailPanel] = useState(false);
+  const isManualCapturedArticle = useMemo(() => isSingleFileCaptureHtml(article?.contentHtml), [article?.contentHtml]);
   const readableContentHtml = useMemo(
-    () => (article?.contentHtml ? getReadableArticleHtml(article.contentHtml) : ''),
-    [article?.contentHtml]
+    () => (article?.contentHtml && !isManualCapturedArticle ? getReadableArticleHtml(article.contentHtml) : ''),
+    [article?.contentHtml, isManualCapturedArticle]
   );
   const cachedArticle = useMemo(() => findCachedArticleListItem(cache, articleId), [cache, articleId]);
   const fallbackArticle = articleMeta || cachedArticle;
@@ -1945,6 +2045,7 @@ function DetailContent({
   contentRef: RefObject<HTMLDivElement | null>;
 }) {
   const { resolved, colorScheme } = useTheme();
+  const isManualCapturedArticle = isSingleFileCaptureHtml(article?.contentHtml);
   const [moreOpen, setMoreOpen] = useState(false);
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -2441,9 +2542,10 @@ function DetailContent({
 
           {/* 正文 */}
           <div
-            className="article-content-wrap"
-            style={{ padding: '16px' }}
+            className={`article-content-wrap${isManualCapturedArticle ? ' article-content-wrap--captured' : ''}`}
+            style={{ padding: isManualCapturedArticle ? '0 0 16px' : '16px' }}
             onClickCapture={(event) => {
+              if (isManualCapturedArticle) return;
               const target = event.target as HTMLElement;
               const img = target.closest('img');
               if (!img || !event.currentTarget.contains(img)) return;
@@ -2453,7 +2555,9 @@ function DetailContent({
               onOpenImageGallery(img as HTMLImageElement);
             }}
           >
-            {readableContentHtml ? (
+            {isManualCapturedArticle && article?.contentHtml ? (
+              <CapturedArticleFrame html={article.contentHtml} title={article.title} />
+            ) : readableContentHtml ? (
               <div 
                 className="article-body"
                 style={{ fontSize: '17px', color: 'var(--text-secondary)', lineHeight: 1.8 }}

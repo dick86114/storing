@@ -13,6 +13,12 @@ services:
     environment:
       # 运行时配置
       - NODE_ENV=production
+      # 网页采集：优先调用 SingleFile sidecar，失败时 API 会按配置尝试本地兜底
+      - SINGLEFILE_SERVICE_URL=${SINGLEFILE_SERVICE_URL:-http://singlefile:3000}
+      - SINGLEFILE_TIMEOUT_MS=${SINGLEFILE_TIMEOUT_MS:-180000}
+      - SINGLEFILE_MAX_BUFFER=${SINGLEFILE_MAX_BUFFER:-83886080}
+    depends_on:
+      - singlefile
     volumes:
       # 可选：持久化日志
       - ./logs:/app/logs
@@ -22,6 +28,26 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  singlefile:
+    build:
+      context: ./docker/singlefile
+      dockerfile: Dockerfile
+    image: dick86114/storing-singlefile:latest
+    container_name: storing-singlefile
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - SINGLEFILE_TIMEOUT_MS=${SINGLEFILE_TIMEOUT_MS:-180000}
+      - SINGLEFILE_MAX_BUFFER=${SINGLEFILE_MAX_BUFFER:-83886080}
+    shm_size: "1gb"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 # 可选：如果需要本地 PostgreSQL
 # services:
