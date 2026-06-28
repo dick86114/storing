@@ -945,9 +945,9 @@ h4 {
   position: fixed;
   top: 0;
   bottom: 0;
-  left: calc(100vw - var(--detail-panel-current-width, 750px) - 36px);
+  left: calc(100vw - var(--detail-panel-current-width, 750px) - 8px);
   z-index: 2147483647;
-  width: 72px;
+  width: 16px;
   height: 100vh;
   padding: 0;
   border: 0;
@@ -959,7 +959,7 @@ h4 {
 }
 
 .detail-panel-resize-handle--fullscreen {
-  left: -36px;
+  left: -8px;
 }
 
 .detail-panel-resize-handle::before {
@@ -6159,28 +6159,38 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
 .collect-form--compact .collect-input-shell {
   align-items: stretch;
   min-height: 64px;
-  border-radius: var(--radius-md);
-  gap: 0;
+  border-radius: 22px;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid color-mix(in oklch, var(--accent) 18%, var(--border));
+  background:
+    linear-gradient(135deg, color-mix(in oklch, var(--surface) 88%, white), color-mix(in oklch, var(--accent-soft) 42%, var(--surface))),
+    var(--surface);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 64%, transparent),
+    0 10px 28px color-mix(in oklch, var(--accent) 8%, transparent);
   overflow: hidden;
 }
 
 .collect-form--compact .collect-input-shell textarea {
-  min-height: 60px;
+  min-height: 42px;
   max-height: 112px;
-  padding: 12px 14px;
+  padding: 12px 4px;
   resize: vertical;
 }
 
 .collect-form--compact .collect-input-shell button {
   align-self: stretch;
-  flex: 0 0 44px;
-  width: 44px;
-  min-width: 44px;
-  min-height: 60px;
-  padding: 0;
-  border-width: 0 0 0 1px;
-  border-radius: 0;
-  border-left-color: color-mix(in oklch, var(--accent) 24%, var(--border));
+  flex: 0 0 48px;
+  width: 48px;
+  min-width: 48px;
+  border-radius: 18px;
+  border: 0;
+  background: var(--accent);
+  color: var(--on-accent, #fff);
+  box-shadow:
+    0 10px 22px color-mix(in oklch, var(--accent) 22%, transparent),
+    inset 0 1px 0 color-mix(in oklch, white 34%, transparent);
 }
 
 .collect-form--compact .collect-input-shell button > span:not(.anticon) {
