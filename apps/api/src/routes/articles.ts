@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db } from '../db/index.js';
 import { articles, articleMetadata } from '../db/schema.js';
-import { eq, and, asc, desc, count, sql, or, isNull } from 'drizzle-orm';
+import { eq, and, asc, desc, count, sql, or, isNull, gt } from 'drizzle-orm';
 import { generateSummaryAndTags } from '../services/ai.service.js';
 import { getArticleContent, processCoverImage, repairArticleDisplayMeta } from '../services/reader.service.js';
 import { enqueueArticleForWiki, processWikiJobs, removeArticleFromWiki } from '../services/wiki.service.js';
@@ -469,7 +469,7 @@ articlesRoutes.delete('/articles/:id', requireAuth, async (c) => {
   await removeArticleFromWiki(id).catch((e) => console.error('Wiki remove failed:', e.message));
   await db.delete(articleMetadata).where(eq(articleMetadata.articleId, id));
 
-  return c.json({ articleId: id, deleted: true, scope: 'metadata' });
+  return c.json({ articleId: id, deleted: true, scope: 'metadata', visibleInInbox: true });
 });
 
 /**
@@ -593,6 +593,10 @@ articlesRoutes.get('/articles/:id/position', optionalAuth, async (c) => {
   const perPageParam = c.req.query('perPage') || '18';
   const perPage = parseInt(perPageParam);
 
+  if (!['inbox', 'favorites', 'archive'].includes(view)) {
+    return c.json({ error: { code: 'BAD_REQUEST', message: 'Invalid view' } }, 400);
+  }
+
   // 游客只能查询 archive 视图
   if (!isAuthenticated(c) && view !== 'archive') {
     return c.json({ error: { code: 'FORBIDDEN', message: '请登录后访问' } }, 403);
@@ -618,25 +622,33 @@ articlesRoutes.get('/articles/:id/position', optionalAuth, async (c) => {
     whereCondition = and(whereCondition, eq(articles.source, category));
   }
 
-  // 使用子查询计算位置（比查询所有文章更高效）
-  const [{ position }] = await db
+  const [targetArticle] = await db
     .select({
-      position: sql<number>`
-        SELECT COUNT(*) + 1
-        FROM articles a
-        LEFT JOIN article_metadata m ON a.id = m.article_id
-        WHERE a.created_at > (SELECT created_at FROM articles WHERE id = ${id})
-        AND (${sql.raw(view === 'inbox' ? 'm.id IS NULL OR (m.is_archived = false AND m.is_favorited = false)' : view === 'favorites' ? 'm.is_favorited = true' : 'm.is_archived = true')})
-        ${category && category !== 'all' && view === 'archive' ? sql.raw(`AND a.source = '${category}'`) : sql.raw('')}
-      `.as('position')
+      id: articles.id,
+      createdAt: articles.createdAt,
     })
     .from(articles)
-    .where(eq(articles.id, id))
+    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .where(and(eq(articles.id, id), whereCondition))
     .limit(1);
 
-  if (!position) {
+  if (!targetArticle?.createdAt) {
     return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in this view' } }, 404);
   }
+
+  const [{ position }] = await db
+    .select({
+      position: sql<number>`(COUNT(*)::int + 1)`,
+    })
+    .from(articles)
+    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .where(and(
+      whereCondition,
+      or(
+        gt(articles.createdAt, targetArticle.createdAt),
+        and(eq(articles.createdAt, targetArticle.createdAt), gt(articles.id, id))
+      )
+    ));
 
   // 计算总数（用于 totalPages）
   const [{ total }] = await db

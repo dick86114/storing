@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import useSWR from 'swr';
 import { useToast } from '@/components/ui/Toast';
-import { useArticleContext } from '@/components/providers/ArticleContext';
+import { useArticleContext, type ArticleListMutation } from '@/components/providers/ArticleContext';
 import { useAuth } from '@/components/providers/AuthContext';
 import { ArticleList } from '@/components/article/ArticleList';
 import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type ArticleSortOption } from '@/components/article/ArticleSortControl';
@@ -124,9 +124,14 @@ function ArchiveContentInner() {
     window.scrollTo(0, 0);
   }, [articleSortOrder]);
 
-  const refreshList = useCallback(async () => {
+  const refreshList = useCallback(async (mutation?: ArticleListMutation) => {
+    if (mutation?.type === 'remove') {
+      removingIdsRef.current.add(mutation.articleId);
+      setAllArticles((prev) => prev.filter((article) => article.id !== mutation.articleId));
+    } else {
+      removingIdsRef.current.clear();
+    }
     setPage(1);
-    removingIdsRef.current.clear();
     if (page !== 1) return;
     await mutate();
   }, [mutate, page]);
