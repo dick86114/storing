@@ -162,6 +162,299 @@ function normalizeImageUrl(url: string): string {
   return trimmed;
 }
 
+function cleanText(value: string | null | undefined): string | null {
+  const normalized = value?.replace(/\s+/g, ' ').trim();
+  return normalized ? normalized : null;
+}
+
+function extractTitleFromDocument(doc: Document): string | null {
+  return cleanText(
+    doc.querySelector('meta[property="og:title"]')?.getAttribute('content')
+    || doc.querySelector('meta[name="twitter:title"]')?.getAttribute('content')
+    || doc.querySelector('title')?.textContent
+    || doc.querySelector('h1')?.textContent
+  );
+}
+
+function extractSourceFromDocument(doc: Document, originalUrl: string): string | null {
+  const source = cleanText(
+    doc.querySelector('#js_name')?.textContent
+    || doc.querySelector('meta[property="og:site_name"]')?.getAttribute('content')
+    || doc.querySelector('meta[name="application-name"]')?.getAttribute('content')
+  );
+  if (source) return source.slice(0, 80);
+
+  try {
+    return new URL(originalUrl).hostname.replace(/^www\./, '').slice(0, 80) || null;
+  } catch {
+    return null;
+  }
+}
+
+function extractAuthorFromDocument(doc: Document): string | null {
+  return cleanText(
+    doc.querySelector('meta[property="og:article:author"]')?.getAttribute('content')
+    || doc.querySelector('meta[name="author"]')?.getAttribute('content')
+    || doc.querySelector('#meta_content .rich_media_meta_text')?.textContent
+  )?.slice(0, 80) || null;
+}
+
+function parsePublishTime(value: string | null | undefined): Date | null {
+  const text = cleanText(value);
+  if (!text) return null;
+
+  const hasExplicitTimezone = /(?:[zZ]|[+-]\d{2}:?\d{2}|(?:\s|^)(?:UTC|GMT))$/.test(text);
+  if (hasExplicitTimezone) {
+    const timestamp = Date.parse(text);
+    if (!Number.isNaN(timestamp)) return new Date(timestamp);
+  }
+
+  const normalized = text
+    .replace(/[/.]/g, '-')
+    .replace(/年/g, '-')
+    .replace(/月/g, '-')
+    .replace(/日/g, '')
+    .replace(/[Tt]/g, ' ')
+    .trim();
+
+  const match = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (!match) return null;
+
+  const [, year, month, day, hour = '00', minute = '00', second = '00'] = match;
+  const paddedMonth = month.padStart(2, '0');
+  const paddedDay = day.padStart(2, '0');
+  const paddedHour = hour.padStart(2, '0');
+  return new Date(`${year}-${paddedMonth}-${paddedDay}T${paddedHour}:${minute}:${second}Z`);
+}
+
+function extractPublishTimeFromJsonLd(html: string): Date | null {
+  const pattern = /"datePublished"\s*:\s*"([^"]+)"/g;
+  for (const match of html.matchAll(pattern)) {
+    const parsed = parsePublishTime(match[1]);
+    if (parsed) return parsed;
+  }
+
+  return null;
+}
+
+function extractPublishTimeFromText(text: string): Date | null {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) return null;
+
+  const patterns = [
+    /\b(20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2}(?:日)?\s+\d{1,2}:\d{2}(?::\d{2})?)/g,
+    /\b(20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2}(?:日)?)/g,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of normalized.matchAll(pattern)) {
+      const parsed = parsePublishTime(match[1]);
+      if (parsed) return parsed;
+    }
+  }
+
+  return null;
+}
+
+function extractPublishTimeFromMarkdown(markdown: string): Date | null {
+  const lines = markdown
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 20);
+
+  const focusedText = lines.join(' ');
+  return extractPublishTimeFromText(focusedText);
+}
+
+function extractPublishTimeFromCachedHtml(html: string): Date | null {
+  const dom = new JSDOM(html);
+  const doc = dom.window.document;
+  doc.querySelectorAll('script, style, noscript, template').forEach((node) => node.remove());
+  const focusedText = (doc.body?.textContent || '').slice(0, 2000);
+  return extractPublishTimeFromText(focusedText);
+}
+
+function extractPublishTimestampFromHtml(html: string): Date | null {
+  const patterns = [
+    /"publish_time"\s*:\s*(\d{10})/,
+    /publish_time%22%3A(\d{10})/,
+    /oriCreateTime\s*[=:]\s*['"]?(\d{10})/,
+    /createTime\s*[=:]\s*['"]?(\d{10})/,
+    /\bct\s*=\s*['"]?(\d{10})/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    const timestamp = Number(match?.[1]);
+    if (Number.isFinite(timestamp) && timestamp > 0) {
+      return new Date(timestamp * 1000);
+    }
+  }
+
+  return null;
+}
+
+function extractPublishTimeFromDocument(doc: Document): Date | null {
+  const candidates = [
+    doc.querySelector('meta[property="article:published_time"]')?.getAttribute('content'),
+    doc.querySelector('meta[property="og:article:published_time"]')?.getAttribute('content'),
+    doc.querySelector('meta[name="publishdate"]')?.getAttribute('content'),
+    doc.querySelector('time[datetime]')?.getAttribute('datetime'),
+    doc.querySelector('#publish_time')?.textContent,
+    doc.querySelector('em#publish_time')?.textContent,
+  ];
+
+  for (const candidate of candidates) {
+    const parsed = parsePublishTime(candidate);
+    if (parsed) return parsed;
+  }
+
+  return null;
+}
+
+function extractWechatDisplayMetaFromMarkdown(markdown: string) {
+  const lines = markdown
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (const line of lines) {
+    if (!line.includes('[') || !line.includes('javascript:void')) continue;
+
+    const sourceMatch = line.match(/\[([^\]]+)\]\(javascript:void\\?\(0\\?\);\)/);
+    const source = cleanText(sourceMatch?.[1]);
+    if (!source) continue;
+
+    const authorPart = cleanText(line.replace(sourceMatch?.[0] || '', ''));
+    const author = authorPart ? authorPart.split(/\s+/)[0] : null;
+    return {
+      source: source.slice(0, 80),
+      author: author?.slice(0, 80) || null,
+    };
+  }
+
+  return { source: null, author: null };
+}
+
+async function fetchArticleDisplayMeta(originalUrl: string): Promise<{
+  title: string | null;
+  source: string | null;
+  author: string | null;
+  publishTime: Date | null;
+}> {
+  const res = await fetch(originalUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error(`Display meta fetch failed: ${res.status}`);
+
+  const html = await res.text();
+  const dom = new JSDOM(html);
+  const doc = dom.window.document;
+
+  return {
+    title: extractTitleFromDocument(doc),
+    source: extractSourceFromDocument(doc, originalUrl),
+    author: extractAuthorFromDocument(doc),
+    publishTime:
+      extractPublishTimeFromDocument(doc)
+      || extractPublishTimeFromJsonLd(html)
+      || extractPublishTimestampFromHtml(html)
+      || extractPublishTimeFromText(doc.body?.textContent || ''),
+  };
+}
+
+export async function repairArticleDisplayMeta(articleId: number): Promise<{
+  title: string | null;
+  source: string | null;
+  author: string | null;
+  publishTime: Date | null;
+} | null> {
+  const [article] = await db
+    .select({
+      id: articles.id,
+      title: articles.title,
+      author: articles.author,
+      source: articles.source,
+      publishTime: articles.publishTime,
+      originalUrl: articles.originalUrl,
+      content: articles.content,
+      contentMarkdown: articleMetadata.contentMd,
+      contentHtml: articleMetadata.contentHtml,
+    })
+    .from(articles)
+    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .where(eq(articles.id, articleId));
+
+  if (!article) return null;
+  if (article.title && article.source && article.publishTime) {
+    return {
+      title: article.title,
+      source: article.source,
+      author: article.author,
+      publishTime: article.publishTime,
+    };
+  }
+
+  let fetchedMeta: Awaited<ReturnType<typeof fetchArticleDisplayMeta>> | null = null;
+  if (article.originalUrl) {
+    try {
+      fetchedMeta = await fetchArticleDisplayMeta(article.originalUrl);
+    } catch (error) {
+      console.error(`Display meta fetch failed for article ${articleId}:`, (error as Error).message);
+    }
+  }
+
+  const markdownMeta = article.contentMarkdown
+    ? extractWechatDisplayMetaFromMarkdown(article.contentMarkdown)
+    : { source: null, author: null };
+
+  const fallbackRawSource = cleanText((article.content as any)?.source);
+  const cachedPublishTime =
+    (article.contentMarkdown ? extractPublishTimeFromMarkdown(article.contentMarkdown) : null)
+    || (article.contentHtml ? extractPublishTimeFromCachedHtml(article.contentHtml) : null);
+
+  const nextTitle = article.title || fetchedMeta?.title || null;
+  const nextSource = article.source || fetchedMeta?.source || markdownMeta.source || fallbackRawSource || null;
+  const nextAuthor = article.author || fetchedMeta?.author || markdownMeta.author || null;
+  const nextPublishTime = article.publishTime || fetchedMeta?.publishTime || cachedPublishTime || null;
+
+  if (
+    nextTitle === article.title
+    && nextSource === article.source
+    && nextAuthor === article.author
+    && nextPublishTime?.getTime?.() === article.publishTime?.getTime?.()
+  ) {
+    return {
+      title: article.title,
+      source: article.source,
+      author: article.author,
+      publishTime: article.publishTime,
+    };
+  }
+
+  await db
+    .update(articles)
+    .set({
+      title: nextTitle ?? undefined,
+      source: nextSource ?? undefined,
+      author: nextAuthor ?? undefined,
+      publishTime: nextPublishTime ?? undefined,
+      updatedAt: new Date(),
+    })
+    .where(eq(articles.id, articleId));
+
+  return {
+    title: nextTitle,
+    source: nextSource,
+    author: nextAuthor,
+    publishTime: nextPublishTime,
+  };
+}
+
 function getRawContentPictureUrls(rawContent: any): string[] {
   if (!Array.isArray(rawContent?.picture_page_info_list)) return [];
 

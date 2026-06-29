@@ -5,6 +5,8 @@ export interface Article {
   source: string | null;
   originalUrl: string | null;
   publishTime: string | null;
+  favoritedAt?: string | null;
+  archivedAt?: string | null;
   contentMarkdown: string | null;
   contentHtml: string | null;
   coverImage: string | null;

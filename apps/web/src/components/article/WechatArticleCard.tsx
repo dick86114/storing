@@ -21,6 +21,8 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
   const menuWrapRef = useRef<HTMLDivElement>(null);
   const tags = article.aiTags?.slice(0, 3) ?? [];
   const summary = article.aiSummary?.trim() || article.summary?.trim();
+  const displayTime = article.publishTime || (article.isArchived ? article.archivedAt || null : null);
+  const displayTimeLabel = article.publishTime ? '发布时间' : article.isArchived && article.archivedAt ? '归档时间' : '发布时间';
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -242,12 +244,12 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
         <div className="article-card-footer" style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '12px', color: 'var(--text-muted)' }}>
           <span>{article.source || article.author || '未知来源'}</span>
           <span
-            title="发布时间"
-            aria-label="发布时间"
+            title={displayTimeLabel}
+            aria-label={displayTimeLabel}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
           >
             <FieldTimeOutlined aria-hidden="true" style={{ fontSize: '12px' }} />
-            <DateText dateStr={article.publishTime} />
+            <DateText dateStr={displayTime} />
           </span>
         </div>
       </div>
