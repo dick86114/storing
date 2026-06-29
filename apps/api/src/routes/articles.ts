@@ -3,7 +3,7 @@ import { db } from '../db/index.js';
 import { articles, articleMetadata } from '../db/schema.js';
 import { eq, and, asc, desc, count, sql, or, isNull } from 'drizzle-orm';
 import { generateSummaryAndTags } from '../services/ai.service.js';
-import { getArticleContent, processCoverImage } from '../services/reader.service.js';
+import { getArticleContent, processCoverImage, repairArticleDisplayMeta } from '../services/reader.service.js';
 import { enqueueArticleForWiki, processWikiJobs, removeArticleFromWiki } from '../services/wiki.service.js';
 import { requireAuth, optionalAuth, isAuthenticated } from '../middleware/auth.js';
 
@@ -97,6 +97,8 @@ async function getArticleRecord(id: number) {
       source: articles.source,
       originalUrl: articles.originalUrl,
       publishTime: articles.publishTime,
+      favoritedAt: articleMetadata.favoritedAt,
+      archivedAt: articleMetadata.archivedAt,
       articleCoverImage: articles.coverImage,
       metadataCoverImage: articleMetadata.coverImage,
       summary: articles.summary,
@@ -127,6 +129,31 @@ function serializeArticleRecord(article: NonNullable<Awaited<ReturnType<typeof g
     isArchived: article.isArchived ?? false,
     aiTags: article.aiTags ?? [],
   };
+}
+
+async function repairMissingDisplayMeta<T extends {
+  id: number;
+  title: string | null;
+  author: string | null;
+  source: string | null;
+  publishTime: Date | string | null;
+}>(rows: T[]): Promise<T[]> {
+  const repairedRows = await Promise.all(rows.map(async (row) => {
+    if (row.title && row.source && row.publishTime) return row;
+
+    const repaired = await repairArticleDisplayMeta(row.id);
+    if (!repaired) return row;
+
+    return {
+      ...row,
+      title: repaired.title || row.title,
+      source: repaired.source || row.source,
+      author: repaired.author || row.author,
+      publishTime: repaired.publishTime || row.publishTime,
+    };
+  }));
+
+  return repairedRows;
 }
 
 /**
@@ -177,6 +204,8 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
       source: articles.source,
       originalUrl: articles.originalUrl,
       publishTime: articles.publishTime,
+      favoritedAt: articleMetadata.favoritedAt,
+      archivedAt: articleMetadata.archivedAt,
       coverImage: articleMetadata.coverImage,
       summary: articles.summary,
       tags: articles.tags,
@@ -204,8 +233,10 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
     .limit(perPage)
     .offset((page - 1) * perPage);
 
+  const repairedData = await repairMissingDisplayMeta(data);
+
   return c.json({
-    articles: data.map(a => ({
+    articles: repairedData.map(a => ({
       ...a,
       isFavorited: a.isFavorited ?? false,
       isArchived: a.isArchived ?? false,
@@ -249,13 +280,19 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
   const id = parseInt(idParam);
   const format = c.req.query('format') || 'markdown';
 
-  const article = await getArticleRecord(id);
+  let article = await getArticleRecord(id);
 
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
   // 游客只能查看归档文章
   if (!isAuthenticated(c) && !article.isArchived) {
     return c.json({ error: { code: 'FORBIDDEN', message: '请登录后访问' } }, 403);
+  }
+
+  if (!article.title || !article.source || !article.publishTime) {
+    await repairArticleDisplayMeta(id);
+    article = await getArticleRecord(id);
+    if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
   }
 
   // 登录用户首次访问时，异步处理封面图（如果 metadata 尚无封面图）

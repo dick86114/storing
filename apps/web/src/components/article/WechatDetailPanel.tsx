@@ -74,6 +74,10 @@ function isLeadingPromoBlock(element: Element) {
   return /飞书云文档|更多玩法应用案例|复制：?https?:\/\//.test(text);
 }
 
+function getArticleDisplayTime(article: any) {
+  return article?.publishTime || (article?.isArchived ? article?.archivedAt || null : null);
+}
+
 function removeCapturedPageChrome(root: Document | Element) {
   root
     .querySelectorAll(
@@ -2458,7 +2462,7 @@ function DetailContent({
                   <span style={{ color: 'var(--divider)' }}>·</span>
                 </>
               )}
-              <DateText dateStr={article.publishTime} />
+              <DateText dateStr={getArticleDisplayTime(article)} />
             </div>
             {/* AI标签 */}
             {showAISkeleton ? (

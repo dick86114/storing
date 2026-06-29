@@ -11,7 +11,7 @@ export function formatDateStatic(dateStr: string | null): string {
   return `${parseInt(match[2], 10)}月${parseInt(match[3], 10)}日`;
 }
 
-/** 客户端挂载后替换为相对时间 */
+/** 客户端挂载后替换为有限的相对时间 */
 function useRelativeDate(dateStr: string | null): string {
   const [text, setText] = useState(() => formatDateStatic(dateStr));
 
@@ -34,7 +34,7 @@ function useRelativeDate(dateStr: string | null): string {
       }
     }
     else if (diff === 1) setText('昨天');
-    else if (diff < 7) setText(`${diff} 天前`);
+    else if (diff === 2) setText('2 天前');
     else setText(formatDateStatic(dateStr));
   }, [dateStr]);
 
