@@ -13022,3 +13022,24 @@ body.detail-panel-open .detail-panel.wechat-detail-panel:not(.mobile-detail-pane
     bottom: max(24px, env(safe-area-inset-bottom)) !important;
   }
 }
+
+.detail-panel.wechat-detail-panel .detail-panel-content {
+  padding: 14px 16px 10px !important;
+}
+
+.detail-panel.wechat-detail-panel .detail-panel-content .detail-panel-title {
+  margin-bottom: 6px !important;
+}
+
+.detail-panel.wechat-detail-panel .detail-panel-content .detail-panel-meta {
+  margin-bottom: 10px !important;
+}
+
+.detail-panel.wechat-detail-panel .detail-panel-content .detail-panel-tags {
+  gap: 6px !important;
+  margin-bottom: 0 !important;
+}
+
+.source-sidebar .source-sort-button {
+  border-radius: var(--radius) !important;
+}
