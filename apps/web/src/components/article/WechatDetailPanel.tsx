@@ -15,6 +15,7 @@ import { api } from '@/lib/api';
 import { useBookmark } from '@/hooks/useBookmark';
 import { BookmarkButton } from '@/components/ui/BookmarkButton';
 import { useTheme, type ColorScheme } from '@/components/providers/ThemeProvider';
+import type { ArticleListMutation } from '@/components/providers/ArticleContext';
 
 const DETAIL_PANEL_DEFAULT_WIDTH = 750;
 const DETAIL_PANEL_MIN_WIDTH = 560;
@@ -23,7 +24,7 @@ const DETAIL_PANEL_WIDTH_STORAGE_KEY = 'storing:detail-panel-width';
 interface WechatDetailPanelProps {
   articleId: number | null;
   onClose: () => void;
-  onMutate: () => void;
+  onMutate: (mutation?: ArticleListMutation) => void;
   isDesktop?: boolean;
 }
 
@@ -396,9 +397,8 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   }, [articleId, readableContentHtml, isLoading]);
 
   function refreshCounts() {
-    globalMutate('count:inbox');
-    globalMutate('count:favorites');
-    globalMutate('count:archive');
+    globalMutate('counts');
+    globalMutate((key) => typeof key === 'string' && key.startsWith('sources:'));
   }
 
   useEffect(() => {
@@ -889,7 +889,8 @@ function ImageGalleryLightbox({
   return createPortal(lightbox, document.body);
 }
 
-type DeleteConfirmMode = 'metadata' | 'permanent';
+type ArticleView = 'inbox' | 'archive' | 'favorites';
+type DeleteConfirmMode = 'archive-record' | 'favorite-record' | 'permanent';
 
 type SharePosterState = {
   imageUrl: string;
@@ -1019,13 +1020,32 @@ const deleteConfirmCopy: Record<DeleteConfirmMode, {
   note: string;
   confirmLabel: string;
   loadingLabel: string;
+  menuLabel: string;
+  pendingLabel: string;
+  successLabel: string;
+  failureLabel: string;
 }> = {
-  metadata: {
-    title: '删除文章记录',
-    body: '这会删除乾坤戒里的归档、收藏、AI 摘要、标签和重新抓取的正文缓存。',
-    note: '原始 articles 表中的文章仍会保留，之后仍可从原始数据重新进入列表。',
-    confirmLabel: '删除记录',
+  'archive-record': {
+    title: '删除归档记录',
+    body: '这会删除 article_metadata 里的归档状态、收藏状态、AI 摘要、标签、封面和正文缓存。',
+    note: '原始 articles 表中的文章仍会保留，并回到收件箱；如需彻底清除原文，请使用“彻底删除文章”。',
+    confirmLabel: '删除归档记录',
     loadingLabel: '删除中…',
+    menuLabel: '删除归档记录',
+    pendingLabel: '正在删除…',
+    successLabel: '已删除归档记录',
+    failureLabel: '删除归档记录失败',
+  },
+  'favorite-record': {
+    title: '删除收藏记录',
+    body: '这只会取消收藏状态，保留原始文章、正文和归档状态。',
+    note: '如果这篇文章没有归档，它会回到收件箱；如果已经归档，它仍会留在归档列表。',
+    confirmLabel: '删除收藏记录',
+    loadingLabel: '删除中…',
+    menuLabel: '删除收藏记录',
+    pendingLabel: '正在删除…',
+    successLabel: '已删除收藏记录',
+    failureLabel: '删除收藏记录失败',
   },
   permanent: {
     title: '彻底删除文章',
@@ -1033,8 +1053,23 @@ const deleteConfirmCopy: Record<DeleteConfirmMode, {
     note: '原始文章、链接、正文和所有平台记录都会消失，此操作不可撤销，请确认已经不再需要这篇文章。',
     confirmLabel: '彻底删除',
     loadingLabel: '彻底删除中…',
+    menuLabel: '彻底删除文章',
+    pendingLabel: '正在彻底删除…',
+    successLabel: '文章已彻底删除',
+    failureLabel: '彻底删除失败',
   },
 };
+
+function getArticleViewFromPath(path: string): ArticleView {
+  if (path.includes('/inbox')) return 'inbox';
+  if (path.includes('/favorites')) return 'favorites';
+  return 'archive';
+}
+
+function getCurrentArticleView(): ArticleView {
+  if (typeof window === 'undefined') return 'archive';
+  return getArticleViewFromPath(window.location.pathname);
+}
 
 function buildArticleShareUrl(article: any, scrollPosition: number, theme: ShareThemeSnapshot) {
   const currentPath = window.location.pathname;
@@ -2038,7 +2073,7 @@ function DetailContent({
   articleError?: Error;
   isLoading: boolean;
   onClose: () => void;
-  onMutate: () => void;
+  onMutate: (mutation?: ArticleListMutation) => void;
   mutateArticle: () => void;
   showToast: (msg: string) => void;
   isAuthenticated: boolean;
@@ -2055,6 +2090,7 @@ function DetailContent({
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [deleteConfirmMode, setDeleteConfirmMode] = useState<DeleteConfirmMode | null>(null);
   const [sharePoster, setSharePoster] = useState<SharePosterState | null>(null);
+  const [currentView, setCurrentView] = useState<ArticleView>('archive');
   const originalUrl = article?.originalUrl || fallbackArticle?.originalUrl || '';
   const originalLinkStatus = articleError ? '原文链接暂时不可用' : '原文链接加载中';
   const { data: wikiStatus, mutate: mutateWikiStatus } = useSWR(
@@ -2069,22 +2105,20 @@ function DetailContent({
     };
   }, [sharePoster?.imageUrl]);
 
+  useEffect(() => {
+    setCurrentView(getCurrentArticleView());
+  }, []);
+
   // 保存书签
   const handleSaveBookmark = () => {
     if (!article) return;
-
-    // 从 URL 获取当前视图
-    const path = window.location.pathname;
-    const view: 'inbox' | 'archive' | 'favorites' = path.includes('inbox') ? 'inbox'
-      : path.includes('favorites') ? 'favorites'
-      : 'archive';
 
     // 获取文章列表的滚动位置（main 元素的滚动）
     const mainElement = document.querySelector('main');
     const listScrollPosition = mainElement?.scrollTop || 0;
 
     saveBookmark({
-      view,
+      view: getCurrentArticleView(),
       articleId: article.id,
       scrollPosition: getScrollPosition(),
       listScrollPosition,
@@ -2214,6 +2248,12 @@ function DetailContent({
 
   const showArticleSkeleton = isLoading || pendingAction === 'refetch';
   const showAISkeleton = pendingAction === 'ai';
+  const recordDeleteMode: DeleteConfirmMode | null = currentView === 'archive' && article?.isArchived
+    ? 'archive-record'
+    : currentView === 'favorites' && article?.isFavorited
+      ? 'favorite-record'
+      : null;
+  const recordDeleteCopy = recordDeleteMode ? deleteConfirmCopy[recordDeleteMode] : null;
 
   async function handleCopyOriginalUrl() {
     const url = originalUrl || window.location.href;
@@ -2232,19 +2272,22 @@ function DetailContent({
     if (!article) return;
     const mode = deleteConfirmMode;
     if (!mode) return;
+    const copy = deleteConfirmCopy[mode];
     setDeleteConfirmMode(null);
 
     await runArticleAction(mode === 'permanent' ? 'permanent-delete' : 'delete', async () => {
       if (mode === 'permanent') {
         await api.permanentlyDeleteArticle(article.id);
-      } else {
+      } else if (mode === 'archive-record') {
         await api.deleteArticle(article.id);
+      } else {
+        await api.toggleFavorite(article.id);
       }
-      onMutate();
+      onMutate({ type: 'remove', articleId: article.id });
       refreshCounts();
-      showToast(mode === 'permanent' ? '文章已彻底删除' : '文章记录已删除');
+      showToast(copy.successLabel);
       onClose();
-    }, mode === 'permanent' ? '彻底删除失败' : '删除文章记录失败');
+    }, copy.failureLabel);
   }
 
   // 收藏功能
@@ -2347,13 +2390,15 @@ function DetailContent({
                       </button>
                     )}
                     <div className="detail-more-menu-divider" />
-                    <button className="app-menu-item detail-more-menu-item detail-more-menu-item--danger" type="button" onClick={() => { setMoreOpen(false); setDeleteConfirmMode('metadata'); }} disabled={!!pendingAction}>
-                      <DeleteOutlined />
-                      <span>{pendingAction === 'delete' ? '正在删除…' : '删除文章记录'}</span>
-                    </button>
+                    {recordDeleteMode && recordDeleteCopy && (
+                      <button className="app-menu-item detail-more-menu-item detail-more-menu-item--danger" type="button" onClick={() => { setMoreOpen(false); setDeleteConfirmMode(recordDeleteMode); }} disabled={!!pendingAction}>
+                        <DeleteOutlined />
+                        <span>{pendingAction === 'delete' ? recordDeleteCopy.pendingLabel : recordDeleteCopy.menuLabel}</span>
+                      </button>
+                    )}
                     <button className="app-menu-item detail-more-menu-item detail-more-menu-item--danger detail-more-menu-item--permanent" type="button" onClick={() => { setMoreOpen(false); setDeleteConfirmMode('permanent'); }} disabled={!!pendingAction}>
                       <DeleteOutlined />
-                      <span>{pendingAction === 'permanent-delete' ? '正在彻底删除…' : '彻底删除文章'}</span>
+                      <span>{pendingAction === 'permanent-delete' ? deleteConfirmCopy.permanent.pendingLabel : deleteConfirmCopy.permanent.menuLabel}</span>
                     </button>
                   </>
                 ) : (

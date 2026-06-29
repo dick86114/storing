@@ -763,7 +763,12 @@ async function fetchContent(url: string, format: 'markdown' | 'html' = 'markdown
 
 async function fetchArticleContentFromSources(articleId: number, format: 'markdown' | 'html'): Promise<string | null> {
   const [article] = await db
-    .select({ originalUrl: articles.originalUrl, content: articles.content })
+    .select({
+      originalUrl: articles.originalUrl,
+      content: articles.content,
+      contentMarkdown: articles.contentMarkdown,
+      contentHtml: articles.contentHtml,
+    })
     .from(articles)
     .where(eq(articles.id, articleId));
 
@@ -832,6 +837,13 @@ async function fetchArticleContentFromSources(articleId: number, format: 'markdo
       if (parts.length > 0) {
         content = parts.join('\n\n');
       }
+    }
+  }
+
+  if (!content) {
+    const storedContent = format === 'html' ? article.contentHtml : article.contentMarkdown;
+    if (storedContent && hasUsefulContent(storedContent, format)) {
+      content = storedContent;
     }
   }
 

@@ -29,6 +29,7 @@ export interface ArticleListItem {
   title: string;
   author: string | null;
   source: string;
+  originalUrl?: string | null;
   publishTime: string | null;
   createdAt: string;
   favoritedAt?: string | null;

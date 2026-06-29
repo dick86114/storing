@@ -946,7 +946,7 @@ h4 {
   top: 0;
   bottom: 0;
   left: calc(100vw - var(--detail-panel-current-width, 750px) - 8px);
-  z-index: 2147483647;
+  z-index: 1600;
   width: 16px;
   height: 100vh;
   padding: 0;

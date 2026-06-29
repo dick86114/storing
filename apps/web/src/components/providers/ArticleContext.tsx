@@ -2,6 +2,11 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 
+export type ArticleListMutation = {
+  type: 'remove';
+  articleId: number;
+};
+
 interface ArticleContextValue {
   selectedId: number | null;
   highlightId: number | null;
@@ -9,8 +14,8 @@ interface ArticleContextValue {
   closeArticle: () => void;
   highlightAndOpen: (id: number, view: 'inbox' | 'favorites' | 'archive') => void;
   clearHighlight: () => void;
-  mutateList: () => void;
-  setMutateFn: (fn: () => void) => void;
+  mutateList: (mutation?: ArticleListMutation) => void;
+  setMutateFn: (fn: (mutation?: ArticleListMutation) => void) => void;
   scrollToPosition: (position: number) => void;  // 新增：滚动到指定位置
 }
 
@@ -19,7 +24,7 @@ const ArticleContext = createContext<ArticleContextValue | null>(null);
 export function ArticleProvider({ children }: { children: ReactNode }) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
-  const [mutateFn, setMutateFnState] = useState<(() => void) | null>(null);
+  const [mutateFn, setMutateFnState] = useState<((mutation?: ArticleListMutation) => void) | null>(null);
 
   // 用于跟踪是否是通过 popstate 触发的关闭
   const isPopstateClose = useRef(false);
@@ -59,8 +64,8 @@ export function ArticleProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('popstate', handlePopstate);
   }, [selectedId]);
   const clearHighlight = useCallback(() => setHighlightId(null), []);
-  const mutateList = useCallback(() => mutateFn?.(), [mutateFn]);
-  const setMutateFn = useCallback((fn: () => void) => setMutateFnState(() => fn), []);
+  const mutateList = useCallback((mutation?: ArticleListMutation) => mutateFn?.(mutation), [mutateFn]);
+  const setMutateFn = useCallback((fn: (mutation?: ArticleListMutation) => void) => setMutateFnState(() => fn), []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
