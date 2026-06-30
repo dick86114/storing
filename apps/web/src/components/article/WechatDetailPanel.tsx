@@ -20,6 +20,7 @@ import type { ArticleListMutation } from '@/components/providers/ArticleContext'
 const DETAIL_PANEL_DEFAULT_WIDTH = 750;
 const DETAIL_PANEL_MIN_WIDTH = 560;
 const DETAIL_PANEL_WIDTH_STORAGE_KEY = 'storing:detail-panel-width';
+const CAPTURED_FRAME_IMAGE_RETRY_ATTR = 'data-storing-retried';
 
 interface WechatDetailPanelProps {
   articleId: number | null;
@@ -210,11 +211,28 @@ function createCapturedFrameHtml(html: string) {
   if (typeof document === 'undefined' || !html.trim()) return html;
 
   const parsed = new DOMParser().parseFromString(html, 'text/html');
-  parsed.querySelectorAll('script,noscript').forEach((node) => node.remove());
+  parsed.querySelectorAll('script,noscript,iframe,frame,object,embed').forEach((node) => node.remove());
+  parsed
+    .querySelectorAll(
+      [
+        'ins.adsbygoogle',
+        '.adsbygoogle',
+        '[id*="google_ads"]',
+        '[id*="googlefc"]',
+        '[class*="google-auto-placed"]',
+        '[name="__tcfapiLocator"]',
+        '[name="__uspapiLocator"]',
+        '[name="__gppLocator"]',
+        '[name="googlefcInactive"]',
+        '[name="googlefcLoaded"]',
+      ].join(',')
+    )
+    .forEach((node) => node.remove());
   parsed.querySelectorAll('a[href]').forEach((link) => {
     link.setAttribute('target', '_blank');
     link.setAttribute('rel', 'noopener noreferrer');
   });
+  parsed.querySelectorAll('img').forEach((image) => normalizeCapturedImage(image));
 
   let base = parsed.head.querySelector('base');
   if (!base) {
@@ -229,10 +247,51 @@ function createCapturedFrameHtml(html: string) {
     html, body { min-height: 0 !important; }
     body { margin: 0; overflow-x: hidden; }
     img, video, canvas, svg { max-width: 100%; }
+    img { height: auto; }
   `;
   parsed.head.append(style);
 
   return `<!doctype html>\n${parsed.documentElement.outerHTML}`;
+}
+
+function normalizeCapturedImage(image: HTMLImageElement) {
+  const candidateAttrs = ['src', 'data-src', 'data-original', 'data-lazy-src', 'data-actualsrc', 'data-url'];
+  const currentSrc = image.getAttribute('src') || '';
+  const candidate = candidateAttrs
+    .map((attr) => image.getAttribute(attr)?.trim())
+    .find((value) => value && !value.startsWith('data:'));
+
+  if (candidate && (!currentSrc || currentSrc.startsWith('data:'))) {
+    image.setAttribute('src', candidate.startsWith('//') ? `https:${candidate}` : candidate);
+  } else if (currentSrc.startsWith('//')) {
+    image.setAttribute('src', `https:${currentSrc}`);
+  }
+
+  image.setAttribute('loading', image.getAttribute('loading') || 'lazy');
+  image.setAttribute('decoding', image.getAttribute('decoding') || 'async');
+  image.setAttribute('referrerpolicy', 'no-referrer');
+  image.removeAttribute('srcset');
+  image.removeAttribute('data-src');
+  image.removeAttribute('data-original');
+  image.removeAttribute('data-lazy-src');
+  image.removeAttribute('data-actualsrc');
+  image.removeAttribute('data-url');
+}
+
+function retryCapturedImage(image: HTMLImageElement) {
+  if (image.naturalWidth > 0 || image.getAttribute(CAPTURED_FRAME_IMAGE_RETRY_ATTR) === 'true') return;
+  const src = image.currentSrc || image.getAttribute('src') || '';
+  if (!src || src.startsWith('data:') || src.startsWith('blob:')) return;
+
+  try {
+    const url = new URL(src, window.location.href);
+    url.searchParams.set('_storing_retry', String(Date.now()));
+    image.setAttribute(CAPTURED_FRAME_IMAGE_RETRY_ATTR, 'true');
+    image.src = url.toString();
+  } catch {
+    image.setAttribute(CAPTURED_FRAME_IMAGE_RETRY_ATTR, 'true');
+    image.src = src;
+  }
 }
 
 function CapturedArticleFrame({ html, title }: { html: string; title?: string | null }) {
@@ -274,9 +333,16 @@ function CapturedArticleFrame({ html, title }: { html: string; title?: string | 
     }
 
     Array.from(doc.images).forEach((image) => {
+      normalizeCapturedImage(image);
+      if (image.complete && image.naturalWidth === 0) {
+        retryCapturedImage(image);
+      }
       if (image.complete) return;
       image.addEventListener('load', updateHeight, { once: true });
-      image.addEventListener('error', updateHeight, { once: true });
+      image.addEventListener('error', () => {
+        retryCapturedImage(image);
+        updateHeight();
+      }, { once: true });
     });
 
     window.setTimeout(updateHeight, 120);
@@ -312,7 +378,8 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   const scrollPositionRef = useRef(0);
   const contentRef = useRef<HTMLDivElement>(null);
   const appliedSharedScrollRef = useRef<string | null>(null);
-  const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const dragStateRef = useRef<{ pointerId: number; handle: HTMLButtonElement; startX: number; startWidth: number } | null>(null);
+  const cleanupResizeDragRef = useRef<(() => void) | null>(null);
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
   const [detailPanelWidth, setDetailPanelWidth] = useState(DETAIL_PANEL_DEFAULT_WIDTH);
@@ -448,6 +515,10 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
     return () => window.removeEventListener('resize', handleResize);
   }, [isDesktop]);
 
+  useEffect(() => {
+    return () => cleanupResizeDragRef.current?.();
+  }, []);
+
   const currentDetailPanelWidth = isDetailPanelFullscreen
     ? (typeof window === 'undefined' ? '100vw' : `${window.innerWidth}px`)
     : `${detailPanelWidth}px`;
@@ -457,7 +528,17 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
     event.preventDefault();
     event.stopPropagation();
 
+    cleanupResizeDragRef.current?.();
+    const handle = event.currentTarget;
+    try {
+      handle.setPointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture can fail if the browser has already cancelled the pointer.
+    }
+
     dragStateRef.current = {
+      pointerId: event.pointerId,
+      handle,
       startX: event.clientX,
       startWidth: isDetailPanelFullscreen ? window.innerWidth : detailPanelWidth,
     };
@@ -466,6 +547,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
     const handlePointerMove = (moveEvent: PointerEvent) => {
       const state = dragStateRef.current;
       if (!state) return;
+      if (moveEvent.pointerId !== state.pointerId) return;
 
       const maxWidth = Math.max(DETAIL_PANEL_MIN_WIDTH, window.innerWidth - 96);
       const nextWidth = state.startWidth + (state.startX - moveEvent.clientX);
@@ -473,12 +555,30 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
       setDetailPanelWidth(Math.min(Math.max(nextWidth, DETAIL_PANEL_MIN_WIDTH), maxWidth));
     };
 
-    const handlePointerUp = () => {
+    const finishResize = (finishEvent?: Event) => {
+      const state = dragStateRef.current;
+      if (
+        state
+        && finishEvent instanceof PointerEvent
+        && finishEvent.pointerId !== state.pointerId
+      ) {
+        return;
+      }
       dragStateRef.current = null;
       setIsResizingDetailPanel(false);
+      cleanupResizeDragRef.current = null;
       window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('pointercancel', handlePointerUp);
+      window.removeEventListener('pointerup', finishResize);
+      window.removeEventListener('pointercancel', finishResize);
+      window.removeEventListener('blur', finishResize);
+      handle.removeEventListener('lostpointercapture', finishResize);
+      if (state?.handle.hasPointerCapture?.(state.pointerId)) {
+        try {
+          state.handle.releasePointerCapture(state.pointerId);
+        } catch {
+          // The browser may already have released capture.
+        }
+      }
 
       setDetailPanelWidth((width) => {
         window.localStorage.setItem(DETAIL_PANEL_WIDTH_STORAGE_KEY, String(Math.round(width)));
@@ -487,8 +587,11 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
     };
 
     window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('pointercancel', handlePointerUp);
+    window.addEventListener('pointerup', finishResize);
+    window.addEventListener('pointercancel', finishResize);
+    window.addEventListener('blur', finishResize);
+    handle.addEventListener('lostpointercapture', finishResize);
+    cleanupResizeDragRef.current = finishResize;
   };
 
   const handleResizeDoubleClick = (event: ReactMouseEvent<HTMLButtonElement>) => {
