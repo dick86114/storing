@@ -5973,6 +5973,48 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   text-overflow: ellipsis;
 }
 
+.collect-job-url-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.collect-job-url-row .collect-job-url {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.collect-job-copy-button {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-top: 4px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in oklch, var(--surface) 82%, var(--accent-soft));
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.collect-job-copy-button:hover,
+.collect-job-copy-button:focus-visible {
+  border-color: color-mix(in oklch, var(--accent) 36%, var(--border));
+  color: var(--accent);
+  background: color-mix(in oklch, var(--accent-soft) 76%, var(--surface));
+}
+
+.collect-job-copy-button:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--accent) 28%, transparent);
+  outline-offset: 2px;
+}
+
 .collect-history-footer {
   display: flex;
   align-items: center;

@@ -2669,18 +2669,20 @@ function DetailContent({
             <div className="wiki-article-status-card">
               <div className="wiki-article-status-head">
                 <span><BookOutlined /> Wiki 知识库</span>
-                <button type="button" onClick={handleReindexWiki} disabled={!!pendingAction}>
-                  {pendingAction === 'wiki' ? '编译中' : '重新编译'}
-                </button>
+                {isAuthenticated && (
+                  <button type="button" onClick={handleReindexWiki} disabled={!!pendingAction}>
+                    {pendingAction === 'wiki' ? '编译中' : '重新编译'}
+                  </button>
+                )}
               </div>
               <p>
                 {wikiStatus?.status === 'indexed'
                   ? `已加入 Wiki${wikiStatus.pages?.length ? `，贡献到 ${wikiStatus.pages.length} 个页面。` : '。'}`
                   : wikiStatus?.status === 'failed'
-                    ? '编译失败，可重新编译。'
+                    ? (isAuthenticated ? '编译失败，可重新编译。' : '编译失败。')
                     : wikiStatus?.status === 'pending' || wikiStatus?.status === 'extracting'
                       ? '正在等待或执行 Wiki 编译。'
-                      : '尚未加入 Wiki，可手动编译。'}
+                      : (isAuthenticated ? '尚未加入 Wiki，可手动编译。' : '尚未加入 Wiki。')}
               </p>
               {wikiStatus?.pages?.length > 0 && (
                 <div className="wiki-article-page-links">

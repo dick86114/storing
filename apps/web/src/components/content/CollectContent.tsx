@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { ApiOutlined, CheckCircleOutlined, ClockCircleOutlined, CloudServerOutlined, CloudUploadOutlined, CodeSandboxOutlined, DeleteOutlined, DockerOutlined, EnterOutlined, ExclamationCircleOutlined, GlobalOutlined, LinkOutlined, LoadingOutlined, NodeIndexOutlined, ReloadOutlined } from '@ant-design/icons';
+import { ApiOutlined, CheckCircleOutlined, ClockCircleOutlined, CloudServerOutlined, CloudUploadOutlined, CodeSandboxOutlined, CopyOutlined, DeleteOutlined, DockerOutlined, EnterOutlined, ExclamationCircleOutlined, GlobalOutlined, LinkOutlined, LoadingOutlined, NodeIndexOutlined, ReloadOutlined } from '@ant-design/icons';
 import { api } from '@/lib/api';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useArticleContext } from '@/components/providers/ArticleContext';
+import { useToast } from '@/components/ui/Toast';
 
 type CollectJob = {
   id: number;
@@ -136,6 +137,28 @@ function validateCollectUrl(rawUrl: string) {
   return '';
 }
 
+async function copyTextToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', 'true');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+
+    try {
+      return document.execCommand('copy');
+    } finally {
+      textarea.remove();
+    }
+  }
+}
+
 interface CollectFormProps {
   compact?: boolean;
   onSubmitted?: (job: CollectJob) => void;
@@ -201,15 +224,24 @@ export function CollectForm({ compact = false, onSubmitted }: CollectFormProps) 
 function CollectJobCard({ job, onRetry, onDelete }: { job: CollectJob; onRetry?: (id: number) => void; onDelete?: (id: number) => void }) {
   const router = useRouter();
   const { openArticle } = useArticleContext();
+  const { showToast } = useToast();
   const canOpen = job.status === 'completed' && job.articleId;
   const canDelete = job.status !== 'running';
   const captureMeta = getCaptureMeta(job);
   const CaptureIcon = captureMeta.Icon;
+  const displayUrl = job.normalizedUrl || job.url;
 
   const handleOpenArticle = () => {
     if (!job.articleId) return;
     openArticle(job.articleId);
     router.push('/archive');
+  };
+
+  const handleCopyUrl = async () => {
+    if (!displayUrl) return;
+
+    const copied = await copyTextToClipboard(displayUrl);
+    showToast(copied ? '链接已复制' : '当前浏览器不允许复制链接');
   };
 
   return (
@@ -224,7 +256,14 @@ function CollectJobCard({ job, onRetry, onDelete }: { job: CollectJob; onRetry?:
           </span>
         </div>
         <p>{job.error || getJobLabel(job)}</p>
-        <div className="collect-job-url">{job.normalizedUrl}</div>
+        <div className="collect-job-url-row">
+          <div className="collect-job-url" title={displayUrl}>{displayUrl}</div>
+          {displayUrl && (
+            <button className="collect-job-copy-button" type="button" onClick={handleCopyUrl} aria-label="复制采集链接" title="复制链接">
+              <CopyOutlined />
+            </button>
+          )}
+        </div>
       </div>
       <div className="collect-job-actions">
         {canOpen && (
