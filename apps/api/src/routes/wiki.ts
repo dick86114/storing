@@ -81,7 +81,7 @@ wikiRoutes.get('/wiki/pages/:slug', optionalAuth, async (c) => {
   return c.json(page);
 });
 
-wikiRoutes.get('/wiki/articles/:id/status', requireAuth, async (c) => {
+wikiRoutes.get('/wiki/articles/:id/status', optionalAuth, async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.json({ error: { code: 'BAD_REQUEST', message: 'Invalid article id' } }, 400);
   return c.json(await getWikiArticleStatus(id));
