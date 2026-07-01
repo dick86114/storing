@@ -7,6 +7,7 @@ import {
   enqueueArticleForWiki,
   enqueuePageRebuild,
   askWiki,
+  deleteWikiAnswer,
   fileWikiAnswer,
   getWikiAnswers,
   getWikiArticleStatus,
@@ -140,6 +141,12 @@ wikiRoutes.post('/wiki/answers/:id/file', requireAuth, async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.json({ error: { code: 'BAD_REQUEST', message: 'Invalid answer id' } }, 400);
   return c.json(await fileWikiAnswer(id));
+});
+
+wikiRoutes.delete('/wiki/answers/:id', requireAuth, async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: { code: 'BAD_REQUEST', message: 'Invalid answer id' } }, 400);
+  return c.json(await deleteWikiAnswer(id));
 });
 
 wikiRoutes.post('/wiki/articles/:id/reindex', requireAuth, async (c) => {

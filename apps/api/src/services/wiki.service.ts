@@ -1912,6 +1912,20 @@ export async function getWikiAnswers(limit = 20) {
     .limit(Math.min(Math.max(limit, 1), 50));
 }
 
+export async function deleteWikiAnswer(answerId: number) {
+  await initWikiSchema();
+  const [deleted] = await db
+    .delete(wikiAnswers)
+    .where(eq(wikiAnswers.id, answerId))
+    .returning({ id: wikiAnswers.id });
+  if (!deleted) throw new Error('问答记录不存在。');
+  await appendWikiLog('qa_deleted', `删除问答记录 #${answerId}`, {
+    details: `answerId=${answerId}`,
+    payload: { answerId },
+  });
+  return { answerId, deleted: true };
+}
+
 export async function askWiki(question: string, history: WikiAskHistoryItem[] = []) {
   await initWikiSchema();
   const cleanQuestion = question.trim();

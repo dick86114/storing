@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, PointerEvent, ReactNode } from 'react';
 import useSWR from 'swr';
-import { ArrowLeftOutlined, ArrowsAltOutlined, BookOutlined, BranchesOutlined, ClockCircleOutlined, ClusterOutlined, DatabaseOutlined, DownloadOutlined, FileSearchOutlined, FileTextOutlined, LinkOutlined, MessageOutlined, ReloadOutlined, RobotOutlined, SaveOutlined, SearchOutlined, SendOutlined, ShrinkOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, ArrowsAltOutlined, BookOutlined, BranchesOutlined, ClockCircleOutlined, ClusterOutlined, CopyOutlined, DatabaseOutlined, DeleteOutlined, DownloadOutlined, FileSearchOutlined, FileTextOutlined, HistoryOutlined, LinkOutlined, MessageOutlined, PlusOutlined, ReloadOutlined, RobotOutlined, SaveOutlined, SearchOutlined, SendOutlined, ShrinkOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useArticleContext } from '@/components/providers/ArticleContext';
 import { api } from '@/lib/api';
@@ -340,9 +340,17 @@ function WikiAskDock({
   isAsking,
   isFiling,
   filingAnswerId,
+  isDeleting,
+  deletingAnswerId,
+  copiedAnswerId,
+  historyCount,
   error,
   onAsk,
+  onCopy,
   onFile,
+  onNewConversation,
+  onShowHistory,
+  onRequestDelete,
   onOpenSource,
 }: {
   open: boolean;
@@ -355,9 +363,17 @@ function WikiAskDock({
   isAsking?: boolean;
   isFiling?: boolean;
   filingAnswerId?: number | null;
+  isDeleting?: boolean;
+  deletingAnswerId?: number | null;
+  copiedAnswerId?: number | null;
+  historyCount?: number;
   error?: string | null;
   onAsk: (event: FormEvent) => void;
+  onCopy: (answer: WikiAnswer) => void;
   onFile: (answer: WikiAnswer) => void;
+  onNewConversation: () => void;
+  onShowHistory: () => void;
+  onRequestDelete: (answer: WikiAnswer) => void;
   onOpenSource: (id: number) => void;
 }) {
   const latestCount = answers.length;
@@ -429,6 +445,24 @@ function WikiAskDock({
         <div className="wiki-ask-dock-actions">
           <button
             type="button"
+            onClick={onShowHistory}
+            aria-label="查看历史"
+            title="查看历史"
+          >
+            <HistoryOutlined />
+            <span>历史{historyCount ? ` ${historyCount}` : ''}</span>
+          </button>
+          <button
+            type="button"
+            onClick={onNewConversation}
+            aria-label="新建对话"
+            title="新建对话"
+          >
+            <PlusOutlined />
+            <span>新建</span>
+          </button>
+          <button
+            type="button"
             className="wiki-ask-expand-toggle"
             onClick={() => setExpanded(!expanded)}
             aria-label={expanded ? '缩小问知识库' : '放大问知识库'}
@@ -457,15 +491,38 @@ function WikiAskDock({
                 <div className="wiki-answer-card">
                   <div className="wiki-answer-head">
                     <span>回答 #{answer.id}</span>
-                    <button
-                      type="button"
-                      className="wiki-secondary-action"
-                      onClick={() => onFile(answer)}
-                      disabled={isFiling || answer.status === 'filed' || Boolean(answer.filedPageId || answer.filed_page_id)}
-                    >
-                      {isFiling && filingAnswerId === answer.id ? <SyncOutlined spin /> : <SaveOutlined />}
-                      {answer.status === 'filed' || answer.filedPageId || answer.filed_page_id ? '已沉淀' : '沉淀'}
-                    </button>
+                    <div className="wiki-answer-head-actions">
+                      <button
+                        type="button"
+                        className="wiki-secondary-action"
+                        onClick={() => onCopy(answer)}
+                        aria-label={`复制回答 #${answer.id}`}
+                        title="复制回答"
+                      >
+                        <CopyOutlined />
+                        <span>{copiedAnswerId === answer.id ? '已复制' : '复制'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="wiki-secondary-action"
+                        onClick={() => onFile(answer)}
+                        disabled={isFiling || answer.status === 'filed' || Boolean(answer.filedPageId || answer.filed_page_id)}
+                      >
+                        {isFiling && filingAnswerId === answer.id ? <SyncOutlined spin /> : <SaveOutlined />}
+                        {answer.status === 'filed' || answer.filedPageId || answer.filed_page_id ? '已沉淀' : '沉淀'}
+                      </button>
+                      <button
+                        type="button"
+                        className="wiki-secondary-action wiki-danger-inline-action"
+                        onClick={() => onRequestDelete(answer)}
+                        disabled={isDeleting}
+                        aria-label={`删除回答 #${answer.id}`}
+                        title="删除这条记录"
+                      >
+                        {isDeleting && deletingAnswerId === answer.id ? <SyncOutlined spin /> : <DeleteOutlined />}
+                        <span>删除</span>
+                      </button>
+                    </div>
                   </div>
                   <MarkdownAnswer text={answer.answer} citations={citations} onOpenSource={onOpenSource} />
                   {citations.length > 0 && (
@@ -566,9 +623,14 @@ export function WikiHomeContent() {
   const [askQuestion, setAskQuestion] = useState('');
   const [askAnswers, setAskAnswers] = useState<WikiAnswer[]>([]);
   const [askError, setAskError] = useState<string | null>(null);
+  const [askUsesHistory, setAskUsesHistory] = useState(true);
   const [isAsking, setIsAsking] = useState(false);
   const [isFilingAnswer, setIsFilingAnswer] = useState(false);
   const [filingAnswerId, setFilingAnswerId] = useState<number | null>(null);
+  const [isDeletingAnswer, setIsDeletingAnswer] = useState(false);
+  const [deletingAnswerId, setDeletingAnswerId] = useState<number | null>(null);
+  const [copiedAnswerId, setCopiedAnswerId] = useState<number | null>(null);
+  const [deleteAnswerConfirm, setDeleteAnswerConfirm] = useState<WikiAnswer | null>(null);
   const [updateConfirmOpen, setUpdateConfirmOpen] = useState(false);
   const [rebuildConfirmOpen, setRebuildConfirmOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
@@ -594,11 +656,15 @@ export function WikiHomeContent() {
     { revalidateOnFocus: false }
   );
   const activeTypeMeta = WIKI_TYPES.find((item) => item.key === activeType) ?? WIKI_TYPES[0];
+  const recentAnswerHistory = useMemo(
+    () => ((answerHistory?.answers ?? []) as WikiAnswer[]).slice().reverse(),
+    [answerHistory]
+  );
 
   useEffect(() => {
-    const answers = (answerHistory?.answers ?? []) as WikiAnswer[];
-    setAskAnswers(answers.slice().reverse());
-  }, [answerHistory]);
+    if (!askUsesHistory) return;
+    setAskAnswers(recentAnswerHistory);
+  }, [answerHistory, askUsesHistory, recentAnswerHistory]);
 
   const typeCount = (type: string) => {
     if (type === 'all') return status?.pages ?? 0;
@@ -710,6 +776,7 @@ export function WikiHomeContent() {
     if (question.length < 2 || isAsking) return;
     setIsAsking(true);
     setAskError(null);
+    setAskUsesHistory(false);
     try {
       const history = askAnswers.slice(-5).map((item) => ({ question: item.question, answer: item.answer }));
       const result = await api.askWiki(question, history);
@@ -741,6 +808,53 @@ export function WikiHomeContent() {
     } finally {
       setIsFilingAnswer(false);
       setFilingAnswerId(null);
+    }
+  };
+
+  const handleNewAskConversation = () => {
+    setAskUsesHistory(false);
+    setAskAnswers([]);
+    setAskQuestion('');
+    setAskError(null);
+  };
+
+  const handleShowAskHistory = async () => {
+    setAskUsesHistory(true);
+    setAskError(null);
+    setAskAnswers(recentAnswerHistory);
+    await mutateAnswerHistory();
+  };
+
+  const handleCopyAnswer = async (answer: WikiAnswer) => {
+    if (!answer?.answer) return;
+    setAskError(null);
+    try {
+      await navigator.clipboard.writeText(answer.answer);
+      setCopiedAnswerId(answer.id);
+      window.setTimeout(() => {
+        setCopiedAnswerId((current) => current === answer.id ? null : current);
+      }, 1600);
+    } catch (error: any) {
+      setAskError(error?.message || '复制回答失败');
+    }
+  };
+
+  const handleDeleteAnswer = async () => {
+    const answer = deleteAnswerConfirm;
+    if (!answer || isDeletingAnswer) return;
+    setIsDeletingAnswer(true);
+    setDeletingAnswerId(answer.id);
+    setAskError(null);
+    try {
+      await api.deleteWikiAnswer(answer.id);
+      setAskAnswers((items) => items.filter((item) => item.id !== answer.id));
+      setDeleteAnswerConfirm(null);
+      await mutateAnswerHistory();
+    } catch (error: any) {
+      setAskError(error?.message || '删除问答记录失败');
+    } finally {
+      setIsDeletingAnswer(false);
+      setDeletingAnswerId(null);
     }
   };
 
@@ -1081,9 +1195,17 @@ export function WikiHomeContent() {
           isAsking={isAsking}
           isFiling={isFilingAnswer}
           filingAnswerId={filingAnswerId}
+          isDeleting={isDeletingAnswer}
+          deletingAnswerId={deletingAnswerId}
+          copiedAnswerId={copiedAnswerId}
+          historyCount={recentAnswerHistory.length}
           error={askError}
           onAsk={handleAskWiki}
+          onCopy={handleCopyAnswer}
           onFile={handleFileAnswer}
+          onNewConversation={handleNewAskConversation}
+          onShowHistory={handleShowAskHistory}
+          onRequestDelete={setDeleteAnswerConfirm}
           onOpenSource={openArticle}
         />
       )}
@@ -1132,6 +1254,32 @@ export function WikiHomeContent() {
               <button type="button" className="wiki-primary-action wiki-danger-action" onClick={handleRebuildAll} disabled={isRebuildingAll}>
                 {isRebuildingAll ? <SyncOutlined spin /> : <ReloadOutlined />}
                 {isRebuildingAll ? '重建中' : '确认重建'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {isAuthenticated && deleteAnswerConfirm && (
+        <div className="wiki-confirm-overlay" role="presentation" onMouseDown={() => !isDeletingAnswer && setDeleteAnswerConfirm(null)}>
+          <section
+            className="wiki-confirm-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="wiki-delete-answer-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="wiki-eyebrow"><DeleteOutlined /> 问答记录</div>
+            <h2 id="wiki-delete-answer-title">删除这条记录</h2>
+            <p>这只会删除当前问答历史记录，不会删除已经沉淀生成的 Wiki 页面。</p>
+            <div className="wiki-confirm-preview">{deleteAnswerConfirm.question}</div>
+            <div className="wiki-confirm-actions">
+              <button type="button" className="wiki-secondary-action" onClick={() => setDeleteAnswerConfirm(null)} disabled={isDeletingAnswer}>
+                取消
+              </button>
+              <button type="button" className="wiki-primary-action wiki-danger-action" onClick={handleDeleteAnswer} disabled={isDeletingAnswer}>
+                {isDeletingAnswer ? <SyncOutlined spin /> : <DeleteOutlined />}
+                {isDeletingAnswer ? '删除中' : '确认删除'}
               </button>
             </div>
           </section>

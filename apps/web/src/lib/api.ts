@@ -189,6 +189,9 @@ export const api = {
   fileWikiAnswer: (id: number) =>
     fetchJSON<any>(`/wiki/answers/${id}/file`, { method: 'POST', timeoutMs: 120000 }),
 
+  deleteWikiAnswer: (id: number) =>
+    fetchJSON<any>(`/wiki/answers/${id}`, { method: 'DELETE', timeoutMs: 30000 }),
+
   reindexWikiArticle: (id: number) =>
     fetchJSON<any>(`/wiki/articles/${id}/reindex`, { method: 'POST', timeoutMs: 120000 }),
 

@@ -91,10 +91,11 @@ function preserveInlineArticleVisualStyles(root: Element) {
   ];
 
   root.querySelectorAll<HTMLElement>('[style]').forEach((element) => {
+    const inlineBackground = element.style.getPropertyValue('background');
+    const inlineBackgroundImage = element.style.getPropertyValue('background-image');
     const hasInlineBackground = Boolean(
-      element.style.getPropertyValue('background')
-      || element.style.getPropertyValue('background-image')
-      || element.style.getPropertyValue('background-color')
+      inlineBackgroundImage && inlineBackgroundImage !== 'none'
+      || /(?:linear-gradient|radial-gradient|url\()/i.test(inlineBackground)
     );
 
     if (!hasInlineBackground) return;
