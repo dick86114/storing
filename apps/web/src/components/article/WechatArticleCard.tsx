@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, FieldTimeOutlined, RobotOutlined, WechatOutlined, GlobalOutlined } from '@ant-design/icons';
+import { MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, FieldTimeOutlined, RobotOutlined } from '@ant-design/icons';
 import { DateText } from '@/lib/formatDate';
+import { getArticleSourceIcon, getArticleSourceText } from '@/components/article/articleSourceIcon';
 import type { ArticleListItem } from '@storing/shared';
 
 interface WechatArticleCardProps {
@@ -16,13 +17,6 @@ interface WechatArticleCardProps {
   featured?: boolean;
 }
 
-function getArticleSourceKind(article: ArticleListItem): 'wechat' | 'web' {
-  const originalUrl = article.originalUrl || '';
-  if (/mp\.weixin\.qq\.com|weixin\.qq\.com/i.test(originalUrl)) return 'wechat';
-  if (/微信|公众号/.test(article.source || '')) return 'wechat';
-  return 'web';
-}
-
 export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchive, showMenu = true, highlight, featured = false }: WechatArticleCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuWrapRef = useRef<HTMLDivElement>(null);
@@ -30,9 +24,9 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
   const summary = article.aiSummary?.trim() || article.summary?.trim();
   const displayTime = article.publishTime || (article.isArchived ? article.archivedAt || null : null);
   const displayTimeLabel = article.publishTime ? '发布时间' : article.isArchived && article.archivedAt ? '归档时间' : '发布时间';
-  const sourceKind = getArticleSourceKind(article);
-  const SourceIcon = sourceKind === 'wechat' ? WechatOutlined : GlobalOutlined;
-  const sourceText = article.source || article.author || '未知来源';
+  const sourceIcon = getArticleSourceIcon(article);
+  const SourceIcon = sourceIcon.Icon;
+  const sourceText = getArticleSourceText(article);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -253,7 +247,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
         {/* 第三行：来源 + 发布时间 */}
         <div className="article-card-footer" style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '12px', color: 'var(--text-muted)' }}>
           <span
-            title={sourceKind === 'wechat' ? `微信来源：${sourceText}` : `网页来源：${sourceText}`}
+            title={`${sourceIcon.titlePrefix}：${sourceText}`}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', minWidth: 0 }}
           >
             <SourceIcon
@@ -261,7 +255,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
               style={{
                 fontSize: '13px',
                 flexShrink: 0,
-                color: sourceKind === 'wechat' ? 'oklch(0.62 0.18 154)' : 'var(--text-muted)',
+                color: sourceIcon.color,
               }}
             />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sourceText}</span>
