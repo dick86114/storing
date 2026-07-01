@@ -1,12 +1,67 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { api } from '@/lib/api';
+import {
+  getArticleContentCacheKey,
+  readCachedArticleContent,
+  writeCachedArticleContent,
+} from '@/lib/articleContentCache';
+
+type ArticleCacheState = {
+  key: string | null;
+  data: any;
+  ready: boolean;
+};
 
 export function useArticle(id: number | null, format: 'markdown' | 'html' = 'html') {
-  return useSWR(id ? `article:${id}:${format}` : null, () => api.getArticle(id!, format), {
-    revalidateOnFocus: false,
+  const key = useMemo(() => (id ? getArticleContentCacheKey(id, format) : null), [id, format]);
+  const [cacheState, setCacheState] = useState<ArticleCacheState>({
+    key: null,
+    data: null,
+    ready: !id,
   });
+  const cachedArticle = cacheState.key === key ? cacheState.data : null;
+  const isCacheReady = !key || (cacheState.key === key && cacheState.ready);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!key) {
+      setCacheState({ key: null, data: null, ready: true });
+      return;
+    }
+
+    setCacheState({ key, data: null, ready: false });
+    readCachedArticleContent(key)
+      .then((cached) => {
+        if (cancelled) return;
+        setCacheState({ key, data: cached, ready: true });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCacheState({ key, data: null, ready: true });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [key]);
+
+  return useSWR(
+    key && isCacheReady ? key : null,
+    async () => {
+      const article = await api.getArticle(id!, format);
+      void writeCachedArticleContent(key!, article);
+      return article;
+    },
+    {
+      fallbackData: cachedArticle ?? undefined,
+      revalidateOnMount: !cachedArticle,
+      revalidateOnFocus: false,
+    }
+  );
 }
 
 export function useArticleMeta(id: number | null) {

@@ -6,7 +6,7 @@ import { useSWRConfig } from 'swr';
 import useSWR from 'swr';
 import html2canvas from 'html2canvas';
 import QRCode from 'qrcode';
-import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, LinkOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, DeleteOutlined, UpOutlined, DownOutlined, ExclamationCircleOutlined, CloseOutlined, BookOutlined } from '@ant-design/icons';
+import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, DeleteOutlined, UpOutlined, DownOutlined, ExclamationCircleOutlined, CloseOutlined, BookOutlined } from '@ant-design/icons';
 import { useArticle, useArticleMeta } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/providers/AuthContext';
@@ -15,6 +15,7 @@ import { api } from '@/lib/api';
 import { useBookmark } from '@/hooks/useBookmark';
 import { BookmarkButton } from '@/components/ui/BookmarkButton';
 import { useTheme, type ColorScheme } from '@/components/providers/ThemeProvider';
+import { getArticleSourceIcon, getArticleSourceText } from '@/components/article/articleSourceIcon';
 import type { ArticleListMutation } from '@/components/providers/ArticleContext';
 
 const DETAIL_PANEL_DEFAULT_WIDTH = 750;
@@ -77,6 +78,25 @@ function isLeadingPromoBlock(element: Element) {
 
 function getArticleDisplayTime(article: any) {
   return article?.publishTime || (article?.isArchived ? article?.archivedAt || null : null);
+}
+
+function preserveInlineArticleVisualStyles(root: Element) {
+  const visualStyleProps = [
+    'background',
+    'background-color',
+    'background-image',
+    'background-position',
+    'background-size',
+    'background-repeat',
+    'color',
+  ];
+
+  root.querySelectorAll<HTMLElement>('[style]').forEach((element) => {
+    visualStyleProps.forEach((property) => {
+      const value = element.style.getPropertyValue(property);
+      if (value) element.style.setProperty(property, value, 'important');
+    });
+  });
 }
 
 function removeCapturedPageChrome(root: Document | Element) {
@@ -197,6 +217,8 @@ function getReadableArticleHtml(html: string) {
   while (contentRoot.firstElementChild && !isMeaningfulContentElement(contentRoot.firstElementChild)) {
     contentRoot.firstElementChild.remove();
   }
+
+  preserveInlineArticleVisualStyles(contentRoot);
 
   return contentRoot.innerHTML.trim() || html;
 }
@@ -2163,6 +2185,10 @@ function DetailContent({
   const [currentView, setCurrentView] = useState<ArticleView>('archive');
   const originalUrl = article?.originalUrl || fallbackArticle?.originalUrl || '';
   const originalLinkStatus = articleError ? '原文链接暂时不可用' : '原文链接加载中';
+  const sourceArticle = article || fallbackArticle;
+  const sourceIcon = getArticleSourceIcon(sourceArticle);
+  const SourceIcon = sourceIcon.Icon;
+  const sourceText = getArticleSourceText(sourceArticle);
   const { data: wikiStatus, mutate: mutateWikiStatus } = useSWR(
     article?.id && article?.isArchived ? `wiki:article:${article.id}` : null,
     () => api.getWikiArticleStatus(article.id),
@@ -2720,6 +2746,7 @@ function DetailContent({
             href={originalUrl}
             target="_blank"
             rel="noopener noreferrer"
+            title={`${sourceIcon.titlePrefix}：${sourceText}`}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -2729,7 +2756,13 @@ function DetailContent({
               fontSize: '14px',
             }}
           >
-            <LinkOutlined style={{ fontSize: '18px' }} />
+            <SourceIcon
+              aria-hidden="true"
+              style={{
+                fontSize: '18px',
+                color: sourceIcon.color === 'var(--text-muted)' ? 'var(--accent)' : sourceIcon.color,
+              }}
+            />
             阅读原文
           </a>
         ) : (
