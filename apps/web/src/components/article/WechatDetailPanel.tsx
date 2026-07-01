@@ -81,21 +81,31 @@ function getArticleDisplayTime(article: any) {
 }
 
 function preserveInlineArticleVisualStyles(root: Element) {
-  const visualStyleProps = [
+  const backgroundStyleProps = [
     'background',
     'background-color',
     'background-image',
     'background-position',
     'background-size',
     'background-repeat',
-    'color',
   ];
 
   root.querySelectorAll<HTMLElement>('[style]').forEach((element) => {
-    visualStyleProps.forEach((property) => {
+    const hasInlineBackground = Boolean(
+      element.style.getPropertyValue('background')
+      || element.style.getPropertyValue('background-image')
+      || element.style.getPropertyValue('background-color')
+    );
+
+    if (!hasInlineBackground) return;
+
+    backgroundStyleProps.forEach((property) => {
       const value = element.style.getPropertyValue(property);
       if (value) element.style.setProperty(property, value, 'important');
     });
+
+    const color = element.style.getPropertyValue('color');
+    if (color) element.style.setProperty('color', color, 'important');
   });
 }
 
