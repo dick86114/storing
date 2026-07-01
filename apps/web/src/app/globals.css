@@ -959,7 +959,8 @@ h4 {
 }
 
 .detail-panel-resize-handle--fullscreen {
-  left: -8px;
+  left: 0;
+  width: 28px;
 }
 
 .detail-panel-resize-handle::before {
@@ -11446,6 +11447,25 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
   font-size: 13px;
 }
 
+.wiki-answer-head-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wiki-danger-inline-action {
+  color: var(--danger);
+  border-color: color-mix(in oklch, var(--danger) 34%, var(--border));
+}
+
+.wiki-danger-inline-action:hover {
+  color: white;
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
 .wiki-answer-text {
   display: grid;
   gap: 10px;
@@ -11561,14 +11581,14 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
 .wiki-ask-dock {
   position: fixed;
   right: max(24px, env(safe-area-inset-right));
-  bottom: max(24px, env(safe-area-inset-bottom));
+  bottom: max(92px, calc(24px + env(safe-area-inset-bottom)));
   z-index: 80;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto auto;
   width: min(460px, calc(100vw - 48px));
   min-width: 360px;
   min-height: 420px;
-  max-height: min(720px, calc(100vh - 96px));
+  max-height: min(720px, calc(100vh - 160px));
   border: 1px solid var(--border);
   border-radius: 22px;
   overflow: hidden;
@@ -11615,8 +11635,8 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
 
 .wiki-ask-dock-expanded {
   width: min(920px, calc(100vw - 64px));
-  height: min(760px, calc(100vh - 72px));
-  max-height: calc(100vh - 72px);
+  height: min(760px, calc(100vh - 144px));
+  max-height: calc(100vh - 144px);
 }
 
 .wiki-ask-dock-head {
@@ -11930,6 +11950,21 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
   margin: 0;
   color: var(--text-secondary);
   line-height: 1.75;
+}
+
+.wiki-confirm-preview {
+  display: -webkit-box;
+  margin-top: 12px;
+  padding: 10px 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  background: color-mix(in oklch, var(--surface) 78%, transparent);
+  font-size: 13px;
+  line-height: 1.6;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 .wiki-confirm-actions {
