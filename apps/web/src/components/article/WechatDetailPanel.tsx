@@ -20,7 +20,6 @@ import type { ArticleListMutation } from '@/components/providers/ArticleContext'
 const DETAIL_PANEL_DEFAULT_WIDTH = 750;
 const DETAIL_PANEL_MIN_WIDTH = 560;
 const DETAIL_PANEL_WIDTH_STORAGE_KEY = 'storing:detail-panel-width';
-const CAPTURED_FRAME_IMAGE_RETRY_ATTR = 'data-storing-retried';
 
 interface WechatDetailPanelProps {
   articleId: number | null;
@@ -211,28 +210,13 @@ function createCapturedFrameHtml(html: string) {
   if (typeof document === 'undefined' || !html.trim()) return html;
 
   const parsed = new DOMParser().parseFromString(html, 'text/html');
-  parsed.querySelectorAll('script,noscript,iframe,frame,object,embed').forEach((node) => node.remove());
   parsed
-    .querySelectorAll(
-      [
-        'ins.adsbygoogle',
-        '.adsbygoogle',
-        '[id*="google_ads"]',
-        '[id*="googlefc"]',
-        '[class*="google-auto-placed"]',
-        '[name="__tcfapiLocator"]',
-        '[name="__uspapiLocator"]',
-        '[name="__gppLocator"]',
-        '[name="googlefcInactive"]',
-        '[name="googlefcLoaded"]',
-      ].join(',')
-    )
+    .querySelectorAll('meta[http-equiv="content-security-policy" i]')
     .forEach((node) => node.remove());
   parsed.querySelectorAll('a[href]').forEach((link) => {
     link.setAttribute('target', '_blank');
     link.setAttribute('rel', 'noopener noreferrer');
   });
-  parsed.querySelectorAll('img').forEach((image) => normalizeCapturedImage(image));
 
   let base = parsed.head.querySelector('base');
   if (!base) {
@@ -240,14 +224,20 @@ function createCapturedFrameHtml(html: string) {
     parsed.head.prepend(base);
   }
   base.setAttribute('target', '_blank');
+  parsed.querySelectorAll('img').forEach((image) => normalizeCapturedImage(image));
 
   const style = parsed.createElement('style');
   style.setAttribute('data-storing-frame-guard', 'true');
   style.textContent = `
     html, body { min-height: 0 !important; }
     body { margin: 0; overflow-x: hidden; }
-    img, video, canvas, svg { max-width: 100%; }
-    img { height: auto; }
+    img, video, canvas, svg {
+      display: block !important;
+      max-width: 100% !important;
+      height: auto !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+    }
   `;
   parsed.head.append(style);
 
@@ -267,7 +257,7 @@ function normalizeCapturedImage(image: HTMLImageElement) {
     image.setAttribute('src', `https:${currentSrc}`);
   }
 
-  image.setAttribute('loading', image.getAttribute('loading') || 'lazy');
+  image.setAttribute('loading', 'eager');
   image.setAttribute('decoding', image.getAttribute('decoding') || 'async');
   image.setAttribute('referrerpolicy', 'no-referrer');
   image.removeAttribute('srcset');
@@ -276,22 +266,6 @@ function normalizeCapturedImage(image: HTMLImageElement) {
   image.removeAttribute('data-lazy-src');
   image.removeAttribute('data-actualsrc');
   image.removeAttribute('data-url');
-}
-
-function retryCapturedImage(image: HTMLImageElement) {
-  if (image.naturalWidth > 0 || image.getAttribute(CAPTURED_FRAME_IMAGE_RETRY_ATTR) === 'true') return;
-  const src = image.currentSrc || image.getAttribute('src') || '';
-  if (!src || src.startsWith('data:') || src.startsWith('blob:')) return;
-
-  try {
-    const url = new URL(src, window.location.href);
-    url.searchParams.set('_storing_retry', String(Date.now()));
-    image.setAttribute(CAPTURED_FRAME_IMAGE_RETRY_ATTR, 'true');
-    image.src = url.toString();
-  } catch {
-    image.setAttribute(CAPTURED_FRAME_IMAGE_RETRY_ATTR, 'true');
-    image.src = src;
-  }
 }
 
 function CapturedArticleFrame({ html, title }: { html: string; title?: string | null }) {
@@ -333,16 +307,9 @@ function CapturedArticleFrame({ html, title }: { html: string; title?: string | 
     }
 
     Array.from(doc.images).forEach((image) => {
-      normalizeCapturedImage(image);
-      if (image.complete && image.naturalWidth === 0) {
-        retryCapturedImage(image);
-      }
       if (image.complete) return;
       image.addEventListener('load', updateHeight, { once: true });
-      image.addEventListener('error', () => {
-        retryCapturedImage(image);
-        updateHeight();
-      }, { once: true });
+      image.addEventListener('error', updateHeight, { once: true });
     });
 
     window.setTimeout(updateHeight, 120);
