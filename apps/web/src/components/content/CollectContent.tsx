@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { ApiOutlined, CheckCircleOutlined, ClockCircleOutlined, CloudServerOutlined, CloudUploadOutlined, CodeSandboxOutlined, CopyOutlined, DeleteOutlined, DockerOutlined, EnterOutlined, ExclamationCircleOutlined, GlobalOutlined, LinkOutlined, LoadingOutlined, NodeIndexOutlined, ReloadOutlined } from '@ant-design/icons';
@@ -24,6 +25,10 @@ type CollectJob = {
   createdAt?: string;
   updatedAt?: string;
 };
+
+type CollectConfirmState =
+  | { kind: 'delete-job'; jobId: number; articleTitle: string }
+  | { kind: 'clear-finished' };
 
 const stageLabels: Record<string, string> = {
   queued: '排队中',
@@ -159,6 +164,78 @@ async function copyTextToClipboard(text: string) {
   }
 }
 
+function CollectConfirmDialog({
+  state,
+  loading,
+  onCancel,
+  onConfirm,
+}: {
+  state: CollectConfirmState;
+  loading: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const copy = state.kind === 'delete-job'
+    ? {
+        title: '删除采集记录',
+        body: `确定要处理《${state.articleTitle}》吗？`,
+        note: '这只会删除这条采集记录，不会删除已入库文章。',
+        confirmLabel: '删除记录',
+        loadingLabel: '删除中…',
+      }
+    : {
+        title: '清空采集记录',
+        body: '确定要清空已完成和失败的采集记录吗？',
+        note: '运行中的任务会保留，已入库文章不会被删除。',
+        confirmLabel: '清空记录',
+        loadingLabel: '清空中…',
+      };
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !loading) onCancel();
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [loading, onCancel]);
+
+  return createPortal(
+    <div
+      className="confirm-dialog-overlay"
+      role="presentation"
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !loading) onCancel();
+      }}
+    >
+      <section
+        className="confirm-dialog-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="collect-confirm-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="confirm-dialog-icon confirm-dialog-icon--danger" aria-hidden="true">
+          <ExclamationCircleOutlined />
+        </div>
+        <div className="confirm-dialog-content">
+          <h2 id="collect-confirm-title" className="confirm-dialog-title">{copy.title}</h2>
+          <p className="confirm-dialog-copy">{copy.body}</p>
+          <p className="confirm-dialog-note">{copy.note}</p>
+        </div>
+        <div className="confirm-dialog-actions">
+          <button className="confirm-dialog-button confirm-dialog-button--secondary" type="button" onClick={onCancel} disabled={loading}>
+            取消
+          </button>
+          <button className="confirm-dialog-button confirm-dialog-button--danger" type="button" onClick={onConfirm} disabled={loading}>
+            {loading ? copy.loadingLabel : copy.confirmLabel}
+          </button>
+        </div>
+      </section>
+    </div>,
+    document.body
+  );
+}
+
 interface CollectFormProps {
   compact?: boolean;
   onSubmitted?: (job: CollectJob) => void;
@@ -290,6 +367,8 @@ export function CollectContent() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
   const [visibleCount, setVisibleCount] = useState(12);
+  const [confirmState, setConfirmState] = useState<CollectConfirmState | null>(null);
+  const [pendingAction, setPendingAction] = useState<'delete-job' | 'clear-finished' | null>(null);
   const { data, mutate } = useSWR(isAuthenticated ? `collect:jobs:${visibleCount}` : null, () => api.getCollectJobs(visibleCount, 0), {
     refreshInterval: (latest) => {
       const jobs = latest?.jobs || [];
@@ -325,20 +404,48 @@ export function CollectContent() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('只删除这条采集记录，不会删除已入库文章。确定删除吗？')) return;
-    await api.deleteCollectJob(id);
-    mutate();
+    const job = jobs.find((item) => item.id === id);
+    setConfirmState({
+      kind: 'delete-job',
+      jobId: id,
+      articleTitle: job?.title || job?.normalizedUrl || job?.url || `采集记录 #${id}`,
+    });
   };
 
   const handleClearFinished = async () => {
-    if (!window.confirm('只清空已完成和失败的采集记录，运行中的任务会保留。确定清空吗？')) return;
-    await api.clearFinishedCollectJobs();
-    setVisibleCount(12);
-    mutate();
+    setConfirmState({ kind: 'clear-finished' });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmState) return;
+
+    const action = confirmState.kind;
+    setPendingAction(action);
+
+    try {
+      if (confirmState.kind === 'delete-job') {
+        await api.deleteCollectJob(confirmState.jobId);
+      } else {
+        await api.clearFinishedCollectJobs();
+        setVisibleCount(12);
+      }
+      setConfirmState(null);
+      mutate();
+    } finally {
+      setPendingAction(null);
+    }
   };
 
   return (
     <div className="collect-page-shell">
+      {confirmState && (
+        <CollectConfirmDialog
+          state={confirmState}
+          loading={pendingAction === confirmState.kind}
+          onCancel={() => setConfirmState(null)}
+          onConfirm={handleConfirmAction}
+        />
+      )}
       <section className="collect-entry">
         <div className="collect-entry-head">
           <span className="collect-kicker"><CloudUploadOutlined /> 手动采集</span>
