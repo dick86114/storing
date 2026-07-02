@@ -51,11 +51,15 @@ function normalizeUrl(rawUrl) {
   return url.toString();
 }
 
-function getSingleFileArgs(url, outputPath) {
+const desktopUserAgent =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+function getSingleFileArgs(url, outputPath, options = {}) {
+  const viewport = options.viewport || {};
   const args = [
     url,
     outputPath,
-    '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    `--user-agent=${options.userAgent || desktopUserAgent}`,
     '--browser-arg=--disable-blink-features=AutomationControlled',
     '--browser-arg=--no-sandbox',
     '--browser-arg=--disable-dev-shm-usage',
@@ -65,16 +69,19 @@ function getSingleFileArgs(url, outputPath) {
   if (browserExecutablePath) {
     args.push(`--browser-executable-path=${browserExecutablePath}`);
   }
+  if (Number.isFinite(viewport.width) && Number.isFinite(viewport.height)) {
+    args.push(`--browser-arg=--window-size=${viewport.width},${viewport.height}`);
+  }
   return args;
 }
 
-async function capturePage(rawUrl) {
+async function capturePage(rawUrl, options = {}) {
   const url = normalizeUrl(rawUrl);
   const dir = await mkdtemp(join(tmpdir(), 'storing-singlefile-'));
   const outputPath = join(dir, 'page.html');
 
   try {
-    const { stdout } = await execFileAsync(command, getSingleFileArgs(url, outputPath), {
+    const { stdout } = await execFileAsync(command, getSingleFileArgs(url, outputPath, options), {
       timeout: timeoutMs,
       maxBuffer,
       env: process.env,
@@ -100,7 +107,10 @@ const server = http.createServer(async (req, res) => {
 
   try {
     const body = await readJson(req);
-    const html = await capturePage(body.url);
+    const html = await capturePage(body.url, {
+      userAgent: typeof body.userAgent === 'string' ? body.userAgent : undefined,
+      viewport: body.viewport && typeof body.viewport === 'object' ? body.viewport : undefined,
+    });
     writeJson(res, 200, { html });
   } catch (e) {
     const message = e instanceof Error ? e.message : 'SingleFile 抓取失败';

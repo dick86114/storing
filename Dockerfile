@@ -36,6 +36,16 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 storing
 
+RUN apk add --no-cache \
+      ca-certificates \
+      chromium \
+      freetype \
+      harfbuzz \
+      nss \
+      ttf-freefont && \
+    npm install -g single-file-cli@latest && \
+    npm cache clean --force
+
 COPY --from=builder --chown=storing:nodejs /app/packages/shared/src ./packages/shared/src
 COPY --from=builder --chown=storing:nodejs /app/packages/shared/package.json ./packages/shared/
 
