@@ -14,7 +14,6 @@ import { useDoubleBackExit } from '@/hooks/useDoubleBackExit';
 import { InboxContent } from '@/components/content/InboxContent';
 import { FavoritesContent } from '@/components/content/FavoritesContent';
 import { ArchiveContent } from '@/components/content/ArchiveContent';
-import { QuickCollectButton } from '@/components/content/QuickCollectButton';
 
 const TAB_KEYS = ['inbox', 'favorites', 'archive', 'wiki', 'collect'];
 const TAB_LABELS: Record<string, string> = {
@@ -142,7 +141,6 @@ function MainContent({ children }: { children: ReactNode }) {
 
       {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} />}
       <WechatDetailPanel articleId={selectedId} onClose={closeArticle} onMutate={mutateList} isDesktop={!isMobile} />
-      {isAuthenticated && <QuickCollectButton />}
     </>
   );
 }
