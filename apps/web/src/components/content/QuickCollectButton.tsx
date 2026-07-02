@@ -15,14 +15,19 @@ type CollectJob = {
   articleId?: number | null;
   title?: string | null;
   error?: string | null;
+  errorSummary?: string | null;
+  errorDetails?: string[];
+  errorHint?: string | null;
 };
 
 const stageLabels: Record<string, string> = {
   queued: '排队中',
   starting: '准备采集',
   capturing: '抓取网页',
+  capturing_mobile: '抓取移动版网页',
   reader_fetch: '读取微信正文',
   uploading_images: '上传图片',
+  uploading_mobile_images: '上传移动版图片',
   saving: '写入归档',
   completed: '已入库',
   failed: '采集失败',
@@ -107,7 +112,19 @@ export function QuickCollectButton() {
         {job && (
           <div className={`quick-collect-status quick-collect-status--${job.status}`}>
             <strong>{job.title || stageLabels[job.stage] || '采集中'}</strong>
-            <p>{job.error || stageLabels[job.stage] || job.status}</p>
+            <p>{job.errorSummary || job.error || stageLabels[job.stage] || job.status}</p>
+            {job.status === 'failed' && (job.errorDetails?.length || job.errorHint) ? (
+              <div className="quick-collect-status-meta">
+                {job.errorDetails?.length ? (
+                  <ul>
+                    {job.errorDetails.map((detail, index) => (
+                      <li key={`${job.id}-detail-${index}`}>{detail}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                {job.errorHint ? <p>{job.errorHint}</p> : null}
+              </div>
+            ) : null}
             {job.status === 'completed' && job.articleId && (
               <button type="button" onClick={handleOpenArticle}>进入归档阅读</button>
             )}

@@ -9,6 +9,7 @@ import {
   prepareCapturedDocument,
   runSingleFile,
   uploadImagesInCapturedDocument,
+  validateCapturedHtml,
 } from './singlefile.service.js';
 
 // 文章抓取服务配置（从环境变量读取）
@@ -795,7 +796,10 @@ function isSingleFileCollectedArticle(article: {
 
 async function fetchSingleFileCaptureContent(originalUrl: string, variant: HtmlVariant) {
   const { html } = await runSingleFile(originalUrl, variant);
-  if (!html.trim()) return null;
+  const validation = validateCapturedHtml(html, originalUrl);
+  if (!validation.ok) {
+    throw new Error(validation.reason);
+  }
 
   const prepared = prepareCapturedDocument(html, originalUrl);
   return uploadImagesInCapturedDocument(prepared.html, originalUrl, uploadImage);

@@ -22,6 +22,9 @@ type CollectJob = {
   articleId?: number | null;
   title?: string | null;
   error?: string | null;
+  errorSummary?: string | null;
+  errorDetails?: string[];
+  errorHint?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -34,12 +37,38 @@ const stageLabels: Record<string, string> = {
   queued: '排队中',
   starting: '准备采集',
   capturing: '抓取网页',
+  capturing_mobile: '抓取移动版网页',
   reader_fetch: '读取微信正文',
   uploading_images: '上传图片',
+  uploading_mobile_images: '上传移动版图片',
   saving: '写入归档',
   completed: '已入库',
   failed: '采集失败',
 };
+
+function CollectJobStatusText({ job }: { job: CollectJob }) {
+  const details = job.errorDetails?.filter(Boolean) || [];
+  const summary = job.errorSummary || job.error || getJobLabel(job);
+  const hint = job.errorHint;
+
+  if (job.status !== 'failed') {
+    return <p>{summary}</p>;
+  }
+
+  return (
+    <div className="collect-job-status-block">
+      <p className="collect-job-status-summary">{summary}</p>
+      {details.length > 0 && (
+        <ul className="collect-job-status-details">
+          {details.map((detail, index) => (
+            <li key={`${job.id}-detail-${index}`}>{detail}</li>
+          ))}
+        </ul>
+      )}
+      {hint && <p className="collect-job-status-hint">{hint}</p>}
+    </div>
+  );
+}
 
 function getJobIcon(job: CollectJob) {
   if (job.status === 'completed') return <CheckCircleOutlined />;
@@ -332,7 +361,7 @@ function CollectJobCard({ job, onRetry, onDelete }: { job: CollectJob; onRetry?:
             <span>{captureMeta.label}</span>
           </span>
         </div>
-        <p>{job.error || getJobLabel(job)}</p>
+        <CollectJobStatusText job={job} />
         <div className="collect-job-url-row">
           <div className="collect-job-url" title={displayUrl}>{displayUrl}</div>
           {displayUrl && (
