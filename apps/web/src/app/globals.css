@@ -13112,6 +13112,83 @@ body.detail-panel-open .detail-panel.wechat-detail-panel:not(.mobile-detail-pane
   margin-bottom: 10px !important;
 }
 
+.detail-panel.wechat-detail-panel .detail-panel-content .detail-panel-meta.detail-panel-meta-wechat {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px !important;
+}
+
+.detail-panel.wechat-detail-panel .detail-panel-content .detail-panel-meta-wechat-avatar {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  color: var(--source-icon-color, var(--accent));
+  background:
+    linear-gradient(145deg, color-mix(in oklch, var(--source-icon-color, var(--accent)) 12%, white), color-mix(in oklch, var(--source-icon-color, var(--accent)) 22%, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--source-icon-color, var(--accent)) 18%, var(--border));
+}
+
+.detail-panel.wechat-detail-panel .detail-panel-content .detail-panel-meta-wechat-avatar .anticon,
+.detail-panel.wechat-detail-panel .detail-panel-content .detail-panel-meta-wechat-avatar svg {
+  font-size: 20px;
+}
+
+.detail-panel.wechat-detail-panel .detail-panel-content .detail-panel-meta-wechat-body {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.detail-panel.wechat-detail-panel .detail-panel-content .detail-panel-meta-wechat-primary,
+.detail-panel.wechat-detail-panel .detail-panel-content .detail-panel-meta-wechat-secondary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.detail-panel.wechat-detail-panel .detail-panel-content .detail-panel-meta-wechat-source {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.detail-panel.wechat-detail-panel .detail-panel-content .detail-panel-meta-wechat-author {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.detail-panel.wechat-detail-panel .detail-panel-content .detail-panel-meta-wechat-secondary {
+  color: color-mix(in oklch, var(--text-muted) 92%, var(--text));
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.detail-panel.wechat-detail-panel .detail-panel-content .detail-panel-meta-wechat-divider {
+  color: color-mix(in oklch, var(--divider) 86%, var(--text-muted));
+}
+
+.detail-panel.wechat-detail-panel .detail-panel-content .detail-panel-meta-wechat-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border-radius: 6px;
+  color: color-mix(in oklch, var(--text-muted) 84%, var(--text));
+  background: color-mix(in oklch, var(--surface) 86%, var(--border));
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--border) 84%, transparent);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
 .detail-panel.wechat-detail-panel .detail-panel-content .detail-panel-tags {
   gap: 6px !important;
   margin-bottom: 0 !important;
