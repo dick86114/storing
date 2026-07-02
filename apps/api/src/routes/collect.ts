@@ -27,7 +27,11 @@ function formatCollectError(error?: string | null) {
     summary = '网页正文未通过有效性校验';
     const parts = normalized.split('；').map((part) => part.trim()).filter(Boolean);
     for (const part of parts) {
-      if (/^desktop:/i.test(part)) {
+      const strategyMatch = part.match(/^([^：:]+)：\s*(desktop|mobile):\s*(.+)$/i);
+      if (strategyMatch) {
+        const [, strategy, variant, message] = strategyMatch;
+        details.push(`${strategy} ${variant.toLowerCase() === 'desktop' ? '桌面抓取' : '移动抓取'}：${message}`);
+      } else if (/^desktop:/i.test(part)) {
         details.push(`桌面抓取：${part.replace(/^desktop:\s*/i, '')}`);
       } else if (/^mobile:/i.test(part)) {
         details.push(`移动抓取：${part.replace(/^mobile:\s*/i, '')}`);

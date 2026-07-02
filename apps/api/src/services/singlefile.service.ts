@@ -40,6 +40,13 @@ export function getInitialSingleFileStrategy(): CollectCaptureStrategy {
   return getSingleFileServiceUrl() ? 'singlefile_sidecar' : 'singlefile_command';
 }
 
+export function getSingleFileCandidateStrategies(): CollectCaptureStrategy[] {
+  const strategies: CollectCaptureStrategy[] = [];
+  if (getSingleFileServiceUrl()) strategies.push('singlefile_sidecar');
+  strategies.push('singlefile_command', 'singlefile_docker', 'singlefile_npx');
+  return strategies;
+}
+
 function getSingleFileUserAgent(variant: HtmlVariant) {
   return variant === 'mobile' ? MOBILE_USER_AGENT : DESKTOP_USER_AGENT;
 }
@@ -119,25 +126,59 @@ async function runSingleFileWithNpx(url: string, timeoutMs: number, variant: Htm
   }
 }
 
+async function runSingleFileWithLocalCommand(
+  url: string,
+  timeoutMs: number,
+  maxBuffer: number,
+  variant: HtmlVariant
+) {
+  const command = getSingleFileCommand();
+  const extraArgs = getSingleFileArgs(variant);
+
+  if (command.includes(' ')) {
+    const argsSuffix = extraArgs.map(shellQuote).join(' ');
+    const { stdout } = await execFileAsync('/bin/sh', ['-lc', `${command} ${argsSuffix} ${shellQuote(url)}`], {
+      timeout: timeoutMs,
+      maxBuffer,
+    });
+    return stdout;
+  }
+
+  const { stdout } = await execFileAsync(command, [...extraArgs, url], { timeout: timeoutMs, maxBuffer });
+  return stdout;
+}
+
+export async function runSingleFileWithStrategy(
+  url: string,
+  variant: HtmlVariant,
+  strategy: CollectCaptureStrategy
+): Promise<{ html: string; strategy: CollectCaptureStrategy }> {
+  const timeoutMs = Number(process.env.SINGLEFILE_TIMEOUT_MS || 180000);
+  const maxBuffer = Number(process.env.SINGLEFILE_MAX_BUFFER || 80 * 1024 * 1024);
+
+  if (strategy === 'singlefile_sidecar') {
+    return { html: await runSingleFileWithService(url, timeoutMs, variant), strategy };
+  }
+
+  if (strategy === 'singlefile_docker') {
+    return { html: await runSingleFileWithDocker(url, timeoutMs, maxBuffer, variant), strategy };
+  }
+
+  if (strategy === 'singlefile_npx') {
+    return { html: await runSingleFileWithNpx(url, timeoutMs, variant), strategy };
+  }
+
+  return { html: await runSingleFileWithLocalCommand(url, timeoutMs, maxBuffer, variant), strategy: 'singlefile_command' };
+}
+
 export async function runSingleFile(url: string, variant: HtmlVariant): Promise<{ html: string; strategy: CollectCaptureStrategy }> {
   const command = getSingleFileCommand();
   const timeoutMs = Number(process.env.SINGLEFILE_TIMEOUT_MS || 180000);
   const maxBuffer = Number(process.env.SINGLEFILE_MAX_BUFFER || 80 * 1024 * 1024);
   const serviceUrl = getSingleFileServiceUrl();
-  const extraArgs = getSingleFileArgs(variant);
 
   const runLocalCommand = async () => {
-    if (command.includes(' ')) {
-      const argsSuffix = extraArgs.map(shellQuote).join(' ');
-      const { stdout } = await execFileAsync('/bin/sh', ['-lc', `${command} ${argsSuffix} ${shellQuote(url)}`], {
-        timeout: timeoutMs,
-        maxBuffer,
-      });
-      return { html: stdout, strategy: 'singlefile_command' as const };
-    }
-
-    const { stdout } = await execFileAsync(command, [...extraArgs, url], { timeout: timeoutMs, maxBuffer });
-    return { html: stdout, strategy: 'singlefile_command' as const };
+    return { html: await runSingleFileWithLocalCommand(url, timeoutMs, maxBuffer, variant), strategy: 'singlefile_command' as const };
   };
 
   const runLocalFallback = async () => {

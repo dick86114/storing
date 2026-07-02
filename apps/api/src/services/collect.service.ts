@@ -6,10 +6,13 @@ import { articleMetadata, articles, collectJobs } from '../db/schema.js';
 import { generateSummaryAndTags } from './ai.service.js';
 import { ensureArticleMetadataContentHtmlMobileColumn, getArticleContent, processCoverImage, uploadImage } from './reader.service.js';
 import {
+  type CollectCaptureStrategy,
+  type HtmlVariant,
   extractTextFromHtml,
   getInitialSingleFileStrategy,
+  getSingleFileCandidateStrategies,
   prepareCapturedDocument,
-  runSingleFile,
+  runSingleFileWithStrategy,
   uploadImagesInCapturedDocument,
   validateCapturedHtml,
 } from './singlefile.service.js';
@@ -257,52 +260,119 @@ async function processWechatJob(jobId: number, normalizedUrl: string) {
   await finishArticleSideEffects(articleId);
 }
 
+type PreparedCapture = ReturnType<typeof prepareCapturedDocument>;
+
+type ValidSingleFileCapture = {
+  strategy: CollectCaptureStrategy;
+  desktopRawHtml: string | null;
+  mobileRawHtml: string | null;
+  desktopPrepared: PreparedCapture | null;
+  mobilePrepared: PreparedCapture | null;
+  primaryPrepared: PreparedCapture;
+  primaryRawHtml: string;
+};
+
+function formatStrategyLabel(strategy: CollectCaptureStrategy) {
+  if (strategy === 'singlefile_sidecar') return 'Sidecar';
+  if (strategy === 'singlefile_command') return 'single-file 命令';
+  if (strategy === 'singlefile_docker') return 'Docker 兜底';
+  if (strategy === 'singlefile_npx') return 'npx 兜底';
+  return strategy;
+}
+
+async function captureVariantWithStrategy(
+  jobId: number,
+  normalizedUrl: string,
+  strategy: CollectCaptureStrategy,
+  variant: HtmlVariant
+) {
+  await updateCollectJob(jobId, {
+    stage: variant === 'desktop' ? 'capturing' : 'capturing_mobile',
+    captureStrategy: strategy,
+  });
+
+  const { html } = await runSingleFileWithStrategy(normalizedUrl, variant, strategy);
+  const validation = validateCapturedHtml(html, normalizedUrl);
+  if (!validation.ok) {
+    throw new Error(`${validation.reason}（正文长度 ${validation.textLength}）`);
+  }
+
+  return {
+    rawHtml: html,
+    prepared: prepareCapturedDocument(html, normalizedUrl),
+  };
+}
+
+async function captureBestSingleFile(jobId: number, normalizedUrl: string): Promise<ValidSingleFileCapture> {
+  const strategyFailures: string[] = [];
+
+  for (const strategy of getSingleFileCandidateStrategies()) {
+    const variantFailures: string[] = [];
+    let desktopRawHtml: string | null = null;
+    let mobileRawHtml: string | null = null;
+    let desktopPrepared: PreparedCapture | null = null;
+    let mobilePrepared: PreparedCapture | null = null;
+
+    try {
+      const desktop = await captureVariantWithStrategy(jobId, normalizedUrl, strategy, 'desktop');
+      desktopRawHtml = desktop.rawHtml;
+      desktopPrepared = desktop.prepared;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      variantFailures.push(`desktop: ${message}`);
+      console.warn(`${formatStrategyLabel(strategy)} desktop capture failed for ${normalizedUrl}: ${message}`);
+    }
+
+    try {
+      const mobile = await captureVariantWithStrategy(jobId, normalizedUrl, strategy, 'mobile');
+      mobileRawHtml = mobile.rawHtml;
+      mobilePrepared = mobile.prepared;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      variantFailures.push(`mobile: ${message}`);
+      console.warn(`${formatStrategyLabel(strategy)} mobile capture failed for ${normalizedUrl}: ${message}`);
+    }
+
+    const primaryPrepared = desktopPrepared ?? mobilePrepared;
+    const primaryRawHtml = desktopRawHtml ?? mobileRawHtml;
+    if (primaryPrepared && primaryRawHtml) {
+      return {
+        strategy,
+        desktopRawHtml,
+        mobileRawHtml,
+        desktopPrepared,
+        mobilePrepared,
+        primaryPrepared,
+        primaryRawHtml,
+      };
+    }
+
+    strategyFailures.push(`${formatStrategyLabel(strategy)}：${variantFailures.join('；') || '未返回有效正文'}`);
+  }
+
+  throw new Error(strategyFailures.join('；') || 'SingleFile 抓取结果无有效正文');
+}
+
 async function processSingleFileJob(jobId: number, normalizedUrl: string) {
   await updateCollectJob(jobId, { stage: 'capturing', captureStrategy: getInitialSingleFileStrategy() });
-  const { html: desktopRawHtml, strategy } = await runSingleFile(normalizedUrl, 'desktop');
-  const desktopValidation = validateCapturedHtml(desktopRawHtml, normalizedUrl);
+  const capture = await captureBestSingleFile(jobId, normalizedUrl);
+  await updateCollectJob(jobId, { stage: 'uploading_images', captureStrategy: capture.strategy });
 
-  let desktopHtml: string | null = null;
-  let desktopPrepared: ReturnType<typeof prepareCapturedDocument> | null = null;
-  let uploadedCoverImage: string | null = null;
-  if (desktopValidation.ok) {
-    await updateCollectJob(jobId, { stage: 'uploading_images', captureStrategy: strategy });
-    desktopPrepared = prepareCapturedDocument(desktopRawHtml, normalizedUrl);
-    [desktopHtml, uploadedCoverImage] = await Promise.all([
-      uploadImagesInCapturedDocument(desktopPrepared.html, normalizedUrl, uploadImage),
-      desktopPrepared.coverImage ? uploadImage(desktopPrepared.coverImage) : Promise.resolve(null),
-    ]);
-  }
+  const desktopUploadPromise = capture.desktopPrepared
+    ? uploadImagesInCapturedDocument(capture.desktopPrepared.html, normalizedUrl, uploadImage)
+    : Promise.resolve(null);
+  const mobileUploadPromise = capture.mobilePrepared
+    ? uploadImagesInCapturedDocument(capture.mobilePrepared.html, normalizedUrl, uploadImage)
+    : Promise.resolve(null);
+  const coverUploadPromise = capture.primaryPrepared.coverImage ? uploadImage(capture.primaryPrepared.coverImage) : Promise.resolve(null);
+  const [desktopHtml, mobileHtml, uploadedCoverImage] = await Promise.all([
+    desktopUploadPromise,
+    mobileUploadPromise,
+    coverUploadPromise,
+  ]);
 
-  let mobileHtml: string | null = null;
-  let mobilePrepared: ReturnType<typeof prepareCapturedDocument> | null = null;
-  let mobileValidationError: string | null = null;
-  try {
-    await updateCollectJob(jobId, { stage: 'capturing_mobile', captureStrategy: strategy });
-    const { html: mobileRawHtml } = await runSingleFile(normalizedUrl, 'mobile');
-    const mobileValidation = validateCapturedHtml(mobileRawHtml, normalizedUrl);
-    if (mobileValidation.ok) {
-      await updateCollectJob(jobId, { stage: 'uploading_mobile_images', captureStrategy: strategy });
-      mobilePrepared = prepareCapturedDocument(mobileRawHtml, normalizedUrl);
-      mobileHtml = await uploadImagesInCapturedDocument(mobilePrepared.html, normalizedUrl, uploadImage);
-    } else {
-      mobileValidationError = mobileValidation.reason;
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    mobileValidationError = message;
-    console.warn(`SingleFile mobile capture failed for ${normalizedUrl}: ${message}`);
-  }
-
-  const primaryPrepared = desktopPrepared ?? mobilePrepared;
-  const primaryHtml = desktopHtml ?? mobileHtml;
-
-  if (!primaryPrepared || !primaryHtml) {
-    const details = [desktopValidation.ok ? null : `desktop: ${desktopValidation.reason}`, mobileValidationError ? `mobile: ${mobileValidationError}` : null]
-      .filter(Boolean)
-      .join('；');
-    throw new Error(details || 'SingleFile 抓取结果无有效正文');
-  }
+  const primaryHtml = desktopHtml ?? mobileHtml ?? capture.primaryRawHtml;
+  const primaryPrepared = capture.primaryPrepared;
 
   const contentMarkdown = extractTextFromHtml(primaryHtml);
   await updateCollectJob(jobId, { stage: 'saving', title: primaryPrepared.title });
@@ -322,6 +392,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string) {
     stage: 'completed',
     articleId,
     title: primaryPrepared.title,
+    captureStrategy: capture.strategy,
     finishedAt: new Date(),
   });
   await finishArticleSideEffects(articleId);
