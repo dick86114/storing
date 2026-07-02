@@ -50,6 +50,7 @@ export const articleMetadata = pgTable('article_metadata', {
   aiTags: text('ai_tags').array(),
   contentMd: text('content_md'),
   contentHtml: text('content_html'),
+  contentHtmlMobile: text('content_html_mobile'),
   coverImage: text('cover_image'),
   favoritedAt: timestamp('favorited_at'),
   archivedAt: timestamp('archived_at'),

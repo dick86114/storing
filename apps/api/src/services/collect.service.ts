@@ -1,18 +1,18 @@
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import { mkdtemp, readFile, rm } from 'fs/promises';
-import { join } from 'path';
-import { tmpdir } from 'os';
 import { isIP } from 'net';
 import { JSDOM } from 'jsdom';
 import { desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { articleMetadata, articles, collectJobs } from '../db/schema.js';
 import { generateSummaryAndTags } from './ai.service.js';
-import { getArticleContent, processCoverImage, uploadImage } from './reader.service.js';
+import { ensureArticleMetadataContentHtmlMobileColumn, getArticleContent, processCoverImage, uploadImage } from './reader.service.js';
+import {
+  extractTextFromHtml,
+  getInitialSingleFileStrategy,
+  prepareCapturedDocument,
+  runSingleFile,
+  uploadImagesInCapturedDocument,
+} from './singlefile.service.js';
 import { enqueueArticleForWiki, processWikiJobs } from './wiki.service.js';
-
-const execFileAsync = promisify(execFile);
 
 const COLLECT_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS collect_jobs (
@@ -35,7 +35,6 @@ const COLLECT_TABLE_SQL = `
 
 type CollectJobStatus = 'pending' | 'running' | 'completed' | 'failed';
 type CollectMethod = 'reader' | 'singlefile';
-type CollectCaptureStrategy = 'wechat_reader' | 'singlefile_sidecar' | 'singlefile_command' | 'singlefile_docker' | 'singlefile_npx';
 
 function isWechatUrl(url: string) {
   try {
@@ -99,149 +98,6 @@ function isSafeCollectUrl(url: URL) {
   return true;
 }
 
-function shellQuote(value: string) {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
-function getSingleFileCommand() {
-  return process.env.SINGLEFILE_COMMAND || 'single-file';
-}
-
-function getSingleFileServiceUrl() {
-  const value = process.env.SINGLEFILE_SERVICE_URL?.trim();
-  return value ? value.replace(/\/+$/, '') : null;
-}
-
-function getInitialSingleFileStrategy(): CollectCaptureStrategy {
-  return getSingleFileServiceUrl() ? 'singlefile_sidecar' : 'singlefile_command';
-}
-
-function getSingleFileArgs(url: string) {
-  return [
-    '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    '--browser-arg=--disable-blink-features=AutomationControlled',
-  ];
-}
-
-async function runSingleFileWithService(url: string, timeoutMs: number) {
-  const serviceUrl = getSingleFileServiceUrl();
-  if (!serviceUrl) throw new Error('未配置 SingleFile 服务地址');
-
-  const res = await fetch(`${serviceUrl}/capture`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  const text = await res.text();
-  let body: any = null;
-  try {
-    body = text ? JSON.parse(text) : null;
-  } catch {
-    body = null;
-  }
-
-  if (!res.ok) {
-    throw new Error(body?.error || `SingleFile 服务返回异常：${res.status}`);
-  }
-
-  const html = typeof body?.html === 'string' ? body.html : '';
-  if (!html.trim()) throw new Error('SingleFile 服务没有返回 HTML 内容');
-  return html;
-}
-
-async function runSingleFileWithDocker(url: string, timeoutMs: number, maxBuffer: number) {
-  const image = process.env.SINGLEFILE_DOCKER_IMAGE || 'capsulecode/singlefile';
-  const args = [
-    'run',
-    '--rm',
-    image,
-    ...getSingleFileArgs(url),
-    url,
-  ];
-
-  const { stdout } = await execFileAsync('docker', args, { timeout: timeoutMs, maxBuffer });
-  return stdout;
-}
-
-async function runSingleFileWithNpx(url: string, timeoutMs: number) {
-  const dir = await mkdtemp(join(tmpdir(), 'storing-singlefile-'));
-  const outputPath = join(dir, 'page.html');
-
-  try {
-    await execFileAsync(
-      'npx',
-      [
-        '-y',
-        'single-file-cli',
-        url,
-        outputPath,
-        ...getSingleFileArgs(url),
-        '--browser-load-max-time=60000',
-        '--browser-capture-max-time=60000',
-      ],
-      { timeout: Math.max(timeoutMs, 180000), maxBuffer: 4 * 1024 * 1024 }
-    );
-    return await readFile(outputPath, 'utf8');
-  } finally {
-    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
-  }
-}
-
-async function runSingleFile(url: string): Promise<{ html: string; strategy: CollectCaptureStrategy }> {
-  const command = getSingleFileCommand();
-  const timeoutMs = Number(process.env.SINGLEFILE_TIMEOUT_MS || 180000);
-  const maxBuffer = Number(process.env.SINGLEFILE_MAX_BUFFER || 80 * 1024 * 1024);
-  const serviceUrl = getSingleFileServiceUrl();
-
-  const runLocalCommand = async () => {
-    if (command.includes(' ')) {
-      const { stdout } = await execFileAsync('/bin/sh', ['-lc', `${command} ${shellQuote(url)}`], {
-        timeout: timeoutMs,
-        maxBuffer,
-      });
-      return { html: stdout, strategy: 'singlefile_command' as const };
-    }
-
-    const { stdout } = await execFileAsync(command, [url], { timeout: timeoutMs, maxBuffer });
-    return { html: stdout, strategy: 'singlefile_command' as const };
-  };
-
-  const runLocalFallback = async () => {
-    try {
-      return await runLocalCommand();
-    } catch (e) {
-      const error = e as NodeJS.ErrnoException;
-      if (command === 'single-file' && error.code === 'ENOENT') {
-        try {
-          return { html: await runSingleFileWithDocker(url, timeoutMs, maxBuffer), strategy: 'singlefile_docker' as const };
-        } catch {
-          return { html: await runSingleFileWithNpx(url, timeoutMs), strategy: 'singlefile_npx' as const };
-        }
-      }
-      throw e;
-    }
-  };
-
-  if (serviceUrl) {
-    try {
-      return { html: await runSingleFileWithService(url, timeoutMs), strategy: 'singlefile_sidecar' as const };
-    } catch (serviceError) {
-      if (process.env.SINGLEFILE_SERVICE_FALLBACK_LOCAL === 'false') throw serviceError;
-      const serviceMessage = serviceError instanceof Error ? serviceError.message : String(serviceError);
-      console.warn(`SingleFile service failed, fallback to local command: ${serviceMessage}`);
-      try {
-        return await runLocalFallback();
-      } catch (fallbackError) {
-        const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
-        throw new Error(`SingleFile 服务失败：${serviceMessage}；本地兜底也失败：${fallbackMessage}`);
-      }
-    }
-  }
-
-  return runLocalFallback();
-}
-
 function extractTitle(doc: Document, fallbackUrl: string) {
   const title =
     doc.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
@@ -286,118 +142,6 @@ async function fetchWechatPageMeta(url: string) {
   }
 }
 
-function absolutizeUrl(value: string, baseUrl: string) {
-  if (!value || value.startsWith('data:') || value.startsWith('blob:') || value.startsWith('mailto:') || value.startsWith('tel:')) {
-    return value;
-  }
-  try {
-    return new URL(value, baseUrl).toString();
-  } catch {
-    return value;
-  }
-}
-
-function extractMetaImage(doc: Document, baseUrl: string) {
-  const selectors = [
-    'meta[property="og:image"]',
-    'meta[property="og:image:secure_url"]',
-    'meta[name="twitter:image"]',
-    'meta[property="twitter:image"]',
-  ];
-
-  for (const selector of selectors) {
-    const value = doc.querySelector(selector)?.getAttribute('content')?.trim();
-    if (value) return absolutizeUrl(value, baseUrl);
-  }
-
-  const firstArticleImage =
-    doc.querySelector<HTMLImageElement>('article img[src], article img[data-src]') ||
-    doc.querySelector<HTMLImageElement>('main img[src], main img[data-src]') ||
-    doc.querySelector<HTMLImageElement>('img[src], img[data-src]');
-
-  if (!firstArticleImage) return null;
-
-  for (const attr of ['data-src', 'data-original', 'data-lazy-src', 'data-url', 'src']) {
-    const value = firstArticleImage.getAttribute(attr)?.trim();
-    if (value) return absolutizeUrl(value, baseUrl);
-  }
-
-  return null;
-}
-
-function getImageCandidate(image: HTMLImageElement, baseUrl: string) {
-  for (const attr of ['data-src', 'data-original', 'data-lazy-src', 'data-url', 'src']) {
-    const value = image.getAttribute(attr)?.trim();
-    if (!value) continue;
-    if (value.startsWith('data:image/')) return value;
-    if (value.startsWith('data:') || value.startsWith('blob:')) continue;
-    return absolutizeUrl(value, baseUrl);
-  }
-  return null;
-}
-
-async function uploadImagesInCapturedDocument(html: string, baseUrl: string) {
-  const dom = new JSDOM(html);
-  const doc = dom.window.document;
-  const images = Array.from(doc.querySelectorAll<HTMLImageElement>('img'));
-
-  await Promise.all(
-    images.map(async (image) => {
-      const originalUrl = getImageCandidate(image, baseUrl);
-      if (!originalUrl) return;
-
-      const uploadedUrl = await uploadImage(originalUrl);
-      if (!uploadedUrl) return;
-
-      image.setAttribute('src', uploadedUrl);
-      image.setAttribute('referrerpolicy', 'no-referrer');
-      image.removeAttribute('srcset');
-      image.removeAttribute('data-src');
-      image.removeAttribute('data-original');
-      image.removeAttribute('data-lazy-src');
-      image.removeAttribute('data-url');
-    })
-  );
-
-  return dom.serialize();
-}
-
-function prepareCapturedDocument(rawHtml: string, baseUrl: string) {
-  const dom = new JSDOM(rawHtml);
-  const doc = dom.window.document;
-  const title = extractTitle(doc, baseUrl);
-  const source = extractSource(baseUrl, doc);
-  const coverImage = extractMetaImage(doc, baseUrl);
-
-  doc.querySelectorAll('script,noscript').forEach((node) => node.remove());
-  doc.querySelectorAll('a[href]').forEach((link) => {
-    const href = link.getAttribute('href');
-    if (!href) return;
-    link.setAttribute('href', absolutizeUrl(href, baseUrl));
-    link.setAttribute('target', '_blank');
-    link.setAttribute('rel', 'noopener noreferrer');
-  });
-  doc.querySelectorAll('img[src],img[data-src]').forEach((image) => {
-    for (const attr of ['src', 'data-src', 'data-original', 'data-lazy-src', 'data-url']) {
-      const value = image.getAttribute(attr);
-      if (value) image.setAttribute(attr, absolutizeUrl(value, baseUrl));
-    }
-  });
-
-  doc.documentElement.setAttribute('data-storing-capture', 'singlefile');
-  doc.documentElement.setAttribute('data-capture-source', baseUrl);
-  doc.body?.setAttribute('data-storing-capture-body', 'true');
-  doc.body?.classList.add('manual-capture-page');
-
-  return { title, source, coverImage, html: dom.serialize() };
-}
-
-function extractTextFromHtml(html: string) {
-  const dom = new JSDOM(html);
-  const text = dom.window.document.body?.textContent?.replace(/\s+/g, ' ').trim() || '';
-  return text.slice(0, 60000);
-}
-
 async function getNextArticleId() {
   const [row] = await db.select({ nextId: sql<number>`COALESCE(MAX(${articles.id}), 0) + 1` }).from(articles);
   return Number(row?.nextId || 1);
@@ -408,6 +152,7 @@ async function upsertArticleFromCapture(input: {
   title: string;
   source: string;
   contentHtml?: string | null;
+  contentHtmlMobile?: string | null;
   contentMarkdown?: string | null;
   coverImage?: string | null;
   method: CollectMethod;
@@ -456,9 +201,10 @@ async function upsertArticleFromCapture(input: {
     archivedAt: now,
     updatedAt: now,
   };
-  if (input.contentHtml) metadataValues.contentHtml = input.contentHtml;
-  if (input.contentMarkdown) metadataValues.contentMd = input.contentMarkdown;
-  if (input.coverImage) metadataValues.coverImage = input.coverImage;
+  if (input.contentHtml !== undefined) metadataValues.contentHtml = input.contentHtml;
+  if (input.contentHtmlMobile !== undefined) metadataValues.contentHtmlMobile = input.contentHtmlMobile;
+  if (input.contentMarkdown !== undefined) metadataValues.contentMd = input.contentMarkdown;
+  if (input.coverImage !== undefined) metadataValues.coverImage = input.coverImage;
 
   if (meta) {
     await db.update(articleMetadata).set(metadataValues).where(eq(articleMetadata.articleId, articleId));
@@ -512,25 +258,40 @@ async function processWechatJob(jobId: number, normalizedUrl: string) {
 
 async function processSingleFileJob(jobId: number, normalizedUrl: string) {
   await updateCollectJob(jobId, { stage: 'capturing', captureStrategy: getInitialSingleFileStrategy() });
-  const { html: rawHtml, strategy } = await runSingleFile(normalizedUrl);
-  if (!rawHtml.trim()) throw new Error('SingleFile 没有返回 HTML 内容');
+  const { html: desktopRawHtml, strategy } = await runSingleFile(normalizedUrl, 'desktop');
+  if (!desktopRawHtml.trim()) throw new Error('SingleFile 没有返回 HTML 内容');
 
   await updateCollectJob(jobId, { stage: 'uploading_images', captureStrategy: strategy });
-  const prepared = prepareCapturedDocument(rawHtml, normalizedUrl);
-  const [uploadedHtml, uploadedCoverImage] = await Promise.all([
-    uploadImagesInCapturedDocument(prepared.html, normalizedUrl),
-    prepared.coverImage ? uploadImage(prepared.coverImage) : Promise.resolve(null),
+  const desktopPrepared = prepareCapturedDocument(desktopRawHtml, normalizedUrl);
+  const [desktopHtml, uploadedCoverImage] = await Promise.all([
+    uploadImagesInCapturedDocument(desktopPrepared.html, normalizedUrl, uploadImage),
+    desktopPrepared.coverImage ? uploadImage(desktopPrepared.coverImage) : Promise.resolve(null),
   ]);
-  const contentMarkdown = extractTextFromHtml(uploadedHtml);
+  const contentMarkdown = extractTextFromHtml(desktopHtml);
 
-  await updateCollectJob(jobId, { stage: 'saving', title: prepared.title });
+  let mobileHtml: string | null = null;
+  try {
+    await updateCollectJob(jobId, { stage: 'capturing_mobile', captureStrategy: strategy });
+    const { html: mobileRawHtml } = await runSingleFile(normalizedUrl, 'mobile');
+    if (mobileRawHtml.trim()) {
+      await updateCollectJob(jobId, { stage: 'uploading_mobile_images', captureStrategy: strategy });
+      const mobilePrepared = prepareCapturedDocument(mobileRawHtml, normalizedUrl);
+      mobileHtml = await uploadImagesInCapturedDocument(mobilePrepared.html, normalizedUrl, uploadImage);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`SingleFile mobile capture failed for ${normalizedUrl}: ${message}`);
+  }
+
+  await updateCollectJob(jobId, { stage: 'saving', title: desktopPrepared.title });
   const articleId = await upsertArticleFromCapture({
     normalizedUrl,
-    title: prepared.title,
-    source: prepared.source,
-    contentHtml: uploadedHtml,
+    title: desktopPrepared.title,
+    source: desktopPrepared.source,
+    contentHtml: desktopHtml,
+    contentHtmlMobile: mobileHtml,
     contentMarkdown,
-    coverImage: uploadedCoverImage || prepared.coverImage,
+    coverImage: uploadedCoverImage || desktopPrepared.coverImage,
     method: 'singlefile',
   });
 
@@ -538,7 +299,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string) {
     status: 'completed',
     stage: 'completed',
     articleId,
-    title: prepared.title,
+    title: desktopPrepared.title,
     finishedAt: new Date(),
   });
   await finishArticleSideEffects(articleId);
@@ -547,6 +308,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string) {
 export async function initCollectSchema() {
   await db.execute(sql.raw(COLLECT_TABLE_SQL));
   await db.execute(sql.raw(`ALTER TABLE collect_jobs ADD COLUMN IF NOT EXISTS capture_strategy TEXT`));
+  await ensureArticleMetadataContentHtmlMobileColumn();
   const defaultSingleFileStrategy = getInitialSingleFileStrategy();
   await db.execute(sql.raw(`
     UPDATE collect_jobs

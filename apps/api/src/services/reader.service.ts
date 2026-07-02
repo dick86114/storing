@@ -1,7 +1,15 @@
 import { db } from '../db/index.js';
 import { articles, articleMetadata } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { JSDOM } from 'jsdom';
+import {
+  extractTextFromHtml,
+  type HtmlVariant,
+  isSingleFileCaptureHtml,
+  prepareCapturedDocument,
+  runSingleFile,
+  uploadImagesInCapturedDocument,
+} from './singlefile.service.js';
 
 // 文章抓取服务配置（从环境变量读取）
 const READER_API_BASE = process.env.READER_API_BASE || 'https://weixin.ali.idickies.com/api/public/v1/download';
@@ -9,6 +17,22 @@ const READER_API_BASE = process.env.READER_API_BASE || 'https://weixin.ali.idick
 // 图床服务配置（从环境变量读取）
 const IMG_HOST = process.env.IMG_HOST || 'https://img.ali.idickies.com';
 const IMG_API_KEY = process.env.IMG_API_KEY || '';
+
+let ensureMobileHtmlColumnPromise: Promise<void> | null = null;
+
+export async function ensureArticleMetadataContentHtmlMobileColumn() {
+  if (!ensureMobileHtmlColumnPromise) {
+    ensureMobileHtmlColumnPromise = db
+      .execute(sql.raw(`ALTER TABLE article_metadata ADD COLUMN IF NOT EXISTS content_html_mobile TEXT`))
+      .then(() => undefined)
+      .catch((error) => {
+        ensureMobileHtmlColumnPromise = null;
+        throw error;
+      });
+  }
+
+  await ensureMobileHtmlColumnPromise;
+}
 
 /** 清洗 markdown：去掉 CSS 块、封面图、重复标题、微信导航文字等噪音 */
 function cleanMarkdown(md: string): string {
@@ -761,7 +785,32 @@ async function fetchContent(url: string, format: 'markdown' | 'html' = 'markdown
   }
 }
 
-async function fetchArticleContentFromSources(articleId: number, format: 'markdown' | 'html'): Promise<string | null> {
+function isSingleFileCollectedArticle(article: {
+  content: unknown;
+  contentHtml?: string | null;
+}) {
+  const rawContent = article.content as any;
+  return rawContent?.collectMethod === 'singlefile' || isSingleFileCaptureHtml(article.contentHtml);
+}
+
+async function fetchSingleFileCaptureContent(originalUrl: string, variant: HtmlVariant) {
+  const { html } = await runSingleFile(originalUrl, variant);
+  if (!html.trim()) return null;
+
+  const prepared = prepareCapturedDocument(html, originalUrl);
+  return uploadImagesInCapturedDocument(prepared.html, originalUrl, uploadImage);
+}
+
+async function fetchSingleFileMarkdownContent(originalUrl: string) {
+  const html = await fetchSingleFileCaptureContent(originalUrl, 'desktop');
+  return html ? extractTextFromHtml(html) : null;
+}
+
+async function fetchArticleContentFromSources(
+  articleId: number,
+  format: 'markdown' | 'html',
+  htmlVariant: HtmlVariant = 'desktop'
+): Promise<string | null> {
   const [article] = await db
     .select({
       originalUrl: articles.originalUrl,
@@ -776,7 +825,29 @@ async function fetchArticleContentFromSources(articleId: number, format: 'markdo
 
   let content: string | null = null;
 
-  if (article.originalUrl) {
+  if (format === 'html' && article.originalUrl && isSingleFileCollectedArticle(article)) {
+    try {
+      const captured = await fetchSingleFileCaptureContent(article.originalUrl, htmlVariant);
+      if (captured && hasUsefulContent(captured, format)) {
+        content = captured;
+      }
+    } catch (e) {
+      console.error(`SingleFile ${htmlVariant} capture failed for article ${articleId}:`, (e as Error).message);
+    }
+  }
+
+  if (format === 'markdown' && article.originalUrl && isSingleFileCollectedArticle(article)) {
+    try {
+      const captured = await fetchSingleFileMarkdownContent(article.originalUrl);
+      if (captured && hasUsefulContent(captured, format)) {
+        content = captured;
+      }
+    } catch (e) {
+      console.error(`SingleFile markdown capture failed for article ${articleId}:`, (e as Error).message);
+    }
+  }
+
+  if (!content && article.originalUrl) {
     try {
       const fetched = await fetchContent(article.originalUrl, format);
       if (fetched && hasUsefulContent(fetched, format)) {
@@ -850,13 +921,24 @@ async function fetchArticleContentFromSources(articleId: number, format: 'markdo
   return content;
 }
 
-async function saveArticleContentCache(articleId: number, format: 'markdown' | 'html', content: string): Promise<void> {
+async function saveArticleContentCache(
+  articleId: number,
+  format: 'markdown' | 'html',
+  content: string,
+  htmlVariant: HtmlVariant = 'desktop'
+): Promise<void> {
+  await ensureArticleMetadataContentHtmlMobileColumn();
   const [existing] = await db
     .select({ id: articleMetadata.id })
     .from(articleMetadata)
     .where(eq(articleMetadata.articleId, articleId));
 
-  const updateField = format === 'html' ? { contentHtml: content } : { contentMd: content };
+  const updateField =
+    format === 'html'
+      ? htmlVariant === 'mobile'
+        ? { contentHtmlMobile: content }
+        : { contentHtml: content }
+      : { contentMd: content };
 
   if (existing) {
     await db.update(articleMetadata)
@@ -868,10 +950,14 @@ async function saveArticleContentCache(articleId: number, format: 'markdown' | '
   }
 }
 
-async function refreshArticleContentCache(articleId: number, format: 'markdown' | 'html'): Promise<void> {
-  const content = await fetchArticleContentFromSources(articleId, format);
+async function refreshArticleContentCache(
+  articleId: number,
+  format: 'markdown' | 'html',
+  htmlVariant: HtmlVariant = 'desktop'
+): Promise<void> {
+  const content = await fetchArticleContentFromSources(articleId, format, htmlVariant);
   if (content) {
-    await saveArticleContentCache(articleId, format, content);
+    await saveArticleContentCache(articleId, format, content, htmlVariant);
   }
 }
 
@@ -881,40 +967,58 @@ async function refreshArticleContentCache(articleId: number, format: 'markdown' 
  * @param articleId 文章 ID
  * @param format 格式：markdown 或 html
  */
-export async function getArticleContent(articleId: number, format: 'markdown' | 'html' = 'markdown'): Promise<string | null> {
+export async function getArticleContent(
+  articleId: number,
+  format: 'markdown' | 'html' = 'markdown',
+  htmlVariant: HtmlVariant = 'desktop'
+): Promise<string | null> {
+  await ensureArticleMetadataContentHtmlMobileColumn();
   // 先查缓存
   const [meta] = await db
-    .select({ contentMd: articleMetadata.contentMd, contentHtml: articleMetadata.contentHtml })
+    .select({
+      contentMd: articleMetadata.contentMd,
+      contentHtml: articleMetadata.contentHtml,
+      contentHtmlMobile: articleMetadata.contentHtmlMobile,
+    })
     .from(articleMetadata)
     .where(eq(articleMetadata.articleId, articleId));
 
   if (format === 'html') {
+    const cachedHtml = htmlVariant === 'mobile' ? meta?.contentHtmlMobile : meta?.contentHtml;
+
     // HTML 格式：检查缓存
-    if (meta?.contentHtml) {
-      if (!hasUsefulContent(meta.contentHtml, format)) {
-        const content = await fetchArticleContentFromSources(articleId, format);
+    if (cachedHtml) {
+      if (!hasUsefulContent(cachedHtml, format)) {
+        const content = await fetchArticleContentFromSources(articleId, format, htmlVariant);
         if (!content) return null;
-        await saveArticleContentCache(articleId, format, content);
+        await saveArticleContentCache(articleId, format, content, htmlVariant);
         return content;
       }
-      if (hasWechatImageRefs(meta.contentHtml)) {
-        refreshArticleContentCache(articleId, format).catch((e) =>
+      if (htmlVariant === 'desktop' && hasWechatImageRefs(cachedHtml)) {
+        refreshArticleContentCache(articleId, format, htmlVariant).catch((e) =>
           console.error(`Background HTML cache refresh failed for article ${articleId}:`, (e as Error).message)
         );
       }
+      return cachedHtml;
+    }
+
+    if (htmlVariant === 'mobile' && meta?.contentHtml && hasUsefulContent(meta.contentHtml, format)) {
+      refreshArticleContentCache(articleId, format, htmlVariant).catch((e) =>
+        console.error(`Background mobile HTML cache refresh failed for article ${articleId}:`, (e as Error).message)
+      );
       return meta.contentHtml;
     }
   } else {
     // Markdown 格式：检查缓存（排除本地资源引用的脏缓存）
     if (meta?.contentMd) {
       if (!hasUsefulContent(meta.contentMd, format)) {
-        const content = await fetchArticleContentFromSources(articleId, format);
+        const content = await fetchArticleContentFromSources(articleId, format, htmlVariant);
         if (!content) return null;
-        await saveArticleContentCache(articleId, format, content);
+        await saveArticleContentCache(articleId, format, content, htmlVariant);
         return content;
       }
       if (hasLocalResourceRefs(meta.contentMd) || hasWechatImageRefs(meta.contentMd)) {
-        refreshArticleContentCache(articleId, format).catch((e) =>
+        refreshArticleContentCache(articleId, format, htmlVariant).catch((e) =>
           console.error(`Background Markdown cache refresh failed for article ${articleId}:`, (e as Error).message)
         );
       }
@@ -922,11 +1026,11 @@ export async function getArticleContent(articleId: number, format: 'markdown' | 
     }
   }
 
-  const content = await fetchArticleContentFromSources(articleId, format);
+  const content = await fetchArticleContentFromSources(articleId, format, htmlVariant);
 
   if (!content) return null;
 
-  await saveArticleContentCache(articleId, format, content);
+  await saveArticleContentCache(articleId, format, content, htmlVariant);
 
   return content;
 }

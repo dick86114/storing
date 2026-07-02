@@ -1,5 +1,6 @@
 const BASE = '/api/v1';
 const REQUEST_TIMEOUT_MS = 10000;
+export type ArticleHtmlVariant = 'desktop' | 'mobile';
 
 type ApiRequestInit = RequestInit & {
   timeoutMs?: number;
@@ -58,8 +59,11 @@ export const api = {
     return fetchJSON<any>(`/articles?${params}`);
   },
 
-  getArticle: (id: number, format: 'markdown' | 'html' = 'markdown') =>
-    fetchJSON<any>(`/articles/${id}?format=${format}`, { timeoutMs: 45000 }),
+  getArticle: (id: number, format: 'markdown' | 'html' = 'markdown', htmlVariant: ArticleHtmlVariant = 'desktop') => {
+    const params = new URLSearchParams({ format });
+    if (format === 'html') params.set('htmlVariant', htmlVariant);
+    return fetchJSON<any>(`/articles/${id}?${params.toString()}`, { timeoutMs: 45000 });
+  },
 
   getArticleMeta: (id: number) =>
     fetchJSON<any>(`/articles/${id}/meta`),
