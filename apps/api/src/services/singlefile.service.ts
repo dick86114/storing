@@ -14,6 +14,9 @@ export type CollectCaptureStrategy =
   | 'singlefile_command'
   | 'singlefile_docker'
   | 'singlefile_npx';
+export type CaptureValidationResult =
+  | { ok: true; textLength: number }
+  | { ok: false; reason: string; textLength: number };
 
 const DESKTOP_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -306,4 +309,61 @@ export function extractTextFromHtml(html: string) {
 export function isSingleFileCaptureHtml(html?: string | null) {
   if (!html) return false;
   return html.includes('data-storing-capture="singlefile"') || html.includes("data-storing-capture='singlefile'");
+}
+
+const BLOCKED_TITLE_PATTERNS = [
+  /verification\s*code/i,
+  /captcha/i,
+  /访问验证/i,
+  /安全验证/i,
+  /人机验证/i,
+  /refreshing too often/i,
+];
+
+const BLOCKED_TEXT_PATTERNS = [
+  /verification\s*code/i,
+  /captcha/i,
+  /refreshing too often/i,
+  /slide to verify/i,
+  /please enable javascript/i,
+  /访问验证/i,
+  /安全验证/i,
+  /人机验证/i,
+  /频繁访问/i,
+  /操作过于频繁/i,
+];
+
+export function validateCapturedHtml(html: string, fallbackUrl: string): CaptureValidationResult {
+  if (!html.trim()) {
+    return { ok: false, reason: 'SingleFile 没有返回 HTML 内容', textLength: 0 };
+  }
+
+  const dom = new JSDOM(html);
+  const doc = dom.window.document;
+  const title = extractTitle(doc, fallbackUrl);
+  const text = doc.body?.textContent?.replace(/\s+/g, ' ').trim() || '';
+  const textLength = text.replace(/\s+/g, '').length;
+  const bodyHtml = doc.body?.innerHTML || '';
+
+  if (title === fallbackUrl && textLength < 120) {
+    return { ok: false, reason: '抓取结果缺少有效正文', textLength };
+  }
+
+  if (BLOCKED_TITLE_PATTERNS.some((pattern) => pattern.test(title))) {
+    return { ok: false, reason: `抓取结果命中了验证页：${title}`, textLength };
+  }
+
+  if (BLOCKED_TEXT_PATTERNS.some((pattern) => pattern.test(text))) {
+    return { ok: false, reason: '抓取结果是验证页或风控拦截页', textLength };
+  }
+
+  if (/t-captcha|tcaptcha|x-waf-captcha|probe\.js|captcha-referer/i.test(bodyHtml)) {
+    return { ok: false, reason: '抓取结果包含验证码/风控脚本', textLength };
+  }
+
+  if (textLength < 120) {
+    return { ok: false, reason: '抓取结果正文过短，疑似壳页或异常页', textLength };
+  }
+
+  return { ok: true, textLength };
 }

@@ -5974,6 +5974,34 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   text-overflow: ellipsis;
 }
 
+.collect-job-status-block {
+  margin-top: 4px;
+}
+
+.collect-job-status-summary,
+.collect-job-status-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.collect-job-status-details {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.collect-job-status-details li + li {
+  margin-top: 2px;
+}
+
+.collect-job-status-hint {
+  margin-top: 6px;
+}
+
 .collect-job-url-row {
   display: inline-flex;
   align-items: center;
@@ -6269,6 +6297,27 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
   margin: 6px 0 0;
   color: var(--text-muted);
   font-size: 12px;
+}
+
+.quick-collect-status-meta {
+  margin-top: 8px;
+}
+
+.quick-collect-status-meta ul {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.quick-collect-status-meta li + li {
+  margin-top: 2px;
+}
+
+.quick-collect-status-meta p {
+  margin: 6px 0 0;
+  line-height: 1.55;
 }
 
 .quick-collect-status button {

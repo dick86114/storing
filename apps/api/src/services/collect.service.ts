@@ -11,6 +11,7 @@ import {
   prepareCapturedDocument,
   runSingleFile,
   uploadImagesInCapturedDocument,
+  validateCapturedHtml,
 } from './singlefile.service.js';
 import { enqueueArticleForWiki, processWikiJobs } from './wiki.service.js';
 
@@ -259,39 +260,60 @@ async function processWechatJob(jobId: number, normalizedUrl: string) {
 async function processSingleFileJob(jobId: number, normalizedUrl: string) {
   await updateCollectJob(jobId, { stage: 'capturing', captureStrategy: getInitialSingleFileStrategy() });
   const { html: desktopRawHtml, strategy } = await runSingleFile(normalizedUrl, 'desktop');
-  if (!desktopRawHtml.trim()) throw new Error('SingleFile 没有返回 HTML 内容');
+  const desktopValidation = validateCapturedHtml(desktopRawHtml, normalizedUrl);
 
-  await updateCollectJob(jobId, { stage: 'uploading_images', captureStrategy: strategy });
-  const desktopPrepared = prepareCapturedDocument(desktopRawHtml, normalizedUrl);
-  const [desktopHtml, uploadedCoverImage] = await Promise.all([
-    uploadImagesInCapturedDocument(desktopPrepared.html, normalizedUrl, uploadImage),
-    desktopPrepared.coverImage ? uploadImage(desktopPrepared.coverImage) : Promise.resolve(null),
-  ]);
-  const contentMarkdown = extractTextFromHtml(desktopHtml);
+  let desktopHtml: string | null = null;
+  let desktopPrepared: ReturnType<typeof prepareCapturedDocument> | null = null;
+  let uploadedCoverImage: string | null = null;
+  if (desktopValidation.ok) {
+    await updateCollectJob(jobId, { stage: 'uploading_images', captureStrategy: strategy });
+    desktopPrepared = prepareCapturedDocument(desktopRawHtml, normalizedUrl);
+    [desktopHtml, uploadedCoverImage] = await Promise.all([
+      uploadImagesInCapturedDocument(desktopPrepared.html, normalizedUrl, uploadImage),
+      desktopPrepared.coverImage ? uploadImage(desktopPrepared.coverImage) : Promise.resolve(null),
+    ]);
+  }
 
   let mobileHtml: string | null = null;
+  let mobilePrepared: ReturnType<typeof prepareCapturedDocument> | null = null;
+  let mobileValidationError: string | null = null;
   try {
     await updateCollectJob(jobId, { stage: 'capturing_mobile', captureStrategy: strategy });
     const { html: mobileRawHtml } = await runSingleFile(normalizedUrl, 'mobile');
-    if (mobileRawHtml.trim()) {
+    const mobileValidation = validateCapturedHtml(mobileRawHtml, normalizedUrl);
+    if (mobileValidation.ok) {
       await updateCollectJob(jobId, { stage: 'uploading_mobile_images', captureStrategy: strategy });
-      const mobilePrepared = prepareCapturedDocument(mobileRawHtml, normalizedUrl);
+      mobilePrepared = prepareCapturedDocument(mobileRawHtml, normalizedUrl);
       mobileHtml = await uploadImagesInCapturedDocument(mobilePrepared.html, normalizedUrl, uploadImage);
+    } else {
+      mobileValidationError = mobileValidation.reason;
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    mobileValidationError = message;
     console.warn(`SingleFile mobile capture failed for ${normalizedUrl}: ${message}`);
   }
 
-  await updateCollectJob(jobId, { stage: 'saving', title: desktopPrepared.title });
+  const primaryPrepared = desktopPrepared ?? mobilePrepared;
+  const primaryHtml = desktopHtml ?? mobileHtml;
+
+  if (!primaryPrepared || !primaryHtml) {
+    const details = [desktopValidation.ok ? null : `desktop: ${desktopValidation.reason}`, mobileValidationError ? `mobile: ${mobileValidationError}` : null]
+      .filter(Boolean)
+      .join('；');
+    throw new Error(details || 'SingleFile 抓取结果无有效正文');
+  }
+
+  const contentMarkdown = extractTextFromHtml(primaryHtml);
+  await updateCollectJob(jobId, { stage: 'saving', title: primaryPrepared.title });
   const articleId = await upsertArticleFromCapture({
     normalizedUrl,
-    title: desktopPrepared.title,
-    source: desktopPrepared.source,
-    contentHtml: desktopHtml,
+    title: primaryPrepared.title,
+    source: primaryPrepared.source,
+    contentHtml: primaryHtml,
     contentHtmlMobile: mobileHtml,
     contentMarkdown,
-    coverImage: uploadedCoverImage || desktopPrepared.coverImage,
+    coverImage: uploadedCoverImage || primaryPrepared.coverImage,
     method: 'singlefile',
   });
 
@@ -299,7 +321,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string) {
     status: 'completed',
     stage: 'completed',
     articleId,
-    title: desktopPrepared.title,
+    title: primaryPrepared.title,
     finishedAt: new Date(),
   });
   await finishArticleSideEffects(articleId);

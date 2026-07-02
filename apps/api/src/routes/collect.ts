@@ -9,7 +9,58 @@ const collectSchema = z.object({
   url: z.string().min(1, '请输入链接').max(4000, '链接过长'),
 });
 
+function formatCollectError(error?: string | null) {
+  if (!error) {
+    return {
+      summary: null,
+      details: [] as string[],
+      hint: null as string | null,
+    };
+  }
+
+  const normalized = error.replace(/\s+/g, ' ').trim();
+  const details: string[] = [];
+  let summary = normalized;
+  let hint: string | null = null;
+
+  if (/desktop:/i.test(normalized) || /mobile:/i.test(normalized)) {
+    summary = '网页正文未通过有效性校验';
+    const parts = normalized.split('；').map((part) => part.trim()).filter(Boolean);
+    for (const part of parts) {
+      if (/^desktop:/i.test(part)) {
+        details.push(`桌面抓取：${part.replace(/^desktop:\s*/i, '')}`);
+      } else if (/^mobile:/i.test(part)) {
+        details.push(`移动抓取：${part.replace(/^mobile:\s*/i, '')}`);
+      } else {
+        details.push(part);
+      }
+    }
+  } else if (/验证码|风控|验证页|captcha|verification/i.test(normalized)) {
+    summary = '采集被站点风控或验证页拦截';
+    details.push(normalized);
+  } else if (/正文过短|缺少有效正文|壳页|异常页/i.test(normalized)) {
+    summary = '抓取结果不像有效正文';
+    details.push(normalized);
+  } else if (/SingleFile 服务失败/i.test(normalized)) {
+    summary = '网页镜像服务执行失败';
+    details.push(normalized);
+  } else {
+    details.push(normalized);
+  }
+
+  if (/验证码|风控|验证页|captcha|verification/i.test(normalized)) {
+    hint = '建议稍后重试；如果站点分桌面/移动页，可优先使用更稳定的入口链接。';
+  } else if (/正文过短|缺少有效正文|壳页|异常页/i.test(normalized)) {
+    hint = '建议检查链接是否跳转到了活动页、壳页或登录页，再重新采集。';
+  } else if (/SingleFile 服务失败/i.test(normalized)) {
+    hint = '建议检查 SingleFile sidecar、本机命令或网络访问状态。';
+  }
+
+  return { summary, details, hint };
+}
+
 function serializeJob(job: any) {
+  const errorInfo = formatCollectError(job.error);
   return {
     id: job.id,
     url: job.url,
@@ -21,6 +72,9 @@ function serializeJob(job: any) {
     articleId: job.articleId,
     title: job.title,
     error: job.error,
+    errorSummary: errorInfo.summary,
+    errorDetails: errorInfo.details,
+    errorHint: errorInfo.hint,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
     startedAt: job.startedAt,
