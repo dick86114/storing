@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useSWRConfig } from 'swr';
 import useSWR from 'swr';
@@ -78,6 +78,18 @@ function isLeadingPromoBlock(element: Element) {
 
 function getArticleDisplayTime(article: any) {
   return article?.publishTime || (article?.isArchived ? article?.archivedAt || null : null);
+}
+
+function formatArticleHeaderTime(dateStr: string | null) {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}年${month}月${day}日 ${hours}:${minutes}`;
 }
 
 function preserveInlineArticleVisualStyles(root: Element) {
@@ -2200,6 +2212,15 @@ function DetailContent({
   const sourceIcon = getArticleSourceIcon(sourceArticle);
   const SourceIcon = sourceIcon.Icon;
   const sourceText = getArticleSourceText(sourceArticle);
+  const detailHeaderTime = formatArticleHeaderTime(getArticleDisplayTime(article));
+  const detailHeaderLocation = String(
+    article?.location
+    || article?.publishLocation
+    || article?.sourceLocation
+    || article?.region
+    || ''
+  ).trim();
+  const detailHeaderBadge = sourceIcon.kind === 'wechat' ? '公众号' : sourceIcon.label;
   const { data: wikiStatus, mutate: mutateWikiStatus } = useSWR(
     article?.id && article?.isArchived ? `wiki:article:${article.id}` : null,
     () => api.getWikiArticleStatus(article.id),
@@ -2605,16 +2626,35 @@ function DetailContent({
             <h1 className="detail-panel-title" style={{ fontSize: '20px', fontWeight: 500, color: 'var(--text)', lineHeight: 1.5, marginBottom: '8px' }}>
               {article.title}
             </h1>
-            <div className="detail-panel-meta" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-              <span>{article.source}</span>
-              <span style={{ color: 'var(--divider)' }}>·</span>
-              {article.author && (
-                <>
-                  <span>{article.author}</span>
-                  <span style={{ color: 'var(--divider)' }}>·</span>
-                </>
-              )}
-              <DateText dateStr={getArticleDisplayTime(article)} />
+            <div className="detail-panel-meta detail-panel-meta-wechat">
+              <div
+                className="detail-panel-meta-wechat-avatar"
+                aria-hidden="true"
+                style={{ '--source-icon-color': sourceIcon.color } as CSSProperties}
+              >
+                <SourceIcon />
+              </div>
+              <div className="detail-panel-meta-wechat-body">
+                <div className="detail-panel-meta-wechat-primary">
+                  <span className="detail-panel-meta-wechat-source">{sourceText}</span>
+                  {article.author && article.author !== sourceText && (
+                    <>
+                      <span className="detail-panel-meta-wechat-divider">·</span>
+                      <span className="detail-panel-meta-wechat-author">{article.author}</span>
+                    </>
+                  )}
+                </div>
+                <div className="detail-panel-meta-wechat-secondary">
+                  <span className="detail-panel-meta-wechat-badge">{detailHeaderBadge}</span>
+                  {detailHeaderTime ? <span>{detailHeaderTime}</span> : <DateText dateStr={getArticleDisplayTime(article)} />}
+                  {detailHeaderLocation && (
+                    <>
+                      <span className="detail-panel-meta-wechat-divider">·</span>
+                      <span>{detailHeaderLocation}</span>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
             {/* AI标签 */}
             {showAISkeleton ? (
