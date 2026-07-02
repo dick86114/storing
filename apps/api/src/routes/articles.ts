@@ -3,7 +3,12 @@ import { db } from '../db/index.js';
 import { articles, articleMetadata } from '../db/schema.js';
 import { eq, and, asc, desc, count, sql, or, isNull, gt } from 'drizzle-orm';
 import { generateSummaryAndTags } from '../services/ai.service.js';
-import { getArticleContent, processCoverImage, repairArticleDisplayMeta } from '../services/reader.service.js';
+import {
+  ensureArticleMetadataContentHtmlMobileColumn,
+  getArticleContent,
+  processCoverImage,
+  repairArticleDisplayMeta,
+} from '../services/reader.service.js';
 import { enqueueArticleForWiki, processWikiJobs, removeArticleFromWiki } from '../services/wiki.service.js';
 import { requireAuth, optionalAuth, isAuthenticated } from '../middleware/auth.js';
 
@@ -279,6 +284,7 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
   if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
   const id = parseInt(idParam);
   const format = c.req.query('format') || 'markdown';
+  const htmlVariant = c.req.query('htmlVariant') === 'mobile' ? 'mobile' : 'desktop';
 
   let article = await getArticleRecord(id);
 
@@ -301,7 +307,7 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
   }
 
   // 获取正文内容（根据 format 参数）
-  const content = await getArticleContent(id, format as 'markdown' | 'html').catch((e) => {
+  const content = await getArticleContent(id, format as 'markdown' | 'html', htmlVariant).catch((e) => {
     console.error('Fetch content failed:', e.message);
     return null;
   });
@@ -415,12 +421,14 @@ articlesRoutes.post('/articles/:id/refetch', requireAuth, async (c) => {
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
   await ensureMetadata(id);
+  await ensureArticleMetadataContentHtmlMobileColumn();
   await db.update(articleMetadata)
-    .set({ contentMd: null, contentHtml: null, coverImage: null, updatedAt: new Date() })
+    .set({ contentMd: null, contentHtml: null, contentHtmlMobile: null, coverImage: null, updatedAt: new Date() })
     .where(eq(articleMetadata.articleId, id));
 
-  const [contentHtml, contentMd, coverImage] = await Promise.all([
-    getArticleContent(id, 'html'),
+  const [contentHtml, contentHtmlMobile, contentMd, coverImage] = await Promise.all([
+    getArticleContent(id, 'html', 'desktop'),
+    getArticleContent(id, 'html', 'mobile'),
     getArticleContent(id, 'markdown'),
     processCoverImage(id),
   ]);
@@ -428,6 +436,7 @@ articlesRoutes.post('/articles/:id/refetch', requireAuth, async (c) => {
   return c.json({
     articleId: id,
     contentHtml: Boolean(contentHtml),
+    contentHtmlMobile: Boolean(contentHtmlMobile),
     contentMd: Boolean(contentMd),
     coverImage,
   });

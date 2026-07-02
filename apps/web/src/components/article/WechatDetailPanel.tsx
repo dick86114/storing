@@ -251,6 +251,64 @@ function isSingleFileCaptureHtml(html?: string | null) {
   return html.includes('data-storing-capture="singlefile"') || html.includes("data-storing-capture='singlefile'");
 }
 
+function isLikelyAdElement(element: Element) {
+  const attrs = [
+    element.id,
+    element.className,
+    element.getAttribute('name'),
+    element.getAttribute('src'),
+    element.getAttribute('data-ad-client'),
+    element.getAttribute('data-ad-slot'),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return /aswift|adsbygoogle|doubleclick|googlesyndication|google_ads|google-auto-placed|adslot|ad-slot|advert/i.test(attrs);
+}
+
+function hasMeaningfulContent(element: Element) {
+  if (element.querySelector('img,video,canvas,svg,picture,object,embed')) return true;
+  const text = element.textContent?.replace(/\s+/g, '') || '';
+  return text.length > 0;
+}
+
+function pruneEmptyAdAncestors(start: Element | null) {
+  let current = start;
+  while (current && current.tagName !== 'BODY') {
+    const parent = current.parentElement;
+    if (!isLikelyAdElement(current) && hasMeaningfulContent(current)) break;
+    current.remove();
+    current = parent;
+  }
+}
+
+function removeCapturedAdPlaceholders(root: Document) {
+  const adNodes = Array.from(
+    root.querySelectorAll(
+      [
+        'iframe[id^="aswift_"]',
+        'iframe[name^="aswift_"]',
+        'iframe[src*="googlesyndication"]',
+        'iframe[src*="doubleclick"]',
+        'iframe[src="about:blank"]',
+        'ins.adsbygoogle',
+        '.adsbygoogle',
+        '[id*="google_ads_iframe"]',
+        '[class*="google-auto-placed"]',
+        '[data-ad-client]',
+        '[data-ad-slot]',
+      ].join(',')
+    )
+  );
+
+  adNodes.forEach((node) => {
+    const parent = node.parentElement;
+    node.remove();
+    pruneEmptyAdAncestors(parent);
+  });
+}
+
 function createCapturedFrameHtml(html: string) {
   if (typeof document === 'undefined' || !html.trim()) return html;
 
@@ -258,6 +316,7 @@ function createCapturedFrameHtml(html: string) {
   parsed
     .querySelectorAll('meta[http-equiv="content-security-policy" i]')
     .forEach((node) => node.remove());
+  removeCapturedAdPlaceholders(parsed);
   parsed.querySelectorAll('a[href]').forEach((link) => {
     link.setAttribute('target', '_blank');
     link.setAttribute('rel', 'noopener noreferrer');
@@ -379,7 +438,8 @@ function CapturedArticleFrame({ html, title }: { html: string; title?: string | 
 }
 
 export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: WechatDetailPanelProps) {
-  const { data: article, error: articleError, isLoading, mutate: mutateArticle } = useArticle(articleId);
+  const htmlVariant = isDesktop ? 'desktop' : 'mobile';
+  const { data: article, error: articleError, isLoading, mutate: mutateArticle } = useArticle(articleId, 'html', htmlVariant);
   const { data: articleMeta } = useArticleMeta(articleId);
   const { mutate: globalMutate, cache } = useSWRConfig();
   const { showToast } = useToast();

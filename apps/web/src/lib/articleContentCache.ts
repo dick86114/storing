@@ -1,5 +1,7 @@
 'use client';
 
+import type { ArticleHtmlVariant } from './api';
+
 const DB_NAME = 'storing-article-content-cache';
 const STORE_NAME = 'articles';
 const DB_VERSION = 1;
@@ -66,8 +68,12 @@ function withStore<T>(
   }));
 }
 
-export function getArticleContentCacheKey(id: number, format: 'markdown' | 'html') {
-  return `article:${id}:${format}`;
+export function getArticleContentCacheKey(
+  id: number,
+  format: 'markdown' | 'html',
+  htmlVariant: ArticleHtmlVariant = 'desktop'
+) {
+  return `article:${id}:${format}:${format === 'html' ? htmlVariant : 'default'}`;
 }
 
 export async function readCachedArticleContent(key: string) {

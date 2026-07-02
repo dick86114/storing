@@ -1,0 +1,309 @@
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import { mkdtemp, readFile, rm } from 'fs/promises';
+import { join } from 'path';
+import { tmpdir } from 'os';
+import { JSDOM } from 'jsdom';
+
+const execFileAsync = promisify(execFile);
+
+export type HtmlVariant = 'desktop' | 'mobile';
+export type CollectCaptureStrategy =
+  | 'wechat_reader'
+  | 'singlefile_sidecar'
+  | 'singlefile_command'
+  | 'singlefile_docker'
+  | 'singlefile_npx';
+
+const DESKTOP_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const MOBILE_USER_AGENT =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+
+function shellQuote(value: string) {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function getSingleFileCommand() {
+  return process.env.SINGLEFILE_COMMAND || 'single-file';
+}
+
+function getSingleFileServiceUrl() {
+  const value = process.env.SINGLEFILE_SERVICE_URL?.trim();
+  return value ? value.replace(/\/+$/, '') : null;
+}
+
+export function getInitialSingleFileStrategy(): CollectCaptureStrategy {
+  return getSingleFileServiceUrl() ? 'singlefile_sidecar' : 'singlefile_command';
+}
+
+function getSingleFileUserAgent(variant: HtmlVariant) {
+  return variant === 'mobile' ? MOBILE_USER_AGENT : DESKTOP_USER_AGENT;
+}
+
+function getSingleFileArgs(variant: HtmlVariant) {
+  const args = [
+    `--user-agent=${getSingleFileUserAgent(variant)}`,
+    '--browser-arg=--disable-blink-features=AutomationControlled',
+  ];
+
+  if (variant === 'mobile') {
+    args.push('--browser-arg=--window-size=430,932');
+  }
+
+  return args;
+}
+
+async function runSingleFileWithService(url: string, timeoutMs: number, variant: HtmlVariant) {
+  const serviceUrl = getSingleFileServiceUrl();
+  if (!serviceUrl) throw new Error('未配置 SingleFile 服务地址');
+
+  const res = await fetch(`${serviceUrl}/capture`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url,
+      userAgent: getSingleFileUserAgent(variant),
+      viewport: variant === 'mobile' ? { width: 430, height: 932, isMobile: true } : { width: 1440, height: 960, isMobile: false },
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const text = await res.text();
+  let body: any = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = null;
+  }
+
+  if (!res.ok) {
+    throw new Error(body?.error || `SingleFile 服务返回异常：${res.status}`);
+  }
+
+  const html = typeof body?.html === 'string' ? body.html : '';
+  if (!html.trim()) throw new Error('SingleFile 服务没有返回 HTML 内容');
+  return html;
+}
+
+async function runSingleFileWithDocker(url: string, timeoutMs: number, maxBuffer: number, variant: HtmlVariant) {
+  const image = process.env.SINGLEFILE_DOCKER_IMAGE || 'capsulecode/singlefile';
+  const args = ['run', '--rm', image, ...getSingleFileArgs(variant), url];
+  const { stdout } = await execFileAsync('docker', args, { timeout: timeoutMs, maxBuffer });
+  return stdout;
+}
+
+async function runSingleFileWithNpx(url: string, timeoutMs: number, variant: HtmlVariant) {
+  const dir = await mkdtemp(join(tmpdir(), 'storing-singlefile-'));
+  const outputPath = join(dir, 'page.html');
+
+  try {
+    await execFileAsync(
+      'npx',
+      [
+        '-y',
+        'single-file-cli',
+        url,
+        outputPath,
+        ...getSingleFileArgs(variant),
+        '--browser-load-max-time=60000',
+        '--browser-capture-max-time=60000',
+      ],
+      { timeout: Math.max(timeoutMs, 180000), maxBuffer: 4 * 1024 * 1024 }
+    );
+    return await readFile(outputPath, 'utf8');
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+export async function runSingleFile(url: string, variant: HtmlVariant): Promise<{ html: string; strategy: CollectCaptureStrategy }> {
+  const command = getSingleFileCommand();
+  const timeoutMs = Number(process.env.SINGLEFILE_TIMEOUT_MS || 180000);
+  const maxBuffer = Number(process.env.SINGLEFILE_MAX_BUFFER || 80 * 1024 * 1024);
+  const serviceUrl = getSingleFileServiceUrl();
+  const extraArgs = getSingleFileArgs(variant);
+
+  const runLocalCommand = async () => {
+    if (command.includes(' ')) {
+      const argsSuffix = extraArgs.map(shellQuote).join(' ');
+      const { stdout } = await execFileAsync('/bin/sh', ['-lc', `${command} ${argsSuffix} ${shellQuote(url)}`], {
+        timeout: timeoutMs,
+        maxBuffer,
+      });
+      return { html: stdout, strategy: 'singlefile_command' as const };
+    }
+
+    const { stdout } = await execFileAsync(command, [...extraArgs, url], { timeout: timeoutMs, maxBuffer });
+    return { html: stdout, strategy: 'singlefile_command' as const };
+  };
+
+  const runLocalFallback = async () => {
+    try {
+      return await runLocalCommand();
+    } catch (e) {
+      const error = e as NodeJS.ErrnoException;
+      if (command === 'single-file' && error.code === 'ENOENT') {
+        try {
+          return { html: await runSingleFileWithDocker(url, timeoutMs, maxBuffer, variant), strategy: 'singlefile_docker' as const };
+        } catch {
+          return { html: await runSingleFileWithNpx(url, timeoutMs, variant), strategy: 'singlefile_npx' as const };
+        }
+      }
+      throw e;
+    }
+  };
+
+  if (serviceUrl) {
+    try {
+      return { html: await runSingleFileWithService(url, timeoutMs, variant), strategy: 'singlefile_sidecar' as const };
+    } catch (serviceError) {
+      if (process.env.SINGLEFILE_SERVICE_FALLBACK_LOCAL === 'false') throw serviceError;
+      const serviceMessage = serviceError instanceof Error ? serviceError.message : String(serviceError);
+      console.warn(`SingleFile service failed, fallback to local command: ${serviceMessage}`);
+      try {
+        return await runLocalFallback();
+      } catch (fallbackError) {
+        const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+        throw new Error(`SingleFile 服务失败：${serviceMessage}；本地兜底也失败：${fallbackMessage}`);
+      }
+    }
+  }
+
+  return runLocalFallback();
+}
+
+function extractTitle(doc: Document, fallbackUrl: string) {
+  const title =
+    doc.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
+    doc.querySelector('title')?.textContent ||
+    doc.querySelector('h1')?.textContent ||
+    fallbackUrl;
+  return title.replace(/\s+/g, ' ').trim().slice(0, 180);
+}
+
+function extractSource(url: string, doc?: Document) {
+  const siteName = doc?.querySelector('meta[property="og:site_name"]')?.getAttribute('content')?.trim();
+  if (siteName) return siteName.slice(0, 80);
+  return new URL(url).hostname.replace(/^www\./, '').slice(0, 80);
+}
+
+function absolutizeUrl(value: string, baseUrl: string) {
+  if (!value || value.startsWith('data:') || value.startsWith('blob:') || value.startsWith('mailto:') || value.startsWith('tel:')) {
+    return value;
+  }
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return value;
+  }
+}
+
+function extractMetaImage(doc: Document, baseUrl: string) {
+  const selectors = [
+    'meta[property="og:image"]',
+    'meta[property="og:image:secure_url"]',
+    'meta[name="twitter:image"]',
+    'meta[property="twitter:image"]',
+  ];
+
+  for (const selector of selectors) {
+    const value = doc.querySelector(selector)?.getAttribute('content')?.trim();
+    if (value) return absolutizeUrl(value, baseUrl);
+  }
+
+  const firstArticleImage =
+    doc.querySelector<HTMLImageElement>('article img[src], article img[data-src]') ||
+    doc.querySelector<HTMLImageElement>('main img[src], main img[data-src]') ||
+    doc.querySelector<HTMLImageElement>('img[src], img[data-src]');
+
+  if (!firstArticleImage) return null;
+
+  for (const attr of ['data-src', 'data-original', 'data-lazy-src', 'data-url', 'src']) {
+    const value = firstArticleImage.getAttribute(attr)?.trim();
+    if (value) return absolutizeUrl(value, baseUrl);
+  }
+
+  return null;
+}
+
+function getImageCandidate(image: HTMLImageElement, baseUrl: string) {
+  for (const attr of ['data-src', 'data-original', 'data-lazy-src', 'data-url', 'src']) {
+    const value = image.getAttribute(attr)?.trim();
+    if (!value) continue;
+    if (value.startsWith('data:image/')) return value;
+    if (value.startsWith('data:') || value.startsWith('blob:')) continue;
+    return absolutizeUrl(value, baseUrl);
+  }
+  return null;
+}
+
+export async function uploadImagesInCapturedDocument(
+  html: string,
+  baseUrl: string,
+  uploader: (url: string) => Promise<string | null>
+) {
+  const dom = new JSDOM(html);
+  const doc = dom.window.document;
+  const images = Array.from(doc.querySelectorAll<HTMLImageElement>('img'));
+
+  await Promise.all(
+    images.map(async (image) => {
+      const originalUrl = getImageCandidate(image, baseUrl);
+      if (!originalUrl) return;
+
+      const uploadedUrl = await uploader(originalUrl);
+      if (!uploadedUrl) return;
+
+      image.setAttribute('src', uploadedUrl);
+      image.setAttribute('referrerpolicy', 'no-referrer');
+      image.removeAttribute('srcset');
+      image.removeAttribute('data-src');
+      image.removeAttribute('data-original');
+      image.removeAttribute('data-lazy-src');
+      image.removeAttribute('data-url');
+    })
+  );
+
+  return dom.serialize();
+}
+
+export function prepareCapturedDocument(rawHtml: string, baseUrl: string) {
+  const dom = new JSDOM(rawHtml);
+  const doc = dom.window.document;
+  const title = extractTitle(doc, baseUrl);
+  const source = extractSource(baseUrl, doc);
+  const coverImage = extractMetaImage(doc, baseUrl);
+
+  doc.querySelectorAll('script,noscript').forEach((node) => node.remove());
+  doc.querySelectorAll('a[href]').forEach((link) => {
+    const href = link.getAttribute('href');
+    if (!href) return;
+    link.setAttribute('href', absolutizeUrl(href, baseUrl));
+    link.setAttribute('target', '_blank');
+    link.setAttribute('rel', 'noopener noreferrer');
+  });
+  doc.querySelectorAll('img[src],img[data-src]').forEach((image) => {
+    for (const attr of ['src', 'data-src', 'data-original', 'data-lazy-src', 'data-url']) {
+      const value = image.getAttribute(attr);
+      if (value) image.setAttribute(attr, absolutizeUrl(value, baseUrl));
+    }
+  });
+
+  doc.documentElement.setAttribute('data-storing-capture', 'singlefile');
+  doc.documentElement.setAttribute('data-capture-source', baseUrl);
+  doc.body?.setAttribute('data-storing-capture-body', 'true');
+  doc.body?.classList.add('manual-capture-page');
+
+  return { title, source, coverImage, html: dom.serialize() };
+}
+
+export function extractTextFromHtml(html: string) {
+  const dom = new JSDOM(html);
+  const text = dom.window.document.body?.textContent?.replace(/\s+/g, ' ').trim() || '';
+  return text.slice(0, 60000);
+}
+
+export function isSingleFileCaptureHtml(html?: string | null) {
+  if (!html) return false;
+  return html.includes('data-storing-capture="singlefile"') || html.includes("data-storing-capture='singlefile'");
+}

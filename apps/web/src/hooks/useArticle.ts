@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
-import { api } from '@/lib/api';
+import { api, type ArticleHtmlVariant } from '@/lib/api';
 import {
   getArticleContentCacheKey,
   readCachedArticleContent,
@@ -15,8 +15,15 @@ type ArticleCacheState = {
   ready: boolean;
 };
 
-export function useArticle(id: number | null, format: 'markdown' | 'html' = 'html') {
-  const key = useMemo(() => (id ? getArticleContentCacheKey(id, format) : null), [id, format]);
+export function useArticle(
+  id: number | null,
+  format: 'markdown' | 'html' = 'html',
+  htmlVariant: ArticleHtmlVariant = 'desktop'
+) {
+  const key = useMemo(
+    () => (id ? getArticleContentCacheKey(id, format, htmlVariant) : null),
+    [id, format, htmlVariant]
+  );
   const [cacheState, setCacheState] = useState<ArticleCacheState>({
     key: null,
     data: null,
@@ -52,7 +59,7 @@ export function useArticle(id: number | null, format: 'markdown' | 'html' = 'htm
   return useSWR(
     key && isCacheReady ? key : null,
     async () => {
-      const article = await api.getArticle(id!, format);
+      const article = await api.getArticle(id!, format, htmlVariant);
       void writeCachedArticleContent(key!, article);
       return article;
     },
