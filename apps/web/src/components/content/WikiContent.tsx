@@ -383,19 +383,45 @@ function WikiAskDock({
     setOpen(true);
   };
 
+  useEffect(() => {
+    if (!open) return;
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousBodyOverflow = body.style.overflow;
+    const previousHtmlOverscroll = html.style.overscrollBehavior;
+    const previousBodyOverscroll = body.style.overscrollBehavior;
+
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    html.style.overscrollBehavior = 'none';
+    body.style.overscrollBehavior = 'none';
+
+    return () => {
+      html.style.overflow = previousHtmlOverflow;
+      body.style.overflow = previousBodyOverflow;
+      html.style.overscrollBehavior = previousHtmlOverscroll;
+      body.style.overscrollBehavior = previousBodyOverscroll;
+    };
+  }, [open]);
+
   const handleResizePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     const dock = dockRef.current;
     if (!dock) return;
     event.preventDefault();
     event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
 
     const startX = event.clientX;
     const startY = event.clientY;
     const startRect = dock.getBoundingClientRect();
     const minWidth = 360;
     const minHeight = 420;
-    const maxWidth = Math.max(minWidth, window.innerWidth - 32);
-    const maxHeight = Math.max(minHeight, window.innerHeight - 32);
+    const navBottom = document.querySelector('.desktop-top-nav, .app-top-nav')?.getBoundingClientRect().bottom ?? 64;
+    const topBoundary = navBottom + 12;
+    const leftBoundary = 16;
+    const maxWidth = Math.max(minWidth, startRect.right - leftBoundary);
+    const maxHeight = Math.max(minHeight, startRect.bottom - topBoundary);
 
     const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
     const handlePointerMove = (moveEvent: globalThis.PointerEvent) => {
@@ -428,7 +454,7 @@ function WikiAskDock({
 
   return (
     <>
-    <button type="button" className="wiki-ask-click-away" aria-label="收起问知识库" tabIndex={-1} onClick={() => setOpen(false)} />
+    <button type="button" className="wiki-ask-click-away" aria-label="收起问知识库" tabIndex={-1} onClick={() => setOpen(false)} onWheel={(event) => event.preventDefault()} />
     <section ref={dockRef} className={`wiki-ask-dock${expanded ? ' wiki-ask-dock-expanded' : ''}`} aria-label="问知识库对话框">
       <button
         type="button"

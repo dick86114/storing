@@ -273,8 +273,10 @@ interface CollectFormProps {
 export function CollectForm({ compact = false, onSubmitted }: CollectFormProps) {
   const [url, setUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [pasting, setPasting] = useState(false);
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (compact) window.setTimeout(() => inputRef.current?.focus(), 120);
@@ -302,6 +304,35 @@ export function CollectForm({ compact = false, onSubmitted }: CollectFormProps) 
     }
   };
 
+  const handlePaste = async () => {
+    if (pasting || submitting) return;
+
+    if (!navigator.clipboard?.readText) {
+      setError('当前浏览器不支持直接读取系统剪切板');
+      return;
+    }
+
+    setPasting(true);
+    try {
+      const text = (await navigator.clipboard.readText()).trim();
+      if (!text) {
+        showToast('系统剪切板里没有可粘贴的文本');
+        return;
+      }
+
+      setUrl(text);
+      setError('');
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(text.length, text.length);
+      showToast('已从系统剪切板填入链接');
+    } catch (pasteError) {
+      setError('读取系统剪切板失败，请检查浏览器权限');
+      console.warn('Clipboard read failed', pasteError);
+    } finally {
+      setPasting(false);
+    }
+  };
+
   return (
     <form className={`collect-form${compact ? ' collect-form--compact' : ''}`} onSubmit={handleSubmit}>
       <div className="collect-input-shell">
@@ -317,10 +348,29 @@ export function CollectForm({ compact = false, onSubmitted }: CollectFormProps) 
           autoComplete="off"
           rows={2}
         />
-        <button type="submit" disabled={submitting} aria-label={submitting ? '提交中' : '一键入库'} title={submitting ? '提交中' : '一键入库'}>
-          {submitting ? <LoadingOutlined spin /> : <EnterOutlined />}
-          <span>{submitting ? '提交中' : '一键入库'}</span>
-        </button>
+        <div className="collect-input-actions">
+          <button
+            className="collect-input-paste"
+            type="button"
+            onClick={handlePaste}
+            disabled={pasting || submitting}
+            aria-label={pasting ? '读取剪切板中' : '从系统剪切板粘贴'}
+            title={pasting ? '读取剪切板中' : '从系统剪切板粘贴'}
+          >
+            {pasting ? <LoadingOutlined spin /> : <CopyOutlined />}
+            <span>{pasting ? '读取中' : '粘贴'}</span>
+          </button>
+          <button
+            className="collect-input-submit"
+            type="submit"
+            disabled={submitting}
+            aria-label={submitting ? '提交中' : '一键入库'}
+            title={submitting ? '提交中' : '一键入库'}
+          >
+            {submitting ? <LoadingOutlined spin /> : <EnterOutlined />}
+            <span>{submitting ? '提交中' : '一键入库'}</span>
+          </button>
+        </div>
       </div>
       {error && <p className="collect-error">{error}</p>}
     </form>
