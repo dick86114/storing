@@ -264,6 +264,9 @@ type PreparedCapture = ReturnType<typeof prepareCapturedDocument>;
 
 type ValidSingleFileCapture = {
   strategy: CollectCaptureStrategy;
+  captureUrl: string;
+  desktopCaptureUrl: string | null;
+  mobileCaptureUrl: string | null;
   desktopRawHtml: string | null;
   mobileRawHtml: string | null;
   desktopPrepared: PreparedCapture | null;
@@ -280,9 +283,59 @@ function formatStrategyLabel(strategy: CollectCaptureStrategy) {
   return strategy;
 }
 
+function pushUniqueUrl(urls: string[], value: string) {
+  try {
+    const normalized = new URL(value);
+    normalized.hash = '';
+    const finalValue = normalized.toString();
+    if (!urls.includes(finalValue)) urls.push(finalValue);
+  } catch {
+    // Ignore malformed candidate URLs; the original URL was validated earlier.
+  }
+}
+
+function getCaptureUrlCandidates(normalizedUrl: string) {
+  const candidates: string[] = [];
+  pushUniqueUrl(candidates, normalizedUrl);
+
+  let parsed: URL;
+  try {
+    parsed = new URL(normalizedUrl);
+  } catch {
+    return candidates;
+  }
+
+  if (parsed.search) {
+    const withoutSearch = new URL(parsed);
+    withoutSearch.search = '';
+    pushUniqueUrl(candidates, withoutSearch.toString());
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  if (host === 'post.m.smzdm.com' || host === 'm.smzdm.com') {
+    const desktopUrl = new URL(parsed);
+    desktopUrl.hostname = host === 'post.m.smzdm.com' ? 'post.smzdm.com' : 'www.smzdm.com';
+    pushUniqueUrl(candidates, desktopUrl.toString());
+    desktopUrl.search = '';
+    pushUniqueUrl(candidates, desktopUrl.toString());
+  }
+
+  return candidates;
+}
+
+function formatCandidateLabel(originalUrl: string, captureUrl: string) {
+  if (captureUrl === originalUrl) return '';
+  try {
+    const parsed = new URL(captureUrl);
+    return ` @ ${parsed.hostname}${parsed.pathname}`;
+  } catch {
+    return ` @ ${captureUrl}`;
+  }
+}
+
 async function captureVariantWithStrategy(
   jobId: number,
-  normalizedUrl: string,
+  captureUrl: string,
   strategy: CollectCaptureStrategy,
   variant: HtmlVariant
 ) {
@@ -291,63 +344,82 @@ async function captureVariantWithStrategy(
     captureStrategy: strategy,
   });
 
-  const { html } = await runSingleFileWithStrategy(normalizedUrl, variant, strategy);
-  const validation = validateCapturedHtml(html, normalizedUrl);
+  const { html } = await runSingleFileWithStrategy(captureUrl, variant, strategy);
+  const validation = validateCapturedHtml(html, captureUrl);
   if (!validation.ok) {
     throw new Error(`${validation.reason}（正文长度 ${validation.textLength}）`);
   }
 
   return {
     rawHtml: html,
-    prepared: prepareCapturedDocument(html, normalizedUrl),
+    prepared: prepareCapturedDocument(html, captureUrl),
   };
 }
 
 async function captureBestSingleFile(jobId: number, normalizedUrl: string): Promise<ValidSingleFileCapture> {
   const strategyFailures: string[] = [];
+  const captureUrls = getCaptureUrlCandidates(normalizedUrl);
+  const strategies = getSingleFileCandidateStrategies();
 
-  for (const strategy of getSingleFileCandidateStrategies()) {
-    const variantFailures: string[] = [];
-    let desktopRawHtml: string | null = null;
-    let mobileRawHtml: string | null = null;
-    let desktopPrepared: PreparedCapture | null = null;
-    let mobilePrepared: PreparedCapture | null = null;
+  if (strategies.length === 0) {
+    throw new Error('当前运行环境没有可用的网页抓取执行器，请启动 SingleFile sidecar，或安装 single-file/npx 与 Chromium');
+  }
 
-    try {
-      const desktop = await captureVariantWithStrategy(jobId, normalizedUrl, strategy, 'desktop');
-      desktopRawHtml = desktop.rawHtml;
-      desktopPrepared = desktop.prepared;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      variantFailures.push(`desktop: ${message}`);
-      console.warn(`${formatStrategyLabel(strategy)} desktop capture failed for ${normalizedUrl}: ${message}`);
+  for (const captureUrl of captureUrls) {
+    const candidateLabel = formatCandidateLabel(normalizedUrl, captureUrl);
+
+    for (const strategy of strategies) {
+      const variantFailures: string[] = [];
+      let desktopRawHtml: string | null = null;
+      let mobileRawHtml: string | null = null;
+      let desktopPrepared: PreparedCapture | null = null;
+      let mobilePrepared: PreparedCapture | null = null;
+      let desktopCaptureUrl: string | null = null;
+      let mobileCaptureUrl: string | null = null;
+
+      try {
+        const desktop = await captureVariantWithStrategy(jobId, captureUrl, strategy, 'desktop');
+        desktopRawHtml = desktop.rawHtml;
+        desktopPrepared = desktop.prepared;
+        desktopCaptureUrl = captureUrl;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        variantFailures.push(`desktop: ${message}`);
+        console.warn(`${formatStrategyLabel(strategy)} desktop capture failed for ${captureUrl}: ${message}`);
+      }
+
+      try {
+        const mobile = await captureVariantWithStrategy(jobId, captureUrl, strategy, 'mobile');
+        mobileRawHtml = mobile.rawHtml;
+        mobilePrepared = mobile.prepared;
+        mobileCaptureUrl = captureUrl;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        variantFailures.push(`mobile: ${message}`);
+        console.warn(`${formatStrategyLabel(strategy)} mobile capture failed for ${captureUrl}: ${message}`);
+      }
+
+      const primaryPrepared = desktopPrepared ?? mobilePrepared;
+      const primaryRawHtml = desktopRawHtml ?? mobileRawHtml;
+      if (primaryPrepared && primaryRawHtml) {
+        return {
+          strategy,
+          captureUrl,
+          desktopCaptureUrl,
+          mobileCaptureUrl,
+          desktopRawHtml,
+          mobileRawHtml,
+          desktopPrepared,
+          mobilePrepared,
+          primaryPrepared,
+          primaryRawHtml,
+        };
+      }
+
+      strategyFailures.push(
+        `${formatStrategyLabel(strategy)}${candidateLabel}：${variantFailures.join('；') || '未返回有效正文'}`
+      );
     }
-
-    try {
-      const mobile = await captureVariantWithStrategy(jobId, normalizedUrl, strategy, 'mobile');
-      mobileRawHtml = mobile.rawHtml;
-      mobilePrepared = mobile.prepared;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      variantFailures.push(`mobile: ${message}`);
-      console.warn(`${formatStrategyLabel(strategy)} mobile capture failed for ${normalizedUrl}: ${message}`);
-    }
-
-    const primaryPrepared = desktopPrepared ?? mobilePrepared;
-    const primaryRawHtml = desktopRawHtml ?? mobileRawHtml;
-    if (primaryPrepared && primaryRawHtml) {
-      return {
-        strategy,
-        desktopRawHtml,
-        mobileRawHtml,
-        desktopPrepared,
-        mobilePrepared,
-        primaryPrepared,
-        primaryRawHtml,
-      };
-    }
-
-    strategyFailures.push(`${formatStrategyLabel(strategy)}：${variantFailures.join('；') || '未返回有效正文'}`);
   }
 
   throw new Error(strategyFailures.join('；') || 'SingleFile 抓取结果无有效正文');
@@ -359,10 +431,10 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string) {
   await updateCollectJob(jobId, { stage: 'uploading_images', captureStrategy: capture.strategy });
 
   const desktopUploadPromise = capture.desktopPrepared
-    ? uploadImagesInCapturedDocument(capture.desktopPrepared.html, normalizedUrl, uploadImage)
+    ? uploadImagesInCapturedDocument(capture.desktopPrepared.html, capture.desktopCaptureUrl || capture.captureUrl, uploadImage)
     : Promise.resolve(null);
   const mobileUploadPromise = capture.mobilePrepared
-    ? uploadImagesInCapturedDocument(capture.mobilePrepared.html, normalizedUrl, uploadImage)
+    ? uploadImagesInCapturedDocument(capture.mobilePrepared.html, capture.mobileCaptureUrl || capture.captureUrl, uploadImage)
     : Promise.resolve(null);
   const coverUploadPromise = capture.primaryPrepared.coverImage ? uploadImage(capture.primaryPrepared.coverImage) : Promise.resolve(null);
   const [desktopHtml, mobileHtml, uploadedCoverImage] = await Promise.all([

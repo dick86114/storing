@@ -54,6 +54,8 @@ function formatCollectError(error?: string | null) {
 
   if (/验证码|风控|验证页|captcha|verification/i.test(normalized)) {
     hint = '建议稍后重试；如果站点分桌面/移动页，可优先使用更稳定的入口链接。';
+  } else if (/Chromium executable not found|spawn single-file ENOENT|spawn docker ENOENT|spawn npx ENOENT/i.test(normalized)) {
+    hint = '当前运行环境缺少本地浏览器抓取依赖；Docker 部署建议确认 singlefile sidecar 已启动并重建镜像，或配置 SINGLEFILE_BROWSER_EXECUTABLE_PATH 指向可用 Chromium。';
   } else if (/正文过短|缺少有效正文|壳页|异常页/i.test(normalized)) {
     hint = '建议检查链接是否跳转到了活动页、壳页或登录页，再重新采集。';
   } else if (/SingleFile 服务失败/i.test(normalized)) {

@@ -1,6 +1,7 @@
-import { execFile } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
 import { promisify } from 'util';
 import { mkdtemp, readFile, rm } from 'fs/promises';
+import { existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { JSDOM } from 'jsdom';
@@ -43,19 +44,58 @@ export function getInitialSingleFileStrategy(): CollectCaptureStrategy {
 export function getSingleFileCandidateStrategies(): CollectCaptureStrategy[] {
   const strategies: CollectCaptureStrategy[] = [];
   if (getSingleFileServiceUrl()) strategies.push('singlefile_sidecar');
-  strategies.push('singlefile_command', 'singlefile_docker', 'singlefile_npx');
+  if (process.env.SINGLEFILE_COMMAND || commandExists(getSingleFileCommand())) {
+    strategies.push('singlefile_command');
+  }
+  if (commandExists('docker')) {
+    strategies.push('singlefile_docker');
+  }
+  if (commandExists('npx')) {
+    strategies.push('singlefile_npx');
+  }
   return strategies;
+}
+
+function commandExists(command: string) {
+  if (!command || command.includes(' ')) return false;
+  try {
+    execFileSync('which', [command], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function getSingleFileUserAgent(variant: HtmlVariant) {
   return variant === 'mobile' ? MOBILE_USER_AGENT : DESKTOP_USER_AGENT;
 }
 
+function getBrowserExecutablePath() {
+  const configured = process.env.SINGLEFILE_BROWSER_EXECUTABLE_PATH?.trim();
+  if (configured) return configured;
+
+  const candidates = [
+    '/usr/local/bin/playwright-chromium',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  ];
+  return candidates.find((candidate) => existsSync(candidate)) || null;
+}
+
 function getSingleFileArgs(variant: HtmlVariant) {
   const args = [
     `--user-agent=${getSingleFileUserAgent(variant)}`,
     '--browser-arg=--disable-blink-features=AutomationControlled',
+    '--browser-arg=--no-sandbox',
+    '--browser-arg=--disable-dev-shm-usage',
   ];
+  const browserExecutablePath = getBrowserExecutablePath();
+  if (browserExecutablePath) {
+    args.push(`--browser-executable-path=${browserExecutablePath}`);
+  }
 
   if (variant === 'mobile') {
     args.push('--browser-arg=--window-size=430,932');
