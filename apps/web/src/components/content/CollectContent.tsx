@@ -1,10 +1,31 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { ApiOutlined, CheckCircleOutlined, ClockCircleOutlined, CloudServerOutlined, CloudUploadOutlined, CodeSandboxOutlined, CopyOutlined, DeleteOutlined, DockerOutlined, EnterOutlined, ExclamationCircleOutlined, GlobalOutlined, LinkOutlined, LoadingOutlined, NodeIndexOutlined, ReloadOutlined } from '@ant-design/icons';
+import {
+  ApiOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  CloudServerOutlined,
+  CloudUploadOutlined,
+  CloseOutlined,
+  CodeSandboxOutlined,
+  CopyOutlined,
+  DatabaseOutlined,
+  DeleteOutlined,
+  DesktopOutlined,
+  DockerOutlined,
+  EnterOutlined,
+  ExclamationCircleOutlined,
+  GlobalOutlined,
+  MobileOutlined,
+  NodeIndexOutlined,
+  ReloadOutlined,
+  ThunderboltOutlined,
+  WechatOutlined,
+} from '@ant-design/icons';
 import { api } from '@/lib/api';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useArticleContext } from '@/components/providers/ArticleContext';
@@ -46,39 +67,43 @@ const stageLabels: Record<string, string> = {
   failed: '采集失败',
 };
 
-function CollectJobStatusText({ job }: { job: CollectJob }) {
-  const details = job.errorDetails?.filter(Boolean) || [];
-  const summary = job.errorSummary || job.error || getJobLabel(job);
-  const hint = job.errorHint;
+type StageAppearance = {
+  Icon: ComponentType<any>;
+  tone:
+    | 'queued'
+    | 'starting'
+    | 'capturing'
+    | 'capturing-mobile'
+    | 'reader-fetch'
+    | 'uploading'
+    | 'uploading-mobile'
+    | 'saving'
+    | 'completed'
+    | 'failed';
+  animated?: boolean;
+};
 
-  if (job.status !== 'failed') {
-    return <p>{summary}</p>;
-  }
-
-  return (
-    <div className="collect-job-status-block">
-      <p className="collect-job-status-summary">{summary}</p>
-      {details.length > 0 && (
-        <ul className="collect-job-status-details">
-          {details.map((detail, index) => (
-            <li key={`${job.id}-detail-${index}`}>{detail}</li>
-          ))}
-        </ul>
-      )}
-      {hint && <p className="collect-job-status-hint">{hint}</p>}
-    </div>
-  );
-}
-
-function getJobIcon(job: CollectJob) {
-  if (job.status === 'completed') return <CheckCircleOutlined />;
-  if (job.status === 'failed') return <ExclamationCircleOutlined />;
-  if (job.status === 'running') return <LoadingOutlined spin />;
-  return <ClockCircleOutlined />;
-}
+const stageAppearances: Record<string, StageAppearance> = {
+  queued: { Icon: ClockCircleOutlined, tone: 'queued' },
+  starting: { Icon: ThunderboltOutlined, tone: 'starting', animated: true },
+  capturing: { Icon: DesktopOutlined, tone: 'capturing', animated: true },
+  capturing_mobile: { Icon: MobileOutlined, tone: 'capturing-mobile', animated: true },
+  reader_fetch: { Icon: WechatOutlined, tone: 'reader-fetch', animated: true },
+  uploading_images: { Icon: CloudUploadOutlined, tone: 'uploading', animated: true },
+  uploading_mobile_images: { Icon: CloudUploadOutlined, tone: 'uploading-mobile', animated: true },
+  saving: { Icon: DatabaseOutlined, tone: 'saving', animated: true },
+  completed: { Icon: CheckCircleOutlined, tone: 'completed' },
+  failed: { Icon: ExclamationCircleOutlined, tone: 'failed' },
+};
 
 function getJobLabel(job: CollectJob) {
   return stageLabels[job.stage] || stageLabels[job.status] || '处理中';
+}
+
+function getJobAppearance(job: CollectJob): StageAppearance {
+  if (job.status === 'failed') return stageAppearances.failed;
+  if (job.status === 'completed') return stageAppearances.completed;
+  return stageAppearances[job.stage] || stageAppearances.queued;
 }
 
 function getCaptureMeta(job: CollectJob) {
@@ -304,30 +329,50 @@ export function CollectForm({ compact = false, onSubmitted }: CollectFormProps) 
     }
   };
 
+  const applyPastedText = (text: string) => {
+    setUrl(text);
+    setError('');
+    inputRef.current?.focus();
+    inputRef.current?.setSelectionRange(text.length, text.length);
+  };
+
   const handlePaste = async () => {
     if (pasting || submitting) return;
 
-    if (!navigator.clipboard?.readText) {
-      setError('当前浏览器不支持直接读取系统剪切板');
-      return;
-    }
-
     setPasting(true);
     try {
-      const text = (await navigator.clipboard.readText()).trim();
+      let text = '';
+
+      if (navigator.clipboard?.readText) {
+        try {
+          text = (await navigator.clipboard.readText()).trim();
+        } catch (pasteError) {
+          console.warn('Clipboard read failed', pasteError);
+        }
+      }
+
       if (!text) {
-        showToast('系统剪切板里没有可粘贴的文本');
+        const input = inputRef.current;
+        if (input) {
+          const selectionStart = input.selectionStart ?? input.value.length;
+          const selectionEnd = input.selectionEnd ?? input.value.length;
+          input.focus();
+          input.setSelectionRange(selectionStart, selectionEnd);
+          const beforeValue = input.value;
+          const pasted = typeof document.execCommand === 'function' ? document.execCommand('paste') : false;
+          if (pasted && input.value !== beforeValue) {
+            setError('');
+            showToast('已从系统剪切板填入链接');
+            return;
+          }
+        }
+
+        showToast('请在输入框中按下 Cmd/Ctrl+V 粘贴链接');
         return;
       }
 
-      setUrl(text);
-      setError('');
-      inputRef.current?.focus();
-      inputRef.current?.setSelectionRange(text.length, text.length);
+      applyPastedText(text);
       showToast('已从系统剪切板填入链接');
-    } catch (pasteError) {
-      setError('读取系统剪切板失败，请检查浏览器权限');
-      console.warn('Clipboard read failed', pasteError);
     } finally {
       setPasting(false);
     }
@@ -336,7 +381,17 @@ export function CollectForm({ compact = false, onSubmitted }: CollectFormProps) 
   return (
     <form className={`collect-form${compact ? ' collect-form--compact' : ''}`} onSubmit={handleSubmit}>
       <div className="collect-input-shell">
-        <LinkOutlined className="collect-input-icon" />
+        <button
+          className="collect-input-icon-button"
+          type="button"
+          onClick={handlePaste}
+          disabled={pasting || submitting}
+          aria-label={pasting ? '读取剪切板中' : '从系统剪切板粘贴'}
+          title={pasting ? '读取剪切板中' : '从系统剪切板粘贴'}
+        >
+          <CopyOutlined />
+          <span>{pasting ? '读取中' : '粘贴'}</span>
+        </button>
         <textarea
           ref={inputRef}
           value={url}
@@ -348,29 +403,16 @@ export function CollectForm({ compact = false, onSubmitted }: CollectFormProps) 
           autoComplete="off"
           rows={2}
         />
-        <div className="collect-input-actions">
-          <button
-            className="collect-input-paste"
-            type="button"
-            onClick={handlePaste}
-            disabled={pasting || submitting}
-            aria-label={pasting ? '读取剪切板中' : '从系统剪切板粘贴'}
-            title={pasting ? '读取剪切板中' : '从系统剪切板粘贴'}
-          >
-            {pasting ? <LoadingOutlined spin /> : <CopyOutlined />}
-            <span>{pasting ? '读取中' : '粘贴'}</span>
-          </button>
-          <button
-            className="collect-input-submit"
-            type="submit"
-            disabled={submitting}
-            aria-label={submitting ? '提交中' : '一键入库'}
-            title={submitting ? '提交中' : '一键入库'}
-          >
-            {submitting ? <LoadingOutlined spin /> : <EnterOutlined />}
-            <span>{submitting ? '提交中' : '一键入库'}</span>
-          </button>
-        </div>
+        <button
+          className="collect-input-submit"
+          type="submit"
+          disabled={submitting}
+          aria-label={submitting ? '提交中' : '一键入库'}
+          title={submitting ? '提交中' : '一键入库'}
+        >
+          <EnterOutlined />
+          <span>{submitting ? '提交中' : '一键入库'}</span>
+        </button>
       </div>
       {error && <p className="collect-error">{error}</p>}
     </form>
@@ -386,6 +428,42 @@ function CollectJobCard({ job, onRetry, onDelete }: { job: CollectJob; onRetry?:
   const captureMeta = getCaptureMeta(job);
   const CaptureIcon = captureMeta.Icon;
   const displayUrl = job.normalizedUrl || job.url;
+  const appearance = getJobAppearance(job);
+  const AppearanceIcon = appearance.Icon;
+  const statusLabel = getJobLabel(job);
+  const errorSummary = job.errorSummary || job.error || statusLabel;
+  const errorDetails = job.errorDetails?.filter(Boolean) || [];
+  const errorHint = job.errorHint;
+  const canShowErrorPopover = job.status === 'failed' && Boolean(errorSummary || errorDetails.length || errorHint);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const errorPopoverRef = useRef<HTMLDivElement>(null);
+  const errorTriggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (job.status !== 'failed' && errorOpen) setErrorOpen(false);
+  }, [errorOpen, job.status]);
+
+  useEffect(() => {
+    if (!errorOpen) return;
+
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setErrorOpen(false);
+    };
+    const handlePointer = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (errorPopoverRef.current?.contains(target)) return;
+      if (errorTriggerRef.current?.contains(target)) return;
+      setErrorOpen(false);
+    };
+
+    document.addEventListener('keydown', handleKey);
+    document.addEventListener('mousedown', handlePointer);
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      document.removeEventListener('mousedown', handlePointer);
+    };
+  }, [errorOpen]);
 
   const handleOpenArticle = () => {
     if (!job.articleId) return;
@@ -400,9 +478,47 @@ function CollectJobCard({ job, onRetry, onDelete }: { job: CollectJob; onRetry?:
     showToast(copied ? '链接已复制' : '当前浏览器不允许复制链接');
   };
 
+  const statusButtonProps = {
+    className: `collect-job-icon collect-job-icon-button collect-job-icon--${appearance.tone}${appearance.animated ? ' collect-job-icon--active' : ''}${canShowErrorPopover ? ' collect-job-icon-button--interactive' : ''}`,
+    type: 'button' as const,
+    title: canShowErrorPopover ? '查看采集异常信息' : statusLabel,
+    'aria-label': canShowErrorPopover ? '查看采集异常信息' : statusLabel,
+    'aria-expanded': canShowErrorPopover ? errorOpen : undefined,
+    disabled: !canShowErrorPopover,
+    onClick: canShowErrorPopover ? () => setErrorOpen((open) => !open) : undefined,
+  };
+
   return (
     <article className={`collect-job-card collect-job-card--${job.status}`}>
-      <div className="collect-job-icon">{getJobIcon(job)}</div>
+      <div className="collect-job-status">
+        <button ref={errorTriggerRef} {...statusButtonProps}>
+          <AppearanceIcon />
+        </button>
+        {errorOpen && canShowErrorPopover && (
+          <div ref={errorPopoverRef} className="collect-job-status-popover" role="dialog" aria-label="采集异常详情">
+            <div className="collect-job-status-popover-head">
+              <span>{errorSummary}</span>
+              <button
+                type="button"
+                className="collect-job-status-popover-close"
+                onClick={() => setErrorOpen(false)}
+                aria-label="关闭异常详情"
+                title="关闭"
+              >
+                <CloseOutlined />
+              </button>
+            </div>
+            {errorDetails.length > 0 && (
+              <ul className="collect-job-status-popover-details">
+                {errorDetails.map((detail, index) => (
+                  <li key={`${job.id}-detail-${index}`}>{detail}</li>
+                ))}
+              </ul>
+            )}
+            {errorHint && <p className="collect-job-status-popover-hint">{errorHint}</p>}
+          </div>
+        )}
+      </div>
       <div className="collect-job-main">
         <div className="collect-job-head">
           <strong>{job.title || job.normalizedUrl || job.url}</strong>
@@ -411,7 +527,6 @@ function CollectJobCard({ job, onRetry, onDelete }: { job: CollectJob; onRetry?:
             <span>{captureMeta.label}</span>
           </span>
         </div>
-        <CollectJobStatusText job={job} />
         <div className="collect-job-url-row">
           <div className="collect-job-url" title={displayUrl}>{displayUrl}</div>
           {displayUrl && (
@@ -442,22 +557,40 @@ function CollectJobCard({ job, onRetry, onDelete }: { job: CollectJob; onRetry?:
   );
 }
 
+const COLLECT_PAGE_SIZE = 12;
+
+function mergeUniqueCollectJobs(headJobs: CollectJob[], extraJobs: CollectJob[]) {
+  if (extraJobs.length === 0) return headJobs;
+  const seen = new Set(headJobs.map((job) => job.id));
+  const merged = [...headJobs];
+  for (const job of extraJobs) {
+    if (seen.has(job.id)) continue;
+    merged.push(job);
+    seen.add(job.id);
+  }
+  return merged;
+}
+
 export function CollectContent() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
-  const [visibleCount, setVisibleCount] = useState(12);
   const [confirmState, setConfirmState] = useState<CollectConfirmState | null>(null);
   const [pendingAction, setPendingAction] = useState<'delete-job' | 'clear-finished' | null>(null);
-  const { data, mutate } = useSWR(isAuthenticated ? `collect:jobs:${visibleCount}` : null, () => api.getCollectJobs(visibleCount, 0), {
+  const [extraJobs, setExtraJobs] = useState<CollectJob[]>([]);
+  const [extraLoading, setExtraLoading] = useState(false);
+  const [extraHasMore, setExtraHasMore] = useState(false);
+  const [extraTotal, setExtraTotal] = useState<number | null>(null);
+  const { data, mutate } = useSWR(isAuthenticated ? 'collect:jobs:head' : null, () => api.getCollectJobs(COLLECT_PAGE_SIZE, 0), {
     refreshInterval: (latest) => {
       const jobs = latest?.jobs || [];
       return jobs.some((job: CollectJob) => job.status === 'pending' || job.status === 'running') ? 1800 : 0;
     },
   });
 
-  const jobs = useMemo<CollectJob[]>(() => data?.jobs || [], [data]);
-  const hasMoreJobs = Boolean(data?.hasMore);
-  const totalJobs = Number(data?.total || 0);
+  const headJobs = useMemo<CollectJob[]>(() => data?.jobs || [], [data]);
+  const jobs = useMemo<CollectJob[]>(() => mergeUniqueCollectJobs(headJobs, extraJobs), [extraJobs, headJobs]);
+  const hasMoreJobs = extraJobs.length > 0 ? extraHasMore : Boolean(data?.hasMore);
+  const totalJobs = Number((extraTotal ?? data?.total) || 0);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -495,6 +628,23 @@ export function CollectContent() {
     setConfirmState({ kind: 'clear-finished' });
   };
 
+  const handleLoadMore = async () => {
+    if (extraLoading || !hasMoreJobs) return;
+
+    setExtraLoading(true);
+    try {
+      const offset = headJobs.length + extraJobs.length;
+      const result = await api.getCollectJobs(COLLECT_PAGE_SIZE, offset);
+      const incomingJobs = (result?.jobs || []) as CollectJob[];
+      const merged = mergeUniqueCollectJobs([...headJobs, ...extraJobs], incomingJobs);
+      setExtraJobs(merged.slice(headJobs.length));
+      setExtraHasMore(Boolean(result?.hasMore));
+      if (typeof result?.total === 'number') setExtraTotal(result.total);
+    } finally {
+      setExtraLoading(false);
+    }
+  };
+
   const handleConfirmAction = async () => {
     if (!confirmState) return;
 
@@ -504,9 +654,12 @@ export function CollectContent() {
     try {
       if (confirmState.kind === 'delete-job') {
         await api.deleteCollectJob(confirmState.jobId);
+        setExtraJobs((items) => items.filter((item) => item.id !== confirmState.jobId));
       } else {
         await api.clearFinishedCollectJobs();
-        setVisibleCount(12);
+        setExtraJobs([]);
+        setExtraHasMore(false);
+        setExtraTotal(null);
       }
       setConfirmState(null);
       mutate();
@@ -557,8 +710,8 @@ export function CollectContent() {
           <div className="collect-history-footer">
             <span>已显示 {jobs.length} / {totalJobs} 条</span>
             {hasMoreJobs && (
-              <button type="button" onClick={() => setVisibleCount((count) => count + 12)}>
-                查看更多
+              <button type="button" onClick={handleLoadMore} disabled={extraLoading}>
+                {extraLoading ? '加载中…' : '查看更多'}
               </button>
             )}
           </div>

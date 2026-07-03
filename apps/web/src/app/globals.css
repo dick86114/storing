@@ -5675,19 +5675,6 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   overflow: hidden;
 }
 
-.collect-input-icon {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  margin-top: 4px;
-  border-radius: 14px;
-  color: var(--accent);
-  background: color-mix(in oklch, var(--accent-soft) 70%, var(--surface));
-  font-size: 18px;
-}
-
 .collect-input-shell textarea {
   min-width: 0;
   flex: 1;
@@ -5725,18 +5712,10 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
 }
 
 .collect-input-shell button {
-  align-self: stretch;
-  flex: 0 0 56px;
-  width: 56px;
-  min-width: 56px;
-  min-height: 58px;
+  flex: 0 0 auto;
   padding: 0;
   border: 0;
-  border-radius: 18px;
   font-size: 18px;
-  box-shadow:
-    0 10px 22px color-mix(in oklch, var(--accent) 22%, transparent),
-    inset 0 1px 0 color-mix(in oklch, white 34%, transparent);
 }
 
 .collect-input-shell button > span:not(.anticon) {
@@ -5756,55 +5735,41 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   opacity: 0.72;
 }
 
-.collect-input-actions {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 86px;
-}
-
-.collect-input-actions .collect-input-paste,
-.collect-input-actions .collect-input-submit {
-  position: relative;
-  width: 100%;
-  min-width: 0;
-  flex: 0 0 auto;
+.collect-input-shell .collect-input-icon-button {
+  align-self: flex-start;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-top: 4px;
+  border: 1px solid color-mix(in oklch, var(--accent) 14%, var(--border));
   border-radius: 14px;
-}
-
-.collect-input-actions .collect-input-paste {
-  min-height: 30px;
-  padding: 0 12px;
-  border: 1px solid color-mix(in oklch, var(--accent) 24%, var(--border));
   color: var(--accent);
-  background: color-mix(in oklch, var(--accent-soft) 62%, var(--surface));
-  font-size: 13px;
-  box-shadow: inset 0 1px 0 color-mix(in oklch, white 45%, transparent);
+  background: color-mix(in oklch, var(--accent-soft) 36%, var(--surface));
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 52%, transparent);
 }
 
-.collect-input-actions .collect-input-submit {
-  min-height: 42px;
-  padding: 0 14px;
-  border: 0;
+.collect-input-shell .collect-input-icon-button:hover,
+.collect-input-shell .collect-input-icon-button:focus-visible {
+  border-color: color-mix(in oklch, var(--accent) 22%, var(--border));
+  background: color-mix(in oklch, var(--accent-soft) 48%, var(--surface));
+}
+
+.collect-input-shell .collect-input-icon-button:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--accent) 14%, transparent);
+  outline-offset: 2px;
+}
+
+.collect-input-submit {
+  align-self: stretch;
+  width: 48px;
+  min-width: 48px;
+  border-radius: 14px;
   color: var(--on-accent, #fff);
   background: var(--accent);
-  font-size: 14px;
   box-shadow:
-    0 10px 22px color-mix(in oklch, var(--accent) 18%, transparent),
+    0 10px 22px color-mix(in oklch, var(--accent) 22%, transparent),
     inset 0 1px 0 color-mix(in oklch, white 34%, transparent);
-}
-
-.collect-input-actions button > span:not(.anticon) {
-  position: static;
-  width: auto;
-  height: auto;
-  margin: 0;
-  padding: 0;
-  overflow: visible;
-  clip: auto;
-  white-space: nowrap;
-  border: 0;
 }
 
 .collect-error {
@@ -5914,6 +5879,11 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   border-color: rgba(209, 67, 67, 0.42);
 }
 
+.collect-job-status {
+  position: relative;
+  flex: 0 0 auto;
+}
+
 .collect-job-icon {
   display: grid;
   place-items: center;
@@ -5927,6 +5897,112 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
 .collect-job-card--failed .collect-job-icon {
   color: #d14343;
   background: rgba(209, 67, 67, 0.1);
+}
+
+.collect-job-icon--queued {
+  color: #64748b;
+  background: rgba(100, 116, 139, 0.14);
+}
+
+.collect-job-icon--starting {
+  color: #4f46e5;
+  background: rgba(79, 70, 229, 0.14);
+}
+
+.collect-job-icon--capturing {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.14);
+}
+
+.collect-job-icon--capturing-mobile {
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.16);
+}
+
+.collect-job-icon--reader-fetch {
+  color: #0e8f71;
+  background: rgba(14, 143, 113, 0.14);
+}
+
+.collect-job-icon--uploading {
+  color: #b45309;
+  background: rgba(180, 83, 9, 0.16);
+}
+
+.collect-job-icon--uploading-mobile {
+  color: #c2410c;
+  background: rgba(194, 65, 12, 0.16);
+}
+
+.collect-job-icon--saving {
+  color: #0f766e;
+  background: rgba(15, 118, 110, 0.16);
+}
+
+.collect-job-icon--completed {
+  color: #0e8f71;
+  background: rgba(14, 143, 113, 0.14);
+}
+
+.collect-job-icon--failed {
+  color: #d14343;
+  background: rgba(209, 67, 67, 0.12);
+}
+
+.collect-job-icon--active {
+  position: relative;
+  animation: collect-job-pulse 1.6s ease-in-out infinite;
+}
+
+.collect-job-icon--active::after {
+  position: absolute;
+  inset: -4px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  content: '';
+  opacity: 0.2;
+  animation: collect-job-ring 1.6s ease-in-out infinite;
+}
+
+.collect-job-icon--active .anticon {
+  animation: collect-job-icon-float 1.2s ease-in-out infinite;
+}
+
+@keyframes collect-job-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.08);
+  }
+
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 8px rgba(37, 99, 235, 0);
+  }
+}
+
+@keyframes collect-job-ring {
+  0%,
+  100% {
+    transform: scale(0.9);
+    opacity: 0.16;
+  }
+
+  50% {
+    transform: scale(1.12);
+    opacity: 0.32;
+  }
+}
+
+@keyframes collect-job-icon-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-1px);
+  }
 }
 
 .collect-job-main {
@@ -6015,7 +6091,6 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   color: var(--text-muted);
 }
 
-.collect-job-main p,
 .collect-job-url {
   margin: 4px 0 0;
   overflow: hidden;
@@ -6025,32 +6100,110 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   text-overflow: ellipsis;
 }
 
-.collect-job-status-block {
+.collect-job-icon-button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  cursor: default;
+}
+
+.collect-job-icon-button--interactive {
+  cursor: pointer;
+}
+
+.collect-job-icon-button--interactive:hover,
+.collect-job-icon-button--interactive:focus-visible {
+  filter: brightness(0.97);
+  outline: 0;
+}
+
+.collect-job-icon-button--interactive:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--accent) 30%, transparent);
+}
+
+.collect-job-status-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -8px;
+  z-index: 5;
+  display: flex;
+  gap: 16px;
+  width: min(840px, calc(100vw - 48px));
+  max-height: calc(100vh - 120px);
+  padding: 14px 40px 14px 16px;
+  border: 1px solid color-mix(in oklch, var(--accent) 20%, var(--border));
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.08),
+    0 4px 10px rgba(0, 0, 0, 0.06);
+  overflow: auto;
+}
+
+.collect-job-status-popover-head {
+  flex: 0 0 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 14px;
+  border-right: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.collect-job-status-popover-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.collect-job-status-popover-close:hover,
+.collect-job-status-popover-close:focus-visible {
+  color: var(--text);
+  background: color-mix(in oklch, var(--accent-soft) 50%, var(--surface));
+  outline: 0;
+}
+
+.collect-job-status-popover-details {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0 14px 0 18px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.collect-job-status-popover-details li + li {
   margin-top: 4px;
 }
 
-.collect-job-status-summary,
-.collect-job-status-hint {
+.collect-job-status-popover-hint {
+  flex: 0 0 220px;
   margin: 0;
+  padding-left: 14px;
+  border-left: 1px solid var(--border);
   color: var(--text-muted);
   font-size: 12px;
-  line-height: 1.55;
-}
-
-.collect-job-status-details {
-  margin: 6px 0 0;
-  padding-left: 16px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.55;
-}
-
-.collect-job-status-details li + li {
-  margin-top: 2px;
-}
-
-.collect-job-status-hint {
-  margin-top: 6px;
+  line-height: 1.6;
 }
 
 .collect-job-url-row {
@@ -6115,6 +6268,11 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+}
+
+.collect-history-footer button:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 
 .collect-empty {
@@ -6301,7 +6459,7 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
   resize: vertical;
 }
 
-.collect-form--compact .collect-input-shell button {
+.collect-form--compact .collect-input-submit {
   align-self: stretch;
   flex: 0 0 48px;
   width: 48px;
@@ -6313,6 +6471,12 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
   box-shadow:
     0 10px 22px color-mix(in oklch, var(--accent) 22%, transparent),
     inset 0 1px 0 color-mix(in oklch, white 34%, transparent);
+}
+
+.collect-form--compact .collect-input-icon-button {
+  width: 40px;
+  height: 40px;
+  margin-top: 0;
 }
 
 .collect-form--compact .collect-input-shell button > span:not(.anticon) {
@@ -6506,41 +6670,32 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
   }
 
   .collect-input-shell {
-    align-items: flex-start;
-    flex-direction: column;
+    align-items: stretch;
+    flex-direction: row;
     border-radius: 18px;
     padding: 10px;
     gap: 10px;
     overflow: hidden;
   }
 
-  .collect-input-icon {
-    display: none;
+  .collect-input-icon-button {
+    align-self: flex-start;
+    width: 40px;
+    height: 40px;
+    margin-top: 0;
   }
 
   .collect-input-shell textarea {
     min-height: 84px;
-    width: 100%;
+    min-width: 0;
+    flex: 1;
     padding: 10px 4px 4px;
   }
 
-  .collect-input-actions {
-    display: grid;
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.2fr);
-    gap: 8px;
-    width: 100%;
-    min-width: 0;
-  }
-
-  .collect-input-actions .collect-input-paste,
-  .collect-input-actions .collect-input-submit {
-    min-height: 42px;
+  .collect-input-submit {
+    width: 44px;
+    min-width: 44px;
     border-radius: 14px;
-    font-size: 14px;
-  }
-
-  .collect-input-actions .collect-input-submit {
-    font-size: 15px;
   }
 
   .collect-section-head {
@@ -6586,6 +6741,28 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
     grid-column: 1 / -1;
     display: flex;
     justify-content: flex-end;
+  }
+
+  .collect-job-status-popover {
+    flex-direction: column;
+    width: min(420px, calc(100vw - 24px));
+    max-height: calc(100vh - 120px);
+  }
+
+  .collect-job-status-popover-head {
+    flex: 0 0 auto;
+    padding-right: 0;
+    padding-bottom: 10px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .collect-job-status-popover-hint {
+    flex: 0 0 auto;
+    padding-left: 0;
+    padding-top: 10px;
+    border-left: 0;
+    border-top: 1px solid var(--border);
   }
 
   .quick-collect-trigger {
@@ -13679,7 +13856,17 @@ body.detail-panel-open .detail-panel.wechat-detail-panel .detail-panel-footer {
   border-bottom-color: color-mix(in oklch, var(--divider) 62%, transparent);
 }
 
+.wiki-mobile-detail-nav {
+  display: none;
+}
+
 @media (max-width: 767px) {
+  body:has(.wiki-detail-shell) .mobile-top-nav {
+    display: none !important;
+    opacity: 0;
+    pointer-events: none;
+  }
+
   .wiki-page-shell {
     padding: 14px 14px 32px;
   }
@@ -13760,8 +13947,69 @@ body.detail-panel-open .detail-panel.wechat-detail-panel .detail-panel-footer {
   .wiki-detail-shell {
     width: 100%;
     max-width: 100%;
-    padding: 14px 14px 32px;
+    padding: calc(66px + env(safe-area-inset-top, 0px)) 14px 32px;
     overflow-x: hidden;
+  }
+
+  .wiki-mobile-detail-nav {
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 1300;
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    align-items: center;
+    min-height: calc(56px + env(safe-area-inset-top, 0px));
+    padding: env(safe-area-inset-top, 0px) 10px 0;
+    border-bottom: 0.5px solid var(--divider);
+    background: var(--nav-bg) !important;
+    box-shadow: 0 10px 28px color-mix(in oklch, black 8%, transparent);
+  }
+
+  .wiki-mobile-detail-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    color: var(--text);
+    background: transparent;
+    text-decoration: none;
+  }
+
+  .wiki-mobile-detail-back:active,
+  .wiki-mobile-detail-back:hover {
+    color: var(--text);
+    background: color-mix(in oklch, var(--surface) 72%, transparent);
+  }
+
+  .wiki-mobile-detail-back .anticon {
+    font-size: 22px;
+  }
+
+  .wiki-mobile-detail-title {
+    display: grid;
+    justify-items: center;
+    min-width: 0;
+    line-height: 1.2;
+  }
+
+  .wiki-mobile-detail-title span {
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .wiki-mobile-detail-title strong {
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .wiki-detail-shell .wiki-doc-layout {
@@ -13770,6 +14018,7 @@ body.detail-panel-open .detail-panel.wechat-detail-panel .detail-panel-footer {
     gap: 16px;
     width: 100%;
     min-width: 0;
+    padding-top: 72px;
     justify-content: stretch;
   }
 
@@ -13847,6 +14096,12 @@ body.detail-panel-open .detail-panel.wechat-detail-panel .detail-panel-footer {
 
   .wiki-detail-shell .wiki-doc-toc {
     display: flex;
+    position: fixed;
+    top: calc(56px + env(safe-area-inset-top, 0px) + 10px);
+    right: 14px;
+    left: 14px;
+    z-index: 1290;
+    width: auto;
     align-items: center;
     gap: 8px;
     flex-wrap: nowrap;
@@ -13860,20 +14115,16 @@ body.detail-panel-open .detail-panel.wechat-detail-panel .detail-panel-footer {
     -webkit-overflow-scrolling: touch;
   }
 
+  .wiki-detail-shell .wiki-doc-body [id] {
+    scroll-margin-top: calc(136px + env(safe-area-inset-top, 0px));
+  }
+
   .wiki-detail-shell .wiki-doc-toc::-webkit-scrollbar {
     display: none;
   }
 
   .wiki-detail-shell .wiki-back-link {
-    flex: 0 0 38px;
-    width: 38px;
-    height: 38px;
-    margin: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: color-mix(in oklch, var(--accent-soft) 54%, var(--surface));
-    box-shadow: none;
+    display: none;
   }
 
   .wiki-detail-shell .wiki-doc-toc .wiki-sidebar-title {

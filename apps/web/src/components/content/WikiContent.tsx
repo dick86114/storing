@@ -1439,6 +1439,15 @@ export function WikiPageContent() {
 
   return (
     <div className="wiki-page-shell wiki-detail-shell">
+      <header className="wiki-mobile-detail-nav">
+        <Link href="/wiki" className="wiki-mobile-detail-back" aria-label="返回知识库" title="返回知识库">
+          <ArrowLeftOutlined />
+        </Link>
+        <div className="wiki-mobile-detail-title">
+          <span>Wiki 知识库</span>
+          <strong>{data.title}</strong>
+        </div>
+      </header>
       <section className="wiki-doc-layout">
         <aside className="wiki-doc-toc">
           <Link href="/wiki" className="wiki-back-link" aria-label="返回知识库" title="返回知识库">
