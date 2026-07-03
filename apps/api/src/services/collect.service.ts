@@ -103,12 +103,28 @@ function isSafeCollectUrl(url: URL) {
 }
 
 function extractTitle(doc: Document, fallbackUrl: string) {
-  const title =
-    doc.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
-    doc.querySelector('title')?.textContent ||
-    doc.querySelector('h1')?.textContent ||
-    fallbackUrl;
-  return title.replace(/\s+/g, ' ').trim().slice(0, 180);
+  const values = [
+    doc.querySelector('meta[property="og:title"]')?.getAttribute('content'),
+    doc.querySelector('meta[name="og:title"]')?.getAttribute('content'),
+    doc.querySelector('meta[name="twitter:title"]')?.getAttribute('content'),
+    doc.querySelector('meta[property="twitter:title"]')?.getAttribute('content'),
+    doc.querySelector('meta[itemprop="headline"]')?.getAttribute('content'),
+    doc.querySelector('meta[itemprop="name"]')?.getAttribute('content'),
+    doc.querySelector('meta[name="title"]')?.getAttribute('content'),
+    doc.querySelector('title')?.textContent,
+    doc.querySelector('article h1')?.textContent,
+    doc.querySelector('main h1')?.textContent,
+    doc.querySelector('h1')?.textContent,
+    doc.querySelector('article h2')?.textContent,
+    doc.querySelector('main h2')?.textContent,
+    doc.querySelector('h2')?.textContent,
+  ];
+
+  for (const value of values) {
+    const title = value?.replace(/\s+/g, ' ').trim();
+    if (title) return title.slice(0, 180);
+  }
+  return fallbackUrl;
 }
 
 function extractSource(url: string, doc?: Document) {

@@ -174,18 +174,27 @@ async function runSingleFileWithLocalCommand(
 ) {
   const command = getSingleFileCommand();
   const extraArgs = getSingleFileArgs(variant);
+  const dir = await mkdtemp(join(tmpdir(), 'storing-singlefile-'));
+  const outputPath = join(dir, 'page.html');
 
-  if (command.includes(' ')) {
-    const argsSuffix = extraArgs.map(shellQuote).join(' ');
-    const { stdout } = await execFileAsync('/bin/sh', ['-lc', `${command} ${argsSuffix} ${shellQuote(url)}`], {
-      timeout: timeoutMs,
-      maxBuffer,
-    });
-    return stdout;
+  try {
+    if (command.includes(' ')) {
+      const argsSuffix = extraArgs.map(shellQuote).join(' ');
+      await execFileAsync(
+        '/bin/sh',
+        ['-lc', `${command} ${shellQuote(url)} ${shellQuote(outputPath)} ${argsSuffix}`],
+        { timeout: timeoutMs, maxBuffer }
+      );
+    } else {
+      await execFileAsync(command, [url, outputPath, ...extraArgs], { timeout: timeoutMs, maxBuffer });
+    }
+
+    const html = await readFile(outputPath, 'utf8').catch(() => '');
+    if (!html.trim()) throw new Error('SingleFile 命令没有返回 HTML 内容');
+    return html;
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
-
-  const { stdout } = await execFileAsync(command, [...extraArgs, url], { timeout: timeoutMs, maxBuffer });
-  return stdout;
 }
 
 export async function runSingleFileWithStrategy(
@@ -257,12 +266,28 @@ export async function runSingleFile(url: string, variant: HtmlVariant): Promise<
 }
 
 function extractTitle(doc: Document, fallbackUrl: string) {
-  const title =
-    doc.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
-    doc.querySelector('title')?.textContent ||
-    doc.querySelector('h1')?.textContent ||
-    fallbackUrl;
-  return title.replace(/\s+/g, ' ').trim().slice(0, 180);
+  const values = [
+    doc.querySelector('meta[property="og:title"]')?.getAttribute('content'),
+    doc.querySelector('meta[name="og:title"]')?.getAttribute('content'),
+    doc.querySelector('meta[name="twitter:title"]')?.getAttribute('content'),
+    doc.querySelector('meta[property="twitter:title"]')?.getAttribute('content'),
+    doc.querySelector('meta[itemprop="headline"]')?.getAttribute('content'),
+    doc.querySelector('meta[itemprop="name"]')?.getAttribute('content'),
+    doc.querySelector('meta[name="title"]')?.getAttribute('content'),
+    doc.querySelector('title')?.textContent,
+    doc.querySelector('article h1')?.textContent,
+    doc.querySelector('main h1')?.textContent,
+    doc.querySelector('h1')?.textContent,
+    doc.querySelector('article h2')?.textContent,
+    doc.querySelector('main h2')?.textContent,
+    doc.querySelector('h2')?.textContent,
+  ];
+
+  for (const value of values) {
+    const title = value?.replace(/\s+/g, ' ').trim();
+    if (title) return title.slice(0, 180);
+  }
+  return fallbackUrl;
 }
 
 function extractSource(url: string, doc?: Document) {
@@ -354,7 +379,11 @@ export async function uploadImagesInCapturedDocument(
 export function prepareCapturedDocument(rawHtml: string, baseUrl: string) {
   const dom = new JSDOM(rawHtml);
   const doc = dom.window.document;
-  const title = extractTitle(doc, baseUrl);
+  let title = extractTitle(doc, baseUrl);
+  if (title === baseUrl) {
+    const fallbackTitle = extractFallbackTitleFromBody(doc);
+    if (fallbackTitle) title = fallbackTitle;
+  }
   const source = extractSource(baseUrl, doc);
   const coverImage = extractMetaImage(doc, baseUrl);
 
@@ -381,6 +410,15 @@ export function prepareCapturedDocument(rawHtml: string, baseUrl: string) {
   return { title, source, coverImage, html: dom.serialize() };
 }
 
+function extractFallbackTitleFromBody(doc: Document) {
+  const selectors = ['article header', 'article', 'main', 'body'];
+  for (const selector of selectors) {
+    const text = doc.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
+    if (text && text.length >= 4) return text.slice(0, 80);
+  }
+  return '';
+}
+
 export function extractTextFromHtml(html: string) {
   const dom = new JSDOM(html);
   const text = dom.window.document.body?.textContent?.replace(/\s+/g, ' ').trim() || '';
@@ -402,6 +440,8 @@ const BLOCKED_TITLE_PATTERNS = [
 ];
 
 const BLOCKED_TEXT_PATTERNS = [
+  /single-file\s+\[url\]\s+\[output\]/i,
+  /Positionals:\s*url\s+URL or path on the filesystem/i,
   /verification\s*code/i,
   /captcha/i,
   /refreshing too often/i,
