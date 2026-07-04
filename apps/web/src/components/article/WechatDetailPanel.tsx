@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { createPortal } from 'react-dom';
 import { useSWRConfig } from 'swr';
 import useSWR from 'swr';
-import html2canvas from 'html2canvas';
 import QRCode from 'qrcode';
 import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, DeleteOutlined, UpOutlined, DownOutlined, ExclamationCircleOutlined, CloseOutlined, BookOutlined } from '@ant-design/icons';
 import { useArticle, useArticleMeta } from '@/hooks/useArticle';
@@ -1111,6 +1110,10 @@ type SharePosterPalette = {
   label: string;
 };
 
+type SharePosterSubject =
+  | { kind: 'selection'; text: string; paragraphs: string[]; beforeText: string; afterText: string }
+  | { kind: 'cover'; imageUrl?: string | null };
+
 function resolveCssColor(value: string, fallback: string) {
   if (!value) return fallback;
   const probe = document.createElement('span');
@@ -1488,35 +1491,6 @@ function colorWithAlpha(color: string, alpha: number) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function setCanvasSafeThemeVars(element: HTMLElement, palette: SharePosterPalette) {
-  const safeSurface = palette.cardInner || palette.screenshotBackground;
-  element.style.setProperty('--bg', palette.screenshotBackground);
-  element.style.setProperty('--card-bg', safeSurface);
-  element.style.setProperty('--surface', safeSurface);
-  element.style.setProperty('--surface-alt', palette.card);
-  element.style.setProperty('--nav-bg', palette.card);
-  element.style.setProperty('--reading-bg', palette.screenshotBackground);
-  element.style.setProperty('--fg', palette.body);
-  element.style.setProperty('--fg-title', palette.title);
-  element.style.setProperty('--text', palette.body);
-  element.style.setProperty('--text-secondary', palette.body);
-  element.style.setProperty('--text-muted', palette.muted);
-  element.style.setProperty('--muted', palette.muted);
-  element.style.setProperty('--border', palette.border);
-  element.style.setProperty('--divider', palette.border);
-  element.style.setProperty('--accent', palette.accent);
-  element.style.setProperty('--accent-alt', palette.accent);
-  element.style.setProperty('--accent-soft', colorWithAlpha(palette.accent, 0.16));
-  element.style.setProperty('--tag-bg', palette.card);
-  element.style.setProperty('--fg-soft', colorWithAlpha(palette.body, 0.08));
-  element.style.setProperty('--glass', palette.card);
-  element.style.setProperty('--glass-border', palette.border);
-  element.style.setProperty('--glass-glow', colorWithAlpha(palette.accent, 0.18));
-  element.style.setProperty('--shadow-sm', 'none');
-  element.style.setProperty('--shadow-md', 'none');
-  element.style.setProperty('--shadow-lg', 'none');
-}
-
 async function tryCopyText(text: string) {
   try {
     await navigator.clipboard.writeText(text);
@@ -1536,17 +1510,6 @@ function drawRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, widt
   ctx.arcTo(x, y + height, x, y, safeRadius);
   ctx.arcTo(x, y, x + width, y, safeRadius);
   ctx.closePath();
-}
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string) {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
-  });
-
-  return Promise.race([promise, timeout]).finally(() => {
-    if (timeoutId) clearTimeout(timeoutId);
-  });
 }
 
 function loadCanvasImage(src: string, timeoutMs = 6000) {
@@ -1661,12 +1624,82 @@ function getImagesFromHtml(html: string) {
   const container = document.createElement('div');
   container.innerHTML = html;
   return Array.from(container.querySelectorAll<HTMLImageElement>('img'))
-    .map((image) => image.getAttribute('src') || '')
+    .map((image) => (
+      image.getAttribute('src')
+      || image.getAttribute('data-src')
+      || image.getAttribute('data-original')
+      || image.getAttribute('data-lazy-src')
+      || image.getAttribute('data-actualsrc')
+      || image.getAttribute('data-url')
+      || ''
+    ))
     .filter(Boolean)
     .slice(0, 4);
 }
 
-function drawContainedImage(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: number, y: number, width: number, height: number, radius: number) {
+function getArticleCoverImageUrl(article: any) {
+  const directCover = article?.coverImage
+    || article?.cover_image
+    || article?.imageUrl
+    || article?.image_url
+    || article?.thumbnail
+    || article?.thumb
+    || article?.ogImage
+    || article?.og_image
+    || null;
+  if (directCover) return String(directCover);
+  return getImagesFromHtml(article?.contentHtml || '')[0] || null;
+}
+
+function getShareSelectionSubject(panel: HTMLDivElement): Extract<SharePosterSubject, { kind: 'selection' }> | null {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || selection.rangeCount === 0) return null;
+
+  const sourceRoot = panel.querySelector<HTMLElement>('.article-body, .article-content-wrap') ?? panel;
+  const range = selection.getRangeAt(0);
+  const containsNode = (node: Node | null) => Boolean(node && sourceRoot.contains(node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement));
+  if (!containsNode(selection.anchorNode) && !containsNode(selection.focusNode) && !sourceRoot.contains(range.commonAncestorContainer)) return null;
+
+  const selectedText = selection.toString().replace(/\s+/g, ' ').trim();
+  if (!selectedText) return null;
+  const selectedFragment = document.createElement('div');
+  selectedFragment.appendChild(range.cloneContents());
+  const paragraphTexts = Array.from(selectedFragment.querySelectorAll('p, li, blockquote, h1, h2, h3, h4'))
+    .map((element) => element.textContent?.replace(/\s+/g, ' ').trim() || '')
+    .filter(Boolean);
+  const paragraphs = paragraphTexts.length > 0
+    ? paragraphTexts
+    : selection.toString()
+        .split(/\n+/)
+        .map((text) => text.replace(/\s+/g, ' ').trim())
+        .filter(Boolean);
+
+  const contextElement = (
+    range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+      ? range.commonAncestorContainer as Element
+      : range.commonAncestorContainer.parentElement
+  )?.closest('p, li, blockquote, section, article, div') as HTMLElement | null;
+  const contextText = (contextElement && sourceRoot.contains(contextElement) ? contextElement.textContent : sourceRoot.textContent)
+    ?.replace(/\s+/g, ' ')
+    .trim() || '';
+  const selectedIndex = contextText.indexOf(selectedText);
+  const beforeText = selectedIndex >= 0
+    ? contextText.slice(Math.max(0, selectedIndex - 150), selectedIndex).trim()
+    : '';
+  const afterText = selectedIndex >= 0
+    ? contextText.slice(selectedIndex + selectedText.length, selectedIndex + selectedText.length + 150).trim()
+    : '';
+
+  return {
+    kind: 'selection',
+    text: selectedText,
+    paragraphs: paragraphs.length > 0 ? paragraphs : [selectedText],
+    beforeText,
+    afterText,
+  };
+}
+
+function drawCoverImage(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: number, y: number, width: number, height: number, radius: number) {
   const ratio = Math.min(width / image.naturalWidth, height / image.naturalHeight);
   const drawWidth = image.naturalWidth * ratio;
   const drawHeight = image.naturalHeight * ratio;
@@ -1676,285 +1709,166 @@ function drawContainedImage(ctx: CanvasRenderingContext2D, image: HTMLImageEleme
   ctx.save();
   drawRoundRect(ctx, x, y, width, height, radius);
   ctx.clip();
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.64)';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
   ctx.fillRect(x, y, width, height);
   ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
   ctx.restore();
 }
 
-async function createFallbackShareScreenshot(article: any, palette: SharePosterPalette, scheme: ColorScheme, width: number, height: number) {
+async function createSelectionShareScreenshot(subject: Extract<SharePosterSubject, { kind: 'selection' }>, article: any, palette: SharePosterPalette, scheme: ColorScheme, width: number) {
   const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas context unavailable');
+
+  const padding = 54;
+  const maxTextWidth = width - padding * 2;
+  const fontFamily = getPosterFontFamily(scheme);
+  const contextLineHeight = 48;
+  const selectedLineHeight = 58;
+  const paragraphGap = 26;
+
+  ctx.font = `400 32px ${fontFamily}`;
+  const beforeLines = wrapCanvasText(ctx, subject.beforeText, maxTextWidth).slice(-2);
+  const afterLines = wrapCanvasText(ctx, subject.afterText, maxTextWidth).slice(0, 2);
+  ctx.font = `400 40px ${fontFamily}`;
+  const selectedParagraphLines = (subject.paragraphs.length ? subject.paragraphs : [subject.text])
+    .map((paragraph) => wrapCanvasText(ctx, paragraph, maxTextWidth))
+    .filter((lines) => lines.length > 0);
+  const selectedLineCount = selectedParagraphLines.reduce((total, lines) => total + lines.length, 0);
+  const selectedParagraphGapTotal = Math.max(0, selectedParagraphLines.length - 1) * paragraphGap;
+
+  const textGap = 34;
+  const bodyHeight = beforeLines.length * contextLineHeight
+    + (beforeLines.length ? textGap : 0)
+    + selectedLineCount * selectedLineHeight
+    + selectedParagraphGapTotal
+    + (afterLines.length ? textGap : 0)
+    + afterLines.length * contextLineHeight;
+  const height = Math.max(460, padding * 2 + bodyHeight + 42);
+  canvas.width = width;
+  canvas.height = height;
+
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = palette.cardInner;
+  drawRoundRect(ctx, 0, 0, width, height, 28);
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = palette.border;
+  ctx.stroke();
+
+  let cursorY = padding + 52;
+
+  ctx.font = `400 32px ${fontFamily}`;
+  beforeLines.forEach((line, index) => {
+    const opacity = beforeLines.length === 1 ? 0.34 : (index === beforeLines.length - 1 ? 0.42 : 0.16);
+    ctx.fillStyle = colorWithAlpha(palette.body, opacity);
+    ctx.fillText(line, padding, cursorY);
+    cursorY += contextLineHeight;
+  });
+  if (beforeLines.length) cursorY += textGap;
+
+  ctx.fillStyle = palette.body;
+  ctx.font = `400 40px ${fontFamily}`;
+  selectedParagraphLines.forEach((lines, paragraphIndex) => {
+    lines.forEach((line) => {
+      ctx.fillText(line, padding, cursorY);
+      cursorY += selectedLineHeight;
+    });
+    if (paragraphIndex < selectedParagraphLines.length - 1) cursorY += paragraphGap;
+  });
+  if (afterLines.length) cursorY += textGap;
+
+  ctx.font = `400 32px ${fontFamily}`;
+  afterLines.forEach((line, index) => {
+    const opacity = afterLines.length === 1 ? 0.34 : (index === 0 ? 0.42 : 0.16);
+    ctx.fillStyle = colorWithAlpha(palette.body, opacity);
+    ctx.fillText(line, padding, cursorY);
+    cursorY += contextLineHeight;
+  });
+
+  ctx.fillStyle = palette.muted;
+  ctx.font = `400 22px ${fontFamily}`;
+  const source = String(article?.source || article?.author || '今天藏什么');
+  ctx.fillText(source, padding, height - 42, width - padding * 2);
+
+  return canvas;
+}
+
+async function createCoverShareScreenshot(article: any, palette: SharePosterPalette, scheme: ColorScheme, width: number) {
+  const coverImageUrl = getArticleCoverImageUrl(article);
+  if (coverImageUrl) {
+    try {
+      const image = await loadCanvasImage(getProxiedImageUrl(coverImageUrl), 7000);
+      const height = Math.max(1, Math.round(width * (image.naturalHeight / image.naturalWidth)));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Canvas context unavailable');
+      ctx.clearRect(0, 0, width, height);
+      drawCoverImage(ctx, image, 0, 0, width, height, 28);
+      return canvas;
+    } catch (error) {
+      console.warn('Share poster cover image failed, using text card', error);
+    }
+  }
+
+  const canvas = document.createElement('canvas');
+  const height = 608;
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas context unavailable');
 
   ctx.clearRect(0, 0, width, height);
-  const inset = 34;
-  let cursorY = 30;
+  ctx.fillStyle = palette.cardInner;
+  drawRoundRect(ctx, 0, 0, width, height, 28);
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = palette.border;
+  ctx.stroke();
 
-  const imageSources = getImagesFromHtml(article?.contentHtml || '');
-  for (const source of imageSources) {
-    if (cursorY > height - 220) break;
-    try {
-      const image = await loadCanvasImage(getProxiedImageUrl(source));
-      const imageHeight = Math.min(300, Math.max(168, Math.round((width - inset * 2) * 0.48)));
-      drawContainedImage(ctx, image, inset, cursorY, width - inset * 2, imageHeight, 12);
-      cursorY += imageHeight + 30;
-    } catch {
-      // Ignore individual image failures so poster sharing still succeeds.
-    }
-  }
-
-  const text = getTextFromHtml(article?.contentHtml || '') || article?.aiSummary || article?.summary || article?.title || '';
+  const fontFamily = getPosterFontFamily(scheme);
+  const text = article?.aiSummary || article?.summary || getTextFromHtml(article?.contentHtml || '') || article?.title || '';
+  const padding = 54;
+  ctx.fillStyle = palette.accent;
+  ctx.font = `700 28px ${fontFamily}`;
+  ctx.fillText('文章封面', padding, padding + 6);
   ctx.fillStyle = palette.body;
-  ctx.font = `400 24px ${getPosterFontFamily(scheme)}`;
-  const paragraphs = text.split('\n').filter(Boolean).slice(0, 10);
-  for (const paragraph of paragraphs) {
-    if (cursorY > height - 80) break;
-    cursorY += drawWrappedText({
-      ctx,
-      text: paragraph,
-      x: inset,
-      y: cursorY,
-      maxWidth: width - inset * 2,
-      lineHeight: 38,
-      maxLines: 3,
-    }) + 18;
-  }
+  ctx.font = `500 34px ${fontFamily}`;
+  drawWrappedText({
+    ctx,
+    text,
+    x: padding,
+    y: padding + 86,
+    maxWidth: width - padding * 2,
+    lineHeight: 52,
+    maxLines: 7,
+  });
 
   return canvas;
 }
 
-function applyCaptureStyles(element: HTMLElement, palette: SharePosterPalette) {
-  const tagName = element.tagName.toLowerCase();
-  element.removeAttribute('class');
-  element.removeAttribute('style');
-  element.style.boxSizing = 'border-box';
-  element.style.color = palette.body;
-  element.style.borderColor = palette.border;
-  element.style.boxShadow = 'none';
-  element.style.textShadow = 'none';
-  element.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-
-  if (tagName === 'h1' || tagName === 'h2' || tagName === 'h3' || tagName === 'h4') {
-    element.style.margin = '18px 0 10px';
-    element.style.fontWeight = '650';
-    element.style.lineHeight = '1.42';
-    element.style.color = palette.title;
+async function createShareSubjectScreenshot(subject: SharePosterSubject, article: any, palette: SharePosterPalette, scheme: ColorScheme, width: number) {
+  if (subject.kind === 'selection') {
+    return createSelectionShareScreenshot(subject, article, palette, scheme, width);
   }
-  if (tagName === 'h1') element.style.fontSize = '24px';
-  if (tagName === 'h2') element.style.fontSize = '21px';
-  if (tagName === 'h3') element.style.fontSize = '19px';
-
-  if (tagName === 'p' || tagName === 'div') {
-    element.style.lineHeight = '1.75';
-  }
-  if (tagName === 'p') {
-    element.style.margin = '0 0 14px';
-  }
-  if (tagName === 'a') {
-    element.style.color = palette.accent;
-    element.style.textDecoration = 'none';
-  }
-  if (tagName === 'blockquote') {
-    element.style.margin = '14px 0';
-    element.style.padding = '8px 14px';
-    element.style.borderLeft = `3px solid ${palette.accent}`;
-    element.style.background = palette.card;
-  }
-  if (tagName === 'ul' || tagName === 'ol') {
-    element.style.margin = '0 0 14px';
-    element.style.paddingLeft = '24px';
-  }
-  if (tagName === 'li') {
-    element.style.margin = '6px 0';
-    element.style.lineHeight = '1.65';
-  }
-  if (tagName === 'pre') {
-    element.style.margin = '14px 0';
-    element.style.padding = '12px';
-    element.style.borderRadius = '8px';
-    element.style.background = palette.card;
-    element.style.overflow = 'hidden';
-  }
-  if (tagName === 'code') {
-    element.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, monospace';
-    element.style.background = palette.card;
-    element.style.borderRadius = '4px';
-    element.style.padding = '1px 4px';
-  }
-  if (tagName === 'button') {
-    element.style.border = '0';
-    element.style.background = palette.card;
-  }
-  if (tagName === 'img') {
-    element.style.display = 'block';
-    element.style.maxWidth = '100%';
-    element.style.height = 'auto';
-    element.style.margin = '12px 0';
-    element.style.borderRadius = '10px';
-    element.style.background = palette.cardInner;
-  }
-  if (tagName === 'table') {
-    element.style.width = '100%';
-    element.style.borderCollapse = 'collapse';
-    element.style.margin = '14px 0';
-  }
-  if (tagName === 'td' || tagName === 'th') {
-    element.style.border = `1px solid ${palette.border}`;
-    element.style.padding = '8px';
-  }
-}
-
-async function waitForCaptureImages(root: HTMLElement) {
-  const images = Array.from(root.querySelectorAll<HTMLImageElement>('img'));
-  await Promise.all(images.map((image) => withTimeout(
-    new Promise<void>((resolve) => {
-      if (!image.src || image.complete) {
-        resolve();
-        return;
-      }
-
-      const finish = () => {
-        image.removeEventListener('load', finish);
-        image.removeEventListener('error', finish);
-        resolve();
-      };
-      image.addEventListener('load', finish, { once: true });
-      image.addEventListener('error', finish, { once: true });
-    }),
-    4000,
-    `Share capture image timed out: ${image.src}`
-  ).catch(() => undefined)));
-}
-
-async function createShareCaptureTarget(panel: HTMLDivElement, screenshotHeight: number, palette: SharePosterPalette, article: any) {
-  const captureHeight = Math.max(1, screenshotHeight);
-  const sourceRoot = panel.querySelector<HTMLElement>('.article-content-wrap') ?? panel;
-  const panelRect = panel.getBoundingClientRect();
-  const sourceRect = sourceRoot.getBoundingClientRect();
-  const captureWidth = Math.round(sourceRect.width || panel.clientWidth);
-  const sourceTop = Math.round(sourceRect.top - panelRect.top + panel.scrollTop);
-  const sourceScrollTop = Math.max(0, panel.scrollTop - sourceTop);
-  const wrapper = document.createElement('div');
-  wrapper.style.position = 'fixed';
-  wrapper.style.left = '-10000px';
-  wrapper.style.top = '0';
-  wrapper.style.width = `${captureWidth}px`;
-  wrapper.style.height = `${captureHeight}px`;
-  wrapper.style.overflow = 'hidden';
-  wrapper.style.background = 'transparent';
-  wrapper.style.color = palette.body;
-  wrapper.style.font = '17px/1.75 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-  wrapper.style.pointerEvents = 'none';
-  setCanvasSafeThemeVars(wrapper, palette);
-
-  const capturePanel = document.createElement('div');
-  capturePanel.style.position = 'absolute';
-  capturePanel.style.left = '0';
-  capturePanel.style.top = `-${sourceScrollTop}px`;
-  capturePanel.style.width = `${captureWidth}px`;
-  capturePanel.style.minHeight = `${Math.max(sourceRoot.scrollHeight, captureHeight)}px`;
-  capturePanel.style.padding = '30px 34px';
-  capturePanel.style.boxSizing = 'border-box';
-  capturePanel.style.background = 'transparent';
-  capturePanel.style.overflow = 'visible';
-  capturePanel.style.color = palette.body;
-  capturePanel.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-  setCanvasSafeThemeVars(capturePanel, palette);
-
-  const articleBody = document.createElement('div');
-  articleBody.style.fontSize = '17px';
-  articleBody.style.lineHeight = '1.8';
-  articleBody.style.color = palette.body;
-  articleBody.innerHTML = article?.contentHtml || `<p>${article?.aiSummary || article?.summary || article?.title || ''}</p>`;
-  capturePanel.appendChild(articleBody);
-
-  capturePanel.querySelectorAll<HTMLElement>('*').forEach((element) => applyCaptureStyles(element, palette));
-  applyCaptureStyles(articleBody, palette);
-  articleBody.style.fontSize = '17px';
-  articleBody.style.lineHeight = '1.8';
-  articleBody.style.color = palette.body;
-  articleBody.style.background = 'transparent';
-
-  capturePanel.querySelectorAll<HTMLImageElement>('img').forEach((image) => {
-    const source = image.getAttribute('src') || image.currentSrc || '';
-    if (!source) {
-      image.remove();
-      return;
-    }
-    const proxiedSource = getProxiedImageUrl(source);
-    image.removeAttribute('src');
-    image.removeAttribute('srcset');
-    image.removeAttribute('sizes');
-    image.removeAttribute('crossorigin');
-    image.srcset = '';
-    image.sizes = '';
-    image.crossOrigin = 'anonymous';
-    image.src = proxiedSource;
-  });
-
-  wrapper.appendChild(capturePanel);
-  document.body.appendChild(wrapper);
-  await waitForCaptureImages(wrapper);
-
-  return {
-    element: wrapper,
-    cleanup: () => wrapper.remove(),
-  };
+  return createCoverShareScreenshot({ ...article, coverImage: subject.imageUrl || article?.coverImage }, palette, scheme, width);
 }
 
 async function createSharePoster({
   article,
   shareUrl,
-  panel,
   theme,
+  subject,
 }: {
   article: any;
   shareUrl: string;
-  panel: HTMLDivElement;
   theme: ShareThemeSnapshot;
+  subject: SharePosterSubject;
 }) {
   const palette = getSharePosterPalette(theme);
-  const screenshotHeight = Math.min(Math.max(panel.clientHeight * 1.45, 1080), 1500, panel.scrollHeight || 1500);
-  const captureTarget = await createShareCaptureTarget(panel, screenshotHeight, palette, article);
-  let screenshot: HTMLCanvasElement;
-  try {
-    try {
-      screenshot = await html2canvas(captureTarget.element, {
-        backgroundColor: null,
-        height: captureTarget.element.clientHeight,
-        width: captureTarget.element.clientWidth,
-        windowWidth: captureTarget.element.clientWidth,
-        windowHeight: captureTarget.element.clientHeight,
-        logging: false,
-        useCORS: true,
-        scale: Math.min(window.devicePixelRatio || 1, 2),
-        onclone: (clonedDocument) => {
-          clonedDocument.querySelectorAll('style, link[rel="stylesheet"]').forEach((node) => node.remove());
-          clonedDocument.documentElement.removeAttribute('data-theme');
-          clonedDocument.documentElement.removeAttribute('data-color-scheme');
-          clonedDocument.documentElement.style.background = 'transparent';
-          clonedDocument.documentElement.style.color = palette.body;
-          clonedDocument.body.style.background = 'transparent';
-          clonedDocument.body.style.color = palette.body;
-          setCanvasSafeThemeVars(clonedDocument.documentElement, palette);
-          setCanvasSafeThemeVars(clonedDocument.body, palette);
-          clonedDocument.body.querySelectorAll<HTMLElement>('*').forEach((element) => {
-            setCanvasSafeThemeVars(element, palette);
-            element.style.boxShadow = 'none';
-            element.style.textShadow = 'none';
-          });
-        },
-      });
-    } catch (error) {
-      console.warn('html2canvas share capture failed, using canvas fallback', error);
-      screenshot = await createFallbackShareScreenshot(article, palette, theme.scheme, captureTarget.element.clientWidth, captureTarget.element.clientHeight);
-    }
-  } finally {
-    captureTarget.cleanup();
-  }
+  const screenshot = await createShareSubjectScreenshot(subject, article, palette, theme.scheme, 928);
 
   const qrDataUrl = await QRCode.toDataURL(shareUrl, {
     width: 220,
@@ -2329,11 +2243,19 @@ function DetailContent({
 
     setPendingAction('share');
     try {
+      const articleForShare = { ...article, contentHtml: readableContentHtml || article.contentHtml };
+      const selectionSubject = getShareSelectionSubject(panel);
+      const subject: SharePosterSubject = selectionSubject
+        ? selectionSubject
+        : {
+            kind: 'cover',
+            imageUrl: getArticleCoverImageUrl(articleForShare),
+          };
       const poster = await createSharePoster({
-        article: { ...article, contentHtml: readableContentHtml || article.contentHtml },
+        article: articleForShare,
         shareUrl,
-        panel,
         theme: shareTheme,
+        subject,
       });
       setSharePoster((current) => {
         if (current?.imageUrl) URL.revokeObjectURL(current.imageUrl);
