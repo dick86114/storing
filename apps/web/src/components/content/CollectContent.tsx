@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentType, type MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
@@ -16,12 +16,15 @@ import {
   DatabaseOutlined,
   DeleteOutlined,
   DesktopOutlined,
+  EyeOutlined,
   DockerOutlined,
   EnterOutlined,
   ExclamationCircleOutlined,
   GlobalOutlined,
+  MinusOutlined,
   MobileOutlined,
   NodeIndexOutlined,
+  PlusOutlined,
   ReloadOutlined,
   ThunderboltOutlined,
   WechatOutlined,
@@ -148,6 +151,249 @@ function getCaptureMeta(job: CollectJob) {
   } as const;
 
   return map[strategy as keyof typeof map] || map.singlefile_pending;
+}
+
+type CollectProgressStep = {
+  key: string;
+  title: string;
+  description: string;
+  stage: string;
+};
+
+type CollectProgressConnector = {
+  key: string;
+  type: 'horizontal' | 'vertical';
+  direction?: 'forward' | 'reverse';
+  tone: StageAppearance['tone'];
+  column: number;
+  row: number;
+};
+
+const wechatProgressSteps: CollectProgressStep[] = [
+  {
+    key: 'queued',
+    title: '已加入队列',
+    description: '任务写入队列，等待 worker 处理',
+    stage: 'queued',
+  },
+  {
+    key: 'reader',
+    title: '读取微信正文',
+    description: '沿用微信正文接口，保留原有阅读体验',
+    stage: 'reader_fetch',
+  },
+  {
+    key: 'assets',
+    title: '上传图片',
+    description: '上传封面和正文图片，替换为可访问资源',
+    stage: 'uploading_images',
+  },
+  {
+    key: 'save',
+    title: '写入归档',
+    description: '保存正文、标题、来源和封面信息',
+    stage: 'saving',
+  },
+  {
+    key: 'done',
+    title: '整理完成',
+    description: '资料就绪，可以在归档中阅读',
+    stage: 'completed',
+  },
+];
+
+const singleFileProgressSteps: CollectProgressStep[] = [
+  {
+    key: 'queued',
+    title: '已加入队列',
+    description: '任务写入队列，等待 worker 处理',
+    stage: 'queued',
+  },
+  {
+    key: 'starting',
+    title: '准备采集',
+    description: '初始化抓取策略和浏览器环境',
+    stage: 'starting',
+  },
+  {
+    key: 'capturing',
+    title: '抓取桌面网页',
+    description: 'SingleFile 抓取桌面版完整 HTML 和素材',
+    stage: 'capturing',
+  },
+  {
+    key: 'capturing-mobile',
+    title: '抓取移动网页',
+    description: '使用移动端视口补充自适应内容',
+    stage: 'capturing_mobile',
+  },
+  {
+    key: 'assets',
+    title: '上传图片',
+    description: '上传封面和正文图片，替换为可访问资源',
+    stage: 'uploading_images',
+  },
+  {
+    key: 'mobile-assets',
+    title: '上传移动图片',
+    description: '上传移动版页面图片并替换为可访问资源',
+    stage: 'uploading_mobile_images',
+  },
+  {
+    key: 'save',
+    title: '写入归档',
+    description: '保存正文、标题、来源和封面信息',
+    stage: 'saving',
+  },
+  {
+    key: 'done',
+    title: '整理完成',
+    description: '资料就绪，可以在归档中阅读',
+    stage: 'completed',
+  },
+];
+
+function getProgressSteps(job: CollectJob) {
+  return job.method === 'reader' ? wechatProgressSteps : singleFileProgressSteps;
+}
+
+function getCollectProgressIndex(job: CollectJob) {
+  const steps = getProgressSteps(job);
+  if (job.status === 'completed') return steps.length - 1;
+  if (job.status === 'failed' && job.stage === 'failed') return 1;
+  const index = steps.findIndex((step) => step.stage === job.stage);
+  return index >= 0 ? index : 0;
+}
+
+export function CollectProgressTimeline({ job }: { job: CollectJob }) {
+  const steps = getProgressSteps(job);
+  const activeIndex = getCollectProgressIndex(job);
+  const isFailed = job.status === 'failed';
+  const isFinished = job.status === 'completed';
+  const progressMax = Math.max(steps.length - 1, 1);
+  const stepsRef = useRef<HTMLDivElement>(null);
+  const [flowColumns, setFlowColumns] = useState(4);
+
+  useEffect(() => {
+    const updateColumns = () => {
+      const element = stepsRef.current;
+      if (!element) return;
+      const value = getComputedStyle(element).getPropertyValue('--collect-progress-columns');
+      const columns = parseInt(value, 10);
+      if (!Number.isNaN(columns) && columns > 0) {
+        setFlowColumns(columns);
+      }
+    };
+    updateColumns();
+    window.addEventListener('resize', updateColumns);
+    return () => window.removeEventListener('resize', updateColumns);
+  }, []);
+
+  const getFlowPosition = (stepIndex: number) => {
+    const row = Math.floor(stepIndex / flowColumns);
+    const isReverse = row % 2 === 1;
+    const column = isReverse ? flowColumns - (stepIndex % flowColumns) : (stepIndex % flowColumns) + 1;
+    return { row, column, isReverse };
+  };
+
+  const flowSteps = steps.map((step, index) => {
+    const appearance = stageAppearances[step.stage] || stageAppearances.queued;
+    const { row, column, isReverse } = getFlowPosition(index);
+    const nextPosition = index < steps.length - 1 ? getFlowPosition(index + 1) : null;
+
+    return {
+      step,
+      appearance,
+      flowRow: row,
+      flowColumn: column,
+      isReverseRow: isReverse,
+      isActive: !isFinished && !isFailed && index === activeIndex,
+      isDone: isFinished || index < activeIndex,
+      isError: isFailed && index === activeIndex,
+      hasHorizontalConnection: Boolean(nextPosition && nextPosition.row === row),
+      hasVerticalConnectionDown: Boolean(nextPosition && nextPosition.row === row + 1 && nextPosition.column === column),
+    };
+  });
+
+  const connectors: CollectProgressConnector[] = flowSteps.flatMap((item) => {
+    const next: CollectProgressConnector[] = [];
+
+    if (item.hasHorizontalConnection) {
+      next.push({
+        key: `${item.step.key}-horizontal`,
+        type: 'horizontal',
+        direction: item.isReverseRow ? 'reverse' : 'forward',
+        tone: item.appearance.tone,
+        column: item.flowColumn,
+        row: item.flowRow + 1,
+      });
+    }
+
+    if (item.hasVerticalConnectionDown) {
+      next.push({
+        key: `${item.step.key}-vertical`,
+        type: 'vertical',
+        tone: item.appearance.tone,
+        column: item.flowColumn,
+        row: item.flowRow + 1,
+      });
+    }
+
+    return next;
+  });
+
+  return (
+    <div
+      className={`collect-progress-timeline collect-progress-timeline--${job.status}`}
+      style={{
+        ['--collect-progress-index' as string]: activeIndex,
+        ['--collect-progress-max' as string]: progressMax,
+      }}
+      aria-label={`采集进度：${getJobLabel(job)}`}
+    >
+      <div
+        className="collect-progress-steps"
+        ref={stepsRef}
+        style={{
+          ['--collect-progress-count' as string]: steps.length,
+        }}
+      >
+      {connectors.map((connector) => (
+        <span
+          key={connector.key}
+          className={`collect-progress-grid-connector collect-progress-step--${connector.tone} collect-progress-grid-connector--${connector.type}${connector.direction ? ` collect-progress-grid-connector--${connector.direction}` : ''}`}
+          style={{
+            gridColumn: String(connector.column),
+            gridRow: connector.type === 'vertical' ? `${connector.row} / span 2` : String(connector.row),
+          }}
+          aria-hidden="true"
+        />
+      ))}
+      {flowSteps.map(({ step, appearance, isActive, isDone, isError, flowColumn, flowRow, isReverseRow }) => {
+        const Icon = appearance.Icon;
+
+        return (
+          <div
+            key={step.key}
+            className={`collect-progress-step collect-progress-step--${appearance.tone} collect-progress-step--${isReverseRow ? 'reverse' : 'forward'}${appearance.animated && isActive ? ' collect-progress-step--animated' : ''}${isActive ? ' is-active' : ''}${isDone ? ' is-done' : ''}${isError ? ' is-error' : ''}`}
+            style={{
+              ['--collect-flow-column' as string]: flowColumn,
+              ['--collect-flow-row' as string]: flowRow + 1,
+            }}
+          >
+            <span className="collect-progress-step-marker">
+              <Icon />
+            </span>
+            <span className="collect-progress-step-copy">
+              <strong>{step.title}</strong>
+              <small>{step.description}</small>
+            </span>
+          </div>
+        );
+      })}
+      </div>
+    </div>
+  );
 }
 
 function validateCollectUrl(rawUrl: string) {
@@ -423,6 +669,7 @@ function CollectJobCard({ job, onRetry, onDelete }: { job: CollectJob; onRetry?:
   const router = useRouter();
   const { openArticle } = useArticleContext();
   const { showToast } = useToast();
+  const shouldAutoShowProgress = job.status === 'pending' || job.status === 'running' || job.status === 'failed';
   const canOpen = job.status === 'completed' && job.articleId;
   const canDelete = job.status !== 'running';
   const captureMeta = getCaptureMeta(job);
@@ -436,8 +683,13 @@ function CollectJobCard({ job, onRetry, onDelete }: { job: CollectJob; onRetry?:
   const errorHint = job.errorHint;
   const canShowErrorPopover = job.status === 'failed' && Boolean(errorSummary || errorDetails.length || errorHint);
   const [errorOpen, setErrorOpen] = useState(false);
+  const [progressOpen, setProgressOpen] = useState(shouldAutoShowProgress);
   const errorPopoverRef = useRef<HTMLDivElement>(null);
   const errorTriggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (shouldAutoShowProgress) setProgressOpen(true);
+  }, [shouldAutoShowProgress]);
 
   useEffect(() => {
     if (job.status !== 'failed' && errorOpen) setErrorOpen(false);
@@ -465,13 +717,19 @@ function CollectJobCard({ job, onRetry, onDelete }: { job: CollectJob; onRetry?:
     };
   }, [errorOpen]);
 
-  const handleOpenArticle = () => {
+  const stopCardToggle = (event: ReactMouseEvent) => {
+    event.stopPropagation();
+  };
+
+  const handleOpenArticle = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
     if (!job.articleId) return;
     openArticle(job.articleId);
     router.push('/archive');
   };
 
-  const handleCopyUrl = async () => {
+  const handleCopyUrl = async (event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
     if (!displayUrl) return;
 
     const copied = await copyTextToClipboard(displayUrl);
@@ -485,12 +743,21 @@ function CollectJobCard({ job, onRetry, onDelete }: { job: CollectJob; onRetry?:
     'aria-label': canShowErrorPopover ? '查看采集异常信息' : statusLabel,
     'aria-expanded': canShowErrorPopover ? errorOpen : undefined,
     disabled: !canShowErrorPopover,
-    onClick: canShowErrorPopover ? () => setErrorOpen((open) => !open) : undefined,
+    onClick: canShowErrorPopover
+      ? (event: ReactMouseEvent<HTMLButtonElement>) => {
+          event.stopPropagation();
+          setErrorOpen((open) => !open);
+        }
+      : undefined,
   };
 
   return (
-    <article className={`collect-job-card collect-job-card--${job.status}`}>
-      <div className="collect-job-status">
+    <article
+      className={`collect-job-card collect-job-card--${job.status}${progressOpen ? ' collect-job-card--progress-open' : ''}`}
+      onClick={() => setProgressOpen((open) => !open)}
+      data-progress-open={progressOpen ? 'true' : 'false'}
+    >
+      <div className="collect-job-status" onClick={stopCardToggle}>
         <button ref={errorTriggerRef} {...statusButtonProps}>
           <AppearanceIcon />
         </button>
@@ -535,20 +802,36 @@ function CollectJobCard({ job, onRetry, onDelete }: { job: CollectJob; onRetry?:
             </button>
           )}
         </div>
+        {progressOpen && <CollectProgressTimeline job={job} />}
       </div>
-      <div className="collect-job-actions">
+      <div className="collect-job-actions" onClick={stopCardToggle}>
+        <button
+          className="collect-job-action-button"
+          type="button"
+          onClick={() => setProgressOpen((open) => !open)}
+          aria-label={progressOpen ? '收起采集步骤' : '展开采集步骤'}
+          title={progressOpen ? '收起步骤' : '展开步骤'}
+        >
+          {progressOpen ? <MinusOutlined /> : <PlusOutlined />}
+        </button>
         {canOpen && (
-          <button type="button" onClick={handleOpenArticle}>
-            查看
+          <button
+            className="collect-job-action-button"
+            type="button"
+            onClick={handleOpenArticle}
+            aria-label="查看归档内容"
+            title="查看归档"
+          >
+            <EyeOutlined />
           </button>
         )}
         {job.status === 'failed' && (
-          <button type="button" onClick={() => onRetry?.(job.id)} aria-label="重试采集" title="重试">
+          <button className="collect-job-action-button" type="button" onClick={() => onRetry?.(job.id)} aria-label="重试采集" title="重试">
             <ReloadOutlined />
           </button>
         )}
         {canDelete && (
-          <button type="button" onClick={() => onDelete?.(job.id)} aria-label="删除采集记录" title="删除记录">
+          <button className="collect-job-action-button" type="button" onClick={() => onDelete?.(job.id)} aria-label="删除采集记录" title="删除记录">
             <DeleteOutlined />
           </button>
         )}

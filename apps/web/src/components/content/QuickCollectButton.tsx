@@ -4,14 +4,19 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { CloseOutlined, CloudUploadOutlined, PlusOutlined } from '@ant-design/icons';
-import { CollectForm } from '@/components/content/CollectContent';
+import { CollectForm, CollectProgressTimeline } from '@/components/content/CollectContent';
 import { api } from '@/lib/api';
 import { useArticleContext } from '@/components/providers/ArticleContext';
 
 type CollectJob = {
   id: number;
+  url: string;
+  normalizedUrl: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   stage: string;
+  method: 'reader' | 'singlefile';
+  captureStrategy?: 'wechat_reader' | 'singlefile_sidecar' | 'singlefile_command' | 'singlefile_docker' | 'singlefile_npx' | null;
+  capture_strategy?: 'wechat_reader' | 'singlefile_sidecar' | 'singlefile_command' | 'singlefile_docker' | 'singlefile_npx' | null;
   articleId?: number | null;
   title?: string | null;
   error?: string | null;
@@ -113,6 +118,7 @@ export function QuickCollectButton() {
           <div className={`quick-collect-status quick-collect-status--${job.status}`}>
             <strong>{job.title || stageLabels[job.stage] || '采集中'}</strong>
             <p>{job.errorSummary || job.error || stageLabels[job.stage] || job.status}</p>
+            <CollectProgressTimeline job={job} />
             {job.status === 'failed' && (job.errorDetails?.length || job.errorHint) ? (
               <div className="quick-collect-status-meta">
                 {job.errorDetails?.length ? (
