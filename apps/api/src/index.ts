@@ -75,4 +75,7 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('API 服务启动失败:', err);
+  process.exit(1);
+});
