@@ -61,10 +61,42 @@ COPY --from=builder --chown=storing:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=storing:nodejs /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY --from=builder --chown=storing:nodejs /app/node_modules ./node_modules
 
-RUN echo '#!/bin/sh' > /app/start.sh && \
-    echo 'cd /app/apps/api && node --import tsx src/index.ts &' >> /app/start.sh && \
-    echo 'cd /app/apps/web/.next/standalone/apps/web && node server.js &' >> /app/start.sh && \
-    echo 'wait' >> /app/start.sh && \
+RUN printf '%s\n' \
+    '#!/bin/sh' \
+    'set -u' \
+    '' \
+    'stop_children() {' \
+    '  kill "${api_pid:-}" "${web_pid:-}" 2>/dev/null || true' \
+    '  wait "${api_pid:-}" "${web_pid:-}" 2>/dev/null || true' \
+    '}' \
+    '' \
+    'trap stop_children INT TERM' \
+    '' \
+    '(cd /app/apps/api && node --import tsx src/index.ts) &' \
+    'api_pid=$!' \
+    '(cd /app/apps/web/.next/standalone/apps/web && node server.js) &' \
+    'web_pid=$!' \
+    '' \
+    'while true; do' \
+    '  if ! kill -0 "$api_pid" 2>/dev/null; then' \
+    '    status=0' \
+    '    wait "$api_pid" || status=$?' \
+    '    echo "API process exited with status $status; stopping container"' \
+    '    stop_children' \
+    '    exit "$status"' \
+    '  fi' \
+    '' \
+    '  if ! kill -0 "$web_pid" 2>/dev/null; then' \
+    '    status=0' \
+    '    wait "$web_pid" || status=$?' \
+    '    echo "Web process exited with status $status; stopping container"' \
+    '    stop_children' \
+    '    exit "$status"' \
+    '  fi' \
+    '' \
+    '  sleep 2' \
+    'done' \
+    > /app/start.sh && \
     chmod +x /app/start.sh
 
 USER storing
