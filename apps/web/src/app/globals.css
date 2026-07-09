@@ -3104,7 +3104,7 @@ body {
 .top-tab-button,
 .bottom-tab-button {
   position: relative;
-  isolation: isolate;
+
   overflow: hidden;
   transition: color var(--transition), background var(--transition), box-shadow var(--transition), transform var(--transition);
 }
@@ -4423,7 +4423,7 @@ body.detail-panel-open .bottom-tab-bar {
   height: 56px !important;
   min-height: 56px;
   padding: 0 18px !important;
-  isolation: isolate;
+
   overflow: visible;
   border-bottom-color: color-mix(in oklch, white 18%, transparent) !important;
   background:
@@ -5760,11 +5760,11 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   outline-offset: 2px;
 }
 
-.collect-input-submit {
+.collect-input-shell .collect-input-submit {
   align-self: stretch;
   width: 48px;
   min-width: 48px;
-  border-radius: 14px;
+  border-radius: var(--radius);
   color: var(--on-accent, #fff);
   background: var(--accent);
   box-shadow:
@@ -5863,12 +5863,45 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.collect-job-card:hover {
+  border-color: color-mix(in oklch, var(--accent) 26%, var(--border));
+  background: color-mix(in oklch, var(--surface) 94%, var(--accent-soft) 6%);
+}
+
+.collect-job-card--progress-open {
+  align-items: start;
+}
+
+.collect-job-card--progress-open .collect-job-status,
+.collect-job-card--progress-open .collect-job-actions {
+  margin-top: 2px;
 }
 
 .collect-job-actions {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.collect-job-actions .collect-job-action-button {
+  flex: 0 0 auto;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  font-size: 16px;
+}
+
+.collect-job-actions .collect-job-action-button .anticon {
+  font-size: 15px;
 }
 
 .collect-job-card--completed {
@@ -6248,6 +6281,222 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   outline-offset: 2px;
 }
 
+.collect-progress-timeline {
+  position: relative;
+  display: grid;
+  gap: 0;
+  width: 100%;
+  margin-top: 14px;
+  padding: 8px 0 2px;
+  border: 0;
+  background: transparent;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.collect-progress-steps {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(var(--collect-progress-columns, 4), minmax(0, 1fr));
+  grid-auto-rows: minmax(74px, auto);
+  column-gap: var(--collect-progress-column-gap, 18px);
+  row-gap: var(--collect-progress-row-gap, 18px);
+  width: 100%;
+  padding: 2px 0 0;
+  --collect-progress-columns: 4;
+  --collect-progress-column-gap: 18px;
+  --collect-progress-row-gap: 18px;
+  --collect-progress-marker-axis: 27px;
+}
+
+@media (max-width: 1100px) {
+  .collect-progress-steps {
+    --collect-progress-columns: 3;
+  }
+}
+
+@media (max-width: 768px) {
+  .collect-progress-steps {
+    --collect-progress-columns: 2;
+  }
+}
+
+
+.collect-progress-step {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  grid-column: var(--collect-flow-column);
+  grid-row: var(--collect-flow-row);
+  align-items: center;
+  justify-items: start;
+  gap: 8px;
+  min-height: 66px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--collect-step-color, var(--text-muted)) 7%, var(--surface));
+  color: var(--text-muted);
+  text-align: left;
+}
+
+.collect-progress-grid-connector {
+  position: relative;
+  z-index: 0;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--collect-step-color, var(--border)) 54%, var(--border));
+  pointer-events: none;
+}
+
+.collect-progress-grid-connector--horizontal {
+  align-self: center;
+  width: var(--collect-progress-column-gap, 18px);
+  height: 2px;
+}
+
+.collect-progress-grid-connector--forward {
+  justify-self: end;
+  transform: translateX(var(--collect-progress-column-gap, 18px));
+}
+
+.collect-progress-grid-connector--reverse {
+  justify-self: start;
+  transform: translateX(calc(var(--collect-progress-column-gap, 18px) * -1));
+}
+
+.collect-progress-grid-connector--vertical {
+  align-self: stretch;
+  justify-self: start;
+  margin-left: var(--collect-progress-marker-axis);
+  width: 2px;
+}
+
+.collect-progress-step-marker {
+  position: relative;
+  isolation: isolate;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  justify-self: start;
+  width: 38px;
+  height: 38px;
+  border: 1px solid color-mix(in oklch, var(--collect-step-color, var(--border)) 28%, var(--border));
+  border-radius: 999px;
+  background: var(--surface);
+  color: color-mix(in oklch, var(--collect-step-color, var(--text-muted)) 76%, var(--text-muted));
+  font-size: 14px;
+  font-weight: 800;
+  box-shadow: 0 0 0 5px var(--surface);
+}
+
+.collect-progress-step-copy {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.collect-progress-step-copy strong {
+  color: currentColor;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.collect-progress-step-copy small {
+  color: color-mix(in oklch, currentColor 70%, var(--text-muted));
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.collect-progress-step--queued {
+  --collect-step-color: #64748b;
+}
+
+.collect-progress-step--starting {
+  --collect-step-color: #4f46e5;
+}
+
+.collect-progress-step--capturing {
+  --collect-step-color: #2563eb;
+}
+
+.collect-progress-step--capturing-mobile {
+  --collect-step-color: #7c3aed;
+}
+
+.collect-progress-step--reader-fetch {
+  --collect-step-color: #0e8f71;
+}
+
+.collect-progress-step--uploading {
+  --collect-step-color: #b45309;
+}
+
+.collect-progress-step--uploading-mobile {
+  --collect-step-color: #c2410c;
+}
+
+.collect-progress-step--saving {
+  --collect-step-color: #0f766e;
+}
+
+.collect-progress-step--completed {
+  --collect-step-color: #0e8f71;
+}
+
+.collect-progress-step--failed {
+  --collect-step-color: #d14343;
+}
+
+.collect-progress-step.is-done {
+  color: var(--collect-step-color, #18a94a);
+}
+
+.collect-progress-step.is-done .collect-progress-step-marker {
+  border-color: color-mix(in oklch, var(--collect-step-color, #18b34d) 42%, transparent);
+  background: var(--collect-step-color, #18b34d);
+  color: white;
+}
+
+.collect-progress-step.is-active {
+  color: var(--collect-step-color, var(--text));
+}
+
+.collect-progress-step.is-active .collect-progress-step-marker {
+  border-color: color-mix(in oklch, var(--collect-step-color, #18b34d) 48%, transparent);
+  background: var(--collect-step-color, #18b34d);
+  color: white;
+  animation: collect-progress-marker-pulse 1.35s ease-in-out infinite;
+}
+
+.collect-progress-step.is-error {
+  color: #d14343;
+}
+
+.collect-progress-step.is-error .collect-progress-step-marker {
+  border-color: rgba(209, 67, 67, 0.38);
+  background: rgba(209, 67, 67, 0.12);
+  color: #d14343;
+}
+
+@keyframes collect-progress-marker-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 4px color-mix(in oklch, var(--surface) 88%, transparent),
+      0 0 0 0 color-mix(in oklch, var(--accent) 26%, transparent);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 4px color-mix(in oklch, var(--surface) 88%, transparent),
+      0 0 0 8px color-mix(in oklch, var(--accent) 0%, transparent);
+  }
+}
+
 .collect-history-footer {
   display: flex;
   align-items: center;
@@ -6393,7 +6642,7 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
   background: color-mix(in oklch, var(--card-bg) 96%, var(--bg));
   box-shadow: var(--shadow-lg);
   contain: layout paint style;
-  isolation: isolate;
+
   transform: translateZ(0);
   will-change: transform;
 }
@@ -6459,12 +6708,12 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
   resize: vertical;
 }
 
-.collect-form--compact .collect-input-submit {
+.collect-form--compact .collect-input-shell .collect-input-submit {
   align-self: stretch;
   flex: 0 0 48px;
   width: 48px;
   min-width: 48px;
-  border-radius: 18px;
+  border-radius: var(--radius);
   border: 0;
   background: var(--accent);
   color: var(--on-accent, #fff);
@@ -6541,9 +6790,50 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
   margin-top: 10px;
 }
 
+.quick-collect-status .collect-progress-timeline {
+  margin-top: 10px;
+  padding: 8px 0 0;
+}
+
+.quick-collect-status .collect-progress-steps {
+  position: relative;
+  grid-template-columns: 1fr;
+  grid-auto-rows: auto;
+  gap: 0;
+}
+
+.quick-collect-status .collect-progress-steps::before {
+  position: absolute;
+  z-index: 0;
+  left: 18px;
+  top: 25px;
+  bottom: 25px;
+  width: 2px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--border) 72%, transparent);
+  content: '';
+}
+
+.quick-collect-status .collect-progress-step {
+  grid-template-columns: 42px minmax(0, 1fr);
+  grid-column: auto;
+  grid-row: auto;
+  justify-items: start;
+  text-align: left;
+  align-items: center;
+  gap: 4px 8px;
+  min-height: 50px;
+  padding: 6px 0;
+  background: transparent;
+}
+
+.quick-collect-status .collect-progress-grid-connector {
+  display: none;
+}
+
 .manual-capture-page {
   position: relative;
-  isolation: isolate;
+
   width: 100% !important;
   height: auto !important;
   min-height: 0 !important;
@@ -6692,10 +6982,10 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
     padding: 10px 4px 4px;
   }
 
-  .collect-input-submit {
+  .collect-input-shell .collect-input-submit {
     width: 44px;
     min-width: 44px;
-    border-radius: 14px;
+    border-radius: var(--radius);
   }
 
   .collect-section-head {
@@ -6741,6 +7031,55 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
     grid-column: 1 / -1;
     display: flex;
     justify-content: flex-end;
+  }
+
+  .collect-progress-timeline {
+    margin-top: 10px;
+    padding: 8px 0 0;
+  }
+
+  .collect-progress-steps {
+    position: relative;
+    grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+    gap: 0;
+  }
+
+  .collect-progress-steps::before {
+    position: absolute;
+    z-index: 0;
+    left: 19px;
+    top: 26px;
+    bottom: 26px;
+    width: 2px;
+    border-radius: 999px;
+    background: color-mix(in oklch, var(--border) 72%, transparent);
+    content: '';
+  }
+
+  .collect-progress-step {
+    grid-template-columns: 48px minmax(0, 1fr);
+    grid-column: auto;
+    grid-row: auto;
+    justify-items: start;
+    text-align: left;
+    align-items: center;
+    gap: 4px 8px;
+    min-height: 52px;
+    padding: 6px 0;
+    background: transparent;
+  }
+
+  .collect-progress-grid-connector {
+    display: none;
+  }
+
+  .collect-progress-step-copy strong {
+    font-size: 12px;
+  }
+
+  .collect-progress-step-copy small {
+    font-size: 11px;
   }
 
   .collect-job-status-popover {
@@ -8446,7 +8785,7 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
 }
 
 [data-color-scheme='xianxia'] .article-card {
-  isolation: isolate;
+
 }
 
 [data-color-scheme='xianxia'] .article-card::before {
