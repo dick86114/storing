@@ -810,7 +810,7 @@ async function fetchSingleFileMarkdownContent(originalUrl: string) {
   return html ? extractTextFromHtml(html) : null;
 }
 
-async function fetchArticleContentFromSources(
+export async function fetchArticleContentFromSources(
   articleId: number,
   format: 'markdown' | 'html',
   htmlVariant: HtmlVariant = 'desktop'

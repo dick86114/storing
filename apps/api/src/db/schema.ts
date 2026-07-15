@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { pgTable, serial, integer, text, boolean, timestamp, jsonb } from 'drizzle-orm/pg-core';
 
 /**
@@ -7,6 +8,8 @@ export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   username: text('username').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
+  role: text('role').notNull().default('admin'),
+  status: text('status').notNull().default('active'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -58,16 +61,37 @@ export const articleMetadata = pgTable('article_metadata', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+
+export const mcpClients = pgTable('mcp_clients', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  ownerUserId: integer('owner_user_id').notNull().references(() => users.id),
+  apiKeyHash: text('api_key_hash').notNull().unique(),
+  scopes: text('scopes').array().notNull().default(sql`ARRAY[]::text[]`),
+  enabled: boolean('enabled').notNull().default(true),
+  rateLimitPerMinute: integer('rate_limit_per_minute'),
+  rateLimitPerDay: integer('rate_limit_per_day'),
+  defaultSaveToInbox: boolean('default_save_to_inbox').notNull().default(false),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+  lastUsedAt: timestamp('last_used_at'),
+});
+
 export const collectJobs = pgTable('collect_jobs', {
   id: serial('id').primaryKey(),
   url: text('url').notNull(),
   normalizedUrl: text('normalized_url').notNull(),
+  userId: integer('user_id').references(() => users.id),
+  clientId: integer('client_id').references(() => mcpClients.id),
+  requestSource: text('request_source').notNull().default('web'),
+  saveToInbox: boolean('save_to_inbox').notNull().default(true),
   status: text('status').notNull().default('pending'),
   stage: text('stage').notNull().default('queued'),
   method: text('method').notNull().default('singlefile'),
   captureStrategy: text('capture_strategy'),
   articleId: integer('article_id').references(() => articles.id),
   title: text('title'),
+  resultJson: jsonb('result_json'),
   error: text('error'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
