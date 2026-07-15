@@ -9,11 +9,13 @@ import { healthRoutes } from './routes/health.js';
 import { authRoutes } from './routes/auth.js';
 import { wikiRoutes } from './routes/wiki.js';
 import { collectRoutes } from './routes/collect.js';
+import { mcpRoutes } from './routes/mcp.js';
 import { db } from './db/index.js';
 import { users } from './db/schema.js';
 import { initWikiSchema } from './services/wiki.service.js';
 import { startWikiWorker } from './services/wiki.worker.js';
 import { initCollectSchema } from './services/collect.service.js';
+import { initMcpSchema } from './services/mcp-auth.service.js';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 
@@ -28,6 +30,7 @@ app.route('/api/v1', articlesRoutes);
 app.route('/api/v1', searchRoutes);
 app.route('/api/v1', wikiRoutes);
 app.route('/api/v1', collectRoutes);
+app.route('/api/v1', mcpRoutes);
 
 app.onError((err, c) => {
   console.error(err);
@@ -54,9 +57,12 @@ async function initAdmin() {
       await db.insert(users).values({
         username: adminUsername,
         passwordHash,
+        role: 'admin',
+        status: 'active',
       });
       console.log(`管理员账号已创建: ${adminUsername}`);
     } else {
+      await db.update(users).set({ role: 'admin', status: 'active', updatedAt: new Date() }).where(eq(users.id, existing.id));
       console.log(`管理员账号已存在: ${adminUsername}`);
     }
   } catch (err) {
@@ -66,6 +72,7 @@ async function initAdmin() {
 
 // 启动服务
 async function startServer() {
+  await initMcpSchema().catch((err) => console.error('初始化 MCP 表失败:', err));
   await initAdmin();
   await initCollectSchema().catch((err) => console.error('初始化采集表失败:', err));
   await initWikiSchema().catch((err) => console.error('初始化 Wiki 表失败:', err));

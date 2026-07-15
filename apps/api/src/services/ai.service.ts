@@ -1,8 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '../db/index.js';
 import { articles, articleMetadata } from '../db/schema.js';
-import { eq, sql } from 'drizzle-orm';
-import { getArticleContent } from './reader.service.js';
+import { eq } from 'drizzle-orm';
+import { fetchArticleContentFromSources, getArticleContent } from './reader.service.js';
 
 /** 预置 provider 配置：env 中只需写 AI_PROVIDER + 对应 API_KEY + 可选 MODEL */
 const PROVIDERS: Record<string, { baseUrl: string; defaultModel: string; envKey: string }> = {
@@ -22,11 +22,16 @@ type AIProviderOptions = {
   model?: string;
 };
 
+export type ArticleSummaryResult = {
+  summary: string | null;
+  category: string | null;
+  tags: string[];
+};
+
 // 统一 AI 调用接口
 async function callAI(system: string, user: string, maxTokens = 1024, options: AIProviderOptions = {}): Promise<string> {
   const provider = options.provider || process.env.AI_PROVIDER || 'anthropic';
 
-  // Anthropic SDK
   if (provider === 'anthropic') {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' });
     const message = await anthropic.messages.create({
@@ -39,7 +44,6 @@ async function callAI(system: string, user: string, maxTokens = 1024, options: A
     return block.type === 'text' ? block.text : '';
   }
 
-  // 自定义 provider：通过 CUSTOM_AI_BASE_URL / CUSTOM_AI_API_KEY / CUSTOM_AI_MODEL 配置
   if (provider === 'custom') {
     return callOpenAICompatible(
       process.env.CUSTOM_AI_BASE_URL || '',
@@ -49,7 +53,6 @@ async function callAI(system: string, user: string, maxTokens = 1024, options: A
     );
   }
 
-  // 预置 provider（全部走 OpenAI 兼容格式）
   const preset = PROVIDERS[provider];
   if (!preset) {
     throw new Error(`Unknown AI provider: ${provider}. Supported: ${Object.keys(PROVIDERS).join(', ')}, anthropic, custom`);
@@ -75,7 +78,6 @@ export async function callWikiAI(system: string, user: string, maxTokens = 2048)
   return callAI(system, user, maxTokens, config);
 }
 
-/** OpenAI 兼容 API 统一调用 */
 async function callOpenAICompatible(
   baseUrl: string,
   apiKey: string,
@@ -109,10 +111,7 @@ async function callOpenAICompatible(
   return data.choices?.[0]?.message?.content || '';
 }
 
-/**
- * 生成文章智能摘要
- */
-export async function generateArticleDigest(articleId: number, title: string, content: string): Promise<void> {
+async function generateDigestText(title: string, content: string): Promise<string> {
   const system = `你是一位专业的文章分析师。请对文章进行深度分析，生成一段简洁的智能摘要。
 
 请直接输出摘要内容，不要添加任何 HTML 标签或格式标记。
@@ -128,11 +127,10 @@ export async function generateArticleDigest(articleId: number, title: string, co
 文章内容：
 ${content.slice(0, 8000)}`;
 
-  const digest = await callAI(system, user, 1024);
-  await db.update(articleMetadata).set({ aiSummary: digest, updatedAt: new Date() }).where(eq(articleMetadata.articleId, articleId));
+  return callAI(system, user, 1024);
 }
 
-export async function generateTags(articleId: number, title: string, summary: string): Promise<void> {
+async function generateTagsList(title: string, summary: string): Promise<string[]> {
   const system = 'You are a tag generator. Respond with ONLY a JSON array of strings, e.g. ["tag1", "tag2", "tag3"]. Nothing else.';
   const user = `Generate 3-5 concise tags for this article. Tags should be:
 - In the same language as the article
@@ -147,17 +145,78 @@ Respond with ONLY a JSON array.`;
   const raw = await callAI(system, user);
   try {
     const tags = JSON.parse(raw.trim());
-    if (Array.isArray(tags)) {
-      await db.update(articleMetadata).set({ aiTags: tags, updatedAt: new Date() }).where(eq(articleMetadata.articleId, articleId));
-    }
+    return Array.isArray(tags) ? tags.filter((tag) => typeof tag === 'string') : [];
   } catch {
-    // JSON 解析失败，忽略
+    return [];
   }
 }
 
-/**
- * 归档时触发：生成摘要 + 标签（移除分类）
- */
+async function loadSummarySource(articleId: number) {
+  const [article] = await db
+    .select({
+      id: articles.id,
+      title: articles.title,
+      summary: articles.summary,
+      contentHtml: articles.contentHtml,
+      contentMarkdown: articles.contentMarkdown,
+    })
+    .from(articles)
+    .where(eq(articles.id, articleId));
+
+  if (!article) return null;
+
+  return article;
+}
+
+export async function buildArticleSummaryResult(articleId: number): Promise<ArticleSummaryResult> {
+  const article = await loadSummarySource(articleId);
+  if (!article) return { summary: null, category: null, tags: [] };
+
+  const title = article.title || '';
+  const summaryFallback = article.summary || '';
+
+  const content =
+    article.contentMarkdown ||
+    (await fetchArticleContentFromSources(articleId, 'markdown').catch((e) => {
+      console.error(`Fetch markdown for summary failed for article ${articleId}:`, e.message);
+      return null;
+    })) ||
+    article.contentHtml ||
+    summaryFallback;
+
+  if (!content) return { summary: null, category: null, tags: [] };
+
+  const summary = await generateDigestText(title, content).catch((e) => {
+    console.error(`AI digest failed for article ${articleId}:`, e.message);
+    return null;
+  });
+
+  const tags = summary
+    ? await generateTagsList(title, summary).catch((e) => {
+        console.error(`AI tags failed for article ${articleId}:`, e.message);
+        return [] as string[];
+      })
+    : [];
+
+  return {
+    summary,
+    category: null,
+    tags,
+  };
+}
+
+export async function generateArticleDigest(articleId: number, title: string, content: string): Promise<void> {
+  const digest = await generateDigestText(title, content);
+  await db.update(articleMetadata).set({ aiSummary: digest, updatedAt: new Date() }).where(eq(articleMetadata.articleId, articleId));
+}
+
+export async function generateTags(articleId: number, title: string, summary: string): Promise<void> {
+  const tags = await generateTagsList(title, summary);
+  if (tags.length > 0) {
+    await db.update(articleMetadata).set({ aiTags: tags, updatedAt: new Date() }).where(eq(articleMetadata.articleId, articleId));
+  }
+}
+
 export async function generateSummaryAndTags(articleId: number): Promise<void> {
   const [article] = await db
     .select({
@@ -172,21 +231,29 @@ export async function generateSummaryAndTags(articleId: number): Promise<void> {
   if (!article) return;
 
   const title = article.title || '';
-  const summary = article.summary || '';
-
-  // 先抓取 markdown 正文
   const contentMd = await getArticleContent(articleId).catch((e) => {
     console.error('Fetch markdown failed:', e.message);
     return null;
   });
 
-  const content = contentMd || article.contentMarkdown || article.contentHtml || summary;
+  const content = contentMd || article.contentMarkdown || article.contentHtml || article.summary || '';
+  if (!content) return;
 
-  // 生成 AI 摘要
-  await generateArticleDigest(articleId, title, content).catch((e) =>
-    console.error('AI digest failed:', e.message)
-  );
+  const digest = await generateDigestText(title, content).catch((e) => {
+    console.error('AI digest failed:', e.message);
+    return null;
+  });
 
-  // 生成标签（不传分类）
-  await generateTags(articleId, title, summary);
+  if (!digest) return;
+
+  await db.update(articleMetadata).set({ aiSummary: digest, updatedAt: new Date() }).where(eq(articleMetadata.articleId, articleId));
+
+  const tags = await generateTagsList(title, digest).catch((e) => {
+    console.error('AI tags failed:', e.message);
+    return [] as string[];
+  });
+
+  if (tags.length > 0) {
+    await db.update(articleMetadata).set({ aiTags: tags, updatedAt: new Date() }).where(eq(articleMetadata.articleId, articleId));
+  }
 }

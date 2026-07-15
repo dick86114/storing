@@ -1,10 +1,10 @@
 import { isIP } from 'net';
 import { JSDOM } from 'jsdom';
-import { desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { articleMetadata, articles, collectJobs } from '../db/schema.js';
-import { generateSummaryAndTags } from './ai.service.js';
-import { ensureArticleMetadataContentHtmlMobileColumn, getArticleContent, processCoverImage, uploadImage } from './reader.service.js';
+import { buildArticleSummaryResult, generateSummaryAndTags } from './ai.service.js';
+import { ensureArticleMetadataContentHtmlMobileColumn, fetchArticleContentFromSources, getArticleContent, processCoverImage, uploadImage } from './reader.service.js';
 import {
   type CollectCaptureStrategy,
   type HtmlVariant,
@@ -39,6 +39,19 @@ const COLLECT_TABLE_SQL = `
 
 type CollectJobStatus = 'pending' | 'running' | 'completed' | 'failed';
 type CollectMethod = 'reader' | 'singlefile';
+
+type CreateCollectJobOptions = {
+  userId?: number | null;
+  clientId?: number | null;
+  requestSource?: 'web' | 'mcp' | 'api' | 'system';
+  saveToInbox?: boolean;
+};
+
+type CollectJobAccessFilter = {
+  userId?: number;
+  clientId?: number;
+  requestSource?: 'web' | 'mcp' | 'api' | 'system';
+};
 
 function isWechatUrl(url: string) {
   try {
@@ -176,7 +189,8 @@ async function upsertArticleFromCapture(input: {
   contentMarkdown?: string | null;
   coverImage?: string | null;
   method: CollectMethod;
-}) {
+}, options: { persistMetadata?: boolean } = {}) {
+  const persistMetadata = options.persistMetadata ?? true;
   const [existing] = await db
     .select({ id: articles.id })
     .from(articles)
@@ -215,6 +229,8 @@ async function upsertArticleFromCapture(input: {
     });
   }
 
+  if (!persistMetadata) return articleId;
+
   const [meta] = await db.select({ id: articleMetadata.id }).from(articleMetadata).where(eq(articleMetadata.articleId, articleId));
   const metadataValues: Partial<typeof articleMetadata.$inferInsert> = {
     isArchived: true,
@@ -239,13 +255,41 @@ async function updateCollectJob(id: number, values: Partial<typeof collectJobs.$
   await db.update(collectJobs).set({ ...values, updatedAt: new Date() }).where(eq(collectJobs.id, id));
 }
 
-async function finishArticleSideEffects(articleId: number) {
-  generateSummaryAndTags(articleId).catch((e) => console.error('Collect AI summary/tags failed:', e.message));
-  processCoverImage(articleId).catch((e) => console.error('Collect cover image failed:', e.message));
-  enqueueArticleForWiki(articleId).then(() => processWikiJobs(3)).catch((e) => console.error('Collect wiki enqueue failed:', e.message));
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return promise;
+  return Promise.race<T>([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} 超时（${timeoutMs}ms）`)), timeoutMs);
+    }),
+  ]);
 }
 
-async function processWechatJob(jobId: number, normalizedUrl: string) {
+async function finishArticleSideEffects(jobId: number, articleId: number, options: { saveToInbox: boolean }) {
+  if (options.saveToInbox) {
+    generateSummaryAndTags(articleId).catch((e) => console.error('Collect AI summary/tags failed:', e.message));
+    processCoverImage(articleId).catch((e) => console.error('Collect cover image failed:', e.message));
+    enqueueArticleForWiki(articleId).then(() => processWikiJobs(3)).catch((e) => console.error('Collect wiki enqueue failed:', e.message));
+    return;
+  }
+
+  const summaryTimeoutMs = Number(process.env.SUMMARY_ONLY_TIMEOUT_MS || 120000);
+  const result = await withTimeout(buildArticleSummaryResult(articleId), summaryTimeoutMs, '临时摘要生成');
+  if (!result.summary) {
+    throw new Error('AI 摘要生成失败');
+  }
+
+  await updateCollectJob(jobId, {
+    resultJson: {
+      summary: result.summary,
+      category: result.category,
+      tags: result.tags,
+      savedToInbox: false,
+    },
+  });
+}
+
+async function processWechatJob(jobId: number, normalizedUrl: string, options: { saveToInbox: boolean }) {
   const title = normalizedUrl;
   const source = '微信公众号';
   const articleId = await upsertArticleFromCapture({
@@ -253,10 +297,14 @@ async function processWechatJob(jobId: number, normalizedUrl: string) {
     title,
     source,
     method: 'reader',
-  });
+  }, { persistMetadata: options.saveToInbox });
 
   await updateCollectJob(jobId, { stage: 'reader_fetch', captureStrategy: 'wechat_reader', articleId, title });
-  await Promise.allSettled([getArticleContent(articleId, 'html'), getArticleContent(articleId, 'markdown')]);
+
+  if (options.saveToInbox) {
+    await Promise.allSettled([getArticleContent(articleId, 'html'), getArticleContent(articleId, 'markdown')]);
+  }
+
   const pageMeta = await fetchWechatPageMeta(normalizedUrl);
   if (pageMeta?.title || pageMeta?.source) {
     const finalTitle = pageMeta.title || title;
@@ -267,13 +315,25 @@ async function processWechatJob(jobId: number, normalizedUrl: string) {
       .where(eq(articles.id, articleId));
     await updateCollectJob(jobId, { title: finalTitle });
   }
+  if (options.saveToInbox) {
+    await updateCollectJob(jobId, {
+      status: 'completed',
+      stage: 'completed',
+      articleId,
+      finishedAt: new Date(),
+    });
+    await finishArticleSideEffects(jobId, articleId, { saveToInbox: true });
+    return;
+  }
+
+  await updateCollectJob(jobId, { stage: 'summarizing', articleId });
+  await finishArticleSideEffects(jobId, articleId, { saveToInbox: false });
   await updateCollectJob(jobId, {
     status: 'completed',
     stage: 'completed',
     articleId,
     finishedAt: new Date(),
   });
-  await finishArticleSideEffects(articleId);
 }
 
 type PreparedCapture = ReturnType<typeof prepareCapturedDocument>;
@@ -289,6 +349,14 @@ type ValidSingleFileCapture = {
   mobilePrepared: PreparedCapture | null;
   primaryPrepared: PreparedCapture;
   primaryRawHtml: string;
+};
+
+type MinimalSingleFileCapture = {
+  strategy: CollectCaptureStrategy;
+  captureUrl: string;
+  primaryPrepared: PreparedCapture;
+  primaryRawHtml: string;
+  variant: HtmlVariant;
 };
 
 function formatStrategyLabel(strategy: CollectCaptureStrategy) {
@@ -372,6 +440,53 @@ async function captureVariantWithStrategy(
   };
 }
 
+async function captureMinimalSingleFile(jobId: number, normalizedUrl: string): Promise<MinimalSingleFileCapture> {
+  const strategyFailures: string[] = [];
+  const captureUrls = getCaptureUrlCandidates(normalizedUrl);
+  const strategies = getSingleFileCandidateStrategies();
+
+  if (strategies.length === 0) {
+    throw new Error('当前运行环境没有可用的网页抓取执行器，请启动 SingleFile sidecar，或安装 single-file/npx 与 Chromium');
+  }
+
+  for (const captureUrl of captureUrls) {
+    const candidateLabel = formatCandidateLabel(normalizedUrl, captureUrl);
+
+    for (const strategy of strategies) {
+      try {
+        const desktop = await captureVariantWithStrategy(jobId, captureUrl, strategy, 'desktop');
+        return {
+          strategy,
+          captureUrl,
+          primaryPrepared: desktop.prepared,
+          primaryRawHtml: desktop.rawHtml,
+          variant: 'desktop',
+        };
+      } catch (desktopError) {
+        const desktopMessage = desktopError instanceof Error ? desktopError.message : String(desktopError);
+        console.warn(`${formatStrategyLabel(strategy)} desktop capture failed for ${captureUrl}: ${desktopMessage}`);
+
+        try {
+          const mobile = await captureVariantWithStrategy(jobId, captureUrl, strategy, 'mobile');
+          return {
+            strategy,
+            captureUrl,
+            primaryPrepared: mobile.prepared,
+            primaryRawHtml: mobile.rawHtml,
+            variant: 'mobile',
+          };
+        } catch (mobileError) {
+          const mobileMessage = mobileError instanceof Error ? mobileError.message : String(mobileError);
+          console.warn(`${formatStrategyLabel(strategy)} mobile capture failed for ${captureUrl}: ${mobileMessage}`);
+          strategyFailures.push(`${formatStrategyLabel(strategy)}${candidateLabel}：desktop: ${desktopMessage}；mobile: ${mobileMessage}`);
+        }
+      }
+    }
+  }
+
+  throw new Error(strategyFailures.join('；') || 'SingleFile 抓取结果无有效正文');
+}
+
 async function captureBestSingleFile(jobId: number, normalizedUrl: string): Promise<ValidSingleFileCapture> {
   const strategyFailures: string[] = [];
   const captureUrls = getCaptureUrlCandidates(normalizedUrl);
@@ -441,8 +556,49 @@ async function captureBestSingleFile(jobId: number, normalizedUrl: string): Prom
   throw new Error(strategyFailures.join('；') || 'SingleFile 抓取结果无有效正文');
 }
 
-async function processSingleFileJob(jobId: number, normalizedUrl: string) {
+async function processSingleFileJob(jobId: number, normalizedUrl: string, options: { saveToInbox: boolean }) {
   await updateCollectJob(jobId, { stage: 'capturing', captureStrategy: getInitialSingleFileStrategy() });
+
+  if (!options.saveToInbox) {
+    const capture = await captureMinimalSingleFile(jobId, normalizedUrl);
+    const primaryPrepared = capture.primaryPrepared;
+    const primaryHtml = primaryPrepared.html;
+    const contentMarkdown = extractTextFromHtml(primaryHtml);
+
+    await updateCollectJob(jobId, {
+      stage: 'saving',
+      title: primaryPrepared.title,
+      captureStrategy: capture.strategy,
+    });
+
+    const articleId = await upsertArticleFromCapture({
+      normalizedUrl,
+      title: primaryPrepared.title,
+      source: primaryPrepared.source,
+      contentHtml: primaryHtml,
+      contentMarkdown,
+      coverImage: primaryPrepared.coverImage,
+      method: 'singlefile',
+    }, { persistMetadata: false });
+
+    await updateCollectJob(jobId, {
+      stage: 'summarizing',
+      articleId,
+      title: primaryPrepared.title,
+      captureStrategy: capture.strategy,
+    });
+    await finishArticleSideEffects(jobId, articleId, { saveToInbox: false });
+    await updateCollectJob(jobId, {
+      status: 'completed',
+      stage: 'completed',
+      articleId,
+      title: primaryPrepared.title,
+      captureStrategy: capture.strategy,
+      finishedAt: new Date(),
+    });
+    return;
+  }
+
   const capture = await captureBestSingleFile(jobId, normalizedUrl);
   await updateCollectJob(jobId, { stage: 'uploading_images', captureStrategy: capture.strategy });
 
@@ -473,7 +629,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string) {
     contentMarkdown,
     coverImage: uploadedCoverImage || primaryPrepared.coverImage,
     method: 'singlefile',
-  });
+  }, { persistMetadata: true });
 
   await updateCollectJob(jobId, {
     status: 'completed',
@@ -483,12 +639,24 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string) {
     captureStrategy: capture.strategy,
     finishedAt: new Date(),
   });
-  await finishArticleSideEffects(articleId);
+  await finishArticleSideEffects(jobId, articleId, { saveToInbox: true });
 }
 
 export async function initCollectSchema() {
   await db.execute(sql.raw(COLLECT_TABLE_SQL));
   await db.execute(sql.raw(`ALTER TABLE collect_jobs ADD COLUMN IF NOT EXISTS capture_strategy TEXT`));
+  await db.execute(sql.raw(`ALTER TABLE collect_jobs ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`));
+  await db.execute(sql.raw(`ALTER TABLE collect_jobs ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES mcp_clients(id) ON DELETE SET NULL`));
+  await db.execute(sql.raw(`ALTER TABLE collect_jobs ADD COLUMN IF NOT EXISTS request_source TEXT NOT NULL DEFAULT 'web'`));
+  await db.execute(sql.raw(`ALTER TABLE collect_jobs ADD COLUMN IF NOT EXISTS save_to_inbox BOOLEAN NOT NULL DEFAULT TRUE`));
+  await db.execute(sql.raw(`ALTER TABLE collect_jobs ADD COLUMN IF NOT EXISTS result_json JSONB`));
+  const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+  await db.execute(sql`
+    UPDATE collect_jobs
+    SET user_id = (SELECT id FROM users WHERE username = ${adminUsername} LIMIT 1)
+    WHERE user_id IS NULL
+      AND request_source = 'web'
+  `);
   await ensureArticleMetadataContentHtmlMobileColumn();
   const defaultSingleFileStrategy = getInitialSingleFileStrategy();
   await db.execute(sql.raw(`
@@ -501,7 +669,23 @@ export async function initCollectSchema() {
   `));
 }
 
-export async function createCollectJob(rawUrl: string) {
+function canAccessCollectJob(job: typeof collectJobs.$inferSelect, filter: CollectJobAccessFilter = {}) {
+  if (filter.userId !== undefined && job.userId !== filter.userId) return false;
+  if (filter.clientId !== undefined && job.clientId !== filter.clientId) return false;
+  if (filter.requestSource !== undefined && job.requestSource !== filter.requestSource) return false;
+  return true;
+}
+
+function buildCollectJobWhere(filter: CollectJobAccessFilter = {}) {
+  const conditions = [];
+  if (filter.userId !== undefined) conditions.push(eq(collectJobs.userId, filter.userId));
+  if (filter.clientId !== undefined) conditions.push(eq(collectJobs.clientId, filter.clientId));
+  if (filter.requestSource !== undefined) conditions.push(eq(collectJobs.requestSource, filter.requestSource));
+  if (conditions.length === 0) return undefined;
+  return conditions.length === 1 ? conditions[0] : and(...conditions);
+}
+
+export async function createCollectJob(rawUrl: string, options: CreateCollectJobOptions = {}) {
   const normalizedUrl = normalizeCollectUrl(rawUrl);
   const parsed = new URL(normalizedUrl);
   if (!isSafeCollectUrl(parsed)) {
@@ -514,6 +698,10 @@ export async function createCollectJob(rawUrl: string) {
     .values({
       url: rawUrl.trim(),
       normalizedUrl,
+      userId: options.userId ?? null,
+      clientId: options.clientId ?? null,
+      requestSource: options.requestSource ?? 'web',
+      saveToInbox: options.saveToInbox ?? true,
       status: 'pending',
       stage: 'queued',
       method,
@@ -533,9 +721,9 @@ export async function processCollectJob(jobId: number) {
 
   try {
     if (job.method === 'reader') {
-      await processWechatJob(jobId, job.normalizedUrl);
+      await processWechatJob(jobId, job.normalizedUrl, { saveToInbox: job.saveToInbox });
     } else {
-      await processSingleFileJob(jobId, job.normalizedUrl);
+      await processSingleFileJob(jobId, job.normalizedUrl, { saveToInbox: job.saveToInbox });
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : '采集失败';
@@ -559,23 +747,27 @@ function normalizeCollectJobStrategy<T extends typeof collectJobs.$inferSelect>(
   };
 }
 
-export async function getCollectJob(jobId: number) {
+export async function getCollectJob(jobId: number, filter: CollectJobAccessFilter = {}) {
   const [job] = await db.select().from(collectJobs).where(eq(collectJobs.id, jobId)).limit(1);
-  return job ? normalizeCollectJobStrategy(job) : null;
+  if (!job || !canAccessCollectJob(job, filter)) return null;
+  return normalizeCollectJobStrategy(job);
 }
 
-export async function listCollectJobs(limit = 12, offset = 0) {
+export async function listCollectJobs(limit = 12, offset = 0, filter: CollectJobAccessFilter = {}) {
   const safeLimit = Math.min(Math.max(limit, 1), 100);
   const safeOffset = Math.max(offset, 0);
+  const whereCondition = buildCollectJobWhere(filter);
   const jobs = await db
     .select()
     .from(collectJobs)
+    .where(whereCondition)
     .orderBy(desc(collectJobs.createdAt))
     .limit(safeLimit)
     .offset(safeOffset);
   const [{ total }] = await db
     .select({ total: sql<number>`count(*)::int` })
-    .from(collectJobs);
+    .from(collectJobs)
+    .where(whereCondition);
 
   return {
     jobs: jobs.map(normalizeCollectJobStrategy),
@@ -584,8 +776,8 @@ export async function listCollectJobs(limit = 12, offset = 0) {
   };
 }
 
-export async function deleteCollectJob(jobId: number) {
-  const job = await getCollectJob(jobId);
+export async function deleteCollectJob(jobId: number, filter: CollectJobAccessFilter = {}) {
+  const job = await getCollectJob(jobId, filter);
   if (!job) return { deleted: false, reason: 'not_found' as const };
   if (job.status === 'running') return { deleted: false, reason: 'running' as const };
 
@@ -593,10 +785,11 @@ export async function deleteCollectJob(jobId: number) {
   return { deleted: true, reason: null };
 }
 
-export async function clearFinishedCollectJobs() {
+export async function clearFinishedCollectJobs(filter: CollectJobAccessFilter = {}) {
+  const whereCondition = buildCollectJobWhere(filter);
   const deleted = await db
     .delete(collectJobs)
-    .where(inArray(collectJobs.status, ['completed', 'failed']))
+    .where(whereCondition ? and(whereCondition, inArray(collectJobs.status, ['completed', 'failed'])) : inArray(collectJobs.status, ['completed', 'failed']))
     .returning({ id: collectJobs.id });
 
   return { deletedCount: deleted.length };
