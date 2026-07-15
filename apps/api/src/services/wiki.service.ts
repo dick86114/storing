@@ -20,6 +20,7 @@ import {
 } from '../db/schema.js';
 import { callWikiAI, getWikiAIConfig } from './ai.service.js';
 import { getArticleContent } from './reader.service.js';
+import { getAdminUserId } from './metadata-scope.service.js';
 
 type WikiFact = {
   claim: string;
@@ -239,6 +240,10 @@ const WIKI_TABLE_SQL = [
 
 let schemaReady = false;
 let wikiJobRunnerActive = false;
+
+function adminMetadataJoinCondition(adminUserId: number) {
+  return and(eq(articles.id, articleMetadata.articleId), eq(articleMetadata.userId, adminUserId));
+}
 
 export async function initWikiSchema() {
   if (schemaReady) return;
@@ -587,6 +592,19 @@ async function enqueueJob(jobType: string, payload: Record<string, unknown>, pri
 
 export async function enqueueArticleForWiki(articleId: number, priority = 5) {
   await initWikiSchema();
+  const adminUserId = await getAdminUserId();
+  const [adminArchived] = await db
+    .select({ id: articleMetadata.id })
+    .from(articleMetadata)
+    .where(and(
+      eq(articleMetadata.articleId, articleId),
+      eq(articleMetadata.userId, adminUserId),
+      eq(articleMetadata.isArchived, true)
+    ))
+    .limit(1);
+
+  if (!adminArchived) return;
+
   await db.insert(wikiArticles).values({
     articleId,
     status: 'pending',
@@ -600,10 +618,11 @@ export async function enqueueArticleForWiki(articleId: number, priority = 5) {
 
 export async function enqueueAllArchivedForWiki() {
   await initWikiSchema();
+  const adminUserId = await getAdminUserId();
   const rows = await db
     .select({ id: articles.id })
     .from(articles)
-    .innerJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .innerJoin(articleMetadata, adminMetadataJoinCondition(adminUserId))
     .where(eq(articleMetadata.isArchived, true));
 
   for (const row of rows) {
@@ -646,6 +665,7 @@ export async function removeArticleFromWiki(articleId: number) {
 }
 
 async function getArchivedArticleWithContent(articleId: number) {
+  const adminUserId = await getAdminUserId();
   const [article] = await db
     .select({
       id: articles.id,
@@ -658,11 +678,11 @@ async function getArchivedArticleWithContent(articleId: number) {
       isArchived: articleMetadata.isArchived,
     })
     .from(articles)
-    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .innerJoin(articleMetadata, adminMetadataJoinCondition(adminUserId))
     .where(eq(articles.id, articleId));
 
   if (!article || !article.isArchived) return null;
-  const fetched = await getArticleContent(articleId, 'markdown').catch(() => null);
+  const fetched = await getArticleContent(articleId, 'markdown', 'desktop', adminUserId).catch(() => null);
   const content = fetched || article.contentMarkdown || article.contentHtml || article.summary || article.title || '';
   return { article, content };
 }
@@ -1341,6 +1361,7 @@ export async function getWikiMeta() {
 
 export async function getRecentWikiArticles(limit = 8) {
   await initWikiSchema();
+  const adminUserId = await getAdminUserId();
   return db
     .select({
       id: articles.id,
@@ -1353,7 +1374,7 @@ export async function getRecentWikiArticles(limit = 8) {
     })
     .from(wikiArticles)
     .innerJoin(articles, eq(wikiArticles.articleId, articles.id))
-    .innerJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .innerJoin(articleMetadata, adminMetadataJoinCondition(adminUserId))
     .leftJoin(wikiArticleExtracts, eq(wikiArticleExtracts.articleId, articles.id))
     .where(eq(articleMetadata.isArchived, true))
     .orderBy(desc(articleMetadata.archivedAt), desc(wikiArticles.updatedAt))
@@ -1362,6 +1383,7 @@ export async function getRecentWikiArticles(limit = 8) {
 
 export async function searchWiki(query: string, limit = 20) {
   await initWikiSchema();
+  const adminUserId = await getAdminUserId();
   const q = query.trim();
   if (!q) return { pages: [], articles: [] };
   const pattern = `%${q}%`;
@@ -1390,7 +1412,7 @@ export async function searchWiki(query: string, limit = 20) {
     })
     .from(wikiArticles)
     .innerJoin(articles, eq(wikiArticles.articleId, articles.id))
-    .innerJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .innerJoin(articleMetadata, adminMetadataJoinCondition(adminUserId))
     .leftJoin(wikiArticleExtracts, eq(wikiArticleExtracts.articleId, articles.id))
     .where(and(
       eq(articleMetadata.isArchived, true),

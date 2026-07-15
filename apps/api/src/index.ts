@@ -16,6 +16,7 @@ import { initWikiSchema } from './services/wiki.service.js';
 import { startWikiWorker } from './services/wiki.worker.js';
 import { initCollectSchema } from './services/collect.service.js';
 import { initMcpSchema } from './services/mcp-auth.service.js';
+import { initArticleMetadataUserScope } from './services/metadata-scope.service.js';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 
@@ -74,6 +75,7 @@ async function initAdmin() {
 async function startServer() {
   await initMcpSchema().catch((err) => console.error('初始化 MCP 表失败:', err));
   await initAdmin();
+  await initArticleMetadataUserScope().catch((err) => console.error('初始化用户级文章元数据失败:', err));
   await initCollectSchema().catch((err) => console.error('初始化采集表失败:', err));
   await initWikiSchema().catch((err) => console.error('初始化 Wiki 表失败:', err));
   startWikiWorker();

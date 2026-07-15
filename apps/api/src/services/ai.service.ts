@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '../db/index.js';
 import { articles, articleMetadata } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { fetchArticleContentFromSources, getArticleContent } from './reader.service.js';
 
 /** 预置 provider 配置：env 中只需写 AI_PROVIDER + 对应 API_KEY + 可选 MODEL */
@@ -205,19 +205,25 @@ export async function buildArticleSummaryResult(articleId: number): Promise<Arti
   };
 }
 
-export async function generateArticleDigest(articleId: number, title: string, content: string): Promise<void> {
+export async function generateArticleDigest(articleId: number, userId: number, title: string, content: string): Promise<void> {
   const digest = await generateDigestText(title, content);
-  await db.update(articleMetadata).set({ aiSummary: digest, updatedAt: new Date() }).where(eq(articleMetadata.articleId, articleId));
+  await db
+    .update(articleMetadata)
+    .set({ aiSummary: digest, updatedAt: new Date() })
+    .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, userId)));
 }
 
-export async function generateTags(articleId: number, title: string, summary: string): Promise<void> {
+export async function generateTags(articleId: number, userId: number, title: string, summary: string): Promise<void> {
   const tags = await generateTagsList(title, summary);
   if (tags.length > 0) {
-    await db.update(articleMetadata).set({ aiTags: tags, updatedAt: new Date() }).where(eq(articleMetadata.articleId, articleId));
+    await db
+      .update(articleMetadata)
+      .set({ aiTags: tags, updatedAt: new Date() })
+      .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, userId)));
   }
 }
 
-export async function generateSummaryAndTags(articleId: number): Promise<void> {
+export async function generateSummaryAndTags(articleId: number, userId: number): Promise<void> {
   const [article] = await db
     .select({
       id: articles.id,
@@ -231,7 +237,7 @@ export async function generateSummaryAndTags(articleId: number): Promise<void> {
   if (!article) return;
 
   const title = article.title || '';
-  const contentMd = await getArticleContent(articleId).catch((e) => {
+  const contentMd = await getArticleContent(articleId, 'markdown', 'desktop', userId).catch((e) => {
     console.error('Fetch markdown failed:', e.message);
     return null;
   });
@@ -246,7 +252,10 @@ export async function generateSummaryAndTags(articleId: number): Promise<void> {
 
   if (!digest) return;
 
-  await db.update(articleMetadata).set({ aiSummary: digest, updatedAt: new Date() }).where(eq(articleMetadata.articleId, articleId));
+  await db
+    .update(articleMetadata)
+    .set({ aiSummary: digest, updatedAt: new Date() })
+    .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, userId)));
 
   const tags = await generateTagsList(title, digest).catch((e) => {
     console.error('AI tags failed:', e.message);
@@ -254,6 +263,9 @@ export async function generateSummaryAndTags(articleId: number): Promise<void> {
   });
 
   if (tags.length > 0) {
-    await db.update(articleMetadata).set({ aiTags: tags, updatedAt: new Date() }).where(eq(articleMetadata.articleId, articleId));
+    await db
+      .update(articleMetadata)
+      .set({ aiTags: tags, updatedAt: new Date() })
+      .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, userId)));
   }
 }

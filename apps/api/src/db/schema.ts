@@ -39,13 +39,31 @@ export const articles = pgTable('articles', {
   isFavorite: boolean('is_favorite').default(false),
 });
 
+export const mcpClients = pgTable('mcp_clients', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  ownerUserId: integer('owner_user_id').notNull().references(() => users.id),
+  apiKeyHash: text('api_key_hash').notNull().unique(),
+  scopes: text('scopes').array().notNull().default(sql`ARRAY[]::text[]`),
+  enabled: boolean('enabled').notNull().default(true),
+  rateLimitPerMinute: integer('rate_limit_per_minute'),
+  rateLimitPerDay: integer('rate_limit_per_day'),
+  defaultSaveToInbox: boolean('default_save_to_inbox').notNull().default(false),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+  lastUsedAt: timestamp('last_used_at'),
+});
+
 /**
  * 我们平台自己的元数据表（读写）
  * 关联 articles 表，存储收藏、归档、AI 生成的内容
  */
 export const articleMetadata = pgTable('article_metadata', {
   id: serial('id').primaryKey(),
-  articleId: integer('article_id').notNull().unique().references(() => articles.id),
+  articleId: integer('article_id').notNull().references(() => articles.id),
+  userId: integer('user_id').notNull().references(() => users.id),
+  sourceType: text('source_type').notNull().default('web'),
+  clientId: integer('client_id').references(() => mcpClients.id),
   isFavorited: boolean('is_favorited').default(false),
   isArchived: boolean('is_archived').default(false),
   aiSummary: text('ai_summary'),
@@ -61,21 +79,6 @@ export const articleMetadata = pgTable('article_metadata', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
-
-export const mcpClients = pgTable('mcp_clients', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
-  ownerUserId: integer('owner_user_id').notNull().references(() => users.id),
-  apiKeyHash: text('api_key_hash').notNull().unique(),
-  scopes: text('scopes').array().notNull().default(sql`ARRAY[]::text[]`),
-  enabled: boolean('enabled').notNull().default(true),
-  rateLimitPerMinute: integer('rate_limit_per_minute'),
-  rateLimitPerDay: integer('rate_limit_per_day'),
-  defaultSaveToInbox: boolean('default_save_to_inbox').notNull().default(false),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-  lastUsedAt: timestamp('last_used_at'),
-});
 
 export const collectJobs = pgTable('collect_jobs', {
   id: serial('id').primaryKey(),

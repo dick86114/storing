@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db } from '../db/index.js';
-import { articles, articleMetadata } from '../db/schema.js';
-import { eq, and, asc, desc, count, sql, or, isNull, gt } from 'drizzle-orm';
+import { articles, articleMetadata, users } from '../db/schema.js';
+import { eq, and, asc, desc, count, sql, or, gt } from 'drizzle-orm';
 import { generateSummaryAndTags } from '../services/ai.service.js';
 import {
   ensureArticleMetadataContentHtmlMobileColumn,
@@ -10,12 +10,45 @@ import {
   repairArticleDisplayMeta,
 } from '../services/reader.service.js';
 import { enqueueArticleForWiki, processWikiJobs, removeArticleFromWiki } from '../services/wiki.service.js';
-import { requireAuth, optionalAuth, isAuthenticated } from '../middleware/auth.js';
+import { requireAuth, optionalAuth, isAuthenticated, getCurrentUser } from '../middleware/auth.js';
 
 export const articlesRoutes = new Hono();
 
 type ArticleSortField = 'collected' | 'published' | 'favorited' | 'archived';
 type SortOrder = 'asc' | 'desc';
+
+async function getDefaultUserId() {
+  const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+  const [admin] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.username, adminUsername))
+    .limit(1);
+  if (!admin) throw new Error(`Admin user not found: ${adminUsername}`);
+  return admin.id;
+}
+
+async function getScopedUserId(c: any) {
+  if (isAuthenticated(c)) return getCurrentUser(c).id as number;
+  return getDefaultUserId();
+}
+
+function metadataJoinCondition(userId: number) {
+  return and(eq(articles.id, articleMetadata.articleId), eq(articleMetadata.userId, userId));
+}
+
+function metadataWhereCondition(articleId: number, userId: number) {
+  return and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, userId));
+}
+
+function getViewCondition(view: string) {
+  if (view === 'inbox') {
+    return and(eq(articleMetadata.isArchived, false), eq(articleMetadata.isFavorited, false));
+  }
+  if (view === 'favorites') return eq(articleMetadata.isFavorited, true);
+  if (view === 'archive') return eq(articleMetadata.isArchived, true);
+  return and(eq(articleMetadata.isArchived, false), eq(articleMetadata.isFavorited, false));
+}
 
 async function hasMetadataTimestampColumns() {
   try {
@@ -69,7 +102,7 @@ function getArticleOrderBy(sort: ArticleSortField, order: SortOrder, hasActionTi
 /**
  * 确保 article_metadata 记录存在，不存在则创建
  */
-async function ensureMetadata(articleId: number) {
+async function ensureMetadata(userId: number, articleId: number) {
   const [existing] = await db
     .select({
       id: articleMetadata.id,
@@ -78,13 +111,13 @@ async function ensureMetadata(articleId: number) {
       isArchived: articleMetadata.isArchived,
     })
     .from(articleMetadata)
-    .where(eq(articleMetadata.articleId, articleId));
+    .where(metadataWhereCondition(articleId, userId));
 
   if (existing) return existing;
 
   await db
     .insert(articleMetadata)
-    .values({ articleId });
+    .values({ articleId, userId, sourceType: 'web' });
 
   return {
     articleId,
@@ -93,7 +126,7 @@ async function ensureMetadata(articleId: number) {
   };
 }
 
-async function getArticleRecord(id: number) {
+async function getArticleRecord(id: number, userId: number) {
   const [article] = await db
     .select({
       id: articles.id,
@@ -102,6 +135,7 @@ async function getArticleRecord(id: number) {
       source: articles.source,
       originalUrl: articles.originalUrl,
       publishTime: articles.publishTime,
+      metadataId: articleMetadata.id,
       favoritedAt: articleMetadata.favoritedAt,
       archivedAt: articleMetadata.archivedAt,
       articleCoverImage: articles.coverImage,
@@ -118,7 +152,7 @@ async function getArticleRecord(id: number) {
       aiTags: articleMetadata.aiTags,
     })
     .from(articles)
-    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .innerJoin(articleMetadata, metadataJoinCondition(userId))
     .where(eq(articles.id, id));
 
   return article ?? null;
@@ -142,11 +176,11 @@ async function repairMissingDisplayMeta<T extends {
   author: string | null;
   source: string | null;
   publishTime: Date | string | null;
-}>(rows: T[]): Promise<T[]> {
+}>(rows: T[], userId: number): Promise<T[]> {
   const repairedRows = await Promise.all(rows.map(async (row) => {
     if (row.title && row.source && row.publishTime) return row;
 
-    const repaired = await repairArticleDisplayMeta(row.id);
+    const repaired = await repairArticleDisplayMeta(row.id, userId);
     if (!repaired) return row;
 
     return {
@@ -179,23 +213,8 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
     return c.json({ error: { code: 'FORBIDDEN', message: '请登录后访问' } }, 403);
   }
 
-  // 构建查询：LEFT JOIN article_metadata
-  let whereCondition;
-
-  if (view === 'inbox') {
-    // 收件箱：未归档且未收藏的文章（包括没有 metadata 的）
-    whereCondition = or(
-      isNull(articleMetadata.id),
-      and(
-        eq(articleMetadata.isArchived, false),
-        eq(articleMetadata.isFavorited, false)
-      )
-    );
-  } else if (view === 'favorites') {
-    whereCondition = eq(articleMetadata.isFavorited, true);
-  } else if (view === 'archive') {
-    whereCondition = eq(articleMetadata.isArchived, true);
-  }
+  const userId = await getScopedUserId(c);
+  let whereCondition = getViewCondition(view);
 
   if (category && category !== 'all' && view === 'archive') {
     whereCondition = and(whereCondition, eq(articles.source, category));
@@ -209,6 +228,7 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
       source: articles.source,
       originalUrl: articles.originalUrl,
       publishTime: articles.publishTime,
+      metadataId: articleMetadata.id,
       favoritedAt: articleMetadata.favoritedAt,
       archivedAt: articleMetadata.archivedAt,
       coverImage: articleMetadata.coverImage,
@@ -224,12 +244,12 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
       aiTags: articleMetadata.aiTags,
     })
     .from(articles)
-    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId));
+    .innerJoin(articleMetadata, metadataJoinCondition(userId));
 
   const [{ total }] = await db
     .select({ total: count() })
     .from(articles)
-    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .innerJoin(articleMetadata, metadataJoinCondition(userId))
     .where(whereCondition);
 
   const data = await baseQuery
@@ -238,7 +258,7 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
     .limit(perPage)
     .offset((page - 1) * perPage);
 
-  const repairedData = await repairMissingDisplayMeta(data);
+  const repairedData = await repairMissingDisplayMeta(data, userId);
 
   return c.json({
     articles: repairedData.map(a => ({
@@ -265,7 +285,8 @@ articlesRoutes.get('/articles/:id/meta', optionalAuth, async (c) => {
   if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
   const id = parseInt(idParam);
 
-  const article = await getArticleRecord(id);
+  const userId = await getScopedUserId(c);
+  const article = await getArticleRecord(id, userId);
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
   if (!isAuthenticated(c) && !article.isArchived) {
@@ -286,7 +307,8 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
   const format = c.req.query('format') || 'markdown';
   const htmlVariant = c.req.query('htmlVariant') === 'mobile' ? 'mobile' : 'desktop';
 
-  let article = await getArticleRecord(id);
+  const userId = await getScopedUserId(c);
+  let article = await getArticleRecord(id, userId);
 
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
@@ -296,18 +318,18 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
   }
 
   if (!article.title || !article.source || !article.publishTime) {
-    await repairArticleDisplayMeta(id);
-    article = await getArticleRecord(id);
+    await repairArticleDisplayMeta(id, userId);
+    article = await getArticleRecord(id, userId);
     if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
   }
 
   // 登录用户首次访问时，异步处理封面图（如果 metadata 尚无封面图）
   if (isAuthenticated(c) && !article.metadataCoverImage) {
-    processCoverImage(id).catch((e) => console.error('Cover image process failed:', e.message));
+    processCoverImage(id, userId).catch((e) => console.error('Cover image process failed:', e.message));
   }
 
   // 获取正文内容（根据 format 参数）
-  const content = await getArticleContent(id, format as 'markdown' | 'html', htmlVariant).catch((e) => {
+  const content = await getArticleContent(id, format as 'markdown' | 'html', htmlVariant, userId).catch((e) => {
     console.error('Fetch content failed:', e.message);
     return null;
   });
@@ -334,7 +356,8 @@ articlesRoutes.post('/articles/:id/favorite', requireAuth, async (c) => {
   const [article] = await db.select().from(articles).where(eq(articles.id, id));
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
-  const meta = await ensureMetadata(id);
+  const userId = getCurrentUser(c).id;
+  const meta = await ensureMetadata(userId, id);
   const newState = !meta.isFavorited;
   const now = new Date();
   const hasActionTimestamps = await hasMetadataTimestampColumns();
@@ -345,7 +368,7 @@ articlesRoutes.post('/articles/:id/favorite', requireAuth, async (c) => {
   await db
     .update(articleMetadata)
     .set(updateValues)
-    .where(eq(articleMetadata.articleId, id));
+    .where(metadataWhereCondition(id, userId));
 
   return c.json({ articleId: id, isFavorited: newState });
 });
@@ -362,7 +385,8 @@ articlesRoutes.post('/articles/:id/archive', requireAuth, async (c) => {
   const [article] = await db.select().from(articles).where(eq(articles.id, id));
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
-  await ensureMetadata(id);
+  const userId = getCurrentUser(c).id;
+  await ensureMetadata(userId, id);
   const now = new Date();
   const hasActionTimestamps = await hasMetadataTimestampColumns();
   const updateValues = hasActionTimestamps
@@ -372,11 +396,11 @@ articlesRoutes.post('/articles/:id/archive', requireAuth, async (c) => {
   await db
     .update(articleMetadata)
     .set(updateValues)
-    .where(eq(articleMetadata.articleId, id));
+    .where(metadataWhereCondition(id, userId));
 
   // 异步触发 AI 摘要和标签生成、封面图处理
-  generateSummaryAndTags(id).catch((e) => console.error('AI summary/tags failed:', e.message));
-  processCoverImage(id).catch((e) => console.error('Cover image process failed:', e.message));
+  generateSummaryAndTags(id, userId).catch((e) => console.error('AI summary/tags failed:', e.message));
+  processCoverImage(id, userId).catch((e) => console.error('Cover image process failed:', e.message));
   enqueueArticleForWiki(id).then(() => processWikiJobs(3)).catch((e) => console.error('Wiki enqueue failed:', e.message));
 
   return c.json({ articleId: id, isArchived: true });
@@ -391,7 +415,8 @@ articlesRoutes.post('/articles/:id/unarchive', requireAuth, async (c) => {
   if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
   const id = parseInt(idParam);
 
-  await ensureMetadata(id);
+  const userId = getCurrentUser(c).id;
+  await ensureMetadata(userId, id);
   const now = new Date();
   const hasActionTimestamps = await hasMetadataTimestampColumns();
   const updateValues = hasActionTimestamps
@@ -401,7 +426,7 @@ articlesRoutes.post('/articles/:id/unarchive', requireAuth, async (c) => {
   await db
     .update(articleMetadata)
     .set(updateValues)
-    .where(eq(articleMetadata.articleId, id));
+    .where(metadataWhereCondition(id, userId));
 
   removeArticleFromWiki(id).then(() => processWikiJobs(3)).catch((e) => console.error('Wiki remove failed:', e.message));
 
@@ -420,17 +445,18 @@ articlesRoutes.post('/articles/:id/refetch', requireAuth, async (c) => {
   const [article] = await db.select().from(articles).where(eq(articles.id, id));
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
-  await ensureMetadata(id);
+  const userId = getCurrentUser(c).id;
+  await ensureMetadata(userId, id);
   await ensureArticleMetadataContentHtmlMobileColumn();
   await db.update(articleMetadata)
     .set({ contentMd: null, contentHtml: null, contentHtmlMobile: null, coverImage: null, updatedAt: new Date() })
-    .where(eq(articleMetadata.articleId, id));
+    .where(metadataWhereCondition(id, userId));
 
   const [contentHtml, contentHtmlMobile, contentMd, coverImage] = await Promise.all([
-    getArticleContent(id, 'html', 'desktop'),
-    getArticleContent(id, 'html', 'mobile'),
-    getArticleContent(id, 'markdown'),
-    processCoverImage(id),
+    getArticleContent(id, 'html', 'desktop', userId),
+    getArticleContent(id, 'html', 'mobile', userId),
+    getArticleContent(id, 'markdown', 'desktop', userId),
+    processCoverImage(id, userId),
   ]);
 
   return c.json({
@@ -454,12 +480,13 @@ articlesRoutes.post('/articles/:id/regenerate-ai', requireAuth, async (c) => {
   const [article] = await db.select().from(articles).where(eq(articles.id, id));
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
-  await ensureMetadata(id);
+  const userId = getCurrentUser(c).id;
+  await ensureMetadata(userId, id);
   await db.update(articleMetadata)
     .set({ aiSummary: null, aiTags: [], updatedAt: new Date() })
-    .where(eq(articleMetadata.articleId, id));
+    .where(metadataWhereCondition(id, userId));
 
-  await generateSummaryAndTags(id);
+  await generateSummaryAndTags(id, userId);
   return c.json({ articleId: id, ok: true });
 });
 
@@ -476,7 +503,8 @@ articlesRoutes.delete('/articles/:id', requireAuth, async (c) => {
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
   await removeArticleFromWiki(id).catch((e) => console.error('Wiki remove failed:', e.message));
-  await db.delete(articleMetadata).where(eq(articleMetadata.articleId, id));
+  const userId = getCurrentUser(c).id;
+  await db.delete(articleMetadata).where(metadataWhereCondition(id, userId));
 
   return c.json({ articleId: id, deleted: true, scope: 'metadata', visibleInInbox: true });
 });
@@ -494,22 +522,32 @@ articlesRoutes.delete('/articles/:id/permanent', requireAuth, async (c) => {
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
   await removeArticleFromWiki(id).catch((e) => console.error('Wiki remove failed:', e.message));
-  await db.delete(articleMetadata).where(eq(articleMetadata.articleId, id));
-  await db.delete(articles).where(eq(articles.id, id));
+  const userId = getCurrentUser(c).id;
+  await db.delete(articleMetadata).where(metadataWhereCondition(id, userId));
+  const [{ remaining }] = await db
+    .select({ remaining: count() })
+    .from(articleMetadata)
+    .where(eq(articleMetadata.articleId, id));
+  if (Number(remaining) === 0) {
+    await db.delete(articles).where(eq(articles.id, id));
+  }
 
-  return c.json({ articleId: id, deleted: true, scope: 'permanent' });
+  return c.json({ articleId: id, deleted: true, scope: Number(remaining) === 0 ? 'permanent' : 'metadata' });
 });
 
 /**
  * GET /counts — 获取各视图的文章计数（合并请求，减少 API 调用）
  */
 articlesRoutes.get('/counts', optionalAuth, async (c) => {
+  const userId = await getScopedUserId(c);
+
   // 游客只能获取 archive 计数
   if (!isAuthenticated(c)) {
     const result = await db.execute(sql`
-      SELECT COUNT(*) as archive FROM articles a
-      LEFT JOIN article_metadata m ON a.id = m.article_id
-      WHERE m.is_archived = true
+      SELECT COUNT(*) as archive
+      FROM article_metadata m
+      WHERE m.user_id = ${userId}
+        AND m.is_archived = true
     `);
     return c.json({ inbox: 0, favorites: 0, archive: Number(result.rows[0]?.archive || 0), wiki: 0 });
   }
@@ -517,15 +555,16 @@ articlesRoutes.get('/counts', optionalAuth, async (c) => {
   // 登录用户获取所有计数（使用单个 SQL 查询）
   const result = await db.execute(sql`
     SELECT
-      (SELECT COUNT(*) FROM articles a
-       LEFT JOIN article_metadata m ON a.id = m.article_id
-       WHERE m.id IS NULL OR (m.is_archived = false AND m.is_favorited = false)) as inbox,
-      (SELECT COUNT(*) FROM articles a
-       LEFT JOIN article_metadata m ON a.id = m.article_id
-       WHERE m.is_favorited = true) as favorites,
-      (SELECT COUNT(*) FROM articles a
-       LEFT JOIN article_metadata m ON a.id = m.article_id
-       WHERE m.is_archived = true) as archive,
+      (SELECT COUNT(*) FROM article_metadata m
+       WHERE m.user_id = ${userId}
+         AND m.is_archived = false
+         AND m.is_favorited = false) as inbox,
+      (SELECT COUNT(*) FROM article_metadata m
+       WHERE m.user_id = ${userId}
+         AND m.is_favorited = true) as favorites,
+      (SELECT COUNT(*) FROM article_metadata m
+       WHERE m.user_id = ${userId}
+         AND m.is_archived = true) as archive,
       (SELECT COUNT(*) FROM wiki_pages WHERE status = 'active') as wiki
   `);
 
@@ -541,7 +580,7 @@ articlesRoutes.get('/counts', optionalAuth, async (c) => {
 /**
  * GET /sources — 公众号来源统计（归档页使用）
  */
-articlesRoutes.get('/sources', async (c) => {
+articlesRoutes.get('/sources', optionalAuth, async (c) => {
   const sortParam = c.req.query('sort') || 'count';
   const orderParam = c.req.query('order') || 'desc';
   const validSorts = ['count', 'name', 'latest'];
@@ -549,6 +588,7 @@ articlesRoutes.get('/sources', async (c) => {
   const order = orderParam === 'asc' || orderParam === 'desc' ? orderParam : 'desc';
 
   try {
+    const userId = await getScopedUserId(c);
     const rows = await db
       .select({
         source: articles.source,
@@ -556,7 +596,7 @@ articlesRoutes.get('/sources', async (c) => {
         latestCreatedAt: sql<Date>`MAX(${articles.createdAt})`,
       })
       .from(articles)
-      .innerJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+      .innerJoin(articleMetadata, metadataJoinCondition(userId))
       .where(and(
         eq(articleMetadata.isArchived, true),
         sql`${articles.source} IS NOT NULL`
@@ -611,21 +651,8 @@ articlesRoutes.get('/articles/:id/position', optionalAuth, async (c) => {
     return c.json({ error: { code: 'FORBIDDEN', message: '请登录后访问' } }, 403);
   }
 
-  let whereCondition;
-
-  if (view === 'inbox') {
-    whereCondition = or(
-      isNull(articleMetadata.id),
-      and(
-        eq(articleMetadata.isArchived, false),
-        eq(articleMetadata.isFavorited, false)
-      )
-    );
-  } else if (view === 'favorites') {
-    whereCondition = eq(articleMetadata.isFavorited, true);
-  } else if (view === 'archive') {
-    whereCondition = eq(articleMetadata.isArchived, true);
-  }
+  const userId = await getScopedUserId(c);
+  let whereCondition = getViewCondition(view);
 
   if (category && category !== 'all' && view === 'archive') {
     whereCondition = and(whereCondition, eq(articles.source, category));
@@ -637,7 +664,7 @@ articlesRoutes.get('/articles/:id/position', optionalAuth, async (c) => {
       createdAt: articles.createdAt,
     })
     .from(articles)
-    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .innerJoin(articleMetadata, metadataJoinCondition(userId))
     .where(and(eq(articles.id, id), whereCondition))
     .limit(1);
 
@@ -650,7 +677,7 @@ articlesRoutes.get('/articles/:id/position', optionalAuth, async (c) => {
       position: sql<number>`(COUNT(*)::int + 1)`,
     })
     .from(articles)
-    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .innerJoin(articleMetadata, metadataJoinCondition(userId))
     .where(and(
       whereCondition,
       or(
@@ -663,7 +690,7 @@ articlesRoutes.get('/articles/:id/position', optionalAuth, async (c) => {
   const [{ total }] = await db
     .select({ total: count() })
     .from(articles)
-    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .innerJoin(articleMetadata, metadataJoinCondition(userId))
     .where(whereCondition);
 
   const page = Math.floor((position - 1) / perPage) + 1;
