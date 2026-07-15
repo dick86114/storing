@@ -1,6 +1,7 @@
 import { db } from '../db/index.js';
 import { articles, articleMetadata } from '../db/schema.js';
-import { eq, sql } from 'drizzle-orm';
+import { getAdminUserId } from './metadata-scope.service.js';
+import { and, eq, sql } from 'drizzle-orm';
 import { JSDOM } from 'jsdom';
 import {
   extractTextFromHtml,
@@ -392,12 +393,14 @@ async function fetchArticleDisplayMeta(originalUrl: string): Promise<{
   };
 }
 
-export async function repairArticleDisplayMeta(articleId: number): Promise<{
+export async function repairArticleDisplayMeta(articleId: number, userId?: number): Promise<{
   title: string | null;
   source: string | null;
   author: string | null;
   publishTime: Date | null;
 } | null> {
+  const scopedUserId = userId ?? await getAdminUserId();
+  const metadataScope = and(eq(articles.id, articleMetadata.articleId), eq(articleMetadata.userId, scopedUserId));
   const [article] = await db
     .select({
       id: articles.id,
@@ -411,7 +414,7 @@ export async function repairArticleDisplayMeta(articleId: number): Promise<{
       contentHtml: articleMetadata.contentHtml,
     })
     .from(articles)
-    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .leftJoin(articleMetadata, metadataScope)
     .where(eq(articles.id, articleId));
 
   if (!article) return null;
@@ -929,13 +932,16 @@ async function saveArticleContentCache(
   articleId: number,
   format: 'markdown' | 'html',
   content: string,
-  htmlVariant: HtmlVariant = 'desktop'
+  htmlVariant: HtmlVariant = 'desktop',
+  userId?: number
 ): Promise<void> {
   await ensureArticleMetadataContentHtmlMobileColumn();
+  const scopedUserId = userId ?? await getAdminUserId();
+  const metadataScope = and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, scopedUserId));
   const [existing] = await db
     .select({ id: articleMetadata.id })
     .from(articleMetadata)
-    .where(eq(articleMetadata.articleId, articleId));
+    .where(metadataScope);
 
   const updateField =
     format === 'html'
@@ -947,21 +953,22 @@ async function saveArticleContentCache(
   if (existing) {
     await db.update(articleMetadata)
       .set({ ...updateField, updatedAt: new Date() })
-      .where(eq(articleMetadata.articleId, articleId));
+      .where(metadataScope);
   } else {
     await db.insert(articleMetadata)
-      .values({ articleId, ...updateField });
+      .values({ articleId, userId: scopedUserId, sourceType: 'system', ...updateField });
   }
 }
 
 async function refreshArticleContentCache(
   articleId: number,
   format: 'markdown' | 'html',
-  htmlVariant: HtmlVariant = 'desktop'
+  htmlVariant: HtmlVariant = 'desktop',
+  userId?: number
 ): Promise<void> {
   const content = await fetchArticleContentFromSources(articleId, format, htmlVariant);
   if (content) {
-    await saveArticleContentCache(articleId, format, content, htmlVariant);
+    await saveArticleContentCache(articleId, format, content, htmlVariant, userId);
   }
 }
 
@@ -974,9 +981,12 @@ async function refreshArticleContentCache(
 export async function getArticleContent(
   articleId: number,
   format: 'markdown' | 'html' = 'markdown',
-  htmlVariant: HtmlVariant = 'desktop'
+  htmlVariant: HtmlVariant = 'desktop',
+  userId?: number
 ): Promise<string | null> {
   await ensureArticleMetadataContentHtmlMobileColumn();
+  const scopedUserId = userId ?? await getAdminUserId();
+  const metadataScope = and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, scopedUserId));
   // 先查缓存
   const [meta] = await db
     .select({
@@ -985,7 +995,7 @@ export async function getArticleContent(
       contentHtmlMobile: articleMetadata.contentHtmlMobile,
     })
     .from(articleMetadata)
-    .where(eq(articleMetadata.articleId, articleId));
+    .where(metadataScope);
 
   if (format === 'html') {
     const cachedHtml = htmlVariant === 'mobile' ? meta?.contentHtmlMobile : meta?.contentHtml;
@@ -995,11 +1005,11 @@ export async function getArticleContent(
       if (!hasUsefulContent(cachedHtml, format)) {
         const content = await fetchArticleContentFromSources(articleId, format, htmlVariant);
         if (!content) return null;
-        await saveArticleContentCache(articleId, format, content, htmlVariant);
+        await saveArticleContentCache(articleId, format, content, htmlVariant, userId)
         return content;
       }
       if (htmlVariant === 'desktop' && hasWechatImageRefs(cachedHtml)) {
-        refreshArticleContentCache(articleId, format, htmlVariant).catch((e) =>
+        refreshArticleContentCache(articleId, format, htmlVariant, userId).catch((e) =>
           console.error(`Background HTML cache refresh failed for article ${articleId}:`, (e as Error).message)
         );
       }
@@ -1007,7 +1017,7 @@ export async function getArticleContent(
     }
 
     if (htmlVariant === 'mobile' && meta?.contentHtml && hasUsefulContent(meta.contentHtml, format)) {
-      refreshArticleContentCache(articleId, format, htmlVariant).catch((e) =>
+      refreshArticleContentCache(articleId, format, htmlVariant, userId).catch((e) =>
         console.error(`Background mobile HTML cache refresh failed for article ${articleId}:`, (e as Error).message)
       );
       return meta.contentHtml;
@@ -1018,11 +1028,11 @@ export async function getArticleContent(
       if (!hasUsefulContent(meta.contentMd, format)) {
         const content = await fetchArticleContentFromSources(articleId, format, htmlVariant);
         if (!content) return null;
-        await saveArticleContentCache(articleId, format, content, htmlVariant);
+        await saveArticleContentCache(articleId, format, content, htmlVariant, userId)
         return content;
       }
       if (hasLocalResourceRefs(meta.contentMd) || hasWechatImageRefs(meta.contentMd)) {
-        refreshArticleContentCache(articleId, format, htmlVariant).catch((e) =>
+        refreshArticleContentCache(articleId, format, htmlVariant, userId).catch((e) =>
           console.error(`Background Markdown cache refresh failed for article ${articleId}:`, (e as Error).message)
         );
       }
@@ -1034,7 +1044,7 @@ export async function getArticleContent(
 
   if (!content) return null;
 
-  await saveArticleContentCache(articleId, format, content, htmlVariant);
+  await saveArticleContentCache(articleId, format, content, htmlVariant, userId)
 
   return content;
 }
@@ -1049,7 +1059,7 @@ function extractFirstImageUrl(md: string): string | null {
  * 处理封面图：上传到图床，如果没有则从正文取第一张图
  * 保存到 article_metadata.cover_image
  */
-export async function processCoverImage(articleId: number): Promise<string | null> {
+export async function processCoverImage(articleId: number, userId?: number): Promise<string | null> {
   // 查询文章的封面图和原始链接
   const [article] = await db
     .select({
@@ -1068,7 +1078,7 @@ export async function processCoverImage(articleId: number): Promise<string | nul
     coverImageUrl = article.coverImage;
   } else {
     // 没有封面图，从正文提取第一张图片
-    const content = await getArticleContent(articleId);
+    const content = await getArticleContent(articleId, 'markdown', 'desktop', userId);
     if (content) {
       coverImageUrl = extractFirstImageUrl(content);
     }
@@ -1083,19 +1093,21 @@ export async function processCoverImage(articleId: number): Promise<string | nul
     return null;
   }
 
-  // 确保 metadata 记录存在并保存封面图
+  // 确保当前用户 metadata 记录存在并保存封面图
+  const scopedUserId = userId ?? await getAdminUserId();
+  const metadataScope = and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, scopedUserId));
   const [existingMeta] = await db
     .select({ id: articleMetadata.id })
     .from(articleMetadata)
-    .where(eq(articleMetadata.articleId, articleId));
+    .where(metadataScope);
 
   if (existingMeta) {
     await db.update(articleMetadata)
       .set({ coverImage: uploadedUrl, updatedAt: new Date() })
-      .where(eq(articleMetadata.articleId, articleId));
+      .where(metadataScope);
   } else {
     await db.insert(articleMetadata)
-      .values({ articleId, coverImage: uploadedUrl });
+      .values({ articleId, userId: scopedUserId, sourceType: 'system', coverImage: uploadedUrl });
   }
 
   return uploadedUrl;

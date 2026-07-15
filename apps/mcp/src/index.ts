@@ -28,6 +28,13 @@ type SummarizeResult = {
   message: string;
 };
 
+type CollectResult = {
+  status: 'running';
+  job_id: number;
+  saved_to_inbox: true;
+  message: string;
+};
+
 type JobStatusResult = {
   id: number;
   status: 'pending' | 'running' | 'completed' | 'failed';
@@ -93,12 +100,41 @@ server.registerTool(
   },
 );
 
+
+
+server.registerTool(
+  'collect_url',
+  {
+    description: '提交一个公开网页链接到 Storing，异步抓取正文并明确保存到 MCP client owner 的收件箱。需要 collect:create 和 inbox:write 权限。',
+    inputSchema: {
+      url: z.string().url().describe('需要收藏到 owner 收件箱的公开网页链接'),
+    },
+    outputSchema: {
+      status: z.literal('running'),
+      job_id: z.number(),
+      saved_to_inbox: z.literal(true),
+      message: z.string(),
+    },
+  },
+  async ({ url }) => {
+    const result = await apiFetch<CollectResult>('/mcp/collect', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    });
+
+    return {
+      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+      structuredContent: result,
+    };
+  },
+);
+
 server.registerTool(
   'get_collect_status',
   {
-    description: '根据 job_id 查询 Storing 链接总结任务状态；完成后返回标题、摘要和标签。',
+    description: '根据 job_id 查询 Storing 链接总结或收藏任务状态；完成后返回标题、摘要和标签。',
     inputSchema: {
-      job_id: z.number().int().positive().describe('summarize_url 返回的任务 ID'),
+      job_id: z.number().int().positive().describe('summarize_url 或 collect_url 返回的任务 ID'),
     },
     outputSchema: {
       id: z.number(),

@@ -189,7 +189,7 @@ async function upsertArticleFromCapture(input: {
   contentMarkdown?: string | null;
   coverImage?: string | null;
   method: CollectMethod;
-}, options: { persistMetadata?: boolean } = {}) {
+}, options: { persistMetadata?: boolean; userId?: number | null; clientId?: number | null; sourceType?: string; markArchived?: boolean } = {}) {
   const persistMetadata = options.persistMetadata ?? true;
   const [existing] = await db
     .select({ id: articles.id })
@@ -231,10 +231,16 @@ async function upsertArticleFromCapture(input: {
 
   if (!persistMetadata) return articleId;
 
-  const [meta] = await db.select({ id: articleMetadata.id }).from(articleMetadata).where(eq(articleMetadata.articleId, articleId));
+  if (!options.userId) throw new Error('保存文章到收件箱需要用户归属');
+
+  const [meta] = await db
+    .select({ id: articleMetadata.id })
+    .from(articleMetadata)
+    .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, options.userId)));
+  const markArchived = options.markArchived ?? true;
   const metadataValues: Partial<typeof articleMetadata.$inferInsert> = {
-    isArchived: true,
-    archivedAt: now,
+    isArchived: markArchived,
+    archivedAt: markArchived ? now : null,
     updatedAt: now,
   };
   if (input.contentHtml !== undefined) metadataValues.contentHtml = input.contentHtml;
@@ -243,9 +249,16 @@ async function upsertArticleFromCapture(input: {
   if (input.coverImage !== undefined) metadataValues.coverImage = input.coverImage;
 
   if (meta) {
-    await db.update(articleMetadata).set(metadataValues).where(eq(articleMetadata.articleId, articleId));
+    await db.update(articleMetadata).set(metadataValues).where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, options.userId)));
   } else {
-    await db.insert(articleMetadata).values({ articleId, isFavorited: false, ...metadataValues });
+    await db.insert(articleMetadata).values({
+      articleId,
+      userId: options.userId,
+      clientId: options.clientId ?? null,
+      sourceType: options.sourceType ?? 'web',
+      isFavorited: false,
+      ...metadataValues,
+    });
   }
 
   return articleId;
@@ -265,10 +278,11 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
   ]);
 }
 
-async function finishArticleSideEffects(jobId: number, articleId: number, options: { saveToInbox: boolean }) {
+async function finishArticleSideEffects(jobId: number, articleId: number, options: { saveToInbox: boolean; userId?: number | null }) {
   if (options.saveToInbox) {
-    generateSummaryAndTags(articleId).catch((e) => console.error('Collect AI summary/tags failed:', e.message));
-    processCoverImage(articleId).catch((e) => console.error('Collect cover image failed:', e.message));
+    if (!options.userId) throw new Error('保存文章到收件箱需要用户归属');
+    generateSummaryAndTags(articleId, options.userId).catch((e) => console.error('Collect AI summary/tags failed:', e.message));
+    processCoverImage(articleId, options.userId).catch((e) => console.error('Collect cover image failed:', e.message));
     enqueueArticleForWiki(articleId).then(() => processWikiJobs(3)).catch((e) => console.error('Collect wiki enqueue failed:', e.message));
     return;
   }
@@ -289,7 +303,7 @@ async function finishArticleSideEffects(jobId: number, articleId: number, option
   });
 }
 
-async function processWechatJob(jobId: number, normalizedUrl: string, options: { saveToInbox: boolean }) {
+async function processWechatJob(jobId: number, normalizedUrl: string, options: { saveToInbox: boolean; userId?: number | null; clientId?: number | null; sourceType?: string }) {
   const title = normalizedUrl;
   const source = '微信公众号';
   const articleId = await upsertArticleFromCapture({
@@ -297,12 +311,15 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
     title,
     source,
     method: 'reader',
-  }, { persistMetadata: options.saveToInbox });
+  }, { persistMetadata: options.saveToInbox, userId: options.userId, clientId: options.clientId, sourceType: options.sourceType });
 
   await updateCollectJob(jobId, { stage: 'reader_fetch', captureStrategy: 'wechat_reader', articleId, title });
 
   if (options.saveToInbox) {
-    await Promise.allSettled([getArticleContent(articleId, 'html'), getArticleContent(articleId, 'markdown')]);
+    await Promise.allSettled([
+      getArticleContent(articleId, 'html', 'desktop', options.userId ?? undefined),
+      getArticleContent(articleId, 'markdown', 'desktop', options.userId ?? undefined),
+    ]);
   }
 
   const pageMeta = await fetchWechatPageMeta(normalizedUrl);
@@ -322,7 +339,7 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
       articleId,
       finishedAt: new Date(),
     });
-    await finishArticleSideEffects(jobId, articleId, { saveToInbox: true });
+    await finishArticleSideEffects(jobId, articleId, { saveToInbox: true, userId: options.userId });
     return;
   }
 
@@ -556,7 +573,7 @@ async function captureBestSingleFile(jobId: number, normalizedUrl: string): Prom
   throw new Error(strategyFailures.join('；') || 'SingleFile 抓取结果无有效正文');
 }
 
-async function processSingleFileJob(jobId: number, normalizedUrl: string, options: { saveToInbox: boolean }) {
+async function processSingleFileJob(jobId: number, normalizedUrl: string, options: { saveToInbox: boolean; userId?: number | null; clientId?: number | null; sourceType?: string }) {
   await updateCollectJob(jobId, { stage: 'capturing', captureStrategy: getInitialSingleFileStrategy() });
 
   if (!options.saveToInbox) {
@@ -629,7 +646,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string, option
     contentMarkdown,
     coverImage: uploadedCoverImage || primaryPrepared.coverImage,
     method: 'singlefile',
-  }, { persistMetadata: true });
+  }, { persistMetadata: true, userId: options.userId, clientId: options.clientId, sourceType: options.sourceType, markArchived: options.sourceType !== 'mcp' });
 
   await updateCollectJob(jobId, {
     status: 'completed',
@@ -639,7 +656,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string, option
     captureStrategy: capture.strategy,
     finishedAt: new Date(),
   });
-  await finishArticleSideEffects(jobId, articleId, { saveToInbox: true });
+  await finishArticleSideEffects(jobId, articleId, { saveToInbox: true, userId: options.userId });
 }
 
 export async function initCollectSchema() {
@@ -721,9 +738,9 @@ export async function processCollectJob(jobId: number) {
 
   try {
     if (job.method === 'reader') {
-      await processWechatJob(jobId, job.normalizedUrl, { saveToInbox: job.saveToInbox });
+      await processWechatJob(jobId, job.normalizedUrl, { saveToInbox: job.saveToInbox, userId: job.userId, clientId: job.clientId, sourceType: job.requestSource });
     } else {
-      await processSingleFileJob(jobId, job.normalizedUrl, { saveToInbox: job.saveToInbox });
+      await processSingleFileJob(jobId, job.normalizedUrl, { saveToInbox: job.saveToInbox, userId: job.userId, clientId: job.clientId, sourceType: job.requestSource });
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : '采集失败';

@@ -1,10 +1,30 @@
 import { Hono } from 'hono';
 import { db } from '../db/index.js';
-import { articles, articleMetadata } from '../db/schema.js';
+import { articles, articleMetadata, users } from '../db/schema.js';
 import { sql, desc, eq, and } from 'drizzle-orm';
-import { optionalAuth, isAuthenticated } from '../middleware/auth.js';
+import { optionalAuth, isAuthenticated, getCurrentUser } from '../middleware/auth.js';
 
 export const searchRoutes = new Hono();
+
+async function getDefaultUserId() {
+  const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+  const [admin] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.username, adminUsername))
+    .limit(1);
+  if (!admin) throw new Error(`Admin user not found: ${adminUsername}`);
+  return admin.id;
+}
+
+async function getScopedUserId(c: any) {
+  if (isAuthenticated(c)) return getCurrentUser(c).id as number;
+  return getDefaultUserId();
+}
+
+function metadataJoinCondition(userId: number) {
+  return and(eq(articles.id, articleMetadata.articleId), eq(articleMetadata.userId, userId));
+}
 
 /**
  * GET /search — 全文搜索
@@ -19,6 +39,7 @@ searchRoutes.get('/search', optionalAuth, async (c) => {
   const page = parseInt(c.req.query('page') || '1');
   const perPage = parseInt(c.req.query('perPage') || '20');
   const pattern = `%${q}%`;
+  const userId = await getScopedUserId(c);
 
   const searchCondition = sql`(${articles.title} ILIKE ${pattern} OR ${articles.source} ILIKE ${pattern} OR ${articles.summary} ILIKE ${pattern} OR ${articleMetadata.aiSummary} ILIKE ${pattern} OR ${articleMetadata.aiCategory} ILIKE ${pattern} OR array_to_string(${articleMetadata.aiTags}, ' ') ILIKE ${pattern})`;
 
@@ -30,7 +51,7 @@ searchRoutes.get('/search', optionalAuth, async (c) => {
   const [{ total }] = await db
     .select({ total: sql<number>`count(*)::int` })
     .from(articles)
-    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .innerJoin(articleMetadata, metadataJoinCondition(userId))
     .where(finalCondition);
 
   const data = await db
@@ -53,7 +74,7 @@ searchRoutes.get('/search', optionalAuth, async (c) => {
       aiTags: articleMetadata.aiTags,
     })
     .from(articles)
-    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .innerJoin(articleMetadata, metadataJoinCondition(userId))
     .where(finalCondition)
     .orderBy(desc(articles.createdAt))
     .limit(perPage)

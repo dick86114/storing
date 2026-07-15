@@ -12,6 +12,10 @@ const summarizeSchema = z.object({
   save_to_inbox: z.boolean().optional(),
 });
 
+const collectUrlSchema = z.object({
+  url: z.string().min(1, '请输入链接').max(4000, '链接过长'),
+});
+
 function serializeMcpJob(job: any) {
   return {
     id: job.id,
@@ -57,6 +61,31 @@ mcpRoutes.post('/mcp/summarize', requireMcpClient, requireMcpScope('summary:crea
     status: 'running',
     job_id: job.id,
     message: '文章正在抓取和总结，请稍后调用 get_collect_status 查询结果。',
+  }, 202);
+});
+
+
+
+mcpRoutes.post('/mcp/collect', requireMcpClient, requireMcpScope('collect:create'), requireMcpScope('inbox:write'), async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = collectUrlSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: { code: 'BAD_REQUEST', message: parsed.error.errors[0]?.message || '参数错误' } }, 400);
+  }
+
+  const client = c.get('mcpClient');
+  const job = await createCollectJob(parsed.data.url, {
+    userId: client.ownerUserId,
+    clientId: client.id,
+    requestSource: 'mcp',
+    saveToInbox: true,
+  });
+
+  return c.json({
+    status: 'running',
+    job_id: job.id,
+    saved_to_inbox: true,
+    message: '文章正在抓取，并会保存到 MCP client owner 的收件箱。请稍后调用 get_collect_status 查询结果。',
   }, 202);
 });
 
