@@ -20,7 +20,6 @@ import {
 } from '../db/schema.js';
 import { callWikiAI, getWikiAIConfig } from './ai.service.js';
 import { getArticleContent } from './reader.service.js';
-import { getAdminUserId } from './metadata-scope.service.js';
 
 type WikiFact = {
   claim: string;
@@ -241,8 +240,8 @@ const WIKI_TABLE_SQL = [
 let schemaReady = false;
 let wikiJobRunnerActive = false;
 
-function adminMetadataJoinCondition(adminUserId: number) {
-  return and(eq(articles.id, articleMetadata.articleId), eq(articleMetadata.userId, adminUserId));
+function metadataJoinCondition(userId: number) {
+  return and(eq(articles.id, articleMetadata.articleId), eq(articleMetadata.userId, userId));
 }
 
 export async function initWikiSchema() {
@@ -430,18 +429,19 @@ function buildSourceChunks(article: { title: string | null }, content: string): 
   return chunks.slice(0, 80);
 }
 
-async function replaceArticleChunks(article: { id: number; title: string | null }, content: string) {
+async function replaceArticleChunks(article: { id: number; title: string | null }, content: string, userId: number) {
   await db.update(wikiSourceChunks)
     .set({ active: false, updatedAt: new Date() })
-    .where(eq(wikiSourceChunks.articleId, article.id));
+    .where(and(eq(wikiSourceChunks.articleId, article.id), eq(wikiSourceChunks.userId, userId)));
   await db.update(wikiClaims)
     .set({ status: 'inactive', updatedAt: new Date() })
-    .where(eq(wikiClaims.articleId, article.id));
+    .where(and(eq(wikiClaims.articleId, article.id), eq(wikiClaims.userId, userId)));
 
   const chunkInputs = buildSourceChunks(article, content);
   const chunks = [];
   for (const chunk of chunkInputs) {
     const [row] = await db.insert(wikiSourceChunks).values({
+      userId,
       articleId: article.id,
       chunkKey: chunk.chunkKey,
       heading: chunk.heading,
@@ -477,10 +477,10 @@ function bestChunkForFact(chunks: Array<{ id: number; content: string }>, fact: 
   return chunks[0];
 }
 
-async function replaceArticleClaims(articleId: number, extract: ArticleExtract, chunks: Array<{ id: number; content: string }>) {
+async function replaceArticleClaims(articleId: number, extract: ArticleExtract, chunks: Array<{ id: number; content: string }>, userId: number) {
   await db.update(wikiClaims)
     .set({ status: 'inactive', updatedAt: new Date() })
-    .where(eq(wikiClaims.articleId, articleId));
+    .where(and(eq(wikiClaims.articleId, articleId), eq(wikiClaims.userId, userId)));
 
   const facts = extract.facts.length ? extract.facts : [{ claim: extract.summary, evidence: extract.summary, confidence: 0.65 }];
   const claimRows = [];
@@ -489,6 +489,7 @@ async function replaceArticleClaims(articleId: number, extract: ArticleExtract, 
     if (!text) continue;
     const chunk = bestChunkForFact(chunks, fact);
     const [row] = await db.insert(wikiClaims).values({
+      userId,
       articleId,
       chunkId: chunk?.id,
       claim: text,
@@ -579,9 +580,10 @@ ${content.slice(0, 14000)}`;
   };
 }
 
-async function enqueueJob(jobType: string, payload: Record<string, unknown>, priority = 0) {
+async function enqueueJob(jobType: string, payload: Record<string, unknown>, priority: number, userId: number) {
   await initWikiSchema();
   await db.insert(wikiJobs).values({
+    userId,
     jobType,
     payload,
     priority,
@@ -590,72 +592,71 @@ async function enqueueJob(jobType: string, payload: Record<string, unknown>, pri
   });
 }
 
-export async function enqueueArticleForWiki(articleId: number, priority = 5) {
+export async function enqueueArticleForWiki(articleId: number, userId: number, priority = 5) {
   await initWikiSchema();
-  const adminUserId = await getAdminUserId();
-  const [adminArchived] = await db
+  const [archived] = await db
     .select({ id: articleMetadata.id })
     .from(articleMetadata)
     .where(and(
       eq(articleMetadata.articleId, articleId),
-      eq(articleMetadata.userId, adminUserId),
+      eq(articleMetadata.userId, userId),
       eq(articleMetadata.isArchived, true)
     ))
     .limit(1);
 
-  if (!adminArchived) return;
+  if (!archived) return;
 
   await db.insert(wikiArticles).values({
+    userId,
     articleId,
     status: 'pending',
     updatedAt: new Date(),
   }).onConflictDoUpdate({
-    target: wikiArticles.articleId,
+    target: [wikiArticles.userId, wikiArticles.articleId],
     set: { status: 'pending', lastError: null, updatedAt: new Date() },
   });
-  await enqueueJob('chunk_article', { articleId, stage: 'raw_to_claims' }, priority);
+  await enqueueJob('chunk_article', { articleId, stage: 'raw_to_claims' }, priority, userId);
 }
 
-export async function enqueueAllArchivedForWiki() {
+export async function enqueueAllArchivedForWiki(userId: number) {
   await initWikiSchema();
-  const adminUserId = await getAdminUserId();
   const rows = await db
     .select({ id: articles.id })
     .from(articles)
-    .innerJoin(articleMetadata, adminMetadataJoinCondition(adminUserId))
+    .innerJoin(articleMetadata, metadataJoinCondition(userId))
     .where(eq(articleMetadata.isArchived, true));
 
   for (const row of rows) {
-    await enqueueArticleForWiki(row.id, 1);
+    await enqueueArticleForWiki(row.id, userId, 1);
   }
 
   return rows.length;
 }
 
-export async function removeArticleFromWiki(articleId: number) {
+export async function removeArticleFromWiki(articleId: number, userId: number) {
   await initWikiSchema();
   await db.update(wikiArticles)
     .set({ status: 'removed', updatedAt: new Date() })
-    .where(eq(wikiArticles.articleId, articleId));
+    .where(and(eq(wikiArticles.articleId, articleId), eq(wikiArticles.userId, userId)));
   await db.update(wikiSourceChunks)
     .set({ active: false, updatedAt: new Date() })
-    .where(eq(wikiSourceChunks.articleId, articleId));
+    .where(and(eq(wikiSourceChunks.articleId, articleId), eq(wikiSourceChunks.userId, userId)));
   await db.update(wikiClaims)
     .set({ status: 'inactive', updatedAt: new Date() })
-    .where(eq(wikiClaims.articleId, articleId));
+    .where(and(eq(wikiClaims.articleId, articleId), eq(wikiClaims.userId, userId)));
 
   const affected = await db
     .select({ pageId: wikiPageSources.pageId })
     .from(wikiPageSources)
-    .where(and(eq(wikiPageSources.articleId, articleId), eq(wikiPageSources.active, true)));
+    .where(and(eq(wikiPageSources.articleId, articleId), eq(wikiPageSources.userId, userId), eq(wikiPageSources.active, true)));
 
   await db.update(wikiPageSources)
     .set({ active: false, updatedAt: new Date() })
-    .where(eq(wikiPageSources.articleId, articleId));
+    .where(and(eq(wikiPageSources.articleId, articleId), eq(wikiPageSources.userId, userId)));
 
   const pageIds = uniq(affected.map((row) => String(row.pageId))).map(Number);
   if (pageIds.length > 0) {
-    await enqueueJob('reconcile_pages', { pageIds, removedArticleId: articleId }, 10);
+    await enqueueJob('reconcile_pages', { pageIds, removedArticleId: articleId }, 10, userId);
   }
   await appendWikiLog('source_removed', '来源已移出 Wiki', {
     articleId,
@@ -664,8 +665,7 @@ export async function removeArticleFromWiki(articleId: number) {
   });
 }
 
-async function getArchivedArticleWithContent(articleId: number) {
-  const adminUserId = await getAdminUserId();
+async function getArchivedArticleWithContent(articleId: number, userId: number) {
   const [article] = await db
     .select({
       id: articles.id,
@@ -678,11 +678,11 @@ async function getArchivedArticleWithContent(articleId: number) {
       isArchived: articleMetadata.isArchived,
     })
     .from(articles)
-    .innerJoin(articleMetadata, adminMetadataJoinCondition(adminUserId))
+    .innerJoin(articleMetadata, metadataJoinCondition(userId))
     .where(eq(articles.id, articleId));
 
   if (!article || !article.isArchived) return null;
-  const fetched = await getArticleContent(articleId, 'markdown', 'desktop', adminUserId).catch(() => null);
+  const fetched = await getArticleContent(articleId, 'markdown', 'desktop', userId).catch(() => null);
   const content = fetched || article.contentMarkdown || article.contentHtml || article.summary || article.title || '';
   return { article, content };
 }
@@ -692,12 +692,12 @@ function pageTypeForTitle(title: string, preferredType?: string) {
   return title.includes('索引') ? 'index' : 'topic';
 }
 
-async function upsertPage(title: string, preferredType?: 'topic' | 'concept' | 'index' | 'analysis') {
+async function upsertPage(title: string, preferredType: 'topic' | 'concept' | 'index' | 'analysis' | undefined, userId: number) {
   let slug = slugForTitle(title);
-  let [existing] = await db.select().from(wikiPages).where(eq(wikiPages.slug, slug));
+  let [existing] = await db.select().from(wikiPages).where(and(eq(wikiPages.slug, slug), eq(wikiPages.userId, userId)));
   if (existing && existing.title !== title) {
     slug = `${slug}-${contentHash(title).slice(0, 8)}`;
-    [existing] = await db.select().from(wikiPages).where(eq(wikiPages.slug, slug));
+    [existing] = await db.select().from(wikiPages).where(and(eq(wikiPages.slug, slug), eq(wikiPages.userId, userId)));
   }
   if (existing) {
     if (preferredType && existing.pageType !== preferredType) {
@@ -710,6 +710,7 @@ async function upsertPage(title: string, preferredType?: 'topic' | 'concept' | '
     return existing;
   }
   const [created] = await db.insert(wikiPages).values({
+    userId,
     title,
     slug,
     pageType: pageTypeForTitle(title, preferredType),
@@ -720,22 +721,22 @@ async function upsertPage(title: string, preferredType?: 'topic' | 'concept' | '
   return created;
 }
 
-async function attachArticleToPage(pageId: number, articleId: number) {
+async function attachArticleToPage(pageId: number, articleId: number, userId: number) {
   await db.execute(sql`
-    INSERT INTO wiki_page_sources (page_id, article_id, contribution_type, active, updated_at)
-    VALUES (${pageId}, ${articleId}, 'source', true, NOW())
+    INSERT INTO wiki_page_sources (user_id, page_id, article_id, contribution_type, active, updated_at)
+    VALUES (${userId}, ${pageId}, ${articleId}, 'source', true, NOW())
     ON CONFLICT (page_id, article_id)
     DO UPDATE SET active = true, updated_at = NOW()
   `);
 }
 
-async function attachClaimsToPage(pageId: number, claimIds: number[]) {
+async function attachClaimsToPage(pageId: number, claimIds: number[], userId: number) {
   const ids = [...new Set(claimIds.filter((id) => Number.isFinite(id)))].slice(0, 80);
   if (ids.length === 0) return;
   for (const claimId of ids) {
     await db.execute(sql`
-      INSERT INTO wiki_page_claims (page_id, claim_id, relevance, active, updated_at)
-      VALUES (${pageId}, ${claimId}, 80, true, NOW())
+      INSERT INTO wiki_page_claims (user_id, page_id, claim_id, relevance, active, updated_at)
+      VALUES (${userId}, ${pageId}, ${claimId}, 80, true, NOW())
       ON CONFLICT (page_id, claim_id)
       DO UPDATE SET active = true, updated_at = NOW()
     `);
@@ -759,8 +760,8 @@ async function getSharedEntities(minSources = 2) {
   return new Set(rows.rows.map((row: any) => String(row.entity)));
 }
 
-async function getExistingPageTitleSet() {
-  const rows = await db.select({ title: wikiPages.title }).from(wikiPages).where(eq(wikiPages.status, 'active'));
+async function getExistingPageTitleSet(userId: number) {
+  const rows = await db.select({ title: wikiPages.title }).from(wikiPages).where(and(eq(wikiPages.userId, userId), eq(wikiPages.status, 'active')));
   return new Set(rows.map((row) => normalizeWikiTitle(row.title)));
 }
 
@@ -800,9 +801,9 @@ function claimIdsForPageTitle(title: string, claims: Array<{ id: number; claim: 
   return matched.length ? matched : claims.map((claim) => claim.id);
 }
 
-async function selectPageTargets(extract: ArticleExtract, article: { title: string | null; source: string | null }): Promise<WikiPageTarget[]> {
+async function selectPageTargets(extract: ArticleExtract, article: { title: string | null; source: string | null }, userId: number): Promise<WikiPageTarget[]> {
   const sharedEntities = await getSharedEntities(2);
-  const existingPages = await getExistingPageTitleSet();
+  const existingPages = await getExistingPageTitleSet(userId);
   const candidates = uniq([
     ...extract.suggestedPages,
     ...extract.entities,
@@ -843,13 +844,14 @@ async function selectPageTargets(extract: ArticleExtract, article: { title: stri
   return [{ title: fallbackTitle, type: fallbackType }];
 }
 
-async function syncPageLinks(pageIds: number[]) {
+async function syncPageLinks(pageIds: number[], userId: number) {
   const ids = [...new Set(pageIds.filter((id) => Number.isFinite(id)))];
   if (ids.length < 2) return;
   for (const fromPageId of ids) {
     for (const toPageId of ids) {
       if (fromPageId === toPageId) continue;
       await db.insert(wikiLinks).values({
+        userId,
         fromPageId,
         toPageId,
         linkType: 'shared_source',
@@ -858,10 +860,10 @@ async function syncPageLinks(pageIds: number[]) {
   }
 }
 
-async function extractArticleJob(articleId: number) {
-  const record = await getArchivedArticleWithContent(articleId);
+async function extractArticleJob(articleId: number, userId: number) {
+  const record = await getArchivedArticleWithContent(articleId, userId);
   if (!record) {
-    await removeArticleFromWiki(articleId);
+    await removeArticleFromWiki(articleId, userId);
     return;
   }
 
@@ -870,21 +872,21 @@ async function extractArticleJob(articleId: number) {
   const [existing] = await db
     .select({ contentHash: wikiArticles.contentHash, status: wikiArticles.status })
     .from(wikiArticles)
-    .where(eq(wikiArticles.articleId, articleId));
+    .where(and(eq(wikiArticles.articleId, articleId), eq(wikiArticles.userId, userId)));
 
   if (existing?.contentHash === hash && existing.status === 'indexed') return;
 
   await db.update(wikiArticles)
     .set({ status: 'chunking', lastError: null, updatedAt: new Date() })
-    .where(eq(wikiArticles.articleId, articleId));
+    .where(and(eq(wikiArticles.articleId, articleId), eq(wikiArticles.userId, userId)));
 
-  const chunks = await replaceArticleChunks(article, content);
+  const chunks = await replaceArticleChunks(article, content, userId);
 
   let extract: ArticleExtract;
   try {
     await db.update(wikiArticles)
       .set({ status: 'extracting', lastError: null, updatedAt: new Date() })
-      .where(eq(wikiArticles.articleId, articleId));
+      .where(and(eq(wikiArticles.articleId, articleId), eq(wikiArticles.userId, userId)));
     extract = await generateExtractWithAI(article, content);
   } catch (error: any) {
     extract = fallbackExtract(article, content);
@@ -897,6 +899,7 @@ async function extractArticleJob(articleId: number) {
 
   const config = getWikiAIConfig();
   await db.insert(wikiArticleExtracts).values({
+    userId,
     articleId,
     modelProvider: config.provider,
     modelName: config.model,
@@ -922,14 +925,14 @@ async function extractArticleJob(articleId: number) {
     },
   });
 
-  const claims = await replaceArticleClaims(articleId, extract, chunks);
+  const claims = await replaceArticleClaims(articleId, extract, chunks, userId);
   const previousPages = await db
     .select({ pageId: wikiPageSources.pageId })
     .from(wikiPageSources)
-    .where(and(eq(wikiPageSources.articleId, articleId), eq(wikiPageSources.active, true)));
+    .where(and(eq(wikiPageSources.articleId, articleId), eq(wikiPageSources.userId, userId), eq(wikiPageSources.active, true)));
   await db.update(wikiPageSources)
     .set({ active: false, updatedAt: new Date() })
-    .where(eq(wikiPageSources.articleId, articleId));
+    .where(and(eq(wikiPageSources.articleId, articleId), eq(wikiPageSources.userId, userId)));
   await db.execute(sql`
     UPDATE wiki_page_claims pc
     SET active = false, updated_at = NOW()
@@ -946,31 +949,31 @@ async function extractArticleJob(articleId: number) {
     },
   });
 
-  const pageTargets = await selectPageTargets(extract, article);
+  const pageTargets = await selectPageTargets(extract, article, userId);
 
   const pageIds: number[] = [];
   const claimsByPageId = new Map<number, number[]>();
   for (const target of pageTargets) {
-    const page = await upsertPage(target.title, target.type);
-    await attachArticleToPage(page.id, articleId);
+    const page = await upsertPage(target.title, target.type, userId);
+    await attachArticleToPage(page.id, articleId, userId);
     pageIds.push(page.id);
     claimsByPageId.set(page.id, claimIdsForPageTitle(target.title, claims));
   }
-  await syncPageLinks(pageIds);
+  await syncPageLinks(pageIds, userId);
 
   await db.update(wikiArticles)
     .set({ status: 'indexed', contentHash: hash, lastIndexedAt: new Date(), updatedAt: new Date() })
-    .where(eq(wikiArticles.articleId, articleId));
+    .where(and(eq(wikiArticles.articleId, articleId), eq(wikiArticles.userId, userId)));
 
   for (const pageId of pageIds) {
-    await attachClaimsToPage(pageId, claimsByPageId.get(pageId) || claims.map((claim) => claim.id));
-    await enqueueJob('merge_page', { pageId }, 3);
+    await attachClaimsToPage(pageId, claimsByPageId.get(pageId) || claims.map((claim) => claim.id), userId);
+    await enqueueJob('merge_page', { pageId }, 3, userId);
   }
   const stalePageIds = previousPages
     .map((row) => row.pageId)
     .filter((pageId) => !pageIds.includes(pageId));
   if (stalePageIds.length > 0) {
-    await enqueueJob('reconcile_pages', { pageIds: stalePageIds, articleId, reason: 'article_targets_changed' }, 2);
+    await enqueueJob('reconcile_pages', { pageIds: stalePageIds, articleId, reason: 'article_targets_changed' }, 2, userId);
   }
 }
 
@@ -1044,8 +1047,8 @@ ${JSON.stringify(claims).slice(0, 12000)}`;
   return parsed as { summary: string; blocks: WikiBlock[] };
 }
 
-async function mergePageJob(pageId: number) {
-  const [page] = await db.select().from(wikiPages).where(eq(wikiPages.id, pageId));
+async function mergePageJob(pageId: number, userId: number) {
+  const [page] = await db.select().from(wikiPages).where(and(eq(wikiPages.id, pageId), eq(wikiPages.userId, userId)));
   if (!page) return;
 
   const rows = await db
@@ -1062,12 +1065,12 @@ async function mergePageJob(pageId: number) {
     .from(wikiPageSources)
     .innerJoin(articles, eq(wikiPageSources.articleId, articles.id))
     .leftJoin(wikiArticleExtracts, eq(wikiPageSources.articleId, wikiArticleExtracts.articleId))
-    .where(and(eq(wikiPageSources.pageId, pageId), eq(wikiPageSources.active, true)));
+    .where(and(eq(wikiPageSources.pageId, pageId), eq(wikiPageSources.userId, userId), eq(wikiPageSources.active, true)));
 
   if (rows.length === 0) {
     await db.update(wikiPages)
       .set({ status: 'inactive', updatedAt: new Date() })
-      .where(eq(wikiPages.id, pageId));
+      .where(and(eq(wikiPages.id, pageId), eq(wikiPages.userId, userId)));
     return;
   }
 
@@ -1116,9 +1119,10 @@ async function mergePageJob(pageId: number) {
     version: nextVersion,
     lastGeneratedAt: new Date(),
     updatedAt: new Date(),
-  }).where(eq(wikiPages.id, pageId));
+  }).where(and(eq(wikiPages.id, pageId), eq(wikiPages.userId, userId)));
 
   await db.insert(wikiPageVersions).values({
+    userId,
     pageId,
     version: nextVersion,
     summary: pageContent.summary,
@@ -1129,8 +1133,8 @@ async function mergePageJob(pageId: number) {
   });
   await db.update(wikiPageClaims)
     .set({ active: false, updatedAt: new Date() })
-    .where(eq(wikiPageClaims.pageId, pageId));
-  await attachClaimsToPage(pageId, claims.map((claim: any) => Number(claim.id)));
+    .where(and(eq(wikiPageClaims.pageId, pageId), eq(wikiPageClaims.userId, userId)));
+  await attachClaimsToPage(pageId, claims.map((claim: any) => Number(claim.id)), page.userId as number);
   await appendWikiLog('page_merged', `更新页面：${page.title}`, {
     pageId,
     details: `合并 ${rows.length} 篇来源文章、${claims.length} 条知识声明，生成 v${nextVersion}。`,
@@ -1145,13 +1149,13 @@ function normalizeBlocks(blocks: WikiBlock[]) {
   }));
 }
 
-async function reconcilePagesJob(pageIds: number[]) {
+async function reconcilePagesJob(pageIds: number[], userId: number) {
   for (const pageId of pageIds) {
-    await mergePageJob(pageId);
+    await mergePageJob(pageId, userId);
   }
 }
 
-export async function processWikiJobs(limit = 5) {
+export async function processWikiJobs(limit = 5, userId?: number) {
   await initWikiSchema();
   if (wikiJobRunnerActive) {
     return { processed: 0, skipped: true };
@@ -1161,10 +1165,13 @@ export async function processWikiJobs(limit = 5) {
   let processed = 0;
   try {
     while (processed < limit) {
+      const pendingJobCondition = userId
+        ? and(eq(wikiJobs.status, 'pending'), sql`${wikiJobs.attempts} < ${wikiJobs.maxAttempts}`, eq(wikiJobs.userId, userId))
+        : and(eq(wikiJobs.status, 'pending'), sql`${wikiJobs.attempts} < ${wikiJobs.maxAttempts}`);
       const [job] = await db
         .select()
         .from(wikiJobs)
-        .where(and(eq(wikiJobs.status, 'pending'), sql`${wikiJobs.attempts} < ${wikiJobs.maxAttempts}`))
+        .where(pendingJobCondition)
         .orderBy(desc(wikiJobs.priority), wikiJobs.createdAt)
         .limit(1);
       if (!job) break;
@@ -1177,13 +1184,13 @@ export async function processWikiJobs(limit = 5) {
 
         const payload = (job.payload || {}) as any;
         if (job.jobType === 'chunk_article' || job.jobType === 'extract_article' || job.jobType === 'extract_claims' || job.jobType === 'plan_pages') {
-          await extractArticleJob(Number(payload.articleId));
+          await extractArticleJob(Number(payload.articleId), Number(job.userId));
         }
-        if (job.jobType === 'merge_page') await mergePageJob(Number(payload.pageId));
-        if (job.jobType === 'reconcile_pages') await reconcilePagesJob((payload.pageIds || []).map(Number));
-        if (job.jobType === 'rebuild_page') await mergePageJob(Number(payload.pageId));
-        if (job.jobType === 'lint_wiki') await runWikiLint();
-        if (job.jobType === 'export_markdown') await buildWikiMarkdownExport();
+        if (job.jobType === 'merge_page') await mergePageJob(Number(payload.pageId), Number(job.userId));
+        if (job.jobType === 'reconcile_pages') await reconcilePagesJob((payload.pageIds || []).map(Number), Number(job.userId));
+        if (job.jobType === 'rebuild_page') await mergePageJob(Number(payload.pageId), Number(job.userId));
+        if (job.jobType === 'lint_wiki') await runWikiLint(Number(job.userId));
+        if (job.jobType === 'export_markdown') await buildWikiMarkdownExport(Number(job.userId));
 
         await db.update(wikiJobs)
           .set({ status: 'done', finishedAt: new Date(), updatedAt: new Date() })
@@ -1236,16 +1243,16 @@ export async function pruneSparseConceptPages(minSources = 2) {
   `);
 }
 
-export async function getWikiHome(pageType?: string) {
+export async function getWikiHome(pageType: string | undefined, userId: number) {
   await initWikiSchema();
   const typeFilter = pageType && pageType !== 'all'
-    ? sql`WHERE status = 'active' AND page_type = ${pageType}`
-    : sql`WHERE status = 'active'`;
+    ? sql`WHERE user_id = ${userId} AND status = 'active' AND page_type = ${pageType}`
+    : sql`WHERE user_id = ${userId} AND status = 'active'`;
   const pages = await db.execute(sql`
     SELECT *, (
-      SELECT COUNT(*)::int FROM wiki_page_sources s WHERE s.page_id = wiki_pages.id AND s.active = true
+      SELECT COUNT(*)::int FROM wiki_page_sources s WHERE s.page_id = wiki_pages.id AND s.user_id = ${userId} AND s.active = true
     ) AS source_count, (
-      SELECT COUNT(*)::int FROM wiki_page_claims pc WHERE pc.page_id = wiki_pages.id AND pc.active = true
+      SELECT COUNT(*)::int FROM wiki_page_claims pc WHERE pc.page_id = wiki_pages.id AND pc.user_id = ${userId} AND pc.active = true
     ) AS claim_count
     FROM wiki_pages
     ${typeFilter}
@@ -1256,21 +1263,21 @@ export async function getWikiHome(pageType?: string) {
   const pageTypes = await db.execute(sql`
     SELECT page_type AS type, COUNT(*)::int AS count
     FROM wiki_pages
-    WHERE status = 'active'
+    WHERE user_id = ${userId} AND status = 'active'
     GROUP BY page_type
   `);
 
-  const jobs = await getWikiJobs('pending', 6);
-  const failedJobs = await getWikiJobs('failed', 6);
-  const status = await getWikiStatus();
-  const recentArticles = await getRecentWikiArticles(8);
-  const meta = await getWikiMeta();
-  const log = await getWikiLog(8);
-  const lint = await getWikiLintFindings('open', 8);
+  const jobs = await getWikiJobs('pending', 6, userId);
+  const failedJobs = await getWikiJobs('failed', 6, userId);
+  const status = await getWikiStatus(userId);
+  const recentArticles = await getRecentWikiArticles(8, userId);
+  const meta = await getWikiMeta(userId);
+  const log = await getWikiLog(8, userId);
+  const lint = await getWikiLintFindings('open', 8, userId);
   return { pages: pages.rows, pageTypes: pageTypes.rows, jobs, failedJobs, status, recentArticles, meta, log: log.entries, lint: lint.findings };
 }
 
-export async function getWikiIndex() {
+export async function getWikiIndex(userId: number) {
   await initWikiSchema();
   const result = await db.execute(sql`
     SELECT p.id, p.title, p.slug, p.page_type, p.summary, p.version, p.updated_at, p.last_generated_at,
@@ -1281,7 +1288,7 @@ export async function getWikiIndex() {
     FROM wiki_pages p
     LEFT JOIN wiki_page_sources s ON s.page_id = p.id AND s.active = true
     LEFT JOIN wiki_page_claims pc ON pc.page_id = p.id AND pc.active = true
-    WHERE p.status = 'active'
+    WHERE p.user_id = ${userId} AND p.status = 'active'
     GROUP BY p.id
     ORDER BY p.page_type, source_count DESC, p.updated_at DESC
   `);
@@ -1294,43 +1301,44 @@ export async function getWikiIndex() {
   return { groups, pages: result.rows };
 }
 
-export async function getWikiLog(limit = 50) {
+export async function getWikiLog(limit: number, userId: number) {
   await initWikiSchema();
   const entries = await db
     .select()
     .from(wikiLogEntries)
+    .where(eq(wikiLogEntries.userId, userId))
     .orderBy(desc(wikiLogEntries.createdAt))
     .limit(Math.min(Math.max(limit, 1), 200));
   return { entries };
 }
 
-export async function getWikiLintFindings(status = 'open', limit = 50) {
+export async function getWikiLintFindings(status: string, limit: number, userId: number) {
   await initWikiSchema();
   const findings = await db
     .select()
     .from(wikiLintFindings)
-    .where(eq(wikiLintFindings.status, status))
+    .where(and(eq(wikiLintFindings.userId, userId), eq(wikiLintFindings.status, status)))
     .orderBy(desc(wikiLintFindings.updatedAt))
     .limit(Math.min(Math.max(limit, 1), 200));
   return { findings };
 }
 
-export async function getWikiGraph() {
+export async function getWikiGraph(userId: number) {
   await initWikiSchema();
   const pages = await db.execute(sql`
-    SELECT id, title, slug, page_type, summary FROM wiki_pages WHERE status = 'active' LIMIT 300
+    SELECT id, title, slug, page_type, summary FROM wiki_pages WHERE user_id = ${userId} AND status = 'active' LIMIT 300
   `);
   const sources = await db.execute(sql`
     SELECT DISTINCT a.id, a.title, a.source
     FROM articles a
-    INNER JOIN wiki_page_sources s ON s.article_id = a.id AND s.active = true
+    INNER JOIN wiki_page_sources s ON s.article_id = a.id AND s.user_id = ${userId} AND s.active = true
     LIMIT 500
   `);
   const pageSourceEdges = await db.execute(sql`
-    SELECT page_id, article_id FROM wiki_page_sources WHERE active = true LIMIT 1000
+    SELECT page_id, article_id FROM wiki_page_sources WHERE user_id = ${userId} AND active = true LIMIT 1000
   `);
   const pageLinks = await db.execute(sql`
-    SELECT from_page_id, to_page_id, link_type FROM wiki_links LIMIT 1000
+    SELECT from_page_id, to_page_id, link_type FROM wiki_links WHERE user_id = ${userId} LIMIT 1000
   `);
   return {
     nodes: [
@@ -1344,13 +1352,13 @@ export async function getWikiGraph() {
   };
 }
 
-export async function getWikiMeta() {
+export async function getWikiMeta(userId: number) {
   await initWikiSchema();
   const result = await db.execute(sql`
     SELECT
-      (SELECT MAX(updated_at) FROM wiki_pages WHERE status = 'active') AS last_updated_at,
-      (SELECT MAX(finished_at) FROM wiki_jobs WHERE status = 'done') AS last_finished_at,
-      (SELECT COUNT(*)::int FROM wiki_page_versions) AS versions
+      (SELECT MAX(updated_at) FROM wiki_pages WHERE user_id = ${userId} AND status = 'active') AS last_updated_at,
+      (SELECT MAX(finished_at) FROM wiki_jobs WHERE user_id = ${userId} AND status = 'done') AS last_finished_at,
+      (SELECT COUNT(*)::int FROM wiki_page_versions WHERE user_id = ${userId}) AS versions
   `);
   return {
     ...(result.rows[0] || {}),
@@ -1359,9 +1367,8 @@ export async function getWikiMeta() {
   };
 }
 
-export async function getRecentWikiArticles(limit = 8) {
+export async function getRecentWikiArticles(limit: number, userId: number) {
   await initWikiSchema();
-  const adminUserId = await getAdminUserId();
   return db
     .select({
       id: articles.id,
@@ -1374,16 +1381,15 @@ export async function getRecentWikiArticles(limit = 8) {
     })
     .from(wikiArticles)
     .innerJoin(articles, eq(wikiArticles.articleId, articles.id))
-    .innerJoin(articleMetadata, adminMetadataJoinCondition(adminUserId))
+    .innerJoin(articleMetadata, metadataJoinCondition(userId))
     .leftJoin(wikiArticleExtracts, eq(wikiArticleExtracts.articleId, articles.id))
     .where(eq(articleMetadata.isArchived, true))
     .orderBy(desc(articleMetadata.archivedAt), desc(wikiArticles.updatedAt))
     .limit(Math.min(Math.max(limit, 1), 30));
 }
 
-export async function searchWiki(query: string, limit = 20) {
+export async function searchWiki(query: string, limit: number, userId: number) {
   await initWikiSchema();
-  const adminUserId = await getAdminUserId();
   const q = query.trim();
   if (!q) return { pages: [], articles: [] };
   const pattern = `%${q}%`;
@@ -1392,7 +1398,7 @@ export async function searchWiki(query: string, limit = 20) {
       SELECT COUNT(*)::int FROM wiki_page_sources s WHERE s.page_id = wiki_pages.id AND s.active = true
     ) AS source_count
     FROM wiki_pages
-    WHERE status = 'active'
+    WHERE user_id = ${userId} AND status = 'active'
       AND (
         title ILIKE ${pattern}
         OR summary ILIKE ${pattern}
@@ -1412,7 +1418,7 @@ export async function searchWiki(query: string, limit = 20) {
     })
     .from(wikiArticles)
     .innerJoin(articles, eq(wikiArticles.articleId, articles.id))
-    .innerJoin(articleMetadata, adminMetadataJoinCondition(adminUserId))
+    .innerJoin(articleMetadata, metadataJoinCondition(userId))
     .leftJoin(wikiArticleExtracts, eq(wikiArticleExtracts.articleId, articles.id))
     .where(and(
       eq(articleMetadata.isArchived, true),
@@ -1424,19 +1430,19 @@ export async function searchWiki(query: string, limit = 20) {
   return { pages: pages.rows, articles: articlesFound };
 }
 
-export async function getWikiJobs(status = 'pending', limit = 20) {
+export async function getWikiJobs(status: string, limit: number, userId: number) {
   await initWikiSchema();
   return db
     .select()
     .from(wikiJobs)
-    .where(eq(wikiJobs.status, status))
+    .where(and(eq(wikiJobs.userId, userId), eq(wikiJobs.status, status)))
     .orderBy(desc(wikiJobs.updatedAt))
     .limit(Math.min(Math.max(limit, 1), 100));
 }
 
-export async function getWikiPage(slug: string) {
+export async function getWikiPage(slug: string, userId: number) {
   await initWikiSchema();
-  const [page] = await db.select().from(wikiPages).where(eq(wikiPages.slug, slug));
+  const [page] = await db.select().from(wikiPages).where(and(eq(wikiPages.slug, slug), eq(wikiPages.userId, userId)));
   if (!page) return null;
 
   const sources = await db
@@ -1503,7 +1509,7 @@ export async function getWikiPage(slug: string) {
       createdAt: wikiPageVersions.createdAt,
     })
     .from(wikiPageVersions)
-    .where(eq(wikiPageVersions.pageId, page.id))
+    .where(and(eq(wikiPageVersions.pageId, page.id), eq(wikiPageVersions.userId, userId)))
     .orderBy(desc(wikiPageVersions.createdAt))
     .limit(8);
 
@@ -1517,57 +1523,57 @@ export async function getWikiPage(slug: string) {
   };
 }
 
-export async function getWikiArticleStatus(articleId: number) {
+export async function getWikiArticleStatus(articleId: number, userId: number) {
   await initWikiSchema();
-  const [status] = await db.select().from(wikiArticles).where(eq(wikiArticles.articleId, articleId));
+  const [status] = await db.select().from(wikiArticles).where(and(eq(wikiArticles.articleId, articleId), eq(wikiArticles.userId, userId)));
   if (!status) return { articleId, status: 'not_indexed', pages: [] };
 
   const pages = await db
     .select({ id: wikiPages.id, title: wikiPages.title, slug: wikiPages.slug })
     .from(wikiPageSources)
     .innerJoin(wikiPages, eq(wikiPageSources.pageId, wikiPages.id))
-    .where(and(eq(wikiPageSources.articleId, articleId), eq(wikiPageSources.active, true)));
+    .where(and(eq(wikiPageSources.articleId, articleId), eq(wikiPageSources.userId, userId), eq(wikiPageSources.active, true)));
 
   return { ...status, pages };
 }
 
-export async function getWikiStatus() {
+export async function getWikiStatus(userId: number) {
   await initWikiSchema();
   const result = await db.execute(sql`
     SELECT
-      (SELECT COUNT(*)::int FROM articles a INNER JOIN article_metadata m ON a.id = m.article_id WHERE m.is_archived = true) AS archived,
-      (SELECT COUNT(*)::int FROM wiki_articles WHERE status = 'indexed') AS indexed,
-      (SELECT COUNT(*)::int FROM wiki_articles WHERE status IN ('pending', 'chunking', 'extracting', 'stale')) AS pending,
-      (SELECT COUNT(*)::int FROM wiki_articles WHERE status = 'failed') AS failed_articles,
-      (SELECT COUNT(*)::int FROM wiki_pages WHERE status = 'active') AS pages,
-      (SELECT COUNT(*)::int FROM wiki_source_chunks WHERE active = true) AS chunks,
-      (SELECT COUNT(*)::int FROM wiki_claims WHERE status = 'active') AS claims,
-      (SELECT COUNT(*)::int FROM wiki_lint_findings WHERE status = 'open') AS lint_findings,
-      (SELECT COUNT(*)::int FROM wiki_jobs WHERE status = 'pending') AS pending_jobs,
-      (SELECT COUNT(*)::int FROM wiki_jobs WHERE status = 'running') AS running_jobs,
-      (SELECT COUNT(*)::int FROM wiki_jobs WHERE status = 'failed') AS failed_jobs
+      (SELECT COUNT(*)::int FROM articles a INNER JOIN article_metadata m ON a.id = m.article_id WHERE m.user_id = ${userId} AND m.is_archived = true) AS archived,
+      (SELECT COUNT(*)::int FROM wiki_articles WHERE user_id = ${userId} AND status = 'indexed') AS indexed,
+      (SELECT COUNT(*)::int FROM wiki_articles WHERE user_id = ${userId} AND status IN ('pending', 'chunking', 'extracting', 'stale')) AS pending,
+      (SELECT COUNT(*)::int FROM wiki_articles WHERE user_id = ${userId} AND status = 'failed') AS failed_articles,
+      (SELECT COUNT(*)::int FROM wiki_pages WHERE user_id = ${userId} AND status = 'active') AS pages,
+      (SELECT COUNT(*)::int FROM wiki_source_chunks WHERE user_id = ${userId} AND active = true) AS chunks,
+      (SELECT COUNT(*)::int FROM wiki_claims WHERE user_id = ${userId} AND status = 'active') AS claims,
+      (SELECT COUNT(*)::int FROM wiki_lint_findings WHERE user_id = ${userId} AND status = 'open') AS lint_findings,
+      (SELECT COUNT(*)::int FROM wiki_jobs WHERE user_id = ${userId} AND status = 'pending') AS pending_jobs,
+      (SELECT COUNT(*)::int FROM wiki_jobs WHERE user_id = ${userId} AND status = 'running') AS running_jobs,
+      (SELECT COUNT(*)::int FROM wiki_jobs WHERE user_id = ${userId} AND status = 'failed') AS failed_jobs
   `);
   return { ...(result.rows[0] || {}), runner_active: isWikiJobRunnerActive() };
 }
 
-export async function retryFailedWikiJobs() {
+export async function retryFailedWikiJobs(userId: number) {
   await initWikiSchema();
   await db.update(wikiJobs)
     .set({ status: 'pending', lastError: null, updatedAt: new Date() })
-    .where(eq(wikiJobs.status, 'failed'));
+    .where(and(eq(wikiJobs.userId, userId), eq(wikiJobs.status, 'failed')));
 }
 
-export async function runWikiLint() {
+export async function runWikiLint(userId: number) {
   await initWikiSchema();
   await db.update(wikiLintFindings)
     .set({ status: 'resolved', updatedAt: new Date() })
-    .where(eq(wikiLintFindings.status, 'open'));
+    .where(and(eq(wikiLintFindings.userId, userId), eq(wikiLintFindings.status, 'open')));
 
   const lowSourcePages = await db.execute(sql`
     SELECT p.id, p.title, COUNT(DISTINCT s.article_id)::int AS source_count
     FROM wiki_pages p
     LEFT JOIN wiki_page_sources s ON s.page_id = p.id AND s.active = true
-    WHERE p.status = 'active'
+    WHERE p.user_id = ${userId} AND p.status = 'active'
     GROUP BY p.id
     HAVING COUNT(DISTINCT s.article_id) <= 1
     LIMIT 80
@@ -1604,7 +1610,7 @@ export async function runWikiLint() {
   }
 
   const failedJobs = await db.execute(sql`
-    SELECT COUNT(*)::int AS count FROM wiki_jobs WHERE status = 'failed'
+    SELECT COUNT(*)::int AS count FROM wiki_jobs WHERE user_id = ${userId} AND status = 'failed'
   `);
   const failedCount = Number((failedJobs.rows[0] as any)?.count || 0);
   if (failedCount > 0) {
@@ -1617,7 +1623,7 @@ export async function runWikiLint() {
     });
   }
 
-  const result = await getWikiLintFindings('open', 100);
+  const result = await getWikiLintFindings('open', 100, userId);
   await appendWikiLog('lint', '完成 Wiki 健康检查', {
     details: `发现 ${result.findings.length} 个待处理问题。`,
     payload: { findingCount: result.findings.length },
@@ -1649,10 +1655,10 @@ function blockToMarkdown(block: WikiBlock, sourcesById: Map<number, any>, claims
   return `${block.text || ''}\n`;
 }
 
-export async function buildWikiMarkdownExport() {
+export async function buildWikiMarkdownExport(userId: number) {
   await initWikiSchema();
-  const index = await getWikiIndex();
-  const log = await getWikiLog(200);
+  const index = await getWikiIndex(userId);
+  const log = await getWikiLog(200, userId);
   const files: Array<{ path: string; content: string }> = [];
   files.push({
     path: 'index.md',
@@ -1677,7 +1683,7 @@ export async function buildWikiMarkdownExport() {
   });
 
   for (const page of index.pages as any[]) {
-    const detail = await getWikiPage(page.slug);
+    const detail = await getWikiPage(page.slug, userId);
     if (!detail) continue;
     const sourcesById = new Map<number, any>((detail.sources || []).map((source: any) => [source.id, source]));
     const claimsById = new Map<number, any>((detail.claims || []).map((claim: any) => [claim.id, claim]));
@@ -1711,9 +1717,9 @@ export async function buildWikiMarkdownExport() {
   return { generatedAt: new Date().toISOString(), files };
 }
 
-export async function buildWikiPageMarkdownExport(slug: string) {
+export async function buildWikiPageMarkdownExport(slug: string, userId: number) {
   await initWikiSchema();
-  const detail = await getWikiPage(slug);
+  const detail = await getWikiPage(slug, userId);
   if (!detail) return null;
 
   const sourcesById = new Map<number, any>((detail.sources || []).map((source: any) => [source.id, source]));
@@ -1753,7 +1759,7 @@ function pageTypeLabelForExport(type: string) {
   return '主题';
 }
 
-export async function reconcileWikiClaims() {
+export async function reconcileWikiClaims(userId: number) {
   await initWikiSchema();
   const duplicateRows = await db.execute(sql`
     SELECT lower(trim(claim)) AS normalized, COUNT(*)::int AS count
@@ -1784,7 +1790,7 @@ function likeClauses(terms: string[], expressions: ReturnType<typeof sql>[]) {
   return clauses.length ? sql`(${sql.join(clauses, sql` OR `)})` : sql`TRUE`;
 }
 
-async function retrieveWikiAskContext(question: string) {
+async function retrieveWikiAskContext(question: string, userId: number) {
   await initWikiSchema();
   const terms = questionTerms(question);
   const pageWhere = likeClauses(terms, [sql`p.title`, sql`p.summary`, sql`p.blocks::text`]);
@@ -1925,20 +1931,21 @@ ${context.slice(0, 18000)}`;
   return callWikiAI(system, user, 2200);
 }
 
-export async function getWikiAnswers(limit = 20) {
+export async function getWikiAnswers(limit: number, userId: number) {
   await initWikiSchema();
   return db
     .select()
     .from(wikiAnswers)
+    .where(eq(wikiAnswers.userId, userId))
     .orderBy(desc(wikiAnswers.createdAt))
     .limit(Math.min(Math.max(limit, 1), 50));
 }
 
-export async function deleteWikiAnswer(answerId: number) {
+export async function deleteWikiAnswer(answerId: number, userId: number) {
   await initWikiSchema();
   const [deleted] = await db
     .delete(wikiAnswers)
-    .where(eq(wikiAnswers.id, answerId))
+    .where(and(eq(wikiAnswers.id, answerId), eq(wikiAnswers.userId, userId)))
     .returning({ id: wikiAnswers.id });
   if (!deleted) throw new Error('问答记录不存在。');
   await appendWikiLog('qa_deleted', `删除问答记录 #${answerId}`, {
@@ -1948,23 +1955,24 @@ export async function deleteWikiAnswer(answerId: number) {
   return { answerId, deleted: true };
 }
 
-export async function askWiki(question: string, history: WikiAskHistoryItem[] = []) {
+export async function askWiki(question: string, history: WikiAskHistoryItem[] = [], userId: number) {
   await initWikiSchema();
   const cleanQuestion = question.trim();
   if (cleanQuestion.length < 2) {
     throw new Error('问题太短，请输入更具体的问题。');
   }
-  const storedHistory = await getWikiAnswers(5);
+  const storedHistory = await getWikiAnswers(5, userId);
   const mergedHistory = [
     ...storedHistory.reverse().map((item) => ({ question: item.question, answer: item.answer })),
     ...history,
   ].slice(-5);
-  const context = await retrieveWikiAskContext(cleanQuestion);
+  const context = await retrieveWikiAskContext(cleanQuestion, userId);
   const answer = await generateWikiAnswer(cleanQuestion, context.citations, mergedHistory);
   const config = getWikiAIConfig();
   const sourcePageIds = [...new Set(context.citations.map((citation) => citation.pageId).filter((id): id is number => Number.isFinite(id)))];
   const sourceArticleIds = [...new Set(context.citations.map((citation) => citation.articleId).filter((id): id is number => Number.isFinite(id)))];
   const [row] = await db.insert(wikiAnswers).values({
+    userId,
     question: cleanQuestion,
     answer,
     citations: context.citations,
@@ -1986,17 +1994,17 @@ function answerTitle(question: string) {
   return `问答：${normalized.slice(0, 28) || '知识库分析'}`;
 }
 
-export async function fileWikiAnswer(answerId: number) {
+export async function fileWikiAnswer(answerId: number, userId: number) {
   await initWikiSchema();
-  const [answer] = await db.select().from(wikiAnswers).where(eq(wikiAnswers.id, answerId));
+  const [answer] = await db.select().from(wikiAnswers).where(and(eq(wikiAnswers.id, answerId), eq(wikiAnswers.userId, userId)));
   if (!answer) throw new Error('问答记录不存在。');
 
   const title = answerTitle(answer.question);
-  const page = await upsertPage(title, 'analysis');
+  const page = await upsertPage(title, 'analysis', userId);
   const citations = (answer.citations || []) as WikiAskCitation[];
   const sourceArticleIds = [...new Set((answer.sourceArticleIds || []).filter((id) => Number.isFinite(id)))];
   for (const articleId of sourceArticleIds) {
-    await attachArticleToPage(page.id, articleId);
+    await attachArticleToPage(page.id, articleId, userId);
   }
   const citationItems = citations.slice(0, 12).map((citation) => ({
     text: `${citation.title}${citation.excerpt ? `：${citation.excerpt}` : ''}`,
@@ -2028,6 +2036,7 @@ export async function fileWikiAnswer(answerId: number) {
     updatedAt: new Date(),
   }).where(eq(wikiPages.id, page.id));
   await db.insert(wikiPageVersions).values({
+    userId,
     pageId: page.id,
     version: nextVersion,
     summary: answer.answer.slice(0, 260),
@@ -2039,12 +2048,12 @@ export async function fileWikiAnswer(answerId: number) {
   await db.update(wikiPageClaims)
     .set({ active: false, updatedAt: new Date() })
     .where(eq(wikiPageClaims.pageId, page.id));
-  await attachClaimsToPage(page.id, citationClaimIds);
+  await attachClaimsToPage(page.id, citationClaimIds, userId);
   await db.update(wikiAnswers).set({
     status: 'filed',
     filedPageId: page.id,
     updatedAt: new Date(),
-  }).where(eq(wikiAnswers.id, answerId));
+  }).where(and(eq(wikiAnswers.id, answerId), eq(wikiAnswers.userId, userId)));
   await appendWikiLog('qa_filed', `沉淀问答：${title}`, {
     pageId: page.id,
     details: answer.question,
@@ -2053,32 +2062,32 @@ export async function fileWikiAnswer(answerId: number) {
   return { answerId, pageId: page.id, slug: page.slug, title };
 }
 
-export async function rebuildAllWiki(limit = 4) {
+export async function rebuildAllWiki(limit: number, userId: number) {
   await initWikiSchema();
   await db.update(wikiPages)
     .set({ status: 'inactive', updatedAt: new Date() })
     .where(eq(wikiPages.status, 'active'));
   await db.update(wikiPageSources)
     .set({ active: false, updatedAt: new Date() })
-    .where(eq(wikiPageSources.active, true));
+    .where(and(eq(wikiPageSources.userId, userId), eq(wikiPageSources.active, true)));
   await db.update(wikiPageClaims)
     .set({ active: false, updatedAt: new Date() })
-    .where(eq(wikiPageClaims.active, true));
+    .where(and(eq(wikiPageClaims.userId, userId), eq(wikiPageClaims.active, true)));
   await db.update(wikiSourceChunks)
     .set({ active: false, updatedAt: new Date() })
-    .where(eq(wikiSourceChunks.active, true));
+    .where(and(eq(wikiSourceChunks.userId, userId), eq(wikiSourceChunks.active, true)));
   await db.update(wikiClaims)
     .set({ status: 'inactive', updatedAt: new Date() })
-    .where(eq(wikiClaims.status, 'active'));
+    .where(and(eq(wikiClaims.userId, userId), eq(wikiClaims.status, 'active')));
   await db.update(wikiJobs)
     .set({ status: 'done', finishedAt: new Date(), updatedAt: new Date() })
-    .where(eq(wikiJobs.status, 'pending'));
+    .where(and(eq(wikiJobs.userId, userId), eq(wikiJobs.status, 'pending')));
   await db.update(wikiArticles)
     .set({ status: 'pending', contentHash: null, lastError: null, updatedAt: new Date() })
-    .where(sql`${wikiArticles.status} <> 'removed'`);
+    .where(and(eq(wikiArticles.userId, userId), sql`${wikiArticles.status} <> 'removed'`));
 
-  const queued = await enqueueAllArchivedForWiki();
-  const result = await processWikiJobs(limit);
+  const queued = await enqueueAllArchivedForWiki(userId);
+  const result = await processWikiJobs(limit, userId);
   await appendWikiLog('rebuild', '全量重建 Wiki', {
     details: `已重新排队 ${queued} 篇归档文章。`,
     payload: { queued },
@@ -2086,15 +2095,15 @@ export async function rebuildAllWiki(limit = 4) {
   return { queued, ...result };
 }
 
-export async function enqueuePageRebuild(pageId: number) {
-  await enqueueJob('rebuild_page', { pageId }, 8);
+export async function enqueuePageRebuild(pageId: number, userId: number) {
+  await enqueueJob('rebuild_page', { pageId }, 8, userId);
 }
 
-export async function enqueueArticlePagesRebuild(articleId: number) {
+export async function enqueueArticlePagesRebuild(articleId: number, userId: number) {
   const pageRows = await db
     .select({ pageId: wikiPageSources.pageId })
     .from(wikiPageSources)
     .where(eq(wikiPageSources.articleId, articleId));
   const pageIds = pageRows.map((row) => row.pageId);
-  if (pageIds.length > 0) await enqueueJob('reconcile_pages', { pageIds }, 7);
+  if (pageIds.length > 0) await enqueueJob('reconcile_pages', { pageIds }, 7, userId);
 }

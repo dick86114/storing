@@ -2,18 +2,19 @@
 
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers/AuthContext';
-import { AppstoreOutlined, HeartOutlined, FolderOutlined, BookOutlined, CloudUploadOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, HeartOutlined, FolderOutlined, BookOutlined, ExportOutlined, CloudUploadOutlined } from '@ant-design/icons';
 
 const tabs = [
   { key: 'inbox', label: '收件箱', href: '/inbox', Icon: AppstoreOutlined },
   { key: 'favorites', label: '收藏', href: '/favorites', Icon: HeartOutlined },
   { key: 'archive', label: '归档', href: '/archive', Icon: FolderOutlined },
+  { key: 'published', label: '发布', href: '/published', Icon: ExportOutlined },
   { key: 'wiki', label: 'Wiki', href: '/wiki', Icon: BookOutlined },
   { key: 'collect', label: '采集', href: '/collect', Icon: CloudUploadOutlined },
 ];
 
 interface MobileBottomTabProps {
-  counts: { inbox: number; favorites: number; archive: number; wiki?: number };
+  counts: { inbox: number; favorites: number; archive: number; published?: number; wiki?: number };
   activeIndex: number;
   onTabChange: (index: number) => void;
 }
@@ -22,8 +23,8 @@ export function MobileBottomTab({ counts, activeIndex, onTabChange }: MobileBott
   const router = useRouter();
   const { isAuthenticated } = useAuth();
   const visibleTabs = tabs
-    .map((tab, index) => ({ ...tab, index }))
-    .filter((tab) => isAuthenticated || tab.key === 'archive' || tab.key === 'wiki');
+   .map((tab, index) => ({ ...tab, index }))
+   .filter((tab) => isAuthenticated);
 
   const handleTabClick = (index: number, href: string) => {
     onTabChange(index);
@@ -51,7 +52,7 @@ export function MobileBottomTab({ counts, activeIndex, onTabChange }: MobileBott
     >
       {visibleTabs.map((tab) => {
         const isActive = activeIndex === tab.index;
-        const count = tab.key === 'collect' ? 0 : counts[tab.key as keyof typeof counts] ?? 0;
+        const count = tab.key === 'collect' ? 0 : (counts as any)[tab.key] ?? 0;
 
         return (
           <button

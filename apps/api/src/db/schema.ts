@@ -10,6 +10,7 @@ export const users = pgTable('users', {
   passwordHash: text('password_hash').notNull(),
   role: text('role').notNull().default('admin'),
   status: text('status').notNull().default('active'),
+  lastLoginAt: timestamp('last_login_at'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -48,6 +49,7 @@ export const mcpClients = pgTable('mcp_clients', {
   enabled: boolean('enabled').notNull().default(true),
   rateLimitPerMinute: integer('rate_limit_per_minute'),
   rateLimitPerDay: integer('rate_limit_per_day'),
+  concurrentCollectLimit: integer('concurrent_collect_limit'),
   defaultSaveToInbox: boolean('default_save_to_inbox').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
@@ -55,9 +57,38 @@ export const mcpClients = pgTable('mcp_clients', {
 });
 
 /**
+ * MCP 平台级默认配额：普通用户创建 client 时读取此单例设置。
+ */
+export const mcpPlatformSettings = pgTable('mcp_platform_settings', {
+  id: integer('id').primaryKey().default(1),
+  rateLimitPerMinute: integer('rate_limit_per_minute').notNull().default(20),
+  rateLimitPerDay: integer('rate_limit_per_day').notNull().default(500),
+  concurrentCollectLimit: integer('concurrent_collect_limit').notNull().default(3),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+/**
  * 我们平台自己的元数据表（读写）
  * 关联 articles 表，存储收藏、归档、AI 生成的内容
  */
+
+export const mcpRequestLogs = pgTable('mcp_request_logs', {
+  id: serial('id').primaryKey(),
+  clientId: integer('client_id').references(() => mcpClients.id),
+  userId: integer('user_id').references(() => users.id),
+  toolName: text('tool_name').notNull(),
+  url: text('url'),
+  normalizedUrl: text('normalized_url'),
+  status: text('status').notNull(),
+  errorCode: text('error_code'),
+  durationMs: integer('duration_ms'),
+  transport: text('transport'),
+  clientAgent: text('client_agent'),
+  requestMethod: text('request_method'),
+  requestPath: text('request_path'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
 export const articleMetadata = pgTable('article_metadata', {
   id: serial('id').primaryKey(),
   articleId: integer('article_id').notNull().references(() => articles.id),
@@ -75,6 +106,9 @@ export const articleMetadata = pgTable('article_metadata', {
   coverImage: text('cover_image'),
   favoritedAt: timestamp('favorited_at'),
   archivedAt: timestamp('archived_at'),
+  isPublished: boolean('is_published').default(false),
+  publishedAt: timestamp('published_at'),
+  publicId: text('public_id').unique(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -104,6 +138,7 @@ export const collectJobs = pgTable('collect_jobs', {
 
 export const wikiArticles = pgTable('wiki_articles', {
   id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id),
   articleId: integer('article_id').notNull().unique().references(() => articles.id),
   status: text('status').notNull().default('pending'),
   contentHash: text('content_hash'),
@@ -115,6 +150,7 @@ export const wikiArticles = pgTable('wiki_articles', {
 
 export const wikiArticleExtracts = pgTable('wiki_article_extracts', {
   id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id),
   articleId: integer('article_id').notNull().unique().references(() => articles.id),
   modelProvider: text('model_provider'),
   modelName: text('model_name'),
@@ -130,6 +166,7 @@ export const wikiArticleExtracts = pgTable('wiki_article_extracts', {
 
 export const wikiPages = pgTable('wiki_pages', {
   id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id),
   title: text('title').notNull(),
   slug: text('slug').notNull().unique(),
   pageType: text('page_type').notNull().default('topic'),
@@ -144,6 +181,7 @@ export const wikiPages = pgTable('wiki_pages', {
 
 export const wikiPageSources = pgTable('wiki_page_sources', {
   id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id),
   pageId: integer('page_id').notNull().references(() => wikiPages.id),
   articleId: integer('article_id').notNull().references(() => articles.id),
   contributionType: text('contribution_type').notNull().default('source'),
@@ -155,6 +193,7 @@ export const wikiPageSources = pgTable('wiki_page_sources', {
 
 export const wikiSourceChunks = pgTable('wiki_source_chunks', {
   id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id),
   articleId: integer('article_id').notNull().references(() => articles.id),
   chunkKey: text('chunk_key').notNull(),
   heading: text('heading'),
@@ -169,6 +208,7 @@ export const wikiSourceChunks = pgTable('wiki_source_chunks', {
 
 export const wikiClaims = pgTable('wiki_claims', {
   id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id),
   articleId: integer('article_id').notNull().references(() => articles.id),
   chunkId: integer('chunk_id').references(() => wikiSourceChunks.id),
   claim: text('claim').notNull(),
@@ -184,6 +224,7 @@ export const wikiClaims = pgTable('wiki_claims', {
 
 export const wikiPageClaims = pgTable('wiki_page_claims', {
   id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id),
   pageId: integer('page_id').notNull().references(() => wikiPages.id),
   claimId: integer('claim_id').notNull().references(() => wikiClaims.id),
   relevance: integer('relevance').notNull().default(80),
@@ -194,6 +235,7 @@ export const wikiPageClaims = pgTable('wiki_page_claims', {
 
 export const wikiLinks = pgTable('wiki_links', {
   id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id),
   fromPageId: integer('from_page_id').notNull().references(() => wikiPages.id),
   toPageId: integer('to_page_id').notNull().references(() => wikiPages.id),
   linkType: text('link_type').notNull().default('related'),
@@ -202,6 +244,7 @@ export const wikiLinks = pgTable('wiki_links', {
 
 export const wikiPageVersions = pgTable('wiki_page_versions', {
   id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id),
   pageId: integer('page_id').notNull().references(() => wikiPages.id),
   version: integer('version').notNull(),
   summary: text('summary'),
@@ -214,6 +257,7 @@ export const wikiPageVersions = pgTable('wiki_page_versions', {
 
 export const wikiJobs = pgTable('wiki_jobs', {
   id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id),
   jobType: text('job_type').notNull(),
   status: text('status').notNull().default('pending'),
   payload: jsonb('payload'),
@@ -230,6 +274,7 @@ export const wikiJobs = pgTable('wiki_jobs', {
 
 export const wikiLogEntries = pgTable('wiki_log_entries', {
   id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id),
   eventType: text('event_type').notNull(),
   title: text('title').notNull(),
   details: text('details'),
@@ -241,6 +286,7 @@ export const wikiLogEntries = pgTable('wiki_log_entries', {
 
 export const wikiLintFindings = pgTable('wiki_lint_findings', {
   id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id),
   findingType: text('finding_type').notNull(),
   severity: text('severity').notNull().default('info'),
   title: text('title').notNull(),
@@ -254,6 +300,7 @@ export const wikiLintFindings = pgTable('wiki_lint_findings', {
 
 export const wikiEmbeddings = pgTable('wiki_embeddings', {
   id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id),
   targetType: text('target_type').notNull(),
   targetId: text('target_id').notNull(),
   pageId: integer('page_id').references(() => wikiPages.id),
@@ -267,6 +314,7 @@ export const wikiEmbeddings = pgTable('wiki_embeddings', {
 
 export const wikiAnswers = pgTable('wiki_answers', {
   id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id),
   question: text('question').notNull(),
   answer: text('answer').notNull(),
   citations: jsonb('citations'),

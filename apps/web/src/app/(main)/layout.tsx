@@ -15,11 +15,12 @@ import { InboxContent } from '@/components/content/InboxContent';
 import { FavoritesContent } from '@/components/content/FavoritesContent';
 import { ArchiveContent } from '@/components/content/ArchiveContent';
 
-const TAB_KEYS = ['inbox', 'favorites', 'archive', 'wiki', 'collect'];
+const TAB_KEYS = ['inbox', 'favorites', 'archive', 'published', 'wiki', 'collect'];
 const TAB_LABELS: Record<string, string> = {
   inbox: '收件箱',
   favorites: '收藏',
   archive: '归档',
+  published: '发布',
   wiki: 'Wiki',
   collect: '采集',
 };
@@ -82,13 +83,23 @@ function MainContent({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, counts]);
 
-  // 监听路由变化同步 tab 索引
+ // 监听路由变化同步 tab 索引
+ useEffect(() => {
+   const index = TAB_KEYS.findIndex(key => pathname === `/${key}` || pathname.startsWith(`/${key}/`));
+   if (index >= 0) {
+     setCurrentTabIndex(index);
+   }
+ }, [pathname]);
+ 
+  // 游客访问私有路由时重定向到发布页
   useEffect(() => {
-    const index = TAB_KEYS.findIndex(key => pathname === `/${key}` || pathname.startsWith(`/${key}/`));
-    if (index >= 0) {
-      setCurrentTabIndex(index);
-    }
-  }, [pathname]);
+     if (!isAuthenticated && !isLoading) {
+       const privateRoutes = ['/inbox', '/favorites', '/archive', '/wiki', '/collect', '/settings', '/admin'];
+       if (privateRoutes.some(route => pathname === route || pathname.startsWith(`${route}/`))) {
+         window.location.href = '/published';
+       }
+     }
+   }, [isAuthenticated, isLoading, pathname]);
 
   // 搜索弹窗状态（桌面端）
   const [searchOpen, setSearchOpen] = useState(false);

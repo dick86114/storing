@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { SearchOutlined, PlusOutlined, PlusCircleOutlined, UserOutlined, SunOutlined, MoonOutlined, DesktopOutlined, LockOutlined, LogoutOutlined } from '@ant-design/icons';
+import { useRouter } from 'next/navigation';
+import { SearchOutlined, PlusOutlined, PlusCircleOutlined, UserOutlined, SunOutlined, MoonOutlined, DesktopOutlined, LockOutlined, LogoutOutlined, SettingOutlined } from '@ant-design/icons';
 import { SearchModal } from '@/components/search/SearchModal';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
@@ -15,6 +16,7 @@ interface MobileTopNavProps {
 }
 
 export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
+  const router = useRouter();
   const { isAuthenticated, user, logout } = useAuth();
   const { theme, setTheme, colorScheme } = useTheme();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -174,7 +176,7 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                   borderRadius: '8px',
                   boxShadow: 'var(--shadow-md)',
                   padding: '8px 0',
-                  minWidth: '180px',
+                  minWidth: '240px',
                   zIndex: 1000,
                 }}
               >
@@ -255,6 +257,34 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
                         <PlusOutlined style={{ fontSize: '16px' }} />
                         添加文章
                       </button>
+                    )}
+                    <button
+                      className="app-menu-item app-menu-item--mcp"
+                      onClick={() => { setMenuOpen(false); router.push('/settings/mcp'); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '16px', color: '#fff' }}
+                    >
+                      <SettingOutlined style={{ fontSize: '16px' }} />
+                      我的 MCP
+                    </button>
+                    {user?.role === 'admin' && (
+                      <>
+                        <button
+                          className="app-menu-item app-menu-item--users-admin"
+                          onClick={() => { setMenuOpen(false); router.push('/admin/users'); }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '16px', color: '#fff' }}
+                        >
+                          <UserOutlined style={{ fontSize: '16px' }} />
+                          用户管理
+                        </button>
+                        <button
+                        className="app-menu-item app-menu-item--mcp-admin"
+                        onClick={() => { setMenuOpen(false); router.push('/admin/mcp'); }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '16px', color: '#fff' }}
+                      >
+                        <SettingOutlined style={{ fontSize: '16px' }} />
+                        MCP 运营控制台
+                      </button>
+                      </>
                     )}
                     <button
                       className="app-menu-item app-menu-item--lock"
