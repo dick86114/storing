@@ -38,9 +38,12 @@ export interface ArticleListItem {
   aiSummary?: string | null;
   aiTags: string[];
   aiCategory?: string | null;  // AI 分类
-  isFavorited: boolean;
-  isArchived?: boolean;
-  coverImage?: string | null;  // 封面图 URL（可选）
+ isFavorited: boolean;
+ isArchived?: boolean;
+ isPublished?: boolean;
+ publicUrl?: string | null;
+ publishedAt?: string | null;
+ coverImage?: string | null;  // 封面图 URL（可选）
 }
 
 export interface PaginatedResponse<T> {

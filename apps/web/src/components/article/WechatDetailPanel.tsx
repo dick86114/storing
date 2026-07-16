@@ -2172,7 +2172,8 @@ function DetailContent({
   onOpenImageGallery: (img: HTMLImageElement) => void;
   contentRef: RefObject<HTMLDivElement | null>;
 }) {
-  const { resolved, colorScheme } = useTheme();
+ const { resolved, colorScheme } = useTheme();
+ const { mutate: detailMutate } = useSWRConfig();
   const isManualCapturedArticle = isSingleFileCaptureHtml(article?.contentHtml);
   const [moreOpen, setMoreOpen] = useState(false);
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
@@ -2233,7 +2234,19 @@ function DetailContent({
     if (!article) return;
     const panel = contentRef.current;
     const shareTheme = readCurrentShareTheme(resolved, colorScheme);
-    const shareUrl = buildArticleShareUrl(article, getScrollPosition(), shareTheme);
+    setPendingAction('share');
+    let shareUrl: string;
+    try {
+      const published = article.isPublished && (article as any).publicUrl
+        ? { publicUrl: (article as any).publicUrl as string }
+        : await api.publish(article.id);
+      shareUrl = new URL(published.publicUrl, window.location.origin).toString();
+    } catch (error) {
+      console.error('Publish before share failed:', error);
+      setPendingAction(null);
+      showToast('发布失败，未生成分享链接');
+      return;
+    }
 
     if (!panel) {
       const copied = await tryCopyText(shareUrl);
@@ -2241,7 +2254,6 @@ function DetailContent({
       return;
     }
 
-    setPendingAction('share');
     try {
       const articleForShare = { ...article, contentHtml: readableContentHtml || article.contentHtml };
       const selectionSubject = getShareSelectionSubject(panel);
@@ -2427,10 +2439,29 @@ function DetailContent({
       onMutate();
       refreshCounts();
       onClose();
-    }, wasArchived ? '移回收件箱失败' : '归档失败');
-  }
+   }, wasArchived ? '移回收件箱失败' : '归档失败');
+ }
 
-  return (
+ // 发布功能
+ async function handlePublish() {
+   if (!article) return;
+   const wasPublished = article.isPublished;
+   await runArticleAction('publish', async () => {
+     if (wasPublished) {
+       await api.unpublish(article.id);
+       showToast('已取消发布');
+     } else {
+       await api.publish(article.id);
+       showToast('已发布');
+     }
+     mutateArticle();
+     onMutate();
+     refreshCounts();
+     detailMutate((key) => typeof key === 'string' && key.startsWith('articles:published:'), undefined, { revalidate: true });
+   }, wasPublished ? '取消发布失败' : '发布失败');
+ }
+
+ return (
     <>
       {/* 顶部导航 */}
       <header
@@ -2640,7 +2671,7 @@ function DetailContent({
             </div>
             {/* AI标签 */}
             {showAISkeleton ? (
-              <div className="detail-panel-tags" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div className="detail-panel-tags" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: 0 }}>
                 <div className="skeleton-line" style={{ width: 56, height: 24, borderRadius: '4px' }} />
                 <div className="skeleton-line" style={{ width: 72, height: 24, borderRadius: '4px' }} />
                 <div className="skeleton-line" style={{ width: 48, height: 24, borderRadius: '4px' }} />
@@ -2658,7 +2689,7 @@ function DetailContent({
 
 	          {/* AI摘要 */}
 	          {showAISkeleton ? (
-	            <div className="ai-summary-block" style={{ background: 'var(--tag-bg)', margin: '8px 16px', borderRadius: '8px' }}>
+            <div className="ai-summary-block" style={{ background: 'var(--tag-bg)', margin: '4px 16px 8px', borderRadius: '8px' }}>
 	              <div className="ai-summary-row" aria-hidden="true">
 	                <div className="skeleton-line" style={{ width: 16, height: 16, borderRadius: '50%', flexShrink: 0 }} />
 	                <div className="skeleton-line" style={{ width: 72, height: 14 }} />
@@ -2670,7 +2701,7 @@ function DetailContent({
 	              </div>
 	            </div>
 	          ) : article.aiSummary && (
-	            <div className={`ai-summary-block${summaryCollapsed ? ' collapsed' : ''}`} style={{ background: 'var(--tag-bg)', margin: '8px 16px', borderRadius: '8px' }}>
+              <div className={`ai-summary-block${summaryCollapsed ? ' collapsed' : ''}`} style={{ background: 'var(--tag-bg)', margin: '4px 16px 8px', borderRadius: '8px' }}>
 	              <button
 	                className="ai-summary-row"
 	                type="button"
@@ -2822,10 +2853,14 @@ function DetailContent({
                 ) : (
                   <HeartOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
                 )}
-                <span className="detail-panel-action-label" style={{ fontSize: '11px', color: article.isFavorited ? 'var(--accent)' : 'var(--text-muted)' }}>收藏</span>
-              </button>
-            </>
-          )}
+               <span className="detail-panel-action-label" style={{ fontSize: '11px', color: article.isFavorited ? 'var(--accent)' : 'var(--text-muted)' }}>收藏</span>
+             </button>
+             <button className={`detail-panel-action-btn${article.isPublished ? ' published' : ''}`} onClick={handlePublish} type="button" disabled={pendingAction === 'publish'} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: pendingAction === 'publish' ? 'wait' : 'pointer' }}>
+               <ExportOutlined style={{ fontSize: '20px', color: article.isPublished ? 'var(--accent)' : 'var(--text)' }} />
+               <span className="detail-panel-action-label" style={{ fontSize: '11px', color: article.isPublished ? 'var(--accent)' : 'var(--text-muted)' }}>{pendingAction === 'publish' ? '发布中' : article.isPublished ? '取消发布' : '发布'}</span>
+             </button>
+           </>
+         )}
           {article && (
             <button className="detail-panel-action-btn" onClick={handleShare} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
               <ShareAltOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />

@@ -6,6 +6,8 @@ import { api } from '@/lib/api';
 interface User {
   id: number;
   username: string;
+  role?: string;
+  status?: string;
 }
 
 interface AuthContextValue {

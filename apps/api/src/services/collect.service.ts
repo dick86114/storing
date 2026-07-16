@@ -283,7 +283,7 @@ async function finishArticleSideEffects(jobId: number, articleId: number, option
     if (!options.userId) throw new Error('保存文章到收件箱需要用户归属');
     generateSummaryAndTags(articleId, options.userId).catch((e) => console.error('Collect AI summary/tags failed:', e.message));
     processCoverImage(articleId, options.userId).catch((e) => console.error('Collect cover image failed:', e.message));
-    enqueueArticleForWiki(articleId).then(() => processWikiJobs(3)).catch((e) => console.error('Collect wiki enqueue failed:', e.message));
+    enqueueArticleForWiki(articleId, options.userId).then(() => processWikiJobs(3)).catch((e) => console.error('Collect wiki enqueue failed:', e.message));
     return;
   }
 
@@ -768,6 +768,24 @@ export async function getCollectJob(jobId: number, filter: CollectJobAccessFilte
   const [job] = await db.select().from(collectJobs).where(eq(collectJobs.id, jobId)).limit(1);
   if (!job || !canAccessCollectJob(job, filter)) return null;
   return normalizeCollectJobStrategy(job);
+}
+
+const collectJobWait = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+
+/**
+ * Wait for a collect job at the API boundary without making an MCP client poll repeatedly.
+ * A non-terminal result after the deadline is still a running job, not a capture failure.
+ */
+export async function waitForCollectJob(jobId: number, filter: CollectJobAccessFilter = {}, timeoutMs = 0) {
+  const deadline = Date.now() + Math.max(0, timeoutMs);
+  let job = await getCollectJob(jobId, filter);
+
+  while (job && (job.status === 'pending' || job.status === 'running') && Date.now() < deadline) {
+    await collectJobWait(Math.min(1000, Math.max(1, deadline - Date.now())));
+    job = await getCollectJob(jobId, filter);
+  }
+
+  return job;
 }
 
 export async function listCollectJobs(limit = 12, offset = 0, filter: CollectJobAccessFilter = {}) {

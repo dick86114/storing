@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, PlusCircleOutlined, AppstoreOutlined, HeartOutlined, FolderOutlined, SunOutlined, MoonOutlined, DesktopOutlined, BookOutlined, CloudUploadOutlined } from '@ant-design/icons';
+import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, PlusCircleOutlined, AppstoreOutlined, HeartOutlined, FolderOutlined, ExportOutlined, SunOutlined, MoonOutlined, DesktopOutlined, BookOutlined, CloudUploadOutlined, SettingOutlined } from '@ant-design/icons';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { LoginModal } from '@/components/auth/LoginModal';
@@ -14,13 +14,14 @@ const tabs = [
   { key: 'inbox', label: '收件箱', href: '/inbox', Icon: AppstoreOutlined },
   { key: 'favorites', label: '收藏', href: '/favorites', Icon: HeartOutlined },
   { key: 'archive', label: '归档', href: '/archive', Icon: FolderOutlined },
+  { key: 'published', label: '发布', href: '/published', Icon: ExportOutlined },
   { key: 'wiki', label: 'Wiki', href: '/wiki', Icon: BookOutlined },
   { key: 'collect', label: '采集', href: '/collect', Icon: CloudUploadOutlined },
 ];
 
 interface DesktopTopNavProps {
   onSearchOpen: () => void;
-  counts: { inbox: number; favorites: number; archive: number; wiki?: number };
+  counts: { inbox: number; favorites: number; archive: number; published?: number; wiki?: number };
   activeIndex: number;
   onTabChange: (index: number) => void;
 }
@@ -47,8 +48,8 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
     system: '跟随系统',
   };
   const visibleTabs = tabs
-    .map((tab, index) => ({ ...tab, index }))
-    .filter((tab) => isAuthenticated || tab.key === 'archive' || tab.key === 'wiki');
+   .map((tab, index) => ({ ...tab, index }))
+   .filter((tab) => isAuthenticated);
 
   const handleMenuBlur = () => {
     window.setTimeout(() => {
@@ -214,7 +215,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
                     top: '100%',
                     right: '-8px',
                     marginTop: '4px',
-                    minWidth: '180px',
+                    minWidth: '240px',
                     background: 'var(--menu-bg)',
                     borderRadius: '8px',
                     boxShadow: 'var(--shadow-md)',
@@ -268,6 +269,37 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
                   <div className="app-menu-section-label">操作</div>
                   {isAuthenticated ? (
                     <>
+                      <button
+                        className="app-menu-item app-menu-item--mcp"
+                        onClick={() => { setMenuOpen(false); router.push('/settings/mcp'); }}
+                        type="button"
+                        style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 16px', textAlign: 'left', background: 'transparent', border: 'none', fontSize: '16px', color: '#fff', cursor: 'pointer' }}
+                      >
+                        <SettingOutlined style={{ fontSize: '16px' }} />
+                        我的 MCP
+                      </button>
+                      {user?.role === 'admin' && (
+                        <>
+                          <button
+                            className="app-menu-item app-menu-item--users-admin"
+                            onClick={() => { setMenuOpen(false); router.push('/admin/users'); }}
+                            type="button"
+                            style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 16px', textAlign: 'left', background: 'transparent', border: 'none', fontSize: '16px', color: '#fff', cursor: 'pointer' }}
+                          >
+                            <UserOutlined style={{ fontSize: '16px' }} />
+                            用户管理
+                          </button>
+                          <button
+                          className="app-menu-item app-menu-item--mcp-admin"
+                          onClick={() => { setMenuOpen(false); router.push('/admin/mcp'); }}
+                          type="button"
+                          style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 16px', textAlign: 'left', background: 'transparent', border: 'none', fontSize: '16px', color: '#fff', cursor: 'pointer' }}
+                        >
+                          <SettingOutlined style={{ fontSize: '16px' }} />
+                          MCP 运营控制台
+                        </button>
+                        </>
+                      )}
                       <button
                         className="app-menu-item app-menu-item--lock"
                         onClick={() => { setMenuOpen(false); setChangePasswordOpen(true); }}

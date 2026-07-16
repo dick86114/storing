@@ -24,6 +24,10 @@ const createNextConfig = (phase: string): NextConfig => ({
         source: '/api/:path*',
         destination: 'http://localhost:1052/api/:path*',
       },
+      {
+        source: '/mcp',
+        destination: 'http://localhost:1053/mcp',
+      },
     ];
   },
 });
