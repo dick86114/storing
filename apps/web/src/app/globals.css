@@ -18001,3 +18001,14 @@ body.detail-panel-open .detail-panel.wechat-detail-panel .detail-panel-footer {
   padding-inline: 10px !important;
   white-space: normal !important;
 }
+
+/* Mobile account menu: keep actions compact and make night mode self-explanatory by icon. */
+.mobile-top-nav .mobile-user-menu-appearance-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.mobile-top-nav .mobile-theme-icon-button {
+  justify-content: center !important;
+  gap: 0 !important;
+  padding-inline: 10px !important;
+}
