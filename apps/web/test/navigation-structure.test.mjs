@@ -37,3 +37,17 @@ test('main layout tracks route keys instead of fragile tab indexes', () => {
   assert.match(layout, /pendingNavKey/);
   assert.doesNotMatch(layout, /currentTabIndex/);
 });
+
+test('account dropdown uses two-column option grids in every color scheme', () => {
+  const desktop = readWeb('src/components/layout/DesktopTopNav.tsx');
+  const themeMenu = readWeb('src/components/layout/ThemeStyleMenu.tsx');
+  const styles = readWeb('src/app/globals.css');
+
+  assert.match(desktop, /className="user-menu-option-grid user-menu-appearance-grid"/);
+  assert.match(desktop, /className="user-menu-option-grid user-menu-action-grid"/);
+  assert.match(themeMenu, /className="theme-style-menu user-menu-option-grid"/);
+  assert.match(styles, /\.user-menu \.user-menu-option-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.user-menu \.theme-style-menu\s*\{[\s\S]*?display:\s*grid !important/);
+  assert.match(styles, /\.user-menu \.theme-menu-label\s*\{[\s\S]*?grid-column:\s*1 \/ -1/);
+  assert.match(styles, /\.app-menu\.user-menu\s*\{[\s\S]*?width:\s*min\(360px, calc\(100vw - 16px\)\)/);
+});
