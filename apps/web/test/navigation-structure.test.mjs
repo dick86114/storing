@@ -48,6 +48,6 @@ test('account dropdown uses two-column option grids in every color scheme', () =
   assert.match(themeMenu, /className="theme-style-menu user-menu-option-grid"/);
   assert.match(styles, /\.user-menu \.user-menu-option-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.user-menu \.theme-style-menu\s*\{[\s\S]*?display:\s*grid !important/);
-  assert.match(styles, /\.user-menu \.app-menu-user,[\s\S]*?grid-column:\s*1 \/ -1/);
+  assert.match(styles, /\.user-menu \.theme-menu-label\s*\{[\s\S]*?grid-column:\s*1 \/ -1/);
   assert.match(styles, /\.app-menu\.user-menu\s*\{[\s\S]*?width:\s*min\(360px, calc\(100vw - 16px\)\)/);
 });

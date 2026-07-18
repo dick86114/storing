@@ -298,7 +298,8 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
                     </div>
                   )}
                   <div className="app-menu-section-label">夜昼</div>
-                  {(['light', 'dark', 'system'] as const).map((mode) => (
+                  <div className="user-menu-option-grid user-menu-appearance-grid">
+                    {(['light', 'dark', 'system'] as const).map((mode) => (
                     <button
                       key={mode}
                       className={`app-menu-item app-menu-item--${mode}${theme === mode ? ' active' : ''}`}
@@ -325,12 +326,14 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
                       {themeIcons[mode]}
                       {themeLabels[mode]}
                     </button>
-                  ))}
+                    ))}
+                  </div>
                   <div className="app-menu-divider" />
                   <ThemeStyleMenu onSelect={() => setMenuOpen(false)} />
                   <div className="app-menu-divider" />
                   <div className="app-menu-section-label">操作</div>
-                  {isAuthenticated ? (
+                  <div className="user-menu-option-grid user-menu-action-grid">
+                    {isAuthenticated ? (
                     <>
                       <button
                         className="app-menu-item app-menu-item--mcp"
@@ -392,7 +395,8 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
                       <UserOutlined style={{ fontSize: '16px' }} />
                       登录
                     </button>
-                  )}
+                    )}
+                  </div>
                 </div>
               </>
             )}

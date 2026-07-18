@@ -20,7 +20,7 @@ export function ThemeStyleMenu({ onSelect }: ThemeStyleMenuProps) {
   const { colorScheme, setColorScheme } = useTheme();
 
   return (
-    <div className="theme-style-menu" role="group" aria-label="主题风格">
+    <div className="theme-style-menu user-menu-option-grid" role="group" aria-label="主题风格">
       <div className="theme-menu-label">风格</div>
       {styleOptions.map((option) => {
         const active = colorScheme === option.key;
