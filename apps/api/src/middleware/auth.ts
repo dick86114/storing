@@ -38,12 +38,16 @@ export async function requireAuth(c: Context, next: Next) {
   }
 
   const [user] = await db
-    .select({ id: users.id, username: users.username })
+    .select({ id: users.id, username: users.username, role: users.role, status: users.status })
     .from(users)
     .where(eq(users.id, userId));
 
   if (!user) {
     return c.json({ error: { code: 'INVALID_TOKEN', message: 'Token 无效或已过期' } }, 401);
+  }
+
+  if (user.status !== 'active') {
+    return c.json({ error: { code: 'USER_DISABLED', message: '用户已禁用' } }, 403);
   }
 
   c.set('user', user);
@@ -62,13 +66,52 @@ export async function optionalAuth(c: Context, next: Next) {
     const userId = verifyToken(token);
     if (userId) {
       const [user] = await db
-        .select({ id: users.id, username: users.username })
+        .select({ id: users.id, username: users.username, role: users.role, status: users.status })
         .from(users)
         .where(eq(users.id, userId));
-      if (user) c.set('user', user);
+      if (user && user.status === 'active') c.set('user', user);
     }
   }
 
+  await next();
+}
+
+
+
+/**
+ * 必须为管理员的中间件
+ */
+export async function requireAdmin(c: Context, next: Next) {
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader?.replace('Bearer ', '');
+
+  if (!token) {
+    return c.json({ error: { code: 'UNAUTHORIZED', message: '请先登录' } }, 401);
+  }
+
+  const userId = verifyToken(token);
+  if (!userId) {
+    return c.json({ error: { code: 'INVALID_TOKEN', message: 'Token 无效或已过期' } }, 401);
+  }
+
+  const [user] = await db
+    .select({ id: users.id, username: users.username, role: users.role, status: users.status })
+    .from(users)
+    .where(eq(users.id, userId));
+
+  if (!user) {
+    return c.json({ error: { code: 'INVALID_TOKEN', message: 'Token 无效或已过期' } }, 401);
+  }
+
+  if (user.status !== 'active') {
+    return c.json({ error: { code: 'USER_DISABLED', message: '用户已禁用' } }, 403);
+  }
+
+  if (user.role !== 'admin') {
+    return c.json({ error: { code: 'ADMIN_REQUIRED', message: '需要管理员权限' } }, 403);
+  }
+
+  c.set('user', user);
   await next();
 }
 

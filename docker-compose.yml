@@ -8,6 +8,7 @@ services:
     ports:
       - "1050:1050"  # 前端
       - "1052:1052"  # API
+      - "1053:1053"  # Remote MCP Streamable HTTP
     env_file:
       - .env  # 直接读取宿主机的 .env 文件
     environment:
