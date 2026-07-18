@@ -3,19 +3,21 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { SearchOutlined, PlusOutlined, PlusCircleOutlined, UserOutlined, SunOutlined, MoonOutlined, DesktopOutlined, LockOutlined, LogoutOutlined, SettingOutlined } from '@ant-design/icons';
+import { SearchOutlined, PlusOutlined, PlusCircleOutlined, UserOutlined, SunOutlined, MoonOutlined, DesktopOutlined, LockOutlined, LogoutOutlined, SettingOutlined, CloudUploadOutlined } from '@ant-design/icons';
 import { SearchModal } from '@/components/search/SearchModal';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { LoginModal } from '@/components/auth/LoginModal';
 import { ChangePasswordModal } from '@/components/auth/ChangePasswordModal';
 import { ThemeStyleMenu } from '@/components/layout/ThemeStyleMenu';
+import { APP_NAV_ITEMS, type AppNavKey } from '@/lib/navigation';
 
 interface MobileTopNavProps {
   onAddClick?: () => void;
+  onNavigate?: (key: AppNavKey) => void;
 }
 
-export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
+export function MobileTopNav({ onAddClick, onNavigate }: MobileTopNavProps) {
   const router = useRouter();
   const { isAuthenticated, user, logout } = useAuth();
   const { theme, setTheme, colorScheme } = useTheme();
@@ -44,6 +46,11 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
         setMenuOpen(false);
       }
     }, 0);
+  };
+
+  const handleCollectClick = () => {
+    onNavigate?.('collect');
+    router.push(APP_NAV_ITEMS.collect.href, { scroll: false });
   };
 
   useEffect(() => {
@@ -108,46 +115,36 @@ export function MobileTopNav({ onAddClick }: MobileTopNavProps) {
         {/* 中间：空 */}
         <div />
 
-        {/* 右侧：搜索 + 加号/用户菜单 */}
+        {/* 右侧：采集 + 搜索 + 用户菜单 */}
         <div ref={menuWrapRef} onBlurCapture={handleMenuBlur} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {isAuthenticated && (
+            <button className="mobile-top-action" onClick={handleCollectClick} type="button" aria-label="采集文章">
+              <CloudUploadOutlined />
+            </button>
+          )}
           <button
+            className="mobile-top-action"
             onClick={() => setSearchOpen(true)}
             type="button"
             aria-label="搜索"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              padding: '4px',
-              cursor: 'pointer',
-            }}
           >
-            <SearchOutlined style={{ fontSize: '22px', color: 'var(--text)' }} />
+            <SearchOutlined />
           </button>
           {isAuthenticated ? (
             <button
+              className="mobile-top-action"
               onClick={() => setMenuOpen(!menuOpen)}
               type="button"
               aria-label="菜单"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                padding: '4px',
-                cursor: 'pointer',
-              }}
             >
               <PlusCircleOutlined style={{ fontSize: '22px', color: 'var(--text)' }} />
             </button>
           ) : (
             <button
+              className="mobile-top-action"
               onClick={() => setMenuOpen(!menuOpen)}
               type="button"
               aria-label="菜单"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                padding: '4px',
-                cursor: 'pointer',
-              }}
             >
               <PlusCircleOutlined style={{ fontSize: '22px', color: 'var(--text)' }} />
             </button>

@@ -3,38 +3,41 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, PlusCircleOutlined, AppstoreOutlined, HeartOutlined, FolderOutlined, ExportOutlined, SunOutlined, MoonOutlined, DesktopOutlined, BookOutlined, CloudUploadOutlined, SettingOutlined } from '@ant-design/icons';
+import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, PlusCircleOutlined, AppstoreOutlined, HeartOutlined, FolderOutlined, ExportOutlined, SunOutlined, MoonOutlined, DesktopOutlined, BookOutlined, CloudUploadOutlined, SettingOutlined, MoreOutlined } from '@ant-design/icons';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { LoginModal } from '@/components/auth/LoginModal';
 import { ChangePasswordModal } from '@/components/auth/ChangePasswordModal';
 import { ThemeStyleMenu } from '@/components/layout/ThemeStyleMenu';
+import { APP_NAV_ITEMS, PRIMARY_NAV_KEYS, SECONDARY_NAV_KEYS, isSecondaryNavKey, type AppNavKey } from '@/lib/navigation';
 
-const tabs = [
-  { key: 'inbox', label: '收件箱', href: '/inbox', Icon: AppstoreOutlined },
-  { key: 'favorites', label: '收藏', href: '/favorites', Icon: HeartOutlined },
-  { key: 'archive', label: '归档', href: '/archive', Icon: FolderOutlined },
-  { key: 'published', label: '发布', href: '/published', Icon: ExportOutlined },
-  { key: 'wiki', label: 'Wiki', href: '/wiki', Icon: BookOutlined },
-  { key: 'collect', label: '采集', href: '/collect', Icon: CloudUploadOutlined },
-];
+const NAV_ICONS = {
+  inbox: AppstoreOutlined,
+  favorites: HeartOutlined,
+  archive: FolderOutlined,
+  published: ExportOutlined,
+  wiki: BookOutlined,
+  collect: CloudUploadOutlined,
+} satisfies Record<AppNavKey, React.ComponentType<{ className?: string; style?: React.CSSProperties }>>;
 
 interface DesktopTopNavProps {
   onSearchOpen: () => void;
   counts: { inbox: number; favorites: number; archive: number; published?: number; wiki?: number };
-  activeIndex: number;
-  onTabChange: (index: number) => void;
+  activeKey: AppNavKey | null;
+  onNavigate: (key: AppNavKey) => void;
 }
 
-export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }: DesktopTopNavProps) {
+export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: DesktopTopNavProps) {
   const router = useRouter();
   const { isAuthenticated, user, logout } = useAuth();
   const { theme, setTheme, colorScheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [navMoreOpen, setNavMoreOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const menuWrapRef = useRef<HTMLDivElement>(null);
   const menuPanelRef = useRef<HTMLDivElement>(null);
+  const navMoreWrapRef = useRef<HTMLDivElement>(null);
 
   const themeIcons: Record<string, React.ReactNode> = {
     light: <SunOutlined style={{ fontSize: '16px' }} />,
@@ -47,9 +50,11 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
     dark: '深色模式',
     system: '跟随系统',
   };
-  const visibleTabs = tabs
-   .map((tab, index) => ({ ...tab, index }))
-   .filter((tab) => isAuthenticated);
+  const navigateTo = (key: AppNavKey) => {
+    setNavMoreOpen(false);
+    onNavigate(key);
+    router.push(APP_NAV_ITEMS[key].href, { scroll: false });
+  };
 
   const handleMenuBlur = () => {
     window.setTimeout(() => {
@@ -85,6 +90,22 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
     };
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (!navMoreOpen) return;
+    const closeMore = (event: MouseEvent) => {
+      if (!navMoreWrapRef.current?.contains(event.target as Node)) setNavMoreOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setNavMoreOpen(false);
+    };
+    document.addEventListener('mousedown', closeMore);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', closeMore);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [navMoreOpen]);
+
   return (
     <>
       <header
@@ -113,17 +134,19 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
         {/* 竖线分隔 */}
         <div className="desktop-nav-divider" style={{ width: '1px', height: '20px', background: 'var(--divider)', margin: '0 20px', flexShrink: 0 }} />
 
-        {/* 中间：胶囊 Tab（居中） */}
+        {/* 中间：核心内容导航 */}
         <div className="desktop-nav-tabs" style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, justifyContent: 'center' }}>
-          {visibleTabs.map((tab) => {
-            const isActive = activeIndex === tab.index;
-            const count = tab.key === 'collect' ? null : counts[tab.key as keyof typeof counts] ?? 0;
+          {isAuthenticated && PRIMARY_NAV_KEYS.map((key) => {
+            const item = APP_NAV_ITEMS[key];
+            const Icon = NAV_ICONS[key];
+            const isActive = activeKey === key;
+            const count = counts[key] ?? 0;
 
             return (
               <button
-                key={tab.key}
+                key={key}
                 className={`top-tab-button${isActive ? ' active' : ''}`}
-                onClick={() => { onTabChange(tab.index); router.push(tab.href, { scroll: false }); }}
+                onClick={() => navigateTo(key)}
                 type="button"
                 style={{
                   display: 'flex',
@@ -137,31 +160,71 @@ export function DesktopTopNav({ onSearchOpen, counts, activeIndex, onTabChange }
                   transition: 'background 0.2s',
                 }}
                 >
-                <tab.Icon className={`top-tab-icon top-tab-icon--${tab.key}`} style={{ fontSize: '15px', color: isActive ? 'var(--accent)' : 'var(--text-secondary)' }} />
-                <span style={{ fontSize: '13px', fontWeight: isActive ? 500 : 400, color: isActive ? 'var(--accent)' : 'var(--text-secondary)' }}>
-                  {tab.label}
+                <Icon className={`top-tab-icon top-tab-icon--${key}`} style={{ fontSize: '15px', color: isActive ? 'var(--accent)' : 'var(--text-secondary)' }} />
+                <span className="top-tab-label" style={{ fontSize: '13px', fontWeight: isActive ? 500 : 400, color: isActive ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                  {item.label}
                 </span>
-                {count !== null && (
-                  <span
-                    className="top-tab-count"
-                    style={{
-                      padding: '1px 7px',
-                      background: isActive ? 'var(--accent-soft)' : 'var(--tag-bg)',
-                      color: isActive ? 'var(--accent)' : 'var(--text-muted)',
-                      fontSize: '11px',
-                      borderRadius: '10px',
-                    }}
-                  >
-                    {count}
-                  </span>
-                )}
+                <span
+                  className="top-tab-count"
+                  style={{
+                    padding: '1px 7px',
+                    background: isActive ? 'var(--accent-soft)' : 'var(--tag-bg)',
+                    color: isActive ? 'var(--accent)' : 'var(--text-muted)',
+                    fontSize: '11px',
+                    borderRadius: '10px',
+                  }}
+                >
+                  {count}
+                </span>
               </button>
             );
           })}
+
+          {isAuthenticated && (
+            <div className="nav-more-wrap" ref={navMoreWrapRef}>
+              <button
+                className={`top-tab-button nav-more-trigger${isSecondaryNavKey(activeKey) ? ' active' : ''}`}
+                type="button"
+                aria-label="更多导航"
+                aria-haspopup="menu"
+                aria-expanded={navMoreOpen}
+                onClick={() => setNavMoreOpen((open) => !open)}
+              >
+                <MoreOutlined className="top-tab-icon" />
+                <span>更多</span>
+                <DownOutlined className="nav-more-chevron" />
+              </button>
+              {navMoreOpen && (
+                <div className="app-menu nav-more-menu" role="menu">
+                  {SECONDARY_NAV_KEYS.map((key) => {
+                    const item = APP_NAV_ITEMS[key];
+                    const Icon = NAV_ICONS[key];
+                    const isActive = activeKey === key;
+                    const count = counts[key] ?? 0;
+                    return (
+                      <button key={key} className={`app-menu-item nav-more-menu-item${isActive ? ' active' : ''}`} type="button" role="menuitem" onClick={() => navigateTo(key)}>
+                        <Icon />
+                        <span className="nav-more-menu-copy">
+                          <strong>{item.label}</strong>
+                          <small>{key === 'published' ? '管理已公开文章' : '浏览知识库'}</small>
+                        </span>
+                        <span className="nav-more-menu-count">{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* 右侧：搜索 + 用户菜单 */}
+        {/* 右侧：采集操作 + 搜索 + 用户菜单 */}
         <div className="desktop-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+          {isAuthenticated && (
+            <button className="desktop-collect-trigger" onClick={() => navigateTo('collect')} type="button" aria-label="采集文章" title="采集文章">
+              <CloudUploadOutlined />
+            </button>
+          )}
           <button
             className="desktop-search-trigger"
             onClick={onSearchOpen}

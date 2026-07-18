@@ -23,3 +23,13 @@ test('MCP server registers collect_url and calls /mcp/collect', () => {
   assert.match(server, /job_id: z\.number\(\)/);
   assert.match(server, /saved_to_inbox: z\.literal\(true\)/);
 });
+
+test('MCP WeChat collection keeps saved items in inbox instead of defaulting to archive', () => {
+  const collect = readApi('src/services/collect.service.ts');
+  const processWechat = collect.match(/async function processWechatJob[\s\S]*?async function processSingleFileJob/)?.[0];
+  assert.ok(processWechat, 'processWechatJob implementation should be present');
+  assert.match(
+    processWechat,
+    /persistMetadata: options\.saveToInbox[\s\S]*?markArchived: options\.sourceType !== 'mcp'/,
+  );
+});

@@ -14,16 +14,7 @@ import { useDoubleBackExit } from '@/hooks/useDoubleBackExit';
 import { InboxContent } from '@/components/content/InboxContent';
 import { FavoritesContent } from '@/components/content/FavoritesContent';
 import { ArchiveContent } from '@/components/content/ArchiveContent';
-
-const TAB_KEYS = ['inbox', 'favorites', 'archive', 'published', 'wiki', 'collect'];
-const TAB_LABELS: Record<string, string> = {
-  inbox: '收件箱',
-  favorites: '收藏',
-  archive: '归档',
-  published: '发布',
-  wiki: 'Wiki',
-  collect: '采集',
-};
+import { APP_NAV_ITEMS, getAppNavKey, MOBILE_NAV_BREAKPOINT, type AppNavKey } from '@/lib/navigation';
 
 function RouteSwitchLoading({ label }: { label: string }) {
   return (
@@ -61,16 +52,15 @@ function MainContent({ children }: { children: ReactNode }) {
 
   useDoubleBackExit();
 
-  // 当前 tab 索引
-  const activeIndex = TAB_KEYS.findIndex(key => pathname === `/${key}` || pathname.startsWith(`/${key}/`));
-  const [currentTabIndex, setCurrentTabIndex] = useState(activeIndex >= 0 ? activeIndex : 0);
-  const isRouteSwitching = activeIndex >= 0 && currentTabIndex !== activeIndex;
-  const pendingTabLabel = TAB_LABELS[TAB_KEYS[currentTabIndex]] || '页面';
+  const activeNavKey = getAppNavKey(pathname);
+  const [pendingNavKey, setPendingNavKey] = useState<AppNavKey | null>(null);
+  const isRouteSwitching = pendingNavKey !== null && pendingNavKey !== activeNavKey;
+  const pendingTabLabel = pendingNavKey ? APP_NAV_ITEMS[pendingNavKey].label : '页面';
 
   // 检测是否为移动端
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    const checkMobile = () => setIsMobile(window.innerWidth < MOBILE_NAV_BREAKPOINT);
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
@@ -83,13 +73,9 @@ function MainContent({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, counts]);
 
- // 监听路由变化同步 tab 索引
- useEffect(() => {
-   const index = TAB_KEYS.findIndex(key => pathname === `/${key}` || pathname.startsWith(`/${key}/`));
-   if (index >= 0) {
-     setCurrentTabIndex(index);
-   }
- }, [pathname]);
+  useEffect(() => {
+    setPendingNavKey(null);
+  }, [pathname]);
  
   // 游客访问私有路由时重定向到发布页
   useEffect(() => {
@@ -117,7 +103,7 @@ function MainContent({ children }: { children: ReactNode }) {
       {/* 移动端布局 */}
       {isMobile && (
         <>
-          <MobileTopNav />
+          <MobileTopNav onNavigate={setPendingNavKey} />
           <main
             className="hide-scrollbar app-main mobile-main"
             style={{
@@ -132,8 +118,8 @@ function MainContent({ children }: { children: ReactNode }) {
           </main>
           <MobileBottomTab
             counts={counts}
-            activeIndex={currentTabIndex}
-            onTabChange={setCurrentTabIndex}
+            activeKey={activeNavKey}
+            onNavigate={setPendingNavKey}
           />
         </>
       )}
@@ -141,7 +127,7 @@ function MainContent({ children }: { children: ReactNode }) {
       {/* 桌面端布局 */}
       {!isMobile && (
         <>
-          <DesktopTopNav onSearchOpen={() => setSearchOpen(true)} counts={counts} activeIndex={currentTabIndex} onTabChange={setCurrentTabIndex} />
+          <DesktopTopNav onSearchOpen={() => setSearchOpen(true)} counts={counts} activeKey={activeNavKey} onNavigate={setPendingNavKey} />
           <main className="app-main desktop-main desktop-workbench" style={{ minHeight: 'calc(100vh - 56px)', background: 'var(--bg)' }}>
             <div className="desktop-main-shell" style={{ margin: '0 auto', padding: '0 24px' }}>
               {isRouteSwitching ? <RouteSwitchLoading label={pendingTabLabel} /> : children}
