@@ -6,6 +6,7 @@
 
 FRONTEND_PORT=1050
 BACKEND_PORT=1052
+MCP_HTTP_PORT=1053
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 STOP_DOCKER=false
@@ -109,6 +110,9 @@ stop_local() {
   kill_port $BACKEND_PORT "后端"
   echo ""
 
+  kill_port $MCP_HTTP_PORT "MCP HTTP"
+  echo ""
+
   kill_port $FRONTEND_PORT "前端"
   echo ""
 }
@@ -118,6 +122,10 @@ cleanup_logs() {
   if [ -f "$SCRIPT_DIR/api.log" ]; then
     rm -f "$SCRIPT_DIR/api.log"
     echo "✓ 已删除 api.log"
+  fi
+  if [ -f "$SCRIPT_DIR/mcp-http.log" ]; then
+    rm -f "$SCRIPT_DIR/mcp-http.log"
+    echo "✓ 已删除 mcp-http.log"
   fi
   if [ -f "$SCRIPT_DIR/web.log" ]; then
     rm -f "$SCRIPT_DIR/web.log"

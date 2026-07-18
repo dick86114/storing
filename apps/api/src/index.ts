@@ -10,14 +10,12 @@ import { authRoutes } from './routes/auth.js';
 import { wikiRoutes } from './routes/wiki.js';
 import { collectRoutes } from './routes/collect.js';
 import { mcpRoutes } from './routes/mcp.js';
-import { db } from './db/index.js';
-import { users } from './db/schema.js';
 import { initWikiSchema } from './services/wiki.service.js';
 import { startWikiWorker } from './services/wiki.worker.js';
 import { initCollectSchema } from './services/collect.service.js';
 import { initMcpSchema } from './services/mcp-auth.service.js';
-import { eq } from 'drizzle-orm';
-import bcrypt from 'bcrypt';
+import { ensurePrivateLibraryPublicationSchema, ensureWikiUserScopeSchema, initArticleMetadataUserScope } from './services/metadata-scope.service.js';
+import { ensureConfiguredAdmin, initUserManagementSchema } from './services/admin-bootstrap.service.js';
 
 const app = new Hono();
 
@@ -37,43 +35,15 @@ app.onError((err, c) => {
   return c.json({ error: { code: 'INTERNAL_ERROR', message: err.message } }, 500);
 });
 
-/**
- * 初始化管理员账号
- */
-async function initAdmin() {
-  const adminUsername = process.env.ADMIN_USERNAME || 'admin';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
-
-  try {
-    // 检查管理员是否存在
-    const [existing] = await db
-      .select()
-      .from(users)
-      .where(eq(users.username, adminUsername));
-
-    if (!existing) {
-      // 创建管理员
-      const passwordHash = await bcrypt.hash(adminPassword, 10);
-      await db.insert(users).values({
-        username: adminUsername,
-        passwordHash,
-        role: 'admin',
-        status: 'active',
-      });
-      console.log(`管理员账号已创建: ${adminUsername}`);
-    } else {
-      await db.update(users).set({ role: 'admin', status: 'active', updatedAt: new Date() }).where(eq(users.id, existing.id));
-      console.log(`管理员账号已存在: ${adminUsername}`);
-    }
-  } catch (err) {
-    console.error('初始化管理员失败:', err);
-  }
-}
-
 // 启动服务
 async function startServer() {
   await initMcpSchema().catch((err) => console.error('初始化 MCP 表失败:', err));
-  await initAdmin();
+  await initUserManagementSchema().catch((err) => console.error('初始化用户管理字段失败:', err));
+  const admin = await ensureConfiguredAdmin();
+  console.log(admin.created ? `管理员账号已创建: ${admin.user.username}` : `管理员账号已就绪: ${admin.user.username}`);
+  await initArticleMetadataUserScope().catch((err) => console.error('初始化用户级文章元数据失败:', err));
+  await ensurePrivateLibraryPublicationSchema().catch((err) => console.error('初始化文章发布字段失败:', err));
+  await ensureWikiUserScopeSchema().catch((err) => console.error('初始化 Wiki 用户作用域失败:', err));
   await initCollectSchema().catch((err) => console.error('初始化采集表失败:', err));
   await initWikiSchema().catch((err) => console.error('初始化 Wiki 表失败:', err));
   startWikiWorker();

@@ -28,6 +28,7 @@
 | Phase 2 | 用户级收件箱隔离 | 改造 article_metadata 为 user-scoped | P0 |
 | Phase 3 | collect_url 与来源管理 | 支持 Agent 明确保存到 owner inbox | P1 |
 | Phase 4 | 管理、审计、限流 | 支持对外开放前的管控能力 | P1 |
+| Phase 4.5 | MCP 管理控制台与接入引导 | 用户/Client 管理、Key 生命周期、客户端配置向导 | P1 |
 | Phase 5 | 对外接入文档与稳定性 | 文档、示例、监控、清理策略 | P2 |
 
 ---
@@ -341,6 +342,49 @@ mcp_request_logs
 
 ---
 
+## 7.5a Phase 4.5：MCP 管理控制台与接入引导
+
+### 7.5a.1 目标
+
+把 Phase 1-4 已完成的后端 MCP 能力产品化，形成两条清晰链路：普通登录用户自助申请和管理自己的 MCP Key；管理员通过独立运营控制台管理用户空间、连接生命周期、配额与审计。
+
+### 7.5a.2 后端范围
+
+- [ ] 管理员查看用户列表。
+- [ ] 管理员创建用户或 service 账号。
+- [ ] 管理员启用/禁用用户、调整角色、重置密码。
+- [ ] 管理员创建 MCP client，并一次性返回明文 API Key。
+- [ ] 管理员删除/吊销 MCP client。
+- [ ] 管理员更新 client 权限、限流、并发采集限制。
+- [ ] 管理员轮换 API Key，并一次性返回新 key。
+- [ ] 登录用户可以只针对自己的 user space 创建、更新、暂停、轮换和吊销 MCP client。
+- [ ] 禁用用户后，其 MCP client 不应继续通过鉴权。
+
+### 7.5a.3 前端范围
+
+- [ ] 新增 `/settings/mcp` 我的 MCP 页面，所有登录用户可访问。
+- [ ] 新增 `/admin/mcp` MCP 运营控制台，仅 admin 可访问。
+- [ ] 我的 MCP 展示当前用户自己的 clients、状态、scopes、配额、最近使用时间。
+- [ ] 管理控制台展示全部 clients、owner、状态、scopes、配额、最近使用时间。
+- [ ] 普通用户支持创建自己的 client：输入名称、选择 scopes、配置配额。
+- [ ] 管理员支持创建 client：选择 owner、输入名称、选择 scopes、配置配额。
+- [ ] 新 key/轮换 key 只在结果面板展示一次，并提供复制按钮。
+- [ ] 支持启用/禁用、删除 client。
+- [ ] 支持查看和筛选最近 MCP request logs。
+- [ ] 提供 Codex/Claude Desktop 风格的 MCP JSON 配置示例。
+- [ ] 提供工具调用流程说明：`summarize_url` / `collect_url` / `get_collect_status`。
+
+### 7.5a.4 验收标准
+
+- [ ] 普通用户能在登录后自主完成创建 MCP API Key、复制客户端配置、查看调用记录的全流程。
+- [ ] 管理员能在浏览器内完成从创建 owner 到生成 MCP API Key 的全流程。
+- [ ] 管理员能复制客户端配置并看到该 key 对应的 scopes。
+- [ ] 管理员能禁用/删除 client，后续调用不可继续使用。
+- [ ] 管理员能通过日志定位失败、限流和耗时。
+- [ ] 非 admin 用户不能访问管理员 API，但可以访问自己的 MCP 页面和 self-service API。
+
+---
+
 ## 8. Phase 5：对外接入与稳定性
 
 ### 8.1 接入文档
@@ -379,7 +423,8 @@ mcp_request_logs
 3. Phase 2：做 user-scoped metadata，这是长期正确性的核心。
 4. Phase 3：开放 collect_url。
 5. Phase 4：补齐限流审计。
-6. Phase 5：整理文档后对外试用。
+6. Phase 4.5：补齐 MCP 管理控制台与接入引导。
+7. Phase 5：整理文档后对外试用。
 
 不建议一开始就做完整管理 UI。可以先用脚本创建 API Key 和 service user。
 
@@ -479,3 +524,5 @@ Phase 2 涉及 `article_metadata` 唯一约束调整，风险较高。
 - 示例配置。
 - 清理任务。
 - 基础监控。
+
+> Phase 4.5 implementation note: ordinary users cannot set per-minute, per-day, or concurrent limits in the self-service flow. The single `mcp_platform_settings` record stores administrator-managed defaults and is applied to subsequently created self-service MCP clients. Existing clients preserve their assigned limits; administrators can still set client-specific exceptions.

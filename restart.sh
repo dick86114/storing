@@ -6,9 +6,11 @@
 
 FRONTEND_PORT=1050
 BACKEND_PORT=1052
+MCP_HTTP_PORT=1053
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WEB_DIR="$SCRIPT_DIR/apps/web"
 API_DIR="$SCRIPT_DIR/apps/api"
+MCP_DIR="$SCRIPT_DIR/apps/mcp"
 FORCE_RESTART=false
 
 if [ "$1" == "--force" ]; then
@@ -83,10 +85,11 @@ check_dependencies() {
   local root_dir="$SCRIPT_DIR"
   local web_modules="$WEB_DIR/node_modules"
   local api_modules="$API_DIR/node_modules"
+  local mcp_modules="$MCP_DIR/node_modules"
 
   echo "检查依赖安装状态..."
 
-  if [ ! -d "$root_dir/node_modules" ] || [ ! -d "$web_modules/.bin" ] || [ ! -d "$api_modules/.bin" ]; then
+  if [ ! -d "$root_dir/node_modules" ] || [ ! -d "$web_modules/.bin" ] || [ ! -d "$api_modules/.bin" ] || [ ! -d "$mcp_modules/.bin" ]; then
     echo "❌ 依赖不完整，正在安装..."
     cd "$root_dir"
     pnpm install
@@ -98,6 +101,50 @@ check_dependencies() {
   else
     echo "✓ 依赖已安装"
   fi
+}
+
+
+
+launch_detached_service() {
+  local workdir="$1"
+  local logfile="$2"
+  local pidfile="$3"
+  shift 3
+
+  python3 - "$workdir" "$logfile" "$pidfile" "$@" <<'PY'
+import os
+import subprocess
+import sys
+
+workdir = sys.argv[1]
+logfile = sys.argv[2]
+pidfile = sys.argv[3]
+cmd = sys.argv[4:]
+
+env = os.environ.copy()
+env['NODE_OPTIONS'] = '--disable-warning=DEP0205'
+
+with open(logfile, 'ab', buffering=0) as log:
+    process = subprocess.Popen(
+        cmd,
+        cwd=workdir,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+
+with open(pidfile, 'w', encoding='utf-8') as f:
+    f.write(str(process.pid))
+
+print(process.pid)
+PY
+}
+
+check_pid_alive() {
+  local pid="$1"
+  kill -0 "$pid" >/dev/null 2>&1
 }
 
 check_service_health() {
@@ -151,6 +198,7 @@ stop_all_services() {
   echo ""
   echo "停止本地服务..."
   kill_port $BACKEND_PORT "后端"
+  kill_port $MCP_HTTP_PORT "MCP HTTP"
   kill_port $FRONTEND_PORT "前端"
 
   pkill -9 -f "node.*$SCRIPT_DIR" 2>/dev/null || true
@@ -176,14 +224,14 @@ if [ "$FORCE_RESTART" = false ]; then
     stop_all_services
     echo ""
   else
-    BACKEND_HEALTH=$(check_service_health $BACKEND_PORT "后端" "http://localhost:$BACKEND_PORT/api/v1/health")
-    FRONTEND_HEALTH=$(check_service_health $FRONTEND_PORT "前端" "http://localhost:$FRONTEND_PORT")
-    
-    if [ $? -eq 0 ]; then
+    if check_service_health $BACKEND_PORT "后端" "http://localhost:$BACKEND_PORT/api/v1/health" \
+      && check_service_health $MCP_HTTP_PORT "MCP HTTP" "http://localhost:$MCP_HTTP_PORT/health" \
+      && check_service_health $FRONTEND_PORT "前端" "http://localhost:$FRONTEND_PORT"; then
       echo ""
       echo "=== 本地服务正常运行，无需重启 ==="
       echo "前端: http://localhost:$FRONTEND_PORT"
       echo "后端: http://localhost:$BACKEND_PORT/api/v1"
+      echo "Remote MCP: http://localhost:$MCP_HTTP_PORT/mcp"
       echo ""
       echo "💡 如需强制重启，请使用: bash restart.sh --force"
       echo "💡 如需使用 Docker 版本，请使用: bash deploy-docker.sh"
@@ -198,6 +246,8 @@ echo ""
 
 wait_for_port $BACKEND_PORT "后端"
 echo ""
+wait_for_port $MCP_HTTP_PORT "MCP HTTP"
+echo ""
 wait_for_port $FRONTEND_PORT "前端"
 echo ""
 
@@ -208,29 +258,37 @@ echo "=== 启动本地服务 ==="
 echo ""
 
 echo "启动后端 API..."
-cd "$API_DIR"
-nohup pnpm dev > "$SCRIPT_DIR/api.log" 2>&1 &
-BACKEND_PID=$!
+BACKEND_PID=$(launch_detached_service "$API_DIR" "$SCRIPT_DIR/api.log" "/tmp/storing-api.pid" pnpm exec tsx watch src/index.ts)
 echo "✓ 后端进程: $BACKEND_PID"
 
 sleep 3
 
+echo "启动 Streamable HTTP MCP..."
+MCP_HTTP_PID=$(launch_detached_service "$MCP_DIR" "$SCRIPT_DIR/mcp-http.log" "/tmp/storing-mcp-http.pid" pnpm exec tsx watch src/http.ts)
+echo "✓ MCP HTTP 进程: $MCP_HTTP_PID"
+
+sleep 2
+
 echo "启动前端 Web..."
-cd "$WEB_DIR"
-nohup pnpm dev > "$SCRIPT_DIR/web.log" 2>&1 &
-FRONTEND_PID=$!
+FRONTEND_PID=$(launch_detached_service "$WEB_DIR" "$SCRIPT_DIR/web.log" "/tmp/storing-web.pid" pnpm dev)
 echo "✓ 前端进程: $FRONTEND_PID"
 
 echo ""
 echo "=== 服务状态 ==="
 
-if wait_for_service_health "后端 API" "http://localhost:$BACKEND_PORT/api/v1/health" 30; then
+if wait_for_service_health "后端 API" "http://localhost:$BACKEND_PORT/api/v1/health" 30 && check_pid_alive "$BACKEND_PID"; then
   echo "✅ 后端 API: http://localhost:$BACKEND_PORT/api/v1"
 else
   echo "❌ 后端 API 启动失败，查看日志: cat $SCRIPT_DIR/api.log"
 fi
 
-if wait_for_service_health "前端 Web" "http://localhost:$FRONTEND_PORT" 60; then
+if wait_for_service_health "Streamable HTTP MCP" "http://localhost:$MCP_HTTP_PORT/health" 30 && check_pid_alive "$MCP_HTTP_PID"; then
+  echo "✅ Remote MCP: http://localhost:$MCP_HTTP_PORT/mcp"
+else
+  echo "❌ MCP HTTP 启动失败，查看日志: cat $SCRIPT_DIR/mcp-http.log"
+fi
+
+if wait_for_service_health "前端 Web" "http://localhost:$FRONTEND_PORT" 60 && check_pid_alive "$FRONTEND_PID"; then
   echo "✅ 前端 Web: http://localhost:$FRONTEND_PORT"
 else
   echo "❌ 前端 Web 启动失败，查看日志: cat $SCRIPT_DIR/web.log"
@@ -240,6 +298,7 @@ echo ""
 echo "=== 完成 ==="
 echo "日志文件:"
 echo "  后端: $SCRIPT_DIR/api.log"
+echo "  MCP HTTP: $SCRIPT_DIR/mcp-http.log"
 echo "  前端: $SCRIPT_DIR/web.log"
 echo ""
 echo "💡 其他命令:"

@@ -1,6 +1,7 @@
 import { db } from '../db/index.js';
 import { articles, articleMetadata } from '../db/schema.js';
-import { eq, sql } from 'drizzle-orm';
+import { getAdminUserId } from './metadata-scope.service.js';
+import { and, eq, sql } from 'drizzle-orm';
 import { JSDOM } from 'jsdom';
 import {
   extractTextFromHtml,
@@ -392,12 +393,14 @@ async function fetchArticleDisplayMeta(originalUrl: string): Promise<{
   };
 }
 
-export async function repairArticleDisplayMeta(articleId: number): Promise<{
+export async function repairArticleDisplayMeta(articleId: number, userId?: number): Promise<{
   title: string | null;
   source: string | null;
   author: string | null;
   publishTime: Date | null;
 } | null> {
+  const scopedUserId = userId ?? await getAdminUserId();
+  const metadataScope = and(eq(articles.id, articleMetadata.articleId), eq(articleMetadata.userId, scopedUserId));
   const [article] = await db
     .select({
       id: articles.id,
@@ -411,7 +414,7 @@ export async function repairArticleDisplayMeta(articleId: number): Promise<{
       contentHtml: articleMetadata.contentHtml,
     })
     .from(articles)
-    .leftJoin(articleMetadata, eq(articles.id, articleMetadata.articleId))
+    .leftJoin(articleMetadata, metadataScope)
     .where(eq(articles.id, articleId));
 
   if (!article) return null;
@@ -786,6 +789,25 @@ async function fetchContent(url: string, format: 'markdown' | 'html' = 'markdown
   }
 }
 
+/**
+ * 用 json 格式调用 Reader API 抓取公众号结构化数据。
+ * 对部分公众号文章，html/markdown 格式只返回空壳页，而 json 能拿到
+ * content_noencode / picture_page_info_list / title / nick_name 等完整字段，
+ * 是正文与图片的兜底数据源。
+ */
+export async function fetchWechatJson(url: string): Promise<any> {
+  const apiUrl = `${READER_API_BASE}?url=${encodeURIComponent(url)}&format=json`;
+  const res = await fetch(apiUrl, {
+    headers: { 'User-Agent': 'StoringBot/1.0' },
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!res.ok) throw new Error(`Reader API json error: ${res.status}`);
+  const data = await res.json() as any;
+  if (data?.base_resp?.ret !== 0 || !data?.content_noencode) return null;
+  return data;
+}
+
+
 function isSingleFileCollectedArticle(article: {
   content: unknown;
   contentHtml?: string | null;
@@ -866,9 +888,27 @@ export async function fetchArticleContentFromSources(
     }
   }
 
-  if (!content && article.content) {
-    const rawContent = article.content as any;
+  if (!content && article.originalUrl && /mp\.weixin\.qq\.com/i.test(article.originalUrl)) {
+    // 公众号文章：json > md/html > SingleFile 逐级兜底
+    let rawContent = (article.content as any) || { collectMethod: 'reader' };
 
+    // 1. 先尝试 json 格式（能拿到 content_noencode 完整数据）
+    if (!rawContent.content_noencode) {
+      try {
+        const wechatJson = await fetchWechatJson(article.originalUrl);
+        if (wechatJson && wechatJson.content_noencode) {
+          rawContent = {
+            ...rawContent,
+            content_noencode: wechatJson.content_noencode,
+            picture_page_info_list: wechatJson.picture_page_info_list ?? rawContent.picture_page_info_list ?? [],
+          };
+        }
+      } catch (e) {
+        console.error(`Wechat json fallback failed for article ${articleId}:`, (e as Error).message);
+      }
+    }
+
+    // 2. 用 content_noencode 提取正文（md/html 格式已在上面的 fetchContent 尝试过）
     if (format === 'html') {
       if (rawContent.content_noencode) {
         const htmlContent = await buildHtmlFromRawContent(rawContent);
@@ -915,6 +955,19 @@ export async function fetchArticleContentFromSources(
     }
   }
 
+  // 3. 公众号文章：json/md/html 都失败时，最后尝试 SingleFile 抓取
+  if (!content && article.originalUrl && /mp\.weixin\.qq\.com/i.test(article.originalUrl)) {
+    try {
+      const captured = await fetchSingleFileCaptureContent(article.originalUrl, htmlVariant);
+      if (captured && hasUsefulContent(captured, format)) {
+        content = captured;
+      }
+    } catch (e) {
+      console.error(`SingleFile fallback for WeChat article ${articleId} failed:`, (e as Error).message);
+    }
+  }
+
+
   if (!content) {
     const storedContent = format === 'html' ? article.contentHtml : article.contentMarkdown;
     if (storedContent && hasUsefulContent(storedContent, format)) {
@@ -929,13 +982,16 @@ async function saveArticleContentCache(
   articleId: number,
   format: 'markdown' | 'html',
   content: string,
-  htmlVariant: HtmlVariant = 'desktop'
+  htmlVariant: HtmlVariant = 'desktop',
+  userId?: number
 ): Promise<void> {
   await ensureArticleMetadataContentHtmlMobileColumn();
+  const scopedUserId = userId ?? await getAdminUserId();
+  const metadataScope = and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, scopedUserId));
   const [existing] = await db
     .select({ id: articleMetadata.id })
     .from(articleMetadata)
-    .where(eq(articleMetadata.articleId, articleId));
+    .where(metadataScope);
 
   const updateField =
     format === 'html'
@@ -947,21 +1003,22 @@ async function saveArticleContentCache(
   if (existing) {
     await db.update(articleMetadata)
       .set({ ...updateField, updatedAt: new Date() })
-      .where(eq(articleMetadata.articleId, articleId));
+      .where(metadataScope);
   } else {
     await db.insert(articleMetadata)
-      .values({ articleId, ...updateField });
+      .values({ articleId, userId: scopedUserId, sourceType: 'system', ...updateField });
   }
 }
 
 async function refreshArticleContentCache(
   articleId: number,
   format: 'markdown' | 'html',
-  htmlVariant: HtmlVariant = 'desktop'
+  htmlVariant: HtmlVariant = 'desktop',
+  userId?: number
 ): Promise<void> {
   const content = await fetchArticleContentFromSources(articleId, format, htmlVariant);
   if (content) {
-    await saveArticleContentCache(articleId, format, content, htmlVariant);
+    await saveArticleContentCache(articleId, format, content, htmlVariant, userId);
   }
 }
 
@@ -974,9 +1031,12 @@ async function refreshArticleContentCache(
 export async function getArticleContent(
   articleId: number,
   format: 'markdown' | 'html' = 'markdown',
-  htmlVariant: HtmlVariant = 'desktop'
+  htmlVariant: HtmlVariant = 'desktop',
+  userId?: number
 ): Promise<string | null> {
   await ensureArticleMetadataContentHtmlMobileColumn();
+  const scopedUserId = userId ?? await getAdminUserId();
+  const metadataScope = and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, scopedUserId));
   // 先查缓存
   const [meta] = await db
     .select({
@@ -985,7 +1045,7 @@ export async function getArticleContent(
       contentHtmlMobile: articleMetadata.contentHtmlMobile,
     })
     .from(articleMetadata)
-    .where(eq(articleMetadata.articleId, articleId));
+    .where(metadataScope);
 
   if (format === 'html') {
     const cachedHtml = htmlVariant === 'mobile' ? meta?.contentHtmlMobile : meta?.contentHtml;
@@ -995,11 +1055,11 @@ export async function getArticleContent(
       if (!hasUsefulContent(cachedHtml, format)) {
         const content = await fetchArticleContentFromSources(articleId, format, htmlVariant);
         if (!content) return null;
-        await saveArticleContentCache(articleId, format, content, htmlVariant);
+        await saveArticleContentCache(articleId, format, content, htmlVariant, userId)
         return content;
       }
       if (htmlVariant === 'desktop' && hasWechatImageRefs(cachedHtml)) {
-        refreshArticleContentCache(articleId, format, htmlVariant).catch((e) =>
+        refreshArticleContentCache(articleId, format, htmlVariant, userId).catch((e) =>
           console.error(`Background HTML cache refresh failed for article ${articleId}:`, (e as Error).message)
         );
       }
@@ -1007,7 +1067,7 @@ export async function getArticleContent(
     }
 
     if (htmlVariant === 'mobile' && meta?.contentHtml && hasUsefulContent(meta.contentHtml, format)) {
-      refreshArticleContentCache(articleId, format, htmlVariant).catch((e) =>
+      refreshArticleContentCache(articleId, format, htmlVariant, userId).catch((e) =>
         console.error(`Background mobile HTML cache refresh failed for article ${articleId}:`, (e as Error).message)
       );
       return meta.contentHtml;
@@ -1018,11 +1078,11 @@ export async function getArticleContent(
       if (!hasUsefulContent(meta.contentMd, format)) {
         const content = await fetchArticleContentFromSources(articleId, format, htmlVariant);
         if (!content) return null;
-        await saveArticleContentCache(articleId, format, content, htmlVariant);
+        await saveArticleContentCache(articleId, format, content, htmlVariant, userId)
         return content;
       }
       if (hasLocalResourceRefs(meta.contentMd) || hasWechatImageRefs(meta.contentMd)) {
-        refreshArticleContentCache(articleId, format, htmlVariant).catch((e) =>
+        refreshArticleContentCache(articleId, format, htmlVariant, userId).catch((e) =>
           console.error(`Background Markdown cache refresh failed for article ${articleId}:`, (e as Error).message)
         );
       }
@@ -1034,7 +1094,7 @@ export async function getArticleContent(
 
   if (!content) return null;
 
-  await saveArticleContentCache(articleId, format, content, htmlVariant);
+  await saveArticleContentCache(articleId, format, content, htmlVariant, userId)
 
   return content;
 }
@@ -1049,7 +1109,7 @@ function extractFirstImageUrl(md: string): string | null {
  * 处理封面图：上传到图床，如果没有则从正文取第一张图
  * 保存到 article_metadata.cover_image
  */
-export async function processCoverImage(articleId: number): Promise<string | null> {
+export async function processCoverImage(articleId: number, userId?: number): Promise<string | null> {
   // 查询文章的封面图和原始链接
   const [article] = await db
     .select({
@@ -1068,7 +1128,7 @@ export async function processCoverImage(articleId: number): Promise<string | nul
     coverImageUrl = article.coverImage;
   } else {
     // 没有封面图，从正文提取第一张图片
-    const content = await getArticleContent(articleId);
+    const content = await getArticleContent(articleId, 'markdown', 'desktop', userId);
     if (content) {
       coverImageUrl = extractFirstImageUrl(content);
     }
@@ -1083,19 +1143,21 @@ export async function processCoverImage(articleId: number): Promise<string | nul
     return null;
   }
 
-  // 确保 metadata 记录存在并保存封面图
+  // 确保当前用户 metadata 记录存在并保存封面图
+  const scopedUserId = userId ?? await getAdminUserId();
+  const metadataScope = and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, scopedUserId));
   const [existingMeta] = await db
     .select({ id: articleMetadata.id })
     .from(articleMetadata)
-    .where(eq(articleMetadata.articleId, articleId));
+    .where(metadataScope);
 
   if (existingMeta) {
     await db.update(articleMetadata)
       .set({ coverImage: uploadedUrl, updatedAt: new Date() })
-      .where(eq(articleMetadata.articleId, articleId));
+      .where(metadataScope);
   } else {
     await db.insert(articleMetadata)
-      .values({ articleId, coverImage: uploadedUrl });
+      .values({ articleId, userId: scopedUserId, sourceType: 'system', coverImage: uploadedUrl });
   }
 
   return uploadedUrl;

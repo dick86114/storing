@@ -4,7 +4,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { articleMetadata, articles, collectJobs } from '../db/schema.js';
 import { buildArticleSummaryResult, generateSummaryAndTags } from './ai.service.js';
-import { ensureArticleMetadataContentHtmlMobileColumn, fetchArticleContentFromSources, getArticleContent, processCoverImage, uploadImage } from './reader.service.js';
+import { ensureArticleMetadataContentHtmlMobileColumn, fetchArticleContentFromSources, fetchWechatJson, getArticleContent, processCoverImage, uploadImage } from './reader.service.js';
 import {
   type CollectCaptureStrategy,
   type HtmlVariant,
@@ -189,7 +189,7 @@ async function upsertArticleFromCapture(input: {
   contentMarkdown?: string | null;
   coverImage?: string | null;
   method: CollectMethod;
-}, options: { persistMetadata?: boolean } = {}) {
+}, options: { persistMetadata?: boolean; userId?: number | null; clientId?: number | null; sourceType?: string; markArchived?: boolean } = {}) {
   const persistMetadata = options.persistMetadata ?? true;
   const [existing] = await db
     .select({ id: articles.id })
@@ -231,10 +231,16 @@ async function upsertArticleFromCapture(input: {
 
   if (!persistMetadata) return articleId;
 
-  const [meta] = await db.select({ id: articleMetadata.id }).from(articleMetadata).where(eq(articleMetadata.articleId, articleId));
+  if (!options.userId) throw new Error('保存文章到收件箱需要用户归属');
+
+  const [meta] = await db
+    .select({ id: articleMetadata.id })
+    .from(articleMetadata)
+    .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, options.userId)));
+  const markArchived = options.markArchived ?? true;
   const metadataValues: Partial<typeof articleMetadata.$inferInsert> = {
-    isArchived: true,
-    archivedAt: now,
+    isArchived: markArchived,
+    archivedAt: markArchived ? now : null,
     updatedAt: now,
   };
   if (input.contentHtml !== undefined) metadataValues.contentHtml = input.contentHtml;
@@ -243,9 +249,16 @@ async function upsertArticleFromCapture(input: {
   if (input.coverImage !== undefined) metadataValues.coverImage = input.coverImage;
 
   if (meta) {
-    await db.update(articleMetadata).set(metadataValues).where(eq(articleMetadata.articleId, articleId));
+    await db.update(articleMetadata).set(metadataValues).where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, options.userId)));
   } else {
-    await db.insert(articleMetadata).values({ articleId, isFavorited: false, ...metadataValues });
+    await db.insert(articleMetadata).values({
+      articleId,
+      userId: options.userId,
+      clientId: options.clientId ?? null,
+      sourceType: options.sourceType ?? 'web',
+      isFavorited: false,
+      ...metadataValues,
+    });
   }
 
   return articleId;
@@ -265,11 +278,12 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
   ]);
 }
 
-async function finishArticleSideEffects(jobId: number, articleId: number, options: { saveToInbox: boolean }) {
+async function finishArticleSideEffects(jobId: number, articleId: number, options: { saveToInbox: boolean; userId?: number | null }) {
   if (options.saveToInbox) {
-    generateSummaryAndTags(articleId).catch((e) => console.error('Collect AI summary/tags failed:', e.message));
-    processCoverImage(articleId).catch((e) => console.error('Collect cover image failed:', e.message));
-    enqueueArticleForWiki(articleId).then(() => processWikiJobs(3)).catch((e) => console.error('Collect wiki enqueue failed:', e.message));
+    if (!options.userId) throw new Error('保存文章到收件箱需要用户归属');
+    generateSummaryAndTags(articleId, options.userId).catch((e) => console.error('Collect AI summary/tags failed:', e.message));
+    processCoverImage(articleId, options.userId).catch((e) => console.error('Collect cover image failed:', e.message));
+    enqueueArticleForWiki(articleId, options.userId).then(() => processWikiJobs(3)).catch((e) => console.error('Collect wiki enqueue failed:', e.message));
     return;
   }
 
@@ -289,7 +303,7 @@ async function finishArticleSideEffects(jobId: number, articleId: number, option
   });
 }
 
-async function processWechatJob(jobId: number, normalizedUrl: string, options: { saveToInbox: boolean }) {
+async function processWechatJob(jobId: number, normalizedUrl: string, options: { saveToInbox: boolean; userId?: number | null; clientId?: number | null; sourceType?: string }) {
   const title = normalizedUrl;
   const source = '微信公众号';
   const articleId = await upsertArticleFromCapture({
@@ -297,23 +311,60 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
     title,
     source,
     method: 'reader',
-  }, { persistMetadata: options.saveToInbox });
+  }, {
+    persistMetadata: options.saveToInbox,
+    userId: options.userId,
+    clientId: options.clientId,
+    sourceType: options.sourceType,
+    markArchived: options.sourceType !== 'mcp',
+  });
 
   await updateCollectJob(jobId, { stage: 'reader_fetch', captureStrategy: 'wechat_reader', articleId, title });
 
-  if (options.saveToInbox) {
-    await Promise.allSettled([getArticleContent(articleId, 'html'), getArticleContent(articleId, 'markdown')]);
-  }
-
-  const pageMeta = await fetchWechatPageMeta(normalizedUrl);
-  if (pageMeta?.title || pageMeta?.source) {
-    const finalTitle = pageMeta.title || title;
-    const finalSource = pageMeta.source || source;
+  // 用 json 格式抓取公众号结构化数据，填充 articles.content.content_noencode，
+  // 作为 html/markdown 空壳页的兜底数据源（既有 content_noencode 提取逻辑会消费它）
+  const wechatJson = await fetchWechatJson(normalizedUrl).catch((e) => {
+    console.error('Wechat json fetch failed:', (e as Error).message);
+    return null;
+  });
+  let finalTitle = title;
+  let finalSource = source;
+  if (wechatJson && wechatJson.content_noencode) {
     await db
       .update(articles)
-      .set({ title: finalTitle, source: finalSource, updatedAt: new Date() })
+      .set({
+        content: {
+          collectMethod: 'reader',
+          originalUrl: normalizedUrl,
+          content_noencode: wechatJson.content_noencode,
+          picture_page_info_list: wechatJson.picture_page_info_list ?? [],
+        },
+        ...(typeof wechatJson.title === 'string' && wechatJson.title ? { title: wechatJson.title } : {}),
+        ...(typeof wechatJson.nick_name === 'string' && wechatJson.nick_name ? { source: wechatJson.nick_name } : {}),
+        updatedAt: new Date(),
+      })
       .where(eq(articles.id, articleId));
+    if (typeof wechatJson.title === 'string' && wechatJson.title) finalTitle = wechatJson.title;
+    if (typeof wechatJson.nick_name === 'string' && wechatJson.nick_name) finalSource = wechatJson.nick_name;
     await updateCollectJob(jobId, { title: finalTitle });
+  } else {
+    const pageMeta = await fetchWechatPageMeta(normalizedUrl);
+    if (pageMeta?.title) finalTitle = pageMeta.title;
+    if (pageMeta?.source) finalSource = pageMeta.source;
+    if (pageMeta?.title || pageMeta?.source) {
+      await db
+        .update(articles)
+        .set({ title: finalTitle, source: finalSource, updatedAt: new Date() })
+        .where(eq(articles.id, articleId));
+      await updateCollectJob(jobId, { title: finalTitle });
+    }
+  }
+
+  if (options.saveToInbox) {
+    await Promise.allSettled([
+      getArticleContent(articleId, 'html', 'desktop', options.userId ?? undefined),
+      getArticleContent(articleId, 'markdown', 'desktop', options.userId ?? undefined),
+    ]);
   }
   if (options.saveToInbox) {
     await updateCollectJob(jobId, {
@@ -322,7 +373,7 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
       articleId,
       finishedAt: new Date(),
     });
-    await finishArticleSideEffects(jobId, articleId, { saveToInbox: true });
+    await finishArticleSideEffects(jobId, articleId, { saveToInbox: true, userId: options.userId });
     return;
   }
 
@@ -556,7 +607,7 @@ async function captureBestSingleFile(jobId: number, normalizedUrl: string): Prom
   throw new Error(strategyFailures.join('；') || 'SingleFile 抓取结果无有效正文');
 }
 
-async function processSingleFileJob(jobId: number, normalizedUrl: string, options: { saveToInbox: boolean }) {
+async function processSingleFileJob(jobId: number, normalizedUrl: string, options: { saveToInbox: boolean; userId?: number | null; clientId?: number | null; sourceType?: string }) {
   await updateCollectJob(jobId, { stage: 'capturing', captureStrategy: getInitialSingleFileStrategy() });
 
   if (!options.saveToInbox) {
@@ -629,7 +680,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string, option
     contentMarkdown,
     coverImage: uploadedCoverImage || primaryPrepared.coverImage,
     method: 'singlefile',
-  }, { persistMetadata: true });
+  }, { persistMetadata: true, userId: options.userId, clientId: options.clientId, sourceType: options.sourceType, markArchived: options.sourceType !== 'mcp' });
 
   await updateCollectJob(jobId, {
     status: 'completed',
@@ -639,7 +690,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string, option
     captureStrategy: capture.strategy,
     finishedAt: new Date(),
   });
-  await finishArticleSideEffects(jobId, articleId, { saveToInbox: true });
+  await finishArticleSideEffects(jobId, articleId, { saveToInbox: true, userId: options.userId });
 }
 
 export async function initCollectSchema() {
@@ -721,9 +772,9 @@ export async function processCollectJob(jobId: number) {
 
   try {
     if (job.method === 'reader') {
-      await processWechatJob(jobId, job.normalizedUrl, { saveToInbox: job.saveToInbox });
+      await processWechatJob(jobId, job.normalizedUrl, { saveToInbox: job.saveToInbox, userId: job.userId, clientId: job.clientId, sourceType: job.requestSource });
     } else {
-      await processSingleFileJob(jobId, job.normalizedUrl, { saveToInbox: job.saveToInbox });
+      await processSingleFileJob(jobId, job.normalizedUrl, { saveToInbox: job.saveToInbox, userId: job.userId, clientId: job.clientId, sourceType: job.requestSource });
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : '采集失败';
@@ -751,6 +802,24 @@ export async function getCollectJob(jobId: number, filter: CollectJobAccessFilte
   const [job] = await db.select().from(collectJobs).where(eq(collectJobs.id, jobId)).limit(1);
   if (!job || !canAccessCollectJob(job, filter)) return null;
   return normalizeCollectJobStrategy(job);
+}
+
+const collectJobWait = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+
+/**
+ * Wait for a collect job at the API boundary without making an MCP client poll repeatedly.
+ * A non-terminal result after the deadline is still a running job, not a capture failure.
+ */
+export async function waitForCollectJob(jobId: number, filter: CollectJobAccessFilter = {}, timeoutMs = 0) {
+  const deadline = Date.now() + Math.max(0, timeoutMs);
+  let job = await getCollectJob(jobId, filter);
+
+  while (job && (job.status === 'pending' || job.status === 'running') && Date.now() < deadline) {
+    await collectJobWait(Math.min(1000, Math.max(1, deadline - Date.now())));
+    job = await getCollectJob(jobId, filter);
+  }
+
+  return job;
 }
 
 export async function listCollectJobs(limit = 12, offset = 0, filter: CollectJobAccessFilter = {}) {

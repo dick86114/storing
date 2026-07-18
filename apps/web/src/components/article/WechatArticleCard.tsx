@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, FieldTimeOutlined, RobotOutlined } from '@ant-design/icons';
+import { MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, FieldTimeOutlined, RobotOutlined, ExportOutlined } from '@ant-design/icons';
 import { DateText } from '@/lib/formatDate';
 import { getArticleSourceIcon, getArticleSourceText } from '@/components/article/articleSourceIcon';
 import type { ArticleListItem } from '@storing/shared';
@@ -12,12 +12,13 @@ interface WechatArticleCardProps {
   onClick: () => void;
   onToggleFavorite: (e: React.MouseEvent) => void;
   onArchive: (e: React.MouseEvent) => void;
+  onPublish?: (e: React.MouseEvent) => void;
   showMenu?: boolean;
   highlight?: boolean;
   featured?: boolean;
 }
 
-export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchive, showMenu = true, highlight, featured = false }: WechatArticleCardProps) {
+export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchive, onPublish, showMenu = true, highlight, featured = false }: WechatArticleCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuWrapRef = useRef<HTMLDivElement>(null);
   const tags = article.aiTags?.slice(0, 3) ?? [];
@@ -192,6 +193,27 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
                       )}
                       {article.isArchived ? '取消归档' : '归档'}
                     </button>
+                    {onPublish && (
+                      <button
+                        className={`article-card-menu-item${article.isPublished ? ' favorited' : ''}`}
+                        onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onPublish(e); }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '10px 16px',
+                          width: '100%',
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '16px',
+                          color: article.isPublished ? 'var(--accent)' : '#fff',
+                        }}
+                      >
+                        <ExportOutlined style={{ fontSize: '16px', color: article.isPublished ? 'var(--accent)' : undefined }} />
+                        {article.isPublished ? '取消发布' : '发布'}
+                      </button>
+                    )}
                   </div>
                 </>
               )}

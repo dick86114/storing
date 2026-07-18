@@ -12,8 +12,9 @@ interface ArticleListProps {
   emptyTitle?: string;
   onArticleClick: (id: number) => void;
   onToggleFavorite: (id: number, e: React.MouseEvent) => void;
-  onArchive: (id: number, e: React.MouseEvent) => void;
-  showMenu?: boolean;
+ onArchive: (id: number, e: React.MouseEvent) => void;
+ onPublish?: (id: number, e: React.MouseEvent) => void;
+ showMenu?: boolean;
   highlightId?: number | null;
 }
 
@@ -25,8 +26,9 @@ export function ArticleList({
   emptyTitle = '暂无文章',
   onArticleClick,
   onToggleFavorite,
-  onArchive,
-  showMenu = true,
+ onArchive,
+ onPublish,
+ showMenu = true,
   highlightId,
 }: ArticleListProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -74,8 +76,9 @@ export function ArticleList({
             article={article}
             onClick={() => onArticleClick(article.id)}
             onToggleFavorite={(e) => onToggleFavorite(article.id, e)}
-            onArchive={(e) => onArchive(article.id, e)}
-            showMenu={showMenu}
+           onArchive={(e) => onArchive(article.id, e)}
+           onPublish={onPublish ? (e) => onPublish(article.id, e) : undefined}
+           showMenu={showMenu}
             highlight={highlightId === article.id}
             featured={index === 0}
           />

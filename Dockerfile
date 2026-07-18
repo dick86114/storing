@@ -8,6 +8,7 @@ FROM base AS deps
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json ./apps/api/
+COPY apps/mcp/package.json ./apps/mcp/
 COPY apps/web/package.json ./apps/web/
 COPY packages/shared/package.json ./packages/shared/
 
@@ -17,6 +18,7 @@ FROM base AS builder
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=deps /app/apps/mcp/node_modules ./apps/mcp/node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 
@@ -53,6 +55,10 @@ COPY --from=builder --chown=storing:nodejs /app/apps/api/src ./apps/api/src
 COPY --from=builder --chown=storing:nodejs /app/apps/api/package.json ./apps/api/
 COPY --from=builder --chown=storing:nodejs /app/apps/api/node_modules ./apps/api/node_modules
 
+COPY --from=builder --chown=storing:nodejs /app/apps/mcp/src ./apps/mcp/src
+COPY --from=builder --chown=storing:nodejs /app/apps/mcp/package.json ./apps/mcp/
+COPY --from=builder --chown=storing:nodejs /app/apps/mcp/node_modules ./apps/mcp/node_modules
+
 COPY --from=builder --chown=storing:nodejs /app/apps/web/public ./apps/web/.next/standalone/apps/web/public
 COPY --from=builder --chown=storing:nodejs /app/apps/web/.next/standalone ./apps/web/.next/standalone
 COPY --from=builder --chown=storing:nodejs /app/apps/web/.next/static ./apps/web/.next/standalone/apps/web/.next/static
@@ -66,14 +72,16 @@ RUN printf '%s\n' \
     'set -u' \
     '' \
     'stop_children() {' \
-    '  kill "${api_pid:-}" "${web_pid:-}" 2>/dev/null || true' \
-    '  wait "${api_pid:-}" "${web_pid:-}" 2>/dev/null || true' \
+    '  kill "${api_pid:-}" "${mcp_pid:-}" "${web_pid:-}" 2>/dev/null || true' \
+    '  wait "${api_pid:-}" "${mcp_pid:-}" "${web_pid:-}" 2>/dev/null || true' \
     '}' \
     '' \
     'trap stop_children INT TERM' \
     '' \
     '(cd /app/apps/api && node --import tsx src/index.ts) &' \
     'api_pid=$!' \
+    '(cd /app/apps/mcp && node --import tsx src/http.ts) &' \
+    'mcp_pid=$!' \
     '(cd /app/apps/web/.next/standalone/apps/web && node server.js) &' \
     'web_pid=$!' \
     '' \
@@ -82,6 +90,14 @@ RUN printf '%s\n' \
     '    status=0' \
     '    wait "$api_pid" || status=$?' \
     '    echo "API process exited with status $status; stopping container"' \
+    '    stop_children' \
+    '    exit "$status"' \
+    '  fi' \
+    '' \
+    '  if ! kill -0 "$mcp_pid" 2>/dev/null; then' \
+    '    status=0' \
+    '    wait "$mcp_pid" || status=$?' \
+    '    echo "MCP HTTP process exited with status $status; stopping container"' \
     '    stop_children' \
     '    exit "$status"' \
     '  fi' \
@@ -101,9 +117,10 @@ RUN printf '%s\n' \
 
 USER storing
 
-EXPOSE 1050 1052
+EXPOSE 1050 1052 1053
 
 ENV PORT=1050
 ENV API_PORT=1052
+ENV MCP_HTTP_PORT=1053
 
 CMD ["/app/start.sh"]

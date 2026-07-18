@@ -1,117 +1,124 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers/AuthContext';
-import { AppstoreOutlined, HeartOutlined, FolderOutlined, BookOutlined, CloudUploadOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, HeartOutlined, FolderOutlined, BookOutlined, ExportOutlined, MoreOutlined, CloseOutlined } from '@ant-design/icons';
+import { APP_NAV_ITEMS, PRIMARY_NAV_KEYS, SECONDARY_NAV_KEYS, isSecondaryNavKey, type AppNavKey } from '@/lib/navigation';
 
-const tabs = [
-  { key: 'inbox', label: '收件箱', href: '/inbox', Icon: AppstoreOutlined },
-  { key: 'favorites', label: '收藏', href: '/favorites', Icon: HeartOutlined },
-  { key: 'archive', label: '归档', href: '/archive', Icon: FolderOutlined },
-  { key: 'wiki', label: 'Wiki', href: '/wiki', Icon: BookOutlined },
-  { key: 'collect', label: '采集', href: '/collect', Icon: CloudUploadOutlined },
-];
+const NAV_ICONS = {
+  inbox: AppstoreOutlined,
+  favorites: HeartOutlined,
+  archive: FolderOutlined,
+  published: ExportOutlined,
+  wiki: BookOutlined,
+} satisfies Record<Exclude<AppNavKey, 'collect'>, React.ComponentType<{ className?: string; style?: React.CSSProperties }>>;
 
 interface MobileBottomTabProps {
-  counts: { inbox: number; favorites: number; archive: number; wiki?: number };
-  activeIndex: number;
-  onTabChange: (index: number) => void;
+  counts: { inbox: number; favorites: number; archive: number; published?: number; wiki?: number };
+  activeKey: AppNavKey | null;
+  onNavigate: (key: AppNavKey) => void;
 }
 
-export function MobileBottomTab({ counts, activeIndex, onTabChange }: MobileBottomTabProps) {
+export function MobileBottomTab({ counts, activeKey, onNavigate }: MobileBottomTabProps) {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
-  const visibleTabs = tabs
-    .map((tab, index) => ({ ...tab, index }))
-    .filter((tab) => isAuthenticated || tab.key === 'archive' || tab.key === 'wiki');
+  const [moreOpen, setMoreOpen] = useState(false);
 
-  const handleTabClick = (index: number, href: string) => {
-    onTabChange(index);
-    router.push(href, { scroll: false });
+  useEffect(() => {
+    if (!moreOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMoreOpen(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [moreOpen]);
+
+  if (!isAuthenticated) return null;
+
+  const navigateTo = (key: AppNavKey) => {
+    setMoreOpen(false);
+    onNavigate(key);
+    router.push(APP_NAV_ITEMS[key].href, { scroll: false });
   };
 
   return (
-    <nav
-      className="bottom-tab-bar"
-      style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        display: 'flex',
-        justifyContent: 'space-around',
-        alignItems: 'center',
-        height: 'calc(66px + env(safe-area-inset-bottom, 0px))',
-        boxSizing: 'border-box',
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        background: 'var(--nav-bg)',
-        borderTop: '0.5px solid var(--border)',
-        zIndex: 100,
-      }}
-    >
-      {visibleTabs.map((tab) => {
-        const isActive = activeIndex === tab.index;
-        const count = tab.key === 'collect' ? 0 : counts[tab.key as keyof typeof counts] ?? 0;
-
-        return (
-          <button
-            key={tab.key}
-            className={`bottom-tab-button${isActive ? ' active' : ''}`}
-            onClick={() => handleTabClick(tab.index, tab.href)}
-            type="button"
-            style={{
-              position: 'relative',
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '8px 0',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            <div className="bottom-tab-icon-wrap" style={{ position: 'relative', display: 'inline-flex' }}>
-              <tab.Icon
-                className={`bottom-tab-icon bottom-tab-icon--${tab.key}`}
-                style={{
-                  fontSize: '24px',
-                  color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
-                }}
-              />
-              {count > 0 && (
-                <span
-                  className="bottom-tab-count"
-                  style={{
-                    position: 'absolute',
-                    top: '-4px',
-                    left: '14px',
-                    padding: '1px 5px',
-                    background: isActive ? 'var(--accent-soft)' : 'var(--tag-bg)',
-                    color: isActive ? 'var(--accent)' : 'var(--text-muted)',
-                    fontSize: '10px',
-                    borderRadius: '10px',
-                    fontWeight: 500,
-                    lineHeight: '14px',
-                  }}
-                >
-                  {count > 99 ? '99+' : count}
-                </span>
-              )}
+    <>
+      {moreOpen && (
+        <div className="mobile-more-overlay" onClick={() => setMoreOpen(false)}>
+          <section className="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="更多功能" onClick={(event) => event.stopPropagation()}>
+            <div className="mobile-more-sheet-head">
+              <div>
+                <span className="mobile-more-sheet-eyebrow">更多功能</span>
+                <strong>发布与知识库</strong>
+              </div>
+              <button type="button" aria-label="关闭更多功能" onClick={() => setMoreOpen(false)}>
+                <CloseOutlined />
+              </button>
             </div>
-            <span
-              style={{
-                fontSize: '10px',
-                color: isActive ? 'var(--accent)' : 'var(--text-muted)',
-                fontWeight: isActive ? 500 : 400,
-              }}
-            >
-              {tab.label}
-            </span>
-          </button>
-        );
-      })}
-    </nav>
+            <div className="mobile-more-sheet-grid">
+              {SECONDARY_NAV_KEYS.map((key) => {
+                const item = APP_NAV_ITEMS[key];
+                const Icon = NAV_ICONS[key];
+                const isActive = activeKey === key;
+                const count = counts[key] ?? 0;
+                return (
+                  <button key={key} className={`mobile-more-option${isActive ? ' active' : ''}`} type="button" onClick={() => navigateTo(key)}>
+                    <span className="mobile-more-option-icon"><Icon /></span>
+                    <span className="mobile-more-option-copy">
+                      <strong>{item.label}</strong>
+                      <small>{key === 'published' ? '管理已公开文章' : '浏览知识库内容'}</small>
+                    </span>
+                    <span className="mobile-more-option-count">{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      )}
+
+      <nav
+        className="bottom-tab-bar"
+        aria-label="主要导航"
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          display: 'flex',
+          justifyContent: 'space-around',
+          alignItems: 'center',
+          height: 'calc(66px + env(safe-area-inset-bottom, 0px))',
+          boxSizing: 'border-box',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          background: 'var(--nav-bg)',
+          borderTop: '0.5px solid var(--border)',
+          zIndex: 100,
+        }}
+      >
+        {PRIMARY_NAV_KEYS.map((key) => {
+          const item = APP_NAV_ITEMS[key];
+          const Icon = NAV_ICONS[key];
+          const isActive = activeKey === key;
+          const count = counts[key] ?? 0;
+
+          return (
+            <button key={key} className={`bottom-tab-button${isActive ? ' active' : ''}`} onClick={() => navigateTo(key)} type="button">
+              <div className="bottom-tab-icon-wrap">
+                <Icon className={`bottom-tab-icon bottom-tab-icon--${key}`} />
+                {count > 0 && <span className="bottom-tab-count">{count > 99 ? '99+' : count}</span>}
+              </div>
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+
+        <button className={`bottom-tab-button bottom-tab-more${isSecondaryNavKey(activeKey) || moreOpen ? ' active' : ''}`} onClick={() => setMoreOpen(true)} type="button" aria-haspopup="dialog" aria-expanded={moreOpen}>
+          <div className="bottom-tab-icon-wrap"><MoreOutlined className="bottom-tab-icon" /></div>
+          <span>更多</span>
+        </button>
+      </nav>
+    </>
   );
 }
