@@ -195,15 +195,18 @@ export function MobileTopNav({ onAddClick, onNavigate }: MobileTopNavProps) {
 
                 {/* 主题切换 */}
                 <div className="app-menu-section-label">夜昼</div>
-                {(['light', 'dark', 'system'] as const).map((mode) => (
-                  <button
+                <div className="user-menu-option-grid mobile-user-menu-appearance-grid">
+                  {(['light', 'dark', 'system'] as const).map((mode) => (
+                    <button
                     key={mode}
-                    className={`app-menu-item app-menu-item--${mode}${theme === mode ? ' active' : ''}`}
+                    className={`app-menu-item app-menu-item--${mode} mobile-theme-icon-button${theme === mode ? ' active' : ''}`}
                     onClick={() => {
                       setTheme(mode);
                       setMenuOpen(false);
                     }}
                     type="button"
+                    aria-label={themeLabels[mode]}
+                    title={themeLabels[mode]}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -220,17 +223,18 @@ export function MobileTopNav({ onAddClick, onNavigate }: MobileTopNavProps) {
                     }}
                   >
                     {themeIcons[mode]}
-                    {themeLabels[mode]}
                   </button>
                 ))}
+                </div>
 
                 <div className="app-menu-divider" />
                 <ThemeStyleMenu onSelect={() => setMenuOpen(false)} />
                 <div className="app-menu-divider" />
                 <div className="app-menu-section-label">操作</div>
 
-                {isAuthenticated ? (
-                  <>
+                <div className="user-menu-option-grid mobile-user-menu-action-grid">
+                  {isAuthenticated ? (
+                    <>
                     {onAddClick && (
                       <button
                         className="app-menu-item app-menu-item--add"
@@ -352,6 +356,7 @@ export function MobileTopNav({ onAddClick, onNavigate }: MobileTopNavProps) {
                     登录
                   </button>
                 )}
+                </div>
               </div>
             </>
           )}
