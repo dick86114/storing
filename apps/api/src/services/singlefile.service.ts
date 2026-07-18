@@ -307,6 +307,16 @@ function absolutizeUrl(value: string, baseUrl: string) {
   }
 }
 
+export function normalizeCoverImageUrl(value: string) {
+  try {
+    const parsed = new URL(value);
+    const embeddedUrl = `${parsed.pathname}${parsed.search}`.replace(/^\//, '');
+    return /^https?:\/\//i.test(embeddedUrl) ? embeddedUrl : value;
+  } catch {
+    return value;
+  }
+}
+
 function extractMetaImage(doc: Document, baseUrl: string) {
   const selectors = [
     'meta[property="og:image"]',
@@ -317,7 +327,7 @@ function extractMetaImage(doc: Document, baseUrl: string) {
 
   for (const selector of selectors) {
     const value = doc.querySelector(selector)?.getAttribute('content')?.trim();
-    if (value) return absolutizeUrl(value, baseUrl);
+    if (value) return normalizeCoverImageUrl(absolutizeUrl(value, baseUrl));
   }
 
   const firstArticleImage =
