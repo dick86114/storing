@@ -17970,3 +17970,34 @@ body.detail-panel-open .detail-panel.wechat-detail-panel .detail-panel-footer {
     display: none;
   }
 }
+
+/* Account dropdown: keep all themes visually intact while making options compact grids. */
+.app-menu.user-menu {
+  width: min(360px, calc(100vw - 16px)) !important;
+  min-width: 0 !important;
+  max-width: calc(100vw - 16px) !important;
+}
+
+.user-menu .user-menu-option-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 0 8px;
+}
+
+.user-menu .theme-style-menu {
+  display: grid !important;
+}
+
+.user-menu .theme-menu-label {
+  grid-column: 1 / -1;
+}
+
+.user-menu .user-menu-option-grid > .app-menu-item,
+.user-menu .theme-style-menu > .theme-style-option {
+  min-width: 0;
+  width: 100% !important;
+  margin: 0 !important;
+  padding-inline: 10px !important;
+  white-space: normal !important;
+}
