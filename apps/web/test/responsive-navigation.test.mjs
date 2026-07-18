@@ -37,3 +37,14 @@ test('mobile search and collect controls share the same action-button treatment'
   assert.doesNotMatch(styles, /\.mobile-collect-trigger \{/);
   assert.doesNotMatch(topNav, /<SearchOutlined style=\{\{ fontSize: '22px', color: 'var\(--text\)' \}\} \/>/);
 });
+
+test('mobile account menu uses compact night icons and a two-column action grid', () => {
+  const mobileTopNav = readWeb('src/components/layout/MobileTopNav.tsx');
+  const styles = readWeb('src/app/globals.css');
+
+  assert.match(mobileTopNav, /className="user-menu-option-grid mobile-user-menu-appearance-grid"/);
+  assert.match(mobileTopNav, /className="user-menu-option-grid mobile-user-menu-action-grid"/);
+  assert.match(mobileTopNav, /mobile-theme-icon-button/);
+  assert.match(mobileTopNav, /aria-label=\{themeLabels\[mode\]\}/);
+  assert.match(styles, /\.mobile-top-nav \.mobile-user-menu-appearance-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
+});
