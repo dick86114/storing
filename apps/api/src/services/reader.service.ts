@@ -789,6 +789,25 @@ async function fetchContent(url: string, format: 'markdown' | 'html' = 'markdown
   }
 }
 
+/**
+ * 用 json 格式调用 Reader API 抓取公众号结构化数据。
+ * 对部分公众号文章，html/markdown 格式只返回空壳页，而 json 能拿到
+ * content_noencode / picture_page_info_list / title / nick_name 等完整字段，
+ * 是正文与图片的兜底数据源。
+ */
+export async function fetchWechatJson(url: string): Promise<any> {
+  const apiUrl = `${READER_API_BASE}?url=${encodeURIComponent(url)}&format=json`;
+  const res = await fetch(apiUrl, {
+    headers: { 'User-Agent': 'StoringBot/1.0' },
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!res.ok) throw new Error(`Reader API json error: ${res.status}`);
+  const data = await res.json() as any;
+  if (data?.base_resp?.ret !== 0 || !data?.content_noencode) return null;
+  return data;
+}
+
+
 function isSingleFileCollectedArticle(article: {
   content: unknown;
   contentHtml?: string | null;
@@ -869,9 +888,27 @@ export async function fetchArticleContentFromSources(
     }
   }
 
-  if (!content && article.content) {
-    const rawContent = article.content as any;
+  if (!content && article.originalUrl && /mp\.weixin\.qq\.com/i.test(article.originalUrl)) {
+    // 公众号文章：json > md/html > SingleFile 逐级兜底
+    let rawContent = (article.content as any) || { collectMethod: 'reader' };
 
+    // 1. 先尝试 json 格式（能拿到 content_noencode 完整数据）
+    if (!rawContent.content_noencode) {
+      try {
+        const wechatJson = await fetchWechatJson(article.originalUrl);
+        if (wechatJson && wechatJson.content_noencode) {
+          rawContent = {
+            ...rawContent,
+            content_noencode: wechatJson.content_noencode,
+            picture_page_info_list: wechatJson.picture_page_info_list ?? rawContent.picture_page_info_list ?? [],
+          };
+        }
+      } catch (e) {
+        console.error(`Wechat json fallback failed for article ${articleId}:`, (e as Error).message);
+      }
+    }
+
+    // 2. 用 content_noencode 提取正文（md/html 格式已在上面的 fetchContent 尝试过）
     if (format === 'html') {
       if (rawContent.content_noencode) {
         const htmlContent = await buildHtmlFromRawContent(rawContent);
@@ -917,6 +954,19 @@ export async function fetchArticleContentFromSources(
       }
     }
   }
+
+  // 3. 公众号文章：json/md/html 都失败时，最后尝试 SingleFile 抓取
+  if (!content && article.originalUrl && /mp\.weixin\.qq\.com/i.test(article.originalUrl)) {
+    try {
+      const captured = await fetchSingleFileCaptureContent(article.originalUrl, htmlVariant);
+      if (captured && hasUsefulContent(captured, format)) {
+        content = captured;
+      }
+    } catch (e) {
+      console.error(`SingleFile fallback for WeChat article ${articleId} failed:`, (e as Error).message);
+    }
+  }
+
 
   if (!content) {
     const storedContent = format === 'html' ? article.contentHtml : article.contentMarkdown;

@@ -4,7 +4,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { articleMetadata, articles, collectJobs } from '../db/schema.js';
 import { buildArticleSummaryResult, generateSummaryAndTags } from './ai.service.js';
-import { ensureArticleMetadataContentHtmlMobileColumn, fetchArticleContentFromSources, getArticleContent, processCoverImage, uploadImage } from './reader.service.js';
+import { ensureArticleMetadataContentHtmlMobileColumn, fetchArticleContentFromSources, fetchWechatJson, getArticleContent, processCoverImage, uploadImage } from './reader.service.js';
 import {
   type CollectCaptureStrategy,
   type HtmlVariant,
@@ -311,26 +311,60 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
     title,
     source,
     method: 'reader',
-  }, { persistMetadata: options.saveToInbox, userId: options.userId, clientId: options.clientId, sourceType: options.sourceType });
+  }, {
+    persistMetadata: options.saveToInbox,
+    userId: options.userId,
+    clientId: options.clientId,
+    sourceType: options.sourceType,
+    markArchived: options.sourceType !== 'mcp',
+  });
 
   await updateCollectJob(jobId, { stage: 'reader_fetch', captureStrategy: 'wechat_reader', articleId, title });
+
+  // 用 json 格式抓取公众号结构化数据，填充 articles.content.content_noencode，
+  // 作为 html/markdown 空壳页的兜底数据源（既有 content_noencode 提取逻辑会消费它）
+  const wechatJson = await fetchWechatJson(normalizedUrl).catch((e) => {
+    console.error('Wechat json fetch failed:', (e as Error).message);
+    return null;
+  });
+  let finalTitle = title;
+  let finalSource = source;
+  if (wechatJson && wechatJson.content_noencode) {
+    await db
+      .update(articles)
+      .set({
+        content: {
+          collectMethod: 'reader',
+          originalUrl: normalizedUrl,
+          content_noencode: wechatJson.content_noencode,
+          picture_page_info_list: wechatJson.picture_page_info_list ?? [],
+        },
+        ...(typeof wechatJson.title === 'string' && wechatJson.title ? { title: wechatJson.title } : {}),
+        ...(typeof wechatJson.nick_name === 'string' && wechatJson.nick_name ? { source: wechatJson.nick_name } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(articles.id, articleId));
+    if (typeof wechatJson.title === 'string' && wechatJson.title) finalTitle = wechatJson.title;
+    if (typeof wechatJson.nick_name === 'string' && wechatJson.nick_name) finalSource = wechatJson.nick_name;
+    await updateCollectJob(jobId, { title: finalTitle });
+  } else {
+    const pageMeta = await fetchWechatPageMeta(normalizedUrl);
+    if (pageMeta?.title) finalTitle = pageMeta.title;
+    if (pageMeta?.source) finalSource = pageMeta.source;
+    if (pageMeta?.title || pageMeta?.source) {
+      await db
+        .update(articles)
+        .set({ title: finalTitle, source: finalSource, updatedAt: new Date() })
+        .where(eq(articles.id, articleId));
+      await updateCollectJob(jobId, { title: finalTitle });
+    }
+  }
 
   if (options.saveToInbox) {
     await Promise.allSettled([
       getArticleContent(articleId, 'html', 'desktop', options.userId ?? undefined),
       getArticleContent(articleId, 'markdown', 'desktop', options.userId ?? undefined),
     ]);
-  }
-
-  const pageMeta = await fetchWechatPageMeta(normalizedUrl);
-  if (pageMeta?.title || pageMeta?.source) {
-    const finalTitle = pageMeta.title || title;
-    const finalSource = pageMeta.source || source;
-    await db
-      .update(articles)
-      .set({ title: finalTitle, source: finalSource, updatedAt: new Date() })
-      .where(eq(articles.id, articleId));
-    await updateCollectJob(jobId, { title: finalTitle });
   }
   if (options.saveToInbox) {
     await updateCollectJob(jobId, {

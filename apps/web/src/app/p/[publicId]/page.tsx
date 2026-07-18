@@ -4,7 +4,6 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { LeftOutlined, ShareAltOutlined, UpOutlined, DownOutlined, MoreOutlined, CopyOutlined, ExportOutlined } from '@ant-design/icons';
 import { api } from '@/lib/api';
-import { BookmarkButton } from '@/components/ui/BookmarkButton';
 import { getArticleSourceIcon, getArticleSourceText } from '@/components/article/articleSourceIcon';
 import { DateText } from '@/lib/formatDate';
 
@@ -56,21 +55,6 @@ export default function PublicPublicationPage({ params }: { params: Promise<{ pu
       router.push('/published');
     }
   };
-
-  const handleSaveBookmark = useCallback(() => {
-    if (!article) return;
-    try {
-      const key = 'storing:public-bookmarks';
-      const existing = JSON.parse(localStorage.getItem(key) || '[]');
-      const entry = { publicId: article.publicId, title: article.title, savedAt: Date.now() };
-      if (!existing.some((b: any) => b.publicId === article.publicId)) {
-        existing.push(entry);
-        localStorage.setItem(key, JSON.stringify(existing));
-      }
-    } catch {
-      // localStorage might be unavailable
-    }
-  }, [article]);
 
   const handleCopyLink = async () => {
     setMoreOpen(false);
@@ -181,7 +165,7 @@ export default function PublicPublicationPage({ params }: { params: Promise<{ pu
   return (
     <div style={{ background: 'var(--bg)', height: '100dvh', minHeight: '100dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {/* 顶部导航 */}
-      <header style={{ position: 'sticky', top: 0, zIndex: 100, height: 48, background: 'var(--card-bg)', borderBottom: '0.5px solid var(--divider)' }}>
+      <header className="detail-panel-header" style={{ position: 'sticky', top: 0, zIndex: 100, height: '44px', minHeight: '44px', padding: '0 16px', background: 'var(--card-bg)', borderBottom: '0.5px solid var(--divider)' }}>
         <div style={{ ...contentShell, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px' }}>
           <button onClick={goBack} type="button" aria-label="返回" style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 15, color: 'var(--text)' }}>
             <LeftOutlined style={{ fontSize: 18 }} /><span>返回</span>
@@ -219,9 +203,9 @@ export default function PublicPublicationPage({ params }: { params: Promise<{ pu
 
       {/* 正文区域 */}
       <main ref={contentRef} style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-        <div style={{ ...contentShell, padding: '16px 16px 0' }}>
+        <div style={{ ...contentShell, padding: 0 }}>
           {/* 文章头部 */}
-          <div className="detail-panel-content">
+          <div className="detail-panel-content" style={{ padding: '16px' }}>
             <h1 className="detail-panel-title" style={{ fontSize: '20px', fontWeight: 500, color: 'var(--text)', lineHeight: 1.5, marginBottom: '8px' }}>
               {article.title || '未命名文章'}
             </h1>
@@ -257,7 +241,7 @@ export default function PublicPublicationPage({ params }: { params: Promise<{ pu
 
           {/* AI 摘要 */}
           {article.aiSummary && (
-            <div className={`ai-summary-block${summaryCollapsed ? ' collapsed' : ''}`} style={{ background: 'var(--tag-bg)', margin: '4px 0', borderRadius: '8px' }}>
+            <div className={`ai-summary-block${summaryCollapsed ? ' collapsed' : ''}`} style={{ background: 'var(--tag-bg)', margin: '4px 16px 8px', borderRadius: '8px' }}>
               <button className="ai-summary-row" type="button" onClick={() => setSummaryCollapsed((c) => !c)} aria-expanded={!summaryCollapsed}>
                 <div className="ai-summary-dot" aria-hidden="true" />
                 <span className="ai-summary-title" style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', flex: 1 }}>智能摘要</span>
@@ -294,7 +278,6 @@ export default function PublicPublicationPage({ params }: { params: Promise<{ pu
           )}
 
           <div className="detail-panel-footer-actions">
-            <BookmarkButton onClick={handleSaveBookmark} />
             <button className="detail-panel-action-btn" onClick={handleShare} type="button" disabled={sharePending} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: sharePending ? 'wait' : 'pointer' }}>
               <ShareAltOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
               <span className="detail-panel-action-label" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{sharePending ? '分享中' : '分享'}</span>
