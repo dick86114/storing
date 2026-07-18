@@ -36,3 +36,6 @@ turbo/.turbo/
 *.tmp
 *.temp
 .cache/
+
+# Local Git worktrees
+.worktrees/
