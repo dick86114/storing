@@ -56,6 +56,10 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
     router.push(APP_NAV_ITEMS[key].href, { scroll: false });
   };
 
+  // When the current page lives in the More menu, surface its label/icon on the trigger.
+  const secondaryActiveKey = isSecondaryNavKey(activeKey) ? activeKey : null;
+  const SecondaryActiveIcon = secondaryActiveKey ? NAV_ICONS[secondaryActiveKey] : null;
+
   const handleMenuBlur = () => {
     window.setTimeout(() => {
       if (!menuWrapRef.current?.contains(document.activeElement)) {
@@ -183,15 +187,24 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
           {isAuthenticated && (
             <div className="nav-more-wrap" ref={navMoreWrapRef}>
               <button
-                className={`top-tab-button nav-more-trigger${isSecondaryNavKey(activeKey) ? ' active' : ''}`}
+                className={`top-tab-button nav-more-trigger${secondaryActiveKey ? ' active' : ''}`}
                 type="button"
-                aria-label="更多导航"
+                aria-label={secondaryActiveKey ? `更多导航（当前：${APP_NAV_ITEMS[secondaryActiveKey].label}）` : '更多导航'}
                 aria-haspopup="menu"
                 aria-expanded={navMoreOpen}
                 onClick={() => setNavMoreOpen((open) => !open)}
               >
-                <MoreOutlined className="top-tab-icon" />
-                <span>更多</span>
+                {SecondaryActiveIcon && secondaryActiveKey ? (
+                  <>
+                    <SecondaryActiveIcon className="top-tab-icon" />
+                    <span>{APP_NAV_ITEMS[secondaryActiveKey].label}</span>
+                  </>
+                ) : (
+                  <>
+                    <MoreOutlined className="top-tab-icon" />
+                    <span>更多</span>
+                  </>
+                )}
                 <DownOutlined className="nav-more-chevron" />
               </button>
               {navMoreOpen && (

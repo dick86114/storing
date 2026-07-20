@@ -119,8 +119,9 @@ async function fetchJSON<T>(path: string, init?: ApiRequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    // 401 或 403 时清除 token
-    if (res.status === 401 || res.status === 403) {
+    // Only an authentication failure invalidates the saved session. A 403 can
+    // be a normal authorization or service response and must not force logout.
+    if (res.status === 401) {
       localStorage.removeItem('token');
     }
     throw new Error(body?.error?.message || `Request failed: ${res.status}`);

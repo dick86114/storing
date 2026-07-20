@@ -37,10 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const token = localStorage.getItem('token');
     if (token) {
-      const bootTimeout = window.setTimeout(() => {
-        localStorage.removeItem('token');
-        finishLoading();
-      }, AUTH_BOOT_TIMEOUT_MS);
+      // A slow API must not invalidate an otherwise valid local session.
+      const bootTimeout = window.setTimeout(finishLoading, AUTH_BOOT_TIMEOUT_MS);
 
       api.verifyToken()
         .then((data) => {
@@ -51,9 +49,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             localStorage.removeItem('token');
           }
         })
-        .catch(() => {
-          localStorage.removeItem('token');
-        })
+        // fetchJSON clears the token for an actual 401. Keep it for transient
+        // network, timeout, and overloaded-server failures so the user is not logged out.
+        .catch(() => undefined)
         .finally(() => {
           window.clearTimeout(bootTimeout);
           finishLoading();

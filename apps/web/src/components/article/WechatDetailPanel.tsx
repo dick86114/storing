@@ -2332,8 +2332,8 @@ function DetailContent({
     try {
       await task();
     } catch (error) {
-      console.error(error);
-      showToast(failureMessage);
+      const message = error instanceof Error && error.message ? error.message : failureMessage;
+      showToast(message);
     } finally {
       setPendingAction(null);
     }
@@ -2476,7 +2476,9 @@ function DetailContent({
           borderBottom: '0.5px solid var(--divider)',
           position: 'sticky',
           top: 0,
-          zIndex: 10,
+          // The footer is a sticky layer at z-index 40. Raise the header only while
+          // its dropdown is open so the menu can extend over that action bar.
+          zIndex: moreOpen ? 60 : 10,
         }}
       >
         <button className="detail-panel-close-btn" onClick={onClose} type="button" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer' }}>

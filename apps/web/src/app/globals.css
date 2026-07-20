@@ -1035,7 +1035,7 @@ h4 {
   background: var(--glass);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  z-index: 10;
+  z-index: 50;
 }
 
 .detail-panel-close-btn {
@@ -17672,6 +17672,26 @@ body.detail-panel-open .detail-panel.wechat-detail-panel .detail-panel-footer {
   text-align: center;
 }
 
+/* The More dropdown follows the light nav surface instead of the dark app menu. */
+.nav-more-menu.app-menu {
+  background: color-mix(in oklch, var(--surface) 96%, transparent) !important;
+  border-color: var(--border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.nav-more-menu .nav-more-menu-item {
+  color: var(--text) !important;
+}
+
+.nav-more-menu .nav-more-menu-copy strong {
+  color: var(--text);
+}
+
+.nav-more-menu .nav-more-menu-copy small {
+  color: var(--text-muted);
+}
+
 .desktop-collect-trigger {
   display: inline-grid;
   place-items: center;
@@ -17779,59 +17799,53 @@ body.detail-panel-open .detail-panel.wechat-detail-panel .detail-panel-footer {
   z-index: 1450;
   display: flex;
   align-items: flex-end;
-  padding: 16px 12px calc(78px + env(safe-area-inset-bottom, 0px));
   background: color-mix(in oklch, var(--fg) 34%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  animation: mobile-more-overlay-in 0.22s ease;
 }
 
 .mobile-more-sheet {
   width: 100%;
-  padding: 18px;
-  border: 1px solid var(--glass-border);
-  border-radius: 22px;
-  background: var(--surface);
+  padding: 10px 18px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-radius: 22px 22px 0 0;
+  background: color-mix(in oklch, var(--surface) 92%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   box-shadow: var(--shadow-lg);
+  animation: mobile-more-sheet-in 0.3s cubic-bezier(0.32, 0.72, 0.24, 1);
 }
 
-.mobile-more-sheet-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
+@keyframes mobile-more-overlay-in {
+  from {
+    opacity: 0;
+  }
 }
 
-.mobile-more-sheet-head > div {
-  display: grid;
-  gap: 2px;
+@keyframes mobile-more-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
 }
 
-.mobile-more-sheet-eyebrow {
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.mobile-more-sheet-head strong {
-  color: var(--fg-title);
-  font-size: 18px;
-}
-
-.mobile-more-sheet-head > button {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border: 0;
+.mobile-more-sheet-handle {
+  display: block;
+  width: 38px;
+  height: 4px;
+  margin: 2px auto 10px;
   border-radius: 999px;
-  color: var(--text-secondary);
-  background: var(--tag-bg);
-  cursor: pointer;
+  background: color-mix(in oklch, var(--text-muted) 40%, transparent);
 }
 
-.mobile-more-sheet-grid {
+.mobile-more-sheet-title {
+  margin: 0 0 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.mobile-more-sheet-list {
   display: grid;
-  gap: 8px;
 }
 
 .mobile-more-option {
@@ -17840,18 +17854,20 @@ body.detail-panel-open .detail-panel.wechat-detail-panel .detail-panel-footer {
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  padding: 13px 6px;
+  border: 0;
   color: var(--text);
-  background: color-mix(in oklch, var(--surface-alt) 58%, transparent);
+  background: transparent;
   text-align: left;
   cursor: pointer;
 }
 
-.mobile-more-option.active {
-  border-color: color-mix(in oklch, var(--accent) 42%, var(--border));
-  background: var(--accent-soft);
+.mobile-more-option + .mobile-more-option {
+  border-top: 0.5px solid var(--divider);
+}
+
+.mobile-more-option.active .mobile-more-option-copy strong {
+  color: var(--accent);
 }
 
 .mobile-more-option-icon {
@@ -17892,6 +17908,19 @@ body.detail-panel-open .detail-panel.wechat-detail-panel .detail-panel-footer {
   background: var(--tag-bg);
   font-size: 11px;
   text-align: center;
+}
+
+.mobile-more-sheet-cancel {
+  width: 100%;
+  margin-top: 12px;
+  padding: 13px;
+  border: 0;
+  border-radius: 14px;
+  color: var(--text-secondary);
+  background: var(--tag-bg);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
 }
 
 /* Navigation has three desktop densities before it switches to the mobile shell at 760px. */

@@ -12,9 +12,9 @@ import { collectRoutes } from './routes/collect.js';
 import { mcpRoutes } from './routes/mcp.js';
 import { initWikiSchema } from './services/wiki.service.js';
 import { startWikiWorker } from './services/wiki.worker.js';
-import { initCollectSchema } from './services/collect.service.js';
+import { initCollectSchema, resumePendingWebCollectJobs } from './services/collect.service.js';
 import { initMcpSchema } from './services/mcp-auth.service.js';
-import { ensurePrivateLibraryPublicationSchema, ensureWikiUserScopeSchema, initArticleMetadataUserScope } from './services/metadata-scope.service.js';
+import { ensurePrivateLibraryPublicationSchema, ensureWikiUserScopeSchema, initArticleMetadataUserScope, repairCollectedArticleMetadataOwnership } from './services/metadata-scope.service.js';
 import { ensureConfiguredAdmin, initUserManagementSchema } from './services/admin-bootstrap.service.js';
 
 const app = new Hono();
@@ -45,6 +45,8 @@ async function startServer() {
   await ensurePrivateLibraryPublicationSchema().catch((err) => console.error('初始化文章发布字段失败:', err));
   await ensureWikiUserScopeSchema().catch((err) => console.error('初始化 Wiki 用户作用域失败:', err));
   await initCollectSchema().catch((err) => console.error('初始化采集表失败:', err));
+  await repairCollectedArticleMetadataOwnership().catch((err) => console.error('修复采集文章归属失败:', err));
+  await resumePendingWebCollectJobs().catch((err) => console.error('恢复网页采集队列失败:', err));
   await initWikiSchema().catch((err) => console.error('初始化 Wiki 表失败:', err));
   startWikiWorker();
   serve({ fetch: app.fetch, port: 1052 }, (info) => {

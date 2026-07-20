@@ -221,48 +221,31 @@ export async function runSingleFileWithStrategy(
 }
 
 export async function runSingleFile(url: string, variant: HtmlVariant): Promise<{ html: string; strategy: CollectCaptureStrategy }> {
-  const command = getSingleFileCommand();
-  const timeoutMs = Number(process.env.SINGLEFILE_TIMEOUT_MS || 180000);
-  const maxBuffer = Number(process.env.SINGLEFILE_MAX_BUFFER || 80 * 1024 * 1024);
-  const serviceUrl = getSingleFileServiceUrl();
+  const strategies = getSingleFileCandidateStrategies();
+  if (strategies.length === 0) {
+    throw new Error('当前运行环境没有可用的 SingleFile 抓取策略');
+  }
 
-  const runLocalCommand = async () => {
-    return { html: await runSingleFileWithLocalCommand(url, timeoutMs, maxBuffer, variant), strategy: 'singlefile_command' as const };
-  };
-
-  const runLocalFallback = async () => {
+  const failures: string[] = [];
+  for (const strategy of getSingleFileCandidateStrategies()) {
     try {
-      return await runLocalCommand();
-    } catch (e) {
-      const error = e as NodeJS.ErrnoException;
-      if (command === 'single-file' && error.code === 'ENOENT') {
-        try {
-          return { html: await runSingleFileWithDocker(url, timeoutMs, maxBuffer, variant), strategy: 'singlefile_docker' as const };
-        } catch {
-          return { html: await runSingleFileWithNpx(url, timeoutMs, variant), strategy: 'singlefile_npx' as const };
-        }
+      const result = await runSingleFileWithStrategy(url, variant, strategy);
+      const validation = validateCapturedHtml(result.html, url);
+      if (!validation.ok) {
+        failures.push(`${strategy}: ${validation.reason}`);
+        continue;
       }
-      throw e;
-    }
-  };
-
-  if (serviceUrl) {
-    try {
-      return { html: await runSingleFileWithService(url, timeoutMs, variant), strategy: 'singlefile_sidecar' as const };
-    } catch (serviceError) {
-      if (process.env.SINGLEFILE_SERVICE_FALLBACK_LOCAL === 'false') throw serviceError;
-      const serviceMessage = serviceError instanceof Error ? serviceError.message : String(serviceError);
-      console.warn(`SingleFile service failed, fallback to local command: ${serviceMessage}`);
-      try {
-        return await runLocalFallback();
-      } catch (fallbackError) {
-        const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
-        throw new Error(`SingleFile 服务失败：${serviceMessage}；本地兜底也失败：${fallbackMessage}`);
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push(`${strategy}: ${message}`);
+      if (strategy === 'singlefile_sidecar' && process.env.SINGLEFILE_SERVICE_FALLBACK_LOCAL === 'false') {
+        break;
       }
     }
   }
 
-  return runLocalFallback();
+  throw new Error(`所有 SingleFile 抓取策略均失败：${failures.join('；')}`);
 }
 
 function extractTitle(doc: Document, fallbackUrl: string) {

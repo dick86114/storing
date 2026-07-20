@@ -1,0 +1,13 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e2]
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - img "乾坤戒" [ref=e5]
+      - generic [ref=e6]: 今天藏什么
+    - generic [ref=e8]:
+      - button [ref=e9] [cursor=pointer]:
+        - img "search" [ref=e10]
+      - button [ref=e14] [cursor=pointer]:
+        - img "plus-circle" [ref=e15]
+  - main [ref=e19]:
+    - generic [ref=e20]: 加载中...

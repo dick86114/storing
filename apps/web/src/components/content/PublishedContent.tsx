@@ -24,12 +24,6 @@ export function PublishedContent() {
 
   return (
     <section style={{ padding: '20px', maxWidth: 1320, margin: '0 auto' }}>
-      <div style={{ marginBottom: 18 }}>
-        <h1 style={{ margin: 0, fontSize: 24 }}>{isAuthenticated ? '已发布' : '公开发布'}</h1>
-        <p style={{ margin: '7px 0 0', color: 'var(--text-muted)' }}>
-          {isAuthenticated ? '管理你已公开的归档文章。' : '浏览 Storing 中已公开发布的文章。'}
-        </p>
-      </div>
       <ArticleList
         articles={articles}
         hasMore={false}

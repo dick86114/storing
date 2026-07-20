@@ -702,6 +702,16 @@ articlesRoutes.post('/articles/:id/refetch', requireAuth, async (c) => {
     getArticleContent(id, 'markdown', 'desktop', userId),
     processCoverImage(id, userId),
   ]);
+  const hasCapturedContent = Boolean(contentHtml || contentHtmlMobile || contentMd);
+
+  if (!hasCapturedContent) {
+    return c.json({
+      error: {
+        code: 'BODY_CAPTURE_FAILED',
+        message: '正文抓取失败：所有可用抓取方式均未返回有效正文',
+      },
+    }, 422);
+  }
 
   return c.json({
     articleId: id,
