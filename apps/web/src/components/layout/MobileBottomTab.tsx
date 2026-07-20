@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers/AuthContext';
-import { AppstoreOutlined, HeartOutlined, FolderOutlined, BookOutlined, ExportOutlined, MoreOutlined, CloseOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, HeartOutlined, FolderOutlined, BookOutlined, ExportOutlined, MoreOutlined } from '@ant-design/icons';
 import { APP_NAV_ITEMS, PRIMARY_NAV_KEYS, SECONDARY_NAV_KEYS, isSecondaryNavKey, type AppNavKey } from '@/lib/navigation';
 
 const NAV_ICONS = {
@@ -47,16 +47,9 @@ export function MobileBottomTab({ counts, activeKey, onNavigate }: MobileBottomT
       {moreOpen && (
         <div className="mobile-more-overlay" onClick={() => setMoreOpen(false)}>
           <section className="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="更多功能" onClick={(event) => event.stopPropagation()}>
-            <div className="mobile-more-sheet-head">
-              <div>
-                <span className="mobile-more-sheet-eyebrow">更多功能</span>
-                <strong>发布与知识库</strong>
-              </div>
-              <button type="button" aria-label="关闭更多功能" onClick={() => setMoreOpen(false)}>
-                <CloseOutlined />
-              </button>
-            </div>
-            <div className="mobile-more-sheet-grid">
+            <span className="mobile-more-sheet-handle" aria-hidden="true" />
+            <p className="mobile-more-sheet-title">更多功能</p>
+            <div className="mobile-more-sheet-list">
               {SECONDARY_NAV_KEYS.map((key) => {
                 const item = APP_NAV_ITEMS[key];
                 const Icon = NAV_ICONS[key];
@@ -74,6 +67,9 @@ export function MobileBottomTab({ counts, activeKey, onNavigate }: MobileBottomT
                 );
               })}
             </div>
+            <button className="mobile-more-sheet-cancel" type="button" onClick={() => setMoreOpen(false)}>
+              取消
+            </button>
           </section>
         </div>
       )}

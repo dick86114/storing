@@ -103,6 +103,102 @@ export async function initArticleMetadataUserScope() {
 }
 
 /**
+ * Repairs records written by pre-user-scope deployments. Those builds stored a
+ * collected article's metadata under admin even when the collect job belonged
+ * to another user. Copy the per-user state first, then remove the admin row
+ * only when no admin-owned collection references that article.
+ */
+export async function repairCollectedArticleMetadataOwnership() {
+  const adminUserId = await getAdminUserId();
+
+  await db.transaction(async (tx) => {
+    await tx.execute(sql.raw(`SELECT pg_advisory_xact_lock(734291106)`));
+    await tx.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS storing_schema_migrations (
+        key TEXT PRIMARY KEY,
+        applied_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `));
+    const marker = await tx.execute(sql.raw(`
+      INSERT INTO storing_schema_migrations (key)
+      VALUES ('collect_metadata_owner_repair_v1')
+      ON CONFLICT (key) DO NOTHING
+      RETURNING key
+    `));
+    if (marker.rows.length === 0) return;
+
+    await tx.execute(sql`
+      INSERT INTO article_metadata (
+        article_id, user_id, source_type, client_id,
+        is_favorited, is_archived, ai_summary, ai_category, ai_tags,
+        content_md, content_html, content_html_mobile, cover_image,
+        favorited_at, archived_at, is_published, published_at, public_id,
+        created_at, updated_at
+      )
+      SELECT
+        admin_meta.article_id,
+        owner_job.user_id,
+        COALESCE(NULLIF(owner_job.request_source, ''), 'web'),
+        owner_job.client_id,
+        admin_meta.is_favorited,
+        admin_meta.is_archived,
+        admin_meta.ai_summary,
+        admin_meta.ai_category,
+        admin_meta.ai_tags,
+        admin_meta.content_md,
+        admin_meta.content_html,
+        admin_meta.content_html_mobile,
+        admin_meta.cover_image,
+        admin_meta.favorited_at,
+        admin_meta.archived_at,
+        FALSE,
+        NULL,
+        NULL,
+        admin_meta.created_at,
+        admin_meta.updated_at
+      FROM collect_jobs owner_job
+      INNER JOIN article_metadata admin_meta
+        ON admin_meta.article_id = owner_job.article_id
+       AND admin_meta.user_id = ${adminUserId}
+      LEFT JOIN article_metadata owner_meta
+        ON owner_meta.article_id = owner_job.article_id
+       AND owner_meta.user_id = owner_job.user_id
+      WHERE owner_job.user_id IS NOT NULL
+        AND owner_job.user_id <> ${adminUserId}
+        AND owner_job.article_id IS NOT NULL
+        AND owner_job.save_to_inbox = TRUE
+        AND owner_meta.id IS NULL
+      ON CONFLICT (user_id, article_id) DO NOTHING
+    `);
+
+    await tx.execute(sql`
+      DELETE FROM article_metadata admin_meta
+      USING collect_jobs owner_job
+      WHERE admin_meta.article_id = owner_job.article_id
+        AND admin_meta.user_id = ${adminUserId}
+        AND owner_job.user_id IS NOT NULL
+        AND owner_job.user_id <> ${adminUserId}
+        AND owner_job.article_id IS NOT NULL
+        AND owner_job.save_to_inbox = TRUE
+        AND COALESCE(admin_meta.is_published, FALSE) = FALSE
+        AND EXISTS (
+          SELECT 1
+          FROM article_metadata owner_meta
+          WHERE owner_meta.article_id = owner_job.article_id
+            AND owner_meta.user_id = owner_job.user_id
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM collect_jobs admin_job
+          WHERE admin_job.article_id = owner_job.article_id
+            AND admin_job.user_id = ${adminUserId}
+            AND admin_job.save_to_inbox = TRUE
+        )
+    `);
+  });
+}
+
+/**
  * Adds publication fields before any route queries them.  The guard is
  * intentionally separate from the initial user-scope migration so an
  * already-upgraded installation can safely run it at every API startup.

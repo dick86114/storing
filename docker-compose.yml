@@ -2,6 +2,9 @@ version: '3.8'
 
 services:
   storing:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: dick86114/storing:latest
     container_name: storing
     restart: unless-stopped

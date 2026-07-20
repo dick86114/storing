@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { getCurrentUser, requireAuth } from '../middleware/auth.js';
-import { clearFinishedCollectJobs, createCollectJob, deleteCollectJob, getCollectJob, listCollectJobs, processCollectJob } from '../services/collect.service.js';
+import { clearFinishedCollectJobs, createCollectJob, deleteCollectJob, getCollectJob, listCollectJobs, retryCollectJob } from '../services/collect.service.js';
 
 export const collectRoutes = new Hono();
 
@@ -137,7 +137,7 @@ collectRoutes.post('/collect/jobs/:id/retry', requireAuth, async (c) => {
   if (!job) return c.json({ error: { code: 'NOT_FOUND', message: '任务不存在' } }, 404);
   if (job.status === 'running') return c.json({ job: serializeJob(job) });
 
-  processCollectJob(id).catch((e) => console.error(`Collect retry ${id} failed:`, e.message));
+  await retryCollectJob(id);
   return c.json({ job: serializeJob({ ...job, status: 'pending', stage: 'queued', error: null }) });
 });
 

@@ -1,0 +1,79 @@
+- generic [ref=e1]:
+  - alert [ref=e2]
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - img "乾坤戒" [ref=e5]
+      - generic [ref=e6]: 今天藏什么
+    - generic [ref=e8]:
+      - button [ref=e9] [cursor=pointer]:
+        - img "search" [ref=e10]
+      - button [ref=e14] [cursor=pointer]:
+        - img "plus-circle" [ref=e15]
+  - main [ref=e19]:
+    - generic [ref=e21]:
+      - generic [ref=e23]:
+        - generic [ref=e25] [cursor=pointer]:
+          - generic [ref=e26]:
+            - generic "【已修复】微软承认：Windows 11 这个 Bug，最高能吃掉 500GB 硬盘空间 - 小众软件" [ref=e28]
+            - generic [ref=e29]:
+              - generic [ref=e30]: Windows 11 Bug
+              - generic [ref=e31]: 硬盘空间占用
+              - generic [ref=e32]: CapabilityAccessManager
+          - generic [ref=e34]:
+            - generic "网页来源：小众软件" [ref=e35]: 小众软件
+            - generic "发布时间" [ref=e40]: 2 天前
+        - generic [ref=e47] [cursor=pointer]:
+          - generic [ref=e48]:
+            - generic "PPT Skill升级实践：大模型做不好 PPT，不是因为不会排版，而是因为缺少“判断”" [ref=e50]
+            - generic [ref=e51]:
+              - generic [ref=e52]: PPT制作
+              - generic [ref=e53]: 判断力缺失
+              - generic [ref=e54]: 内容分析
+          - generic [ref=e56]:
+            - generic "微信来源：夜猫子弦月" [ref=e57]: 夜猫子弦月
+            - generic "发布时间" [ref=e62]: 7月13日
+        - generic [ref=e69] [cursor=pointer]:
+          - generic [ref=e70]:
+            - generic "终于有一个蒸馏 Apple 风格的 Skill 了，GitHub 上有 10.5K 人点赞。" [ref=e72]
+            - generic [ref=e73]:
+              - generic [ref=e74]: Apple设计风格
+              - generic [ref=e75]: 开源项目
+              - generic [ref=e76]: 流体交互
+          - generic [ref=e78]:
+            - generic "微信来源：逛逛GitHub" [ref=e79]: 逛逛GitHub
+            - generic "发布时间" [ref=e84]: 7月16日
+        - generic [ref=e91] [cursor=pointer]:
+          - generic [ref=e92]:
+            - generic "Docker 镜像不求人:从 0 到 1 在自己家里搭一个 13GB 的私有仓库" [ref=e94]
+            - generic [ref=e95]:
+              - generic [ref=e96]: Docker镜像
+              - generic [ref=e97]: 私有仓库
+              - generic [ref=e98]: 自建教程
+          - generic [ref=e100]:
+            - generic "微信来源：ClawLoader" [ref=e101]: ClawLoader
+            - generic "发布时间" [ref=e106]: 6月26日
+        - generic [ref=e113] [cursor=pointer]:
+          - generic [ref=e114]:
+            - generic "微软发布 Windows 10 KB5099539 安全更新，下载达 1067MB - 小众软件" [ref=e116]
+            - generic [ref=e117]:
+              - generic [ref=e118]: Windows 10
+              - generic [ref=e119]: 安全更新
+              - generic [ref=e120]: KB5099539
+          - generic [ref=e122]:
+            - generic "网页来源：小众软件" [ref=e123]: 小众软件
+            - generic "发布时间" [ref=e128]: 7月15日
+      - generic [ref=e22]: 没有更多了
+  - generic [ref=e202]:
+    - button [ref=e203] [cursor=pointer]
+    - heading "管理员登录" [level=2] [ref=e206]
+    - generic [ref=e207]:
+      - generic [ref=e208]:
+        - generic [ref=e209]: 用户名
+        - textbox "admin" [ref=e210]
+      - generic [ref=e211]:
+        - generic [ref=e212]: 密码
+        - generic [ref=e213]:
+          - textbox "请输入密码" [ref=e214]: admin123
+          - button [ref=e215] [cursor=pointer]
+      - paragraph [ref=e219]: 请输入用户名和密码
+      - button "登录" [active] [ref=e218] [cursor=pointer]

@@ -1,6 +1,6 @@
 import { isIP } from 'net';
 import { JSDOM } from 'jsdom';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { articleMetadata, articles, collectJobs } from '../db/schema.js';
 import { buildArticleSummaryResult, generateSummaryAndTags } from './ai.service.js';
@@ -52,6 +52,12 @@ type CollectJobAccessFilter = {
   clientId?: number;
   requestSource?: 'web' | 'mcp' | 'api' | 'system';
 };
+
+// Browser captures can launch Chromium, image processing, AI, and Wiki work.
+// Keep them serialized by default so one user cannot make the API unavailable for everyone.
+const WEB_COLLECT_CONCURRENCY = Math.max(1, Number(process.env.WEB_COLLECT_CONCURRENCY || 1));
+const WEB_COLLECT_STALE_MS = Math.max(60_000, Number(process.env.WEB_COLLECT_STALE_MS || 5 * 60_000));
+let activeWebCollectWorkers = 0;
 
 function isWechatUrl(url: string) {
   try {
@@ -361,10 +367,17 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
   }
 
   if (options.saveToInbox) {
-    await Promise.allSettled([
+    const contentResults = await Promise.allSettled([
       getArticleContent(articleId, 'html', 'desktop', options.userId ?? undefined),
       getArticleContent(articleId, 'markdown', 'desktop', options.userId ?? undefined),
     ]);
+    const hasCapturedContent = contentResults.some(
+      (result) => result.status === 'fulfilled' && typeof result.value === 'string' && result.value.trim().length > 0
+    );
+
+    if (!hasCapturedContent) {
+      throw new Error('微信公众号正文抓取失败：所有可用抓取方式均未返回有效正文');
+    }
   }
   if (options.saveToInbox) {
     await updateCollectJob(jobId, {
@@ -744,6 +757,7 @@ export async function createCollectJob(rawUrl: string, options: CreateCollectJob
   }
 
   const method: CollectMethod = isWechatUrl(normalizedUrl) ? 'reader' : 'singlefile';
+  const requestSource = options.requestSource ?? 'web';
   const [job] = await db
     .insert(collectJobs)
     .values({
@@ -751,7 +765,7 @@ export async function createCollectJob(rawUrl: string, options: CreateCollectJob
       normalizedUrl,
       userId: options.userId ?? null,
       clientId: options.clientId ?? null,
-      requestSource: options.requestSource ?? 'web',
+      requestSource,
       saveToInbox: options.saveToInbox ?? true,
       status: 'pending',
       stage: 'queued',
@@ -760,8 +774,58 @@ export async function createCollectJob(rawUrl: string, options: CreateCollectJob
     })
     .returning();
 
-  processCollectJob(job.id).catch((e) => console.error(`Collect job ${job.id} failed:`, e.message));
+  if (requestSource === 'web') {
+    scheduleWebCollectJobs();
+  } else {
+    processCollectJob(job.id).catch((e) => console.error(`Collect job ${job.id} failed:`, e.message));
+  }
   return job;
+}
+
+async function runNextWebCollectJob() {
+  const [job] = await db
+    .select()
+    .from(collectJobs)
+    .where(and(eq(collectJobs.requestSource, 'web'), eq(collectJobs.status, 'pending')))
+    .orderBy(asc(collectJobs.createdAt), asc(collectJobs.id))
+    .limit(1);
+
+  if (!job) return false;
+  await processCollectJob(job.id);
+  return true;
+}
+
+export function scheduleWebCollectJobs() {
+  while (activeWebCollectWorkers < WEB_COLLECT_CONCURRENCY) {
+    activeWebCollectWorkers += 1;
+    void runNextWebCollectJob()
+      .catch((error) => console.error('Web collect worker failed:', error instanceof Error ? error.message : error))
+      .then((processed) => {
+        activeWebCollectWorkers -= 1;
+        if (processed) scheduleWebCollectJobs();
+      });
+  }
+}
+
+export async function resumePendingWebCollectJobs() {
+  const staleBefore = new Date(Date.now() - WEB_COLLECT_STALE_MS);
+  await db
+    .update(collectJobs)
+    .set({ status: 'pending', stage: 'queued', startedAt: null, updatedAt: new Date() })
+    .where(and(
+      eq(collectJobs.requestSource, 'web'),
+      eq(collectJobs.status, 'running'),
+      lt(collectJobs.updatedAt, staleBefore),
+    ));
+  scheduleWebCollectJobs();
+}
+
+export async function retryCollectJob(jobId: number) {
+  await db
+    .update(collectJobs)
+    .set({ status: 'pending', stage: 'queued', error: null, startedAt: null, finishedAt: null, updatedAt: new Date() })
+    .where(eq(collectJobs.id, jobId));
+  scheduleWebCollectJobs();
 }
 
 export async function processCollectJob(jobId: number) {
