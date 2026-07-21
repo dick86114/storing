@@ -107,6 +107,7 @@ export const articleMetadata = pgTable('article_metadata', {
   favoritedAt: timestamp('favorited_at'),
   archivedAt: timestamp('archived_at'),
   isPublished: boolean('is_published').default(false),
+  isDeleted: boolean('is_deleted').default(false),
   publishedAt: timestamp('published_at'),
   publicId: text('public_id').unique(),
   createdAt: timestamp('created_at').defaultNow(),

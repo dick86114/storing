@@ -32,13 +32,14 @@ function metadataWhereCondition(articleId: number, userId: number) {
 }
 
 function getViewCondition(view: string) {
+  const notDeleted = eq(articleMetadata.isDeleted, false);
   if (view === 'inbox') {
-    return and(eq(articleMetadata.isArchived, false), eq(articleMetadata.isFavorited, false));
+    return and(notDeleted, eq(articleMetadata.isArchived, false), eq(articleMetadata.isFavorited, false));
   }
-  if (view === 'favorites') return eq(articleMetadata.isFavorited, true);
-  if (view === 'archive') return eq(articleMetadata.isArchived, true);
-  if (view === 'published') return eq(articleMetadata.isPublished, true);
-  return and(eq(articleMetadata.isArchived, false), eq(articleMetadata.isFavorited, false));
+  if (view === 'favorites') return and(notDeleted, eq(articleMetadata.isFavorited, true));
+  if (view === 'archive') return and(notDeleted, eq(articleMetadata.isArchived, true));
+  if (view === 'published') return and(notDeleted, eq(articleMetadata.isPublished, true));
+  return and(notDeleted, eq(articleMetadata.isArchived, false), eq(articleMetadata.isFavorited, false));
 }
 
 let cachedHasActionTimestamps: boolean | null = null;
@@ -268,7 +269,7 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
     }
 
     const userId = getCurrentUser(c).id as number;
-    const whereCondition = eq(articleMetadata.isPublished, true);
+    const whereCondition = and(eq(articleMetadata.isDeleted, false), eq(articleMetadata.isPublished, true));
     const [{ total }] = await db
       .select({ total: count() })
       .from(articles)
@@ -325,7 +326,7 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
   }
 
   if (view === 'published') {
-    const whereCondition = and(eq(articleMetadata.isPublished, true), sql`${articleMetadata.publicId} IS NOT NULL`);
+    const whereCondition = and(eq(articleMetadata.isDeleted, false), eq(articleMetadata.isPublished, true), sql`${articleMetadata.publicId} IS NOT NULL`);
     const [{ total }] = await db
       .select({ total: count() })
       .from(articleMetadata)
@@ -766,9 +767,10 @@ articlesRoutes.delete('/articles/:id', requireAuth, async (c) => {
 
   const userId = getCurrentUser(c).id;
   await removeArticleFromWiki(id, userId).catch((e) => console.error('Wiki remove failed:', e.message));
-  await db.delete(articleMetadata).where(metadataWhereCondition(id, userId));
+  // 软删除：标记 is_deleted 而非删行，避免启动时 initArticleMetadataUserScope 重建
+  await db.update(articleMetadata).set({ isDeleted: true, updatedAt: new Date() }).where(metadataWhereCondition(id, userId));
 
-  return c.json({ articleId: id, deleted: true, scope: 'metadata', visibleInInbox: true });
+  return c.json({ articleId: id, deleted: true, scope: 'metadata', visibleInInbox: false });
 });
 
 /**
@@ -785,13 +787,18 @@ articlesRoutes.delete('/articles/:id/permanent', requireAuth, async (c) => {
 
   const userId = getCurrentUser(c).id;
   await removeArticleFromWiki(id, userId).catch((e) => console.error('Wiki remove failed:', e.message));
-  await db.delete(articleMetadata).where(metadataWhereCondition(id, userId));
+  // 先查除当前用户外的其他用户是否还引用这篇文章
   const [{ remaining }] = await db
     .select({ remaining: count() })
     .from(articleMetadata)
-    .where(eq(articleMetadata.articleId, id));
+    .where(and(eq(articleMetadata.articleId, id), sql`${articleMetadata.userId} != ${userId}`));
   if (Number(remaining) === 0) {
+    // 无其他用户引用，彻底删除 metadata + 原始文章
+    await db.delete(articleMetadata).where(eq(articleMetadata.articleId, id));
     await db.delete(articles).where(eq(articles.id, id));
+  } else {
+    // 有其他用户引用，仅软删除当前用户，保留原始文章和其他用户数据
+    await db.update(articleMetadata).set({ isDeleted: true, updatedAt: new Date() }).where(metadataWhereCondition(id, userId));
   }
 
   return c.json({ articleId: id, deleted: true, scope: Number(remaining) === 0 ? 'permanent' : 'metadata' });
@@ -806,7 +813,7 @@ articlesRoutes.get('/counts', optionalAuth, async (c) => {
     const result = await db.execute(sql`
       SELECT COUNT(*) as published
       FROM article_metadata m
-      WHERE m.is_published = true
+      WHERE m.is_published = true AND m.is_deleted = false
     `);
     return c.json({ inbox: 0, favorites: 0, archive: 0, published: Number(result.rows[0]?.published || 0), wiki: 0 });
   }
@@ -817,16 +824,20 @@ articlesRoutes.get('/counts', optionalAuth, async (c) => {
     SELECT
       (SELECT COUNT(*) FROM article_metadata m
        WHERE m.user_id = ${userId}
+         AND m.is_deleted = false
          AND m.is_archived = false
          AND m.is_favorited = false) as inbox,
       (SELECT COUNT(*) FROM article_metadata m
        WHERE m.user_id = ${userId}
+         AND m.is_deleted = false
          AND m.is_favorited = true) as favorites,
       (SELECT COUNT(*) FROM article_metadata m
        WHERE m.user_id = ${userId}
+         AND m.is_deleted = false
          AND m.is_archived = true) as archive,
       (SELECT COUNT(*) FROM article_metadata m
        WHERE m.user_id = ${userId}
+         AND m.is_deleted = false
          AND m.is_published = true) as published,
       (SELECT COUNT(*) FROM wiki_pages WHERE status = 'active') as wiki
   `);
