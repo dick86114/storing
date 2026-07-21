@@ -39,3 +39,11 @@ turbo/.turbo/
 
 # Local Git worktrees
 .worktrees/
+
+# Local tool artifacts (playwright/superpowers/claude/pnpm-store/cache outputs)
+.pnpm-store/
+.playwright-cli/
+.superpowers/
+.claude/
+output/
+tmp/
