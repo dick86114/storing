@@ -282,13 +282,16 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
             />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sourceText}</span>
           </span>
-          <span
-            title={displayTimeLabel}
-            aria-label={displayTimeLabel}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
-          >
-            <FieldTimeOutlined aria-hidden="true" style={{ fontSize: '12px' }} />
-            <DateText dateStr={displayTime} />
+          <span className="article-card-footer-meta">
+            {article.isPublished && <span className="article-card-published-mark" title="已发布" aria-label="已发布"><ExportOutlined aria-hidden="true" /></span>}
+            <span
+              title={displayTimeLabel}
+              aria-label={displayTimeLabel}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+            >
+              <FieldTimeOutlined aria-hidden="true" style={{ fontSize: '12px' }} />
+              <DateText dateStr={displayTime} />
+            </span>
           </span>
         </div>
       </div>

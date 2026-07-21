@@ -23,7 +23,7 @@ export function PublishedContent() {
   };
 
   return (
-    <section style={{ padding: '20px', maxWidth: 1320, margin: '0 auto' }}>
+    <section className="published-content" style={{ padding: '20px', maxWidth: 1320, margin: '0 auto' }}>
       <ArticleList
         articles={articles}
         hasMore={false}

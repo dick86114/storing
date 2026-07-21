@@ -2750,6 +2750,26 @@ body {
   font-family: var(--font-meta);
 }
 
+.article-card-footer-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+}
+
+.article-card-published-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.article-card-published-mark .anticon {
+  font-size: 14px;
+}
+
 .article-card-cover {
   border-radius: var(--radius-sm) !important;
   box-shadow: 0 1px 0 color-mix(in oklch, var(--border) 65%, transparent);
@@ -7274,7 +7294,8 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
   }
 
   [data-color-scheme='magazine'] .desktop-nav-brand {
-    width: 244px;
+    flex: 0 0 220px;
+    width: 220px;
     align-self: stretch;
     padding-right: 18px;
     border-right: 1px solid var(--mag-sidebar-border);
@@ -7302,11 +7323,10 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
   }
 
   [data-color-scheme='magazine'] .desktop-nav-tabs {
-    order: 1;
-    flex: 0 0 auto !important;
-    justify-content: flex-start !important;
-    gap: 20px !important;
-    margin-left: auto;
+    flex: 1 1 auto !important;
+    justify-content: center !important;
+    gap: 28px !important;
+    margin-left: 0 !important;
   }
 
   [data-color-scheme='magazine'] .top-tab-button {
@@ -7349,55 +7369,51 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
   }
 
   [data-color-scheme='magazine'] .desktop-nav-actions {
+    display: flex !important;
     order: 0;
-    display: contents !important;
+    flex: 0 0 auto;
+    gap: 8px !important;
+    margin-left: 20px;
   }
 
+  [data-color-scheme='magazine'] .desktop-collect-trigger,
   [data-color-scheme='magazine'] .desktop-search-trigger {
-    order: 0;
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(440px, 34vw);
-    height: 38px;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 10px;
-    padding: 0 14px !important;
-    margin-left: 0;
-    border: 1px solid var(--mag-sidebar-border) !important;
-    border-radius: 7px;
-    background: oklch(100% 0 0 / 0.07) !important;
-    color: var(--mag-nav-muted);
+    position: static !important;
+    display: inline-grid !important;
+    place-items: center;
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 8px !important;
+    background: transparent !important;
+    color: var(--mag-nav-muted) !important;
+    transform: none !important;
+  }
+
+  [data-color-scheme='magazine'] .desktop-collect-trigger:hover,
+  [data-color-scheme='magazine'] .desktop-search-trigger:hover {
+    color: var(--mag-nav-fg) !important;
+    background: var(--mag-control-bg) !important;
   }
 
   [data-color-scheme='magazine'] .desktop-user-menu-wrap {
-    order: 2;
+    order: 0;
     flex: 0 0 auto;
-    margin-left: 18px;
+    margin-left: 0;
   }
 
-  [data-color-scheme='magazine'] .desktop-search-trigger::after {
-    content: '搜索文章、笔记或标签...';
-    color: var(--mag-nav-muted);
-    font-size: 13px;
-  }
-
+  [data-color-scheme='magazine'] .desktop-search-trigger::after,
   [data-color-scheme='magazine'] .desktop-search-trigger::before {
-    content: '⌘ K';
-    order: 2;
-    margin-left: auto;
-    padding: 2px 6px;
-    border: 1px solid var(--mag-sidebar-border);
-    border-radius: 5px;
-    color: var(--mag-nav-muted);
-    font-size: 11px;
-    line-height: 1.2;
+    content: none !important;
   }
 
-  [data-color-scheme='magazine'] .desktop-search-trigger .anticon {
-    color: var(--mag-nav-muted) !important;
+  [data-color-scheme='magazine'] .desktop-search-trigger .anticon,
+  [data-color-scheme='magazine'] .desktop-collect-trigger .anticon {
+    color: currentColor !important;
   }
 
   [data-color-scheme='magazine'] .desktop-user-trigger {
@@ -11653,6 +11669,22 @@ body:has(.wiki-page-shell) .wiki-ask-floating-trigger {
 
   [data-color-scheme='magazine'] .article-card--featured {
     grid-column: auto !important;
+  }
+
+  /* Published has no source-sidebar wrapper, so keep its cards in the normal reading grid. */
+  [data-color-scheme='magazine'] .published-content .article-stream {
+    display: grid !important;
+    width: 100% !important;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+    column-count: auto !important;
+    column-width: auto !important;
+    column-gap: 14px !important;
+    row-gap: 14px !important;
+  }
+
+  [data-color-scheme='magazine'] .published-content .article-card {
+    display: block !important;
+    margin: 0 !important;
   }
 
   [data-color-scheme='magazine'] .detail-panel {
