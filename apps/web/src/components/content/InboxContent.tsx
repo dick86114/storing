@@ -274,7 +274,9 @@ function InboxContentInner() {
               onLoadMore={handleLoadMore}
               emptyTitle="所有文章都已处理完毕"
               onArticleClick={openArticle}
-              onToggleFavorite={handleToggleFavorite}onArchive={handleArchive}highlightId={highlightId}
+              onToggleFavorite={handleToggleFavorite}
+              onArchive={handleArchive}
+              highlightId={highlightId}
             />
           </>
         )}

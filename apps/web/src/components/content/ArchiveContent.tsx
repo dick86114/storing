@@ -40,6 +40,8 @@ function ArchiveContentInner() {
   const [requestTimedOut, setRequestTimedOut] = useState(false);
   const [sourceSidebarCollapsed, setSourceSidebarCollapsed] = useState(false);
   const removingIdsRef = useRef<Set<number>>(new Set());
+  const allArticlesRef = useRef(allArticles);
+  allArticlesRef.current = allArticles;
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -181,27 +183,25 @@ function ArchiveContentInner() {
   };
 
   // 收藏/取消收藏：立即更新卡片状态
-  const handleToggleFavorite = async (id: number, e: React.MouseEvent) => {
+  const handleToggleFavorite = useCallback(async (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    const article = allArticles.find(a => a.id === id);
+    const article = allArticlesRef.current.find(a => a.id === id);
     if (!article) return;
 
     const wasFavorited = article.isFavorited;
-    // 乐观更新：立即改变收藏状态
     setAllArticles((prev) => prev.map(a => a.id === id ? { ...a, isFavorited: !wasFavorited } : a));
 
     const success = await toggleFavorite(id, wasFavorited);
     if (success) {
       showToast(wasFavorited ? '已取消收藏' : '已收藏');
     } else {
-      // 失败时回滚
       setAllArticles((prev) => prev.map(a => a.id === id ? { ...a, isFavorited: wasFavorited } : a));
       showToast('操作失败，请重试');
     }
-  };
+  }, [toggleFavorite, showToast]);
 
   // 取消归档：文章从归档页消失
-  const handleUnarchive = async (id: number, e: React.MouseEvent) => {
+  const handleUnarchive = useCallback(async (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
 
     removingIdsRef.current.add(id);
@@ -216,7 +216,7 @@ function ArchiveContentInner() {
       refreshList();
       showToast('操作失败，请重试');
     }
-  };
+  }, [unarchive, showToast, refreshList]);
 
   const articleListContent = (error || requestTimedOut) && page === 1 ? (
     <div style={{ color: 'var(--text-muted)', padding: '48px 16px', textAlign: 'center' }}>
@@ -249,7 +249,7 @@ function ArchiveContentInner() {
         loadingMore={isValidating && page > 1}
         onLoadMore={handleLoadMore}
         emptyTitle="归档中暂无此类文章"
-        onArticleClick={(id) => openArticle(id)}
+        onArticleClick={openArticle}
         onToggleFavorite={handleToggleFavorite}
         onArchive={handleUnarchive}
         showMenu={isAuthenticated}
