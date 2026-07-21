@@ -48,6 +48,8 @@ function FavoritesContentInner() {
   const [allArticles, setAllArticles] = useState<ArticleListItem[]>([]);
   const [requestTimedOut, setRequestTimedOut] = useState(false);
   const removingIdsRef = useRef<Set<number>>(new Set());
+  const allArticlesRef = useRef(allArticles);
+  allArticlesRef.current = allArticles;
 
   const handleContinueReading = () => {
     if (!bookmarkPrompt) return;
@@ -150,6 +152,45 @@ function FavoritesContentInner() {
     if (page < totalPages) setPage((p) => p + 1);
   }, [page, totalPages]);
 
+  const handleToggleFavorite = useCallback(async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    removingIdsRef.current.add(id);
+    setAllArticles((prev) => prev.filter((a) => a.id !== id));
+    const success = await toggleFavorite(id, true);
+    if (success) {
+      removingIdsRef.current.delete(id);
+      showToast('已取消收藏');
+    } else {
+      removingIdsRef.current.delete(id);
+      refreshList();
+      showToast('取消收藏失败，请重试');
+    }
+  }, [toggleFavorite, showToast, refreshList]);
+
+  const handleArchive = useCallback(async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const article = allArticlesRef.current.find(a => a.id === id);
+    if (!article) return;
+    const wasArchived = article.isArchived;
+    setAllArticles((prev) => prev.map((a) => a.id === id ? { ...a, isArchived: !wasArchived } : a));
+    try {
+      if (wasArchived) {
+        await api.unarchive(id);
+      } else {
+        await api.archive(id);
+      }
+      updateArticleInView('favorites', id, { isArchived: !wasArchived });
+      updateArticleInView('archive', id, { isArchived: !wasArchived });
+      updateArticleInView('inbox', id, { isArchived: !wasArchived });
+      refreshCounts();
+      showToast(wasArchived ? '已取消归档' : '已归档');
+    } catch (error) {
+      console.error('Toggle archive from favorites failed:', error);
+      refreshList();
+      showToast(wasArchived ? '取消归档失败，请重试' : '归档失败，请重试');
+    }
+  }, [updateArticleInView, refreshCounts, showToast, refreshList]);
+
   return (
     <>
       {/* 书签提示弹窗 */}
@@ -251,51 +292,9 @@ function FavoritesContentInner() {
               loadingMore={isValidating && page > 1}
               onLoadMore={handleLoadMore}
               emptyTitle="还没有收藏的文章"
-              onArticleClick={(id) => openArticle(id)}
-              onToggleFavorite={async (id, e) => {
-                e.stopPropagation();
-                const article = allArticles.find(a => a.id === id);
-                if (!article) return;
-
-                // 乐观更新：立即从收藏页移除
-                removingIdsRef.current.add(id);
-                setAllArticles((prev) => prev.filter((a) => a.id !== id));
-
-                const success = await toggleFavorite(id, true); // 当前是已收藏状态
-                if (success) {
-                  removingIdsRef.current.delete(id);
-                  showToast('已取消收藏');
-                } else {
-                  removingIdsRef.current.delete(id);
-                  refreshList();
-                  showToast('取消收藏失败，请重试');
-                }
-              }}
-              onArchive={async (id, e) => {
-                e.stopPropagation();
-                const article = allArticles.find(a => a.id === id);
-                if (!article) return;
-
-                const wasArchived = article.isArchived;
-                setAllArticles((prev) => prev.map((a) => a.id === id ? { ...a, isArchived: !wasArchived } : a));
-
-                try {
-                  if (wasArchived) {
-                    await api.unarchive(id);
-                  } else {
-                    await api.archive(id);
-                  }
-                  updateArticleInView('favorites', id, { isArchived: !wasArchived });
-                  updateArticleInView('archive', id, { isArchived: !wasArchived });
-                  updateArticleInView('inbox', id, { isArchived: !wasArchived });
-                  refreshCounts();
-                  showToast(wasArchived ? '已取消归档' : '已归档');
-                } catch (error) {
-                  console.error('Toggle archive from favorites failed:', error);
-                  refreshList();
-                  showToast(wasArchived ? '取消归档失败，请重试' : '归档失败，请重试');
-                }
-              }}
+              onArticleClick={openArticle}
+              onToggleFavorite={handleToggleFavorite}
+              onArchive={handleArchive}
               highlightId={highlightId}
             />
           </>
