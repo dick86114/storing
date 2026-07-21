@@ -48,3 +48,20 @@ test('mobile account menu uses compact night icons and a two-column action grid'
   assert.match(mobileTopNav, /aria-label=\{themeLabels\[mode\]\}/);
   assert.match(styles, /\.mobile-top-nav \.mobile-user-menu-appearance-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
 });
+
+test('magazine desktop navigation keeps tabs centered between a normal action group instead of splitting controls across the bar', () => {
+  const styles = readWeb('src/app/globals.css');
+
+  assert.match(styles, /\[data-color-scheme='magazine'\] \.desktop-nav-tabs \{[\s\S]*?flex: 1 1 auto !important;[\s\S]*?justify-content: center !important;/);
+  assert.match(styles, /\[data-color-scheme='magazine'\] \.desktop-nav-actions \{[\s\S]*?display: flex !important;/);
+  assert.match(styles, /\[data-color-scheme='magazine'\] \.desktop-search-trigger \{[\s\S]*?position: static !important;/);
+  assert.match(styles, /\[data-color-scheme='magazine'\] \.desktop-search-trigger::after,[\s\S]*?\.desktop-search-trigger::before \{[\s\S]*?content: none !important;/);
+});
+
+test('magazine collect and search icon controls stay borderless', () => {
+  const styles = readWeb('src/app/globals.css');
+  const controlBlock = styles.match(/\[data-color-scheme='magazine'\] \.desktop-collect-trigger,\n  \[data-color-scheme='magazine'\] \.desktop-search-trigger \{([\s\S]*?)\n  \}/)?.[1];
+
+  assert.ok(controlBlock, 'magazine icon-control rule should exist');
+  assert.match(controlBlock, /border: 0 !important;/);
+});

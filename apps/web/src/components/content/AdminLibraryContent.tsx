@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CloseOutlined, CopyOutlined, DeleteOutlined, FileTextOutlined, FolderOpenOutlined, HistoryOutlined, LinkOutlined, ReloadOutlined, SearchOutlined, SyncOutlined, UserOutlined } from '@ant-design/icons';
 import { api, type AdminAuditLog, type AdminManagedArticle, type AdminUser } from '@/lib/api';
 import { useAuth } from '@/components/providers/AuthContext';
@@ -64,6 +64,8 @@ export function AdminLibraryContent() {
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [view, setView] = useState<LibraryView>('inbox');
   const [timeRange, setTimeRange] = useState<TimeRange>('all');
+  const [draftView, setDraftView] = useState<LibraryView>('inbox');
+  const [draftTimeRange, setDraftTimeRange] = useState<TimeRange>('all');
   const [query, setQuery] = useState('');
   const [appliedQuery, setAppliedQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -76,6 +78,9 @@ export function AdminLibraryContent() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState<{ article: AdminManagedArticle; action: ConfirmationAction } | null>(null);
+  const routeParamsAppliedRef = useRef(false);
+  const initialLibraryLoadRef = useRef(false);
+  const articleRequestSequenceRef = useRef(0);
 
   const selectedUser = useMemo(() => users.find((item) => item.id === selectedUserId) || null, [selectedUserId, users]);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -90,7 +95,13 @@ export function AdminLibraryContent() {
     const params = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search);
     const requestedUserId = params ? Number(params.get('userId')) : null;
     const requestedView = params?.get('view');
-    if (requestedView === 'inbox' || requestedView === 'favorites' || requestedView === 'archive') setView(requestedView);
+    if (!routeParamsAppliedRef.current) {
+      routeParamsAppliedRef.current = true;
+      if (requestedView === 'inbox' || requestedView === 'favorites' || requestedView === 'archive') {
+        setView(requestedView);
+        setDraftView(requestedView);
+      }
+    }
     setUsers(data.users);
     setSelectedUserId((current) => {
       if (Number.isFinite(requestedUserId) && data.users.some((item) => item.id === requestedUserId)) return requestedUserId;
@@ -99,14 +110,16 @@ export function AdminLibraryContent() {
   }, []);
 
   const loadArticles = useCallback(async (targetUserId: number, nextPage = page, nextView = view, nextQuery = appliedQuery, nextTimeRange = timeRange) => {
+    const requestId = ++articleRequestSequenceRef.current;
     setArticleLoading(true);
     try {
       const data = await api.getAdminUserArticles(targetUserId, { view: nextView, q: nextQuery, collectedSince: collectedSinceFor(nextTimeRange), page: nextPage, perPage: PAGE_SIZE });
+      if (requestId !== articleRequestSequenceRef.current) return;
       setArticles(data.data);
       setTotal(data.total);
       setPage(data.page);
     } finally {
-      setArticleLoading(false);
+      if (requestId === articleRequestSequenceRef.current) setArticleLoading(false);
     }
   }, [appliedQuery, page, timeRange, view]);
 
@@ -129,7 +142,12 @@ export function AdminLibraryContent() {
     }
   }, [appliedQuery, isAuthenticated, loadArticles, loadAudit, loadUsers, page, selectedUserId, timeRange, user?.role, view]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    if (!isAuthenticated || user?.role !== 'admin') return;
+    if (initialLibraryLoadRef.current) return;
+    initialLibraryLoadRef.current = true;
+    refresh();
+  }, [isAuthenticated, refresh, user?.role]);
 
   useEffect(() => {
     if (!selectedUserId || !isAuthenticated || user?.role !== 'admin') return;
@@ -185,8 +203,25 @@ export function AdminLibraryContent() {
   };
 
   const applyFilters = () => {
-    setAppliedQuery(query.trim());
+    const nextQuery = query.trim();
+    const nextView = draftView;
+    const nextTimeRange = draftTimeRange;
+
+    setAppliedQuery(nextQuery);
+    setView(nextView);
+    setTimeRange(nextTimeRange);
     setPage(1);
+    setError(null);
+
+    if (selectedUserId && typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      params.set('userId', String(selectedUserId));
+      params.set('view', nextView);
+      window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+      loadArticles(selectedUserId, 1, nextView, nextQuery, nextTimeRange).catch((err) => {
+        setError(err instanceof Error ? err.message : '搜索用户文章失败');
+      });
+    }
   };
 
   if (isLoading) return <div className="admin-library-loading">正在打开用户文章库…</div>;
@@ -210,8 +245,8 @@ export function AdminLibraryContent() {
         </div>
 
         <div className="admin-library-toolbar">
-          <label><span>收录时间</span><select value={timeRange} onChange={(event) => { setTimeRange(event.target.value as TimeRange); setPage(1); }} aria-label="按收录时间筛选"><option value="all">全部时间</option><option value="7d">最近 7 天</option><option value="30d">最近 30 天</option><option value="90d">最近 90 天</option><option value="365d">最近一年</option></select></label>
-          <label><span>内容状态</span><select value={view} onChange={(event) => { setView(event.target.value as LibraryView); setPage(1); }}><option value="inbox">收件箱</option><option value="favorites">收藏</option><option value="archive">归档</option></select></label>
+          <label><span>收录时间</span><select value={draftTimeRange} onChange={(event) => setDraftTimeRange(event.target.value as TimeRange)} aria-label="按收录时间筛选"><option value="all">全部时间</option><option value="7d">最近 7 天</option><option value="30d">最近 30 天</option><option value="90d">最近 90 天</option><option value="365d">最近一年</option></select></label>
+          <label><span>内容状态</span><select value={draftView} onChange={(event) => setDraftView(event.target.value as LibraryView)}><option value="inbox">收件箱</option><option value="favorites">收藏</option><option value="archive">归档</option></select></label>
           <label className="admin-library-search"><SearchOutlined /><input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') applyFilters(); }} placeholder="按标题或原文链接搜索" aria-label="搜索用户文章" /></label>
           <button type="button" className="mcp-btn mcp-btn-primary" onClick={applyFilters}><SearchOutlined /> 搜索</button>
         </div>
