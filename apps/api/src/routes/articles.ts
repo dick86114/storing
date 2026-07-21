@@ -854,6 +854,14 @@ articlesRoutes.get('/sources', optionalAuth, async (c) => {
   const order = orderParam === 'asc' || orderParam === 'desc' ? orderParam : 'desc';
 
   try {
+    // 排序下推到 SQL ORDER BY，避免把全量分组结果拉到内存再排
+    const orderByExpr =
+      sort === 'name'
+        ? (order === 'asc' ? asc(articles.source) : desc(articles.source))
+        : sort === 'latest'
+          ? (order === 'asc' ? asc(sql`MAX(${articles.createdAt})`) : desc(sql`MAX(${articles.createdAt})`))
+          : (order === 'asc' ? asc(sql`count(*)`) : desc(sql`count(*)`));
+
     const rows = await db
       .select({
         source: articles.source,
@@ -866,23 +874,10 @@ articlesRoutes.get('/sources', optionalAuth, async (c) => {
         eq(articleMetadata.isArchived, true),
         sql`${articles.source} IS NOT NULL`
       ))
-      .groupBy(articles.source);
+      .groupBy(articles.source)
+      .orderBy(orderByExpr);
 
-    const sortedRows = rows.sort((a: any, b: any) => {
-      let comparison = 0;
-      if (sort === 'name') {
-        comparison = (a.source || '').localeCompare(b.source || '');
-      } else if (sort === 'latest') {
-        const dateA = a.latestCreatedAt ? new Date(a.latestCreatedAt).getTime() : 0;
-        const dateB = b.latestCreatedAt ? new Date(b.latestCreatedAt).getTime() : 0;
-        comparison = dateB - dateA;
-      } else {
-        comparison = (b.count || 0) - (a.count || 0);
-      }
-      return order === 'asc' ? -comparison : comparison;
-    });
-
-    return c.json(sortedRows.map((r: any) => ({
+    return c.json(rows.map((r: any) => ({
       source: r.source,
       count: r.count,
       latestCreatedAt: r.latestCreatedAt,

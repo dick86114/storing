@@ -13,7 +13,7 @@ import { mcpRoutes } from './routes/mcp.js';
 import { initWikiSchema } from './services/wiki.service.js';
 import { startWikiWorker } from './services/wiki.worker.js';
 import { initCollectSchema, resumePendingWebCollectJobs } from './services/collect.service.js';
-import { initMcpSchema } from './services/mcp-auth.service.js';
+import { initMcpSchema, startMcpLogCleanupScheduler } from './services/mcp-auth.service.js';
 import { ensurePrivateLibraryPublicationSchema, ensureWikiUserScopeSchema, initArticleMetadataUserScope, repairCollectedArticleMetadataOwnership } from './services/metadata-scope.service.js';
 import { ensureConfiguredAdmin, initUserManagementSchema } from './services/admin-bootstrap.service.js';
 import { initAdminAuditSchema } from './services/admin-audit.service.js';
@@ -52,6 +52,7 @@ async function startServer() {
   await resumePendingWebCollectJobs().catch((err) => console.error('恢复网页采集队列失败:', err));
   await initWikiSchema().catch((err) => console.error('初始化 Wiki 表失败:', err));
   await ensureDatabaseIndexes().catch((err) => console.error('初始化数据库索引失败:', err));
+  startMcpLogCleanupScheduler();
   startWikiWorker();
   serve({ fetch: app.fetch, port: 1052 }, (info) => {
     console.log(`API server running on http://localhost:${info.port}`);

@@ -26,6 +26,32 @@ const INDEXES: ReadonlyArray<{ name: string; create: string }> = [
     name: 'idx_collect_jobs_client_status',
     create: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_collect_jobs_client_status ON collect_jobs (client_id, status)',
   },
+  // trigram 索引：让 search 路由的 ILIKE '%keyword%' 走 GIN 索引，避免全表扫描
+  {
+    name: 'idx_articles_title_trgm',
+    create: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_articles_title_trgm ON articles USING gin (title gin_trgm_ops)',
+  },
+  {
+    name: 'idx_articles_source_trgm',
+    create: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_articles_source_trgm ON articles USING gin (source gin_trgm_ops)',
+  },
+  {
+    name: 'idx_articles_summary_trgm',
+    create: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_articles_summary_trgm ON articles USING gin (summary gin_trgm_ops)',
+  },
+  {
+    name: 'idx_article_metadata_ai_summary_trgm',
+    create: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_article_metadata_ai_summary_trgm ON article_metadata USING gin (ai_summary gin_trgm_ops)',
+  },
+  {
+    name: 'idx_article_metadata_ai_category_trgm',
+    create: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_article_metadata_ai_category_trgm ON article_metadata USING gin (ai_category gin_trgm_ops)',
+  },
+  {
+    // array_to_string 非 IMMUTABLE 无法建表达式 trigram 索引，改用 GIN 数组索引支持 @> 包含查询
+    name: 'idx_article_metadata_ai_tags_gin',
+    create: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_article_metadata_ai_tags_gin ON article_metadata USING gin (ai_tags)',
+  },
 ];
 
 /**
@@ -45,6 +71,13 @@ const INDEXES: ReadonlyArray<{ name: string; create: string }> = [
  *  - collect_jobs(client_id, status)：MCP 并发采集数检查
  */
 export async function ensureDatabaseIndexes(): Promise<void> {
+  // pg_trgm 扩展支持 ILIKE '%keyword%' 走 GIN trigram 索引（需 superuser，失败则搜索走全表扫描）
+  try {
+    await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+  } catch (error) {
+    console.error('[db-indexes] 创建 pg_trgm 扩展失败（搜索将走全表扫描）:', (error as Error).message);
+  }
+
   for (const { name, create } of INDEXES) {
     try {
       // 清理 CONCURRENTLY 失败残留的 INVALID 索引（若有），否则 IF NOT EXISTS 会跳过重建

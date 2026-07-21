@@ -450,3 +450,32 @@ export async function listMcpRequestLogs(options: { clientId?: number; userId?: 
 
   return query.orderBy(desc(mcpRequestLogs.createdAt)).limit(limit).offset(offset);
 }
+
+/** MCP 请求日志保留天数，超过则定期清理 */
+const MCP_LOG_RETENTION_DAYS = 30;
+
+/**
+ * 清理过期的 MCP 请求日志。
+ * mcp_request_logs 无限增长会拖慢限流 COUNT 查询，需定期清理。
+ */
+export async function cleanExpiredMcpRequestLogs(): Promise<number> {
+  const result = await db.execute(sql`
+    DELETE FROM mcp_request_logs
+    WHERE created_at < NOW() - make_interval(days => ${MCP_LOG_RETENTION_DAYS})
+  `);
+  return result.rowCount ?? 0;
+}
+
+/**
+ * 启动 MCP 日志定时清理：启动时清理一次，之后每 24 小时清理一次。
+ */
+export function startMcpLogCleanupScheduler(): NodeJS.Timeout {
+  cleanExpiredMcpRequestLogs()
+    .then((n) => { if (n > 0) console.log(`[mcp-log] 启动清理 ${n} 条过期日志`); })
+    .catch((e) => console.error('[mcp-log] 启动清理失败:', e.message));
+  return setInterval(() => {
+    cleanExpiredMcpRequestLogs()
+      .then((n) => { if (n > 0) console.log(`[mcp-log] 定时清理 ${n} 条过期日志`); })
+      .catch((e) => console.error('[mcp-log] 定时清理失败:', e.message));
+  }, 24 * 60 * 60 * 1000);
+}
