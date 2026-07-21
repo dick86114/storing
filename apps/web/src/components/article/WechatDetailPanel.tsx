@@ -1303,7 +1303,7 @@ const deleteConfirmCopy: Record<DeleteConfirmMode, {
   'archive-record': {
     title: '删除归档记录',
     body: '这会删除 article_metadata 里的归档状态、收藏状态、AI 摘要、标签、封面和正文缓存。',
-    note: '原始 articles 表中的文章仍会保留，并回到收件箱；如需彻底清除原文，请使用“彻底删除文章”。',
+    note: '原始 articles 表中的文章仍会保留，但已从你的所有列表中移除（重启不会恢复）；如需彻底清除原文，请使用“彻底删除文章”。',
     confirmLabel: '删除归档记录',
     loadingLabel: '删除中…',
     menuLabel: '删除归档记录',
