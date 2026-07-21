@@ -20,6 +20,7 @@ export async function initArticleMetadataUserScope() {
   await db.execute(sql.raw(`ALTER TABLE article_metadata ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`));
   await db.execute(sql.raw(`ALTER TABLE article_metadata ADD COLUMN IF NOT EXISTS source_type TEXT NOT NULL DEFAULT 'web'`));
   await db.execute(sql.raw(`ALTER TABLE article_metadata ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES mcp_clients(id) ON DELETE SET NULL`));
+  await db.execute(sql.raw(`ALTER TABLE article_metadata ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false`));
 
   await db.execute(sql`
     UPDATE article_metadata
