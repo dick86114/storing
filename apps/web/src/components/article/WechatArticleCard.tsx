@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
 import Image from 'next/image';
 import { MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, FieldTimeOutlined, RobotOutlined, ExportOutlined } from '@ant-design/icons';
 import { DateText } from '@/lib/formatDate';
@@ -9,16 +9,16 @@ import type { ArticleListItem } from '@storing/shared';
 
 interface WechatArticleCardProps {
   article: ArticleListItem;
-  onClick: () => void;
-  onToggleFavorite: (e: React.MouseEvent) => void;
-  onArchive: (e: React.MouseEvent) => void;
-  onPublish?: (e: React.MouseEvent) => void;
+  onClick: (id: number) => void;
+  onToggleFavorite: (id: number, e: React.MouseEvent) => void;
+  onArchive: (id: number, e: React.MouseEvent) => void;
+  onPublish?: (id: number, e: React.MouseEvent) => void;
   showMenu?: boolean;
   highlight?: boolean;
   featured?: boolean;
 }
 
-export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchive, onPublish, showMenu = true, highlight, featured = false }: WechatArticleCardProps) {
+function WechatArticleCardBase({ article, onClick, onToggleFavorite, onArchive, onPublish, showMenu = true, highlight, featured = false }: WechatArticleCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuWrapRef = useRef<HTMLDivElement>(null);
   const tags = article.aiTags?.slice(0, 3) ?? [];
@@ -65,7 +65,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
   return (
     <div
       className={`article-card wechat-article-card${featured ? ' article-card--featured' : ''}${highlight ? ' highlighted' : ''}${menuOpen ? ' article-card--menu-open' : ''}`}
-      onClick={onClick}
+      onClick={() => onClick(article.id)}
       style={{
         position: 'relative',
         background: 'var(--card-bg)',
@@ -149,7 +149,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
                   >
                     <button
                       className={`article-card-menu-item${article.isFavorited ? ' favorited' : ''}`}
-                      onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onToggleFavorite(e); }}
+                      onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onToggleFavorite(article.id, e); }}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -172,7 +172,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
                     </button>
                     <button
                       className={`article-card-menu-item${article.isArchived ? ' favorited' : ''}`}
-                      onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onArchive(e); }}
+                      onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onArchive(article.id, e); }}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -196,7 +196,7 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
                     {onPublish && (
                       <button
                         className={`article-card-menu-item${article.isPublished ? ' favorited' : ''}`}
-                        onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onPublish(e); }}
+                        onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onPublish(article.id, e); }}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -298,3 +298,5 @@ export function WechatArticleCard({ article, onClick, onToggleFavorite, onArchiv
     </div>
   );
 }
+
+export const WechatArticleCard = memo(WechatArticleCardBase);
