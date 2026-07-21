@@ -352,7 +352,8 @@ function normalizeCapturedImage(image: HTMLImageElement) {
   const currentSrc = image.getAttribute('src') || '';
   const candidate = candidateAttrs
     .map((attr) => image.getAttribute(attr)?.trim())
-    .find((value) => value && !value.startsWith('data:'));
+    .find((value) => value && !value.startsWith('data:'))
+    || image.closest<HTMLElement>('[data-src]')?.getAttribute('data-src')?.trim();
 
   if (candidate && (!currentSrc || currentSrc.startsWith('data:'))) {
     image.setAttribute('src', candidate.startsWith('//') ? `https:${candidate}` : candidate);
@@ -369,6 +370,101 @@ function normalizeCapturedImage(image: HTMLImageElement) {
   image.removeAttribute('data-lazy-src');
   image.removeAttribute('data-actualsrc');
   image.removeAttribute('data-url');
+}
+
+function initializeCapturedCarousels(doc: Document, onChange: () => void) {
+  Array.from(doc.querySelectorAll<HTMLElement>('.share_media_swiper_wrp')).forEach((root) => {
+    const legacyItems = Array.from(root.querySelectorAll<HTMLElement>('#img_list .swiper_item'));
+    const directItems = Array.from(root.querySelectorAll<HTMLElement>('.share_media .swiper_item'));
+    const items = legacyItems.length > 1 ? legacyItems : directItems;
+    const media = root.querySelector<HTMLElement>('.share_media');
+    const indicatorWrap = root.querySelector<HTMLElement>('.swiper_indicator_wrp_pc');
+    const indicators = Array.from(root.querySelectorAll<HTMLElement>('.swiper_indicator_item_pc'));
+    if (!media || !indicatorWrap || items.length < 2 || items.length !== indicators.length) return;
+
+    // SingleFile can preserve an extra static one-image carousel immediately
+    // before the actual carousel. Its absolute image layer remains painted
+    // above this root, so remove only that non-interactive placeholder.
+    const placeholderCarousels = Array.from(root.parentElement?.querySelectorAll<HTMLElement>('.share_media_swiper_wrp') ?? []);
+    placeholderCarousels.forEach((placeholder) => {
+      if (placeholder === root) return;
+
+      const placeholderItems = placeholder.querySelectorAll('.swiper_item');
+      const placeholderIndicators = placeholder.querySelectorAll('.swiper_indicator_item_pc');
+      if (placeholderItems.length <= 1 && placeholderIndicators.length === 0) {
+        placeholder.style.display = 'none';
+        placeholder.setAttribute('aria-hidden', 'true');
+      }
+    });
+
+    const imageSources = items.map((item) => {
+      const image = item.querySelector<HTMLImageElement>('img');
+      if (image) normalizeCapturedImage(image);
+      return image?.getAttribute('src') || item.getAttribute('data-src') || '';
+    });
+    if (imageSources.some((src) => !src || src.startsWith('data:'))) return;
+
+    const stage = doc.createElement('div');
+    stage.className = 'storing-captured-carousel-stage';
+    stage.style.cssText = 'display:flex;align-items:center;justify-content:center;width:100%;height:100%;overflow:hidden;background:inherit;';
+    const stageImage = doc.createElement('img');
+    stageImage.style.cssText = 'display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;';
+    stageImage.setAttribute('referrerpolicy', 'no-referrer');
+    stage.append(stageImage);
+    media.replaceChildren(stage);
+
+    if (doc.defaultView?.getComputedStyle(indicatorWrap).position === 'static') {
+      indicatorWrap.style.position = 'relative';
+    }
+    indicatorWrap.style.zIndex = '10';
+    indicatorWrap.style.pointerEvents = 'auto';
+
+    const currentIndex = Math.max(0, indicators.findIndex((indicator) => indicator.classList.contains('swiper_indicator_item_pc_current')));
+    const select = (index: number) => {
+      stageImage.setAttribute('src', imageSources[index]);
+      stageImage.setAttribute('alt', `第 ${index + 1} 张图片`);
+      indicators.forEach((indicator, indicatorIndex) => {
+        const selected = indicatorIndex === index;
+        indicator.classList.toggle('swiper_indicator_item_pc_current', selected);
+        indicator.setAttribute('aria-current', selected ? 'true' : 'false');
+      });
+      onChange();
+    };
+
+    indicators.forEach((indicator, index) => {
+      indicator.setAttribute('role', 'button');
+      indicator.setAttribute('tabindex', '0');
+      indicator.setAttribute('aria-label', `查看第 ${index + 1} 张图片`);
+      indicator.addEventListener('click', (event) => {
+        event.preventDefault();
+        select(index);
+      });
+      indicator.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        select(index);
+      });
+    });
+
+    // The captured WeChat carousel keeps an absolute main-image overlay above
+    // its number strip. Capture the click at the carousel root and map a click
+    // within the strip's visual band back to its thumbnail index.
+    root.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('.swiper_indicator_item_pc')) return;
+
+      const indicatorBounds = indicatorWrap.getBoundingClientRect();
+      const inIndicatorBand = event.clientY >= indicatorBounds.top - 16 && event.clientY <= indicatorBounds.bottom + 16;
+      if (!inIndicatorBand || indicatorBounds.width <= 0) return;
+
+      const index = Math.min(items.length - 1, Math.max(0, Math.floor(
+        ((event.clientX - indicatorBounds.left) / indicatorBounds.width) * items.length
+      )));
+      select(index);
+    });
+
+    select(currentIndex);
+  });
 }
 
 function CapturedArticleFrame({ html, title }: { html: string; title?: string | null }) {
@@ -399,6 +495,7 @@ function CapturedArticleFrame({ html, title }: { html: string; title?: string | 
     if (!iframe || !doc) return;
 
     updateHeight();
+    initializeCapturedCarousels(doc, updateHeight);
     resizeObserverRef.current?.disconnect();
 
     if (typeof ResizeObserver !== 'undefined') {

@@ -329,14 +329,30 @@ function extractMetaImage(doc: Document, baseUrl: string) {
 }
 
 function getImageCandidate(image: HTMLImageElement, baseUrl: string) {
-  for (const attr of ['data-src', 'data-original', 'data-lazy-src', 'data-url', 'src']) {
-    const value = image.getAttribute(attr)?.trim();
-    if (!value) continue;
-    if (value.startsWith('data:image/')) return value;
-    if (value.startsWith('data:') || value.startsWith('blob:')) continue;
-    return absolutizeUrl(value, baseUrl);
+  // WeChat picture-page posts keep the real CDN URL on the carousel item
+  // (`.swiper_item[data-src]`) while the nested <img> is only a placeholder
+  // (`data:,` or an embedded preview). Prefer that ancestor URL so all slides
+  // can be uploaded even when SingleFile did not activate every slide.
+  const owners = [
+    image.closest<HTMLElement>('.swiper_item'),
+    image.closest<HTMLElement>('[data-src], [data-original], [data-lazy-src], [data-url]'),
+    image,
+  ].filter((owner, index, list): owner is HTMLElement => Boolean(owner) && list.indexOf(owner) === index);
+
+  let embeddedImage: string | null = null;
+  for (const owner of owners) {
+    for (const attr of ['data-src', 'data-original', 'data-lazy-src', 'data-url', 'src']) {
+      const value = owner.getAttribute(attr)?.trim();
+      if (!value) continue;
+      if (value.startsWith('data:image/')) {
+        embeddedImage ||= value;
+        continue;
+      }
+      if (value.startsWith('data:') || value.startsWith('blob:')) continue;
+      return absolutizeUrl(value, baseUrl);
+    }
   }
-  return null;
+  return embeddedImage;
 }
 
 export async function uploadImagesInCapturedDocument(
@@ -347,13 +363,21 @@ export async function uploadImagesInCapturedDocument(
   const dom = new JSDOM(html);
   const doc = dom.window.document;
   const images = Array.from(doc.querySelectorAll<HTMLImageElement>('img'));
+  const uploads = new Map<string, Promise<string | null>>();
+  const uploadOnce = (url: string) => {
+    const existing = uploads.get(url);
+    if (existing) return existing;
+    const pending = uploader(url);
+    uploads.set(url, pending);
+    return pending;
+  };
 
   await Promise.all(
     images.map(async (image) => {
       const originalUrl = getImageCandidate(image, baseUrl);
       if (!originalUrl) return;
 
-      const uploadedUrl = await uploader(originalUrl);
+      const uploadedUrl = await uploadOnce(originalUrl);
       if (!uploadedUrl) return;
 
       image.setAttribute('src', uploadedUrl);
@@ -363,6 +387,30 @@ export async function uploadImagesInCapturedDocument(
       image.removeAttribute('data-original');
       image.removeAttribute('data-lazy-src');
       image.removeAttribute('data-url');
+
+      const carouselItem = image.closest<HTMLElement>('.swiper_item');
+      if (carouselItem && carouselItem !== image) {
+        carouselItem.removeAttribute('data-src');
+        carouselItem.removeAttribute('data-original');
+        carouselItem.removeAttribute('data-lazy-src');
+        carouselItem.removeAttribute('data-url');
+      }
+    })
+  );
+
+  const imageMetaSelectors = [
+    'meta[property="og:image"]',
+    'meta[property="og:image:secure_url"]',
+    'meta[name="twitter:image"]',
+    'meta[property="twitter:image"]',
+  ];
+  await Promise.all(
+    imageMetaSelectors.map(async (selector) => {
+      const meta = doc.querySelector<HTMLMetaElement>(selector);
+      const value = meta?.getAttribute('content')?.trim();
+      if (!meta || !value || value.startsWith('data:')) return;
+      const uploadedUrl = await uploadOnce(normalizeCoverImageUrl(absolutizeUrl(value, baseUrl)));
+      if (uploadedUrl) meta.setAttribute('content', uploadedUrl);
     })
   );
 
@@ -473,6 +521,25 @@ export function validateCapturedHtml(html: string, fallbackUrl: string): Capture
 
   if (/t-captcha|tcaptcha|x-waf-captcha|probe\.js|captcha-referer/i.test(bodyHtml)) {
     return { ok: false, reason: '抓取结果包含验证码/风控脚本', textLength };
+  }
+
+  for (const carousel of Array.from(doc.querySelectorAll<HTMLElement>('.share_media_swiper_wrp'))) {
+    const items = Array.from(carousel.querySelectorAll<HTMLElement>('.share_media .swiper_item'));
+    const expectedItemCount = items.length;
+    if (expectedItemCount < 2) continue;
+    const usableImageCount = items.filter((item) => {
+      const image = item.querySelector<HTMLImageElement>('img');
+      if (!image) return false;
+      const candidate = getImageCandidate(image, fallbackUrl);
+      return Boolean(candidate && candidate !== 'data:,' && (candidate.startsWith('data:image/') ? candidate.length > 200 : true));
+    }).length;
+    if (usableImageCount < expectedItemCount) {
+      return {
+        ok: false,
+        reason: `微信图片文章仅抓到 ${usableImageCount}/${expectedItemCount} 张有效图片`,
+        textLength,
+      };
+    }
   }
 
   if (textLength < 120) {

@@ -16,6 +16,7 @@ import { initCollectSchema, resumePendingWebCollectJobs } from './services/colle
 import { initMcpSchema } from './services/mcp-auth.service.js';
 import { ensurePrivateLibraryPublicationSchema, ensureWikiUserScopeSchema, initArticleMetadataUserScope, repairCollectedArticleMetadataOwnership } from './services/metadata-scope.service.js';
 import { ensureConfiguredAdmin, initUserManagementSchema } from './services/admin-bootstrap.service.js';
+import { initAdminAuditSchema } from './services/admin-audit.service.js';
 
 const app = new Hono();
 
@@ -39,6 +40,7 @@ app.onError((err, c) => {
 async function startServer() {
   await initMcpSchema().catch((err) => console.error('初始化 MCP 表失败:', err));
   await initUserManagementSchema().catch((err) => console.error('初始化用户管理字段失败:', err));
+  await initAdminAuditSchema().catch((err) => console.error('初始化管理员审计表失败:', err));
   const admin = await ensureConfiguredAdmin();
   console.log(admin.created ? `管理员账号已创建: ${admin.user.username}` : `管理员账号已就绪: ${admin.user.username}`);
   await initArticleMetadataUserScope().catch((err) => console.error('初始化用户级文章元数据失败:', err));
