@@ -41,7 +41,10 @@ function getViewCondition(view: string) {
   return and(eq(articleMetadata.isArchived, false), eq(articleMetadata.isFavorited, false));
 }
 
+let cachedHasActionTimestamps: boolean | null = null;
+
 async function hasMetadataTimestampColumns() {
+  if (cachedHasActionTimestamps !== null) return cachedHasActionTimestamps;
   try {
     const result = await db.execute(sql`
       SELECT COUNT(*)::int AS count
@@ -49,10 +52,11 @@ async function hasMetadataTimestampColumns() {
       WHERE table_name = 'article_metadata'
         AND column_name IN ('favorited_at', 'archived_at', 'published_at')
     `);
-    return Number(result.rows[0]?.count ?? 0) >= 2;
+    cachedHasActionTimestamps = Number(result.rows[0]?.count ?? 0) >= 2;
   } catch {
-    return false;
+    cachedHasActionTimestamps = false;
   }
+  return cachedHasActionTimestamps;
 }
 
 function getDefaultArticleSort(view: string): ArticleSortField {
@@ -409,10 +413,13 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
     .orderBy(getArticleOrderBy(sort, order, hasActionTimestamps), desc(articles.id))
     .limit(perPage)
     .offset((page - 1) * perPage);
-  const repairedData = await repairMissingDisplayMeta(data, userId);
+  // 异步修复缺失的显示字段，不阻塞当前列表响应；下次请求即为修复后的数据
+  repairMissingDisplayMeta(data, userId).catch((error) =>
+    console.error('Background display meta repair failed:', error.message)
+  );
 
   return c.json({
-    articles: repairedData.map((article) => ({
+    articles: data.map((article) => ({
       ...article,
       publicUrl: article.isPublished && article.publicId ? `/p/${article.publicId}` : null,
       isFavorited: article.isFavorited ?? false,
@@ -471,9 +478,10 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
   if (!article.title || !article.source || !article.publishTime) {
-    await repairArticleDisplayMeta(id, userId);
-    article = await getArticleRecord(id, userId);
-    if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
+    // 异步修复，不阻塞当前详情响应；下次请求即为修复后的数据
+    repairArticleDisplayMeta(id, userId).catch((error) =>
+      console.error('Background display meta repair failed:', error.message)
+    );
   }
 
   if (!article.metadataCoverImage) {
