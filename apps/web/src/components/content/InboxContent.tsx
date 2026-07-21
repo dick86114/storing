@@ -86,7 +86,7 @@ function InboxContentInner() {
   const { data, error, isLoading: dataLoading, isValidating, mutate } = useSWR(
     isAuthenticated ? `articles:inbox:${page}:${articleSort}:${articleSortOrder}` : null,
     () => api.getArticles('inbox', page, undefined, PER_PAGE, articleSort, articleSortOrder),
-    { revalidateOnFocus: false, errorRetryCount: 1 }
+    { revalidateOnFocus: false, errorRetryCount: 1, keepPreviousData: true }
   );
 
   const totalPages = data?.totalPages ?? 1;
@@ -147,6 +147,36 @@ function InboxContentInner() {
   const handleLoadMore = useCallback(() => {
     if (page < totalPages) setPage((p) => p + 1);
   }, [page, totalPages]);
+
+  const handleToggleFavorite = useCallback(async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    removingIdsRef.current.add(id);
+    setAllArticles((prev) => prev.filter((a) => a.id !== id));
+    const success = await toggleFavorite(id, false);
+    if (success) {
+      removingIdsRef.current.delete(id);
+      showToast('已收藏');
+    } else {
+      removingIdsRef.current.delete(id);
+      refreshList();
+      showToast('收藏失败，请重试');
+    }
+  }, [toggleFavorite, showToast, refreshList]);
+
+  const handleArchive = useCallback(async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    removingIdsRef.current.add(id);
+    setAllArticles((prev) => prev.filter((a) => a.id !== id));
+    const success = await archive(id);
+    if (success) {
+      removingIdsRef.current.delete(id);
+      showToast('已归档');
+    } else {
+      removingIdsRef.current.delete(id);
+      refreshList();
+      showToast('归档失败，请重试');
+    }
+  }, [archive, showToast, refreshList]);
 
   return (
     <>
@@ -243,44 +273,8 @@ function InboxContentInner() {
               loadingMore={isValidating && page > 1}
               onLoadMore={handleLoadMore}
               emptyTitle="所有文章都已处理完毕"
-              onArticleClick={(id) => openArticle(id)}
-              onToggleFavorite={async (id, e) => {
-                e.stopPropagation();
-                const article = allArticles.find(a => a.id === id);
-                if (!article) return;
-
-                // 乐观更新：立即从收件箱移除
-                removingIdsRef.current.add(id);
-                setAllArticles((prev) => prev.filter((a) => a.id !== id));
-
-                const success = await toggleFavorite(id, false);
-                if (success) {
-                  removingIdsRef.current.delete(id);
-                  showToast('已收藏');
-                } else {
-                  removingIdsRef.current.delete(id);
-                  refreshList();
-                  showToast('收藏失败，请重试');
-                }
-              }}
-              onArchive={async (id, e) => {
-                e.stopPropagation();
-
-                // 乐观更新：立即从收件箱移除
-                removingIdsRef.current.add(id);
-                setAllArticles((prev) => prev.filter((a) => a.id !== id));
-
-                const success = await archive(id);
-                if (success) {
-                  removingIdsRef.current.delete(id);
-                  showToast('已归档');
-                } else {
-                  removingIdsRef.current.delete(id);
-                  refreshList();
-                  showToast('归档失败，请重试');
-                }
-              }}
-              highlightId={highlightId}
+              onArticleClick={openArticle}
+              onToggleFavorite={handleToggleFavorite}onArchive={handleArchive}highlightId={highlightId}
             />
           </>
         )}

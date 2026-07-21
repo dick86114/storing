@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, useMemo, type ReactNode } from 'react';
 
 export type ArticleListMutation = {
   type: 'remove';
@@ -119,18 +119,20 @@ export function ArticleProvider({ children }: { children: ReactNode }) {
     }, 3000);
   }, []);
 
+  const value = useMemo(() => ({
+    selectedId,
+    highlightId,
+    openArticle,
+    closeArticle,
+    highlightAndOpen,
+    clearHighlight,
+    mutateList,
+    setMutateFn,
+    scrollToPosition,
+  }), [selectedId, highlightId, openArticle, closeArticle, highlightAndOpen, clearHighlight, mutateList, setMutateFn, scrollToPosition]);
+
   return (
-    <ArticleContext.Provider value={{
-      selectedId,
-      highlightId,
-      openArticle,
-      closeArticle,
-      highlightAndOpen,
-      clearHighlight,
-      mutateList,
-      setMutateFn,
-      scrollToPosition,
-    }}>
+    <ArticleContext.Provider value={value}>
       {children}
     </ArticleContext.Provider>
   );

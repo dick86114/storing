@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, type ReactNode } from 'react';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 export type ColorScheme = 'wechat' | 'glass' | 'aurora' | 'magazine' | 'xianxia';
@@ -86,23 +86,34 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => mq.removeEventListener('change', update);
   }, [theme, colorScheme]);
 
-  const setTheme = (t: ThemeMode) => {
+  const setTheme = useCallback((t: ThemeMode) => {
     setThemeState(t);
     localStorage.setItem('theme', t);
-  };
+  }, []);
 
-  const setColorScheme = (c: ColorScheme) => {
+  const setColorScheme = useCallback((c: ColorScheme) => {
     setColorSchemeState(c);
     localStorage.setItem('colorScheme', c);
     document.documentElement.setAttribute('data-color-scheme', c);
-  };
+  }, []);
 
-  const toggle = () => {
-    setTheme(resolved === 'dark' ? 'light' : 'dark');
-  };
+  const toggle = useCallback(() => {
+    const next = resolved === 'dark' ? 'light' : 'dark';
+    setThemeState(next);
+    localStorage.setItem('theme', next);
+  }, [resolved]);
+
+  const value = useMemo(() => ({
+    theme,
+    resolved,
+    setTheme,
+    toggle,
+    colorScheme,
+    setColorScheme,
+  }), [theme, resolved, setTheme, toggle, colorScheme, setColorScheme]);
 
   return (
-    <ThemeContext.Provider value={{ theme, resolved, setTheme, toggle, colorScheme, setColorScheme }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );

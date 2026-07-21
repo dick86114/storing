@@ -74,10 +74,10 @@ export function ArticleList({
           <WechatArticleCard
             key={article.id}
             article={article}
-            onClick={() => onArticleClick(article.id)}
-            onToggleFavorite={(e) => onToggleFavorite(article.id, e)}
-           onArchive={(e) => onArchive(article.id, e)}
-           onPublish={onPublish ? (e) => onPublish(article.id, e) : undefined}
+            onClick={onArticleClick}
+            onToggleFavorite={onToggleFavorite}
+           onArchive={onArchive}
+           onPublish={onPublish}
            showMenu={showMenu}
             highlight={highlightId === article.id}
             featured={index === 0}
