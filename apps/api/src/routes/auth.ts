@@ -1,11 +1,13 @@
 import { Hono } from 'hono';
 import { db } from '../db/index.js';
-import { articleMetadata, mcpClients, mcpRequestLogs, users } from '../db/schema.js';
-import { desc, eq, sql } from 'drizzle-orm';
+import { adminAuditLogs, articleMetadata, articles, mcpClients, mcpRequestLogs, users } from '../db/schema.js';
+import { and, count, desc, eq, gt, ilike, or, sql } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
 import { requireAuth, requireAdmin, getCurrentUser, generateToken } from '../middleware/auth.js';
 import { getConfiguredAdminStatus, resetConfiguredAdminPassword } from '../services/admin-bootstrap.service.js';
+import { writeAdminAudit } from '../services/admin-audit.service.js';
+import { generateSummaryAndTags } from '../services/ai.service.js';
 
 export const authRoutes = new Hono();
 
@@ -52,6 +54,44 @@ function serializeUser(user: any) {
     inbox_count: Number(user.inboxCount ?? 0),
     archive_count: Number(user.archiveCount ?? 0),
     favorite_count: Number(user.favoriteCount ?? 0),
+  };
+}
+
+async function getAdminTargetUser(targetUserId: number) {
+  const [targetUser] = await db
+    .select({ id: users.id, username: users.username, role: users.role, status: users.status })
+    .from(users)
+    .where(eq(users.id, targetUserId))
+    .limit(1);
+  return targetUser ?? null;
+}
+
+function getAdminLibraryViewCondition(view: string) {
+  if (view === 'favorites') return eq(articleMetadata.isFavorited, true);
+  if (view === 'archive') return eq(articleMetadata.isArchived, true);
+  return and(
+    sql`COALESCE(${articleMetadata.isArchived}, FALSE) = FALSE`,
+    sql`COALESCE(${articleMetadata.isFavorited}, FALSE) = FALSE`,
+  );
+}
+
+function serializeAdminLibraryArticle(article: any) {
+  return {
+    id: article.id,
+    title: article.title,
+    author: article.author,
+    source: article.source,
+    original_url: article.originalUrl,
+    publish_time: timestampToIso(article.publishTime),
+    cover_image: article.coverImage,
+    source_type: article.sourceType,
+    client_id: article.clientId,
+    client_name: article.clientName,
+    is_favorited: Boolean(article.isFavorited),
+    is_archived: Boolean(article.isArchived),
+    ai_summary: article.aiSummary,
+    created_at: timestampToIso(article.createdAt),
+    updated_at: timestampToIso(article.updatedAt),
   };
 }
 
@@ -336,6 +376,211 @@ authRoutes.get('/admin/users/:id/activity', requireAdmin, async (c) => {
       request_method: log.requestMethod ?? null,
       request_path: log.requestPath ?? null,
       created_at: timestampToIso(log.createdAt),
+    })),
+  });
+});
+
+
+/**
+ * 管理员：查看一个用户或服务账号的个人文章库。
+ * 该接口故意独立于普通 /articles，避免放宽个人收件箱的隔离条件。
+ */
+authRoutes.get('/admin/users/:id/articles', requireAdmin, async (c) => {
+  const targetUserId = Number(c.req.param('id'));
+  if (!Number.isFinite(targetUserId)) return c.json({ error: { code: 'BAD_REQUEST', message: '用户 ID 无效' } }, 400);
+
+  const targetUser = await getAdminTargetUser(targetUserId);
+  if (!targetUser) return c.json({ error: { code: 'USER_NOT_FOUND', message: '用户不存在' } }, 404);
+
+  const view = c.req.query('view') || 'inbox';
+  const query = c.req.query('q')?.trim() || '';
+  const collectedSinceRaw = c.req.query('collected_since');
+  const collectedSince = collectedSinceRaw ? new Date(collectedSinceRaw) : null;
+  if (collectedSinceRaw && (!collectedSince || Number.isNaN(collectedSince.getTime()))) {
+    return c.json({ error: { code: 'BAD_REQUEST', message: 'collected_since 无效' } }, 400);
+  }
+  const requestedPage = Number(c.req.query('page') || 1);
+  const requestedPerPage = Number(c.req.query('perPage') || 20);
+  const page = Math.max(1, Number.isFinite(requestedPage) ? requestedPage : 1);
+  const perPage = Math.max(1, Math.min(Number.isFinite(requestedPerPage) ? requestedPerPage : 20, 100));
+  const conditions = [eq(articleMetadata.userId, targetUserId), getAdminLibraryViewCondition(view)];
+  if (collectedSince) conditions.push(gt(articleMetadata.createdAt, collectedSince));
+  if (query) {
+    const pattern = `%${query.replace(/[\\%_]/g, '\\$&')}%`;
+    conditions.push(or(ilike(articles.title, pattern), ilike(articles.originalUrl, pattern))!);
+  }
+  const whereCondition = and(...conditions);
+
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(articleMetadata)
+    .innerJoin(articles, eq(articleMetadata.articleId, articles.id))
+    .where(whereCondition);
+
+  const rows = await db
+    .select({
+      id: articles.id,
+      title: articles.title,
+      author: articles.author,
+      source: articles.source,
+      originalUrl: articles.originalUrl,
+      publishTime: articles.publishTime,
+      coverImage: articleMetadata.coverImage,
+      sourceType: articleMetadata.sourceType,
+      clientId: articleMetadata.clientId,
+      clientName: mcpClients.name,
+      isFavorited: articleMetadata.isFavorited,
+      isArchived: articleMetadata.isArchived,
+      aiSummary: articleMetadata.aiSummary,
+      createdAt: articleMetadata.createdAt,
+      updatedAt: articleMetadata.updatedAt,
+    })
+    .from(articleMetadata)
+    .innerJoin(articles, eq(articleMetadata.articleId, articles.id))
+    .leftJoin(mcpClients, eq(articleMetadata.clientId, mcpClients.id))
+    .where(whereCondition)
+    .orderBy(desc(articleMetadata.createdAt), desc(articleMetadata.id))
+    .limit(perPage)
+    .offset((page - 1) * perPage);
+
+  return c.json({
+    user: { id: targetUser.id, username: targetUser.username, role: targetUser.role, status: targetUser.status },
+    page,
+    per_page: perPage,
+    total: Number(total ?? 0),
+    data: rows.map(serializeAdminLibraryArticle),
+  });
+});
+
+/** 管理员：将用户的一篇文章显式复制到自己的私人收件箱。 */
+authRoutes.post('/admin/users/:id/articles/:articleId/copy-to-me', requireAdmin, async (c) => {
+  const targetUserId = Number(c.req.param('id'));
+  const articleId = Number(c.req.param('articleId'));
+  if (!Number.isFinite(targetUserId) || !Number.isFinite(articleId)) return c.json({ error: { code: 'BAD_REQUEST', message: '用户或文章 ID 无效' } }, 400);
+
+  const [source] = await db.select().from(articleMetadata)
+    .where(and(eq(articleMetadata.userId, targetUserId), eq(articleMetadata.articleId, articleId)))
+    .limit(1);
+  if (!source) return c.json({ error: { code: 'ARTICLE_NOT_FOUND', message: '该文章不属于目标用户' } }, 404);
+
+  const actorUserId = getCurrentUser(c).id as number;
+  const [existing] = await db.select({ id: articleMetadata.id }).from(articleMetadata)
+    .where(and(eq(articleMetadata.userId, actorUserId), eq(articleMetadata.articleId, articleId)))
+    .limit(1);
+
+  let created = false;
+  if (!existing) {
+    await db.insert(articleMetadata).values({
+      articleId,
+      userId: actorUserId,
+      sourceType: 'admin-copy',
+      contentMd: source.contentMd,
+      contentHtml: source.contentHtml,
+      contentHtmlMobile: source.contentHtmlMobile,
+      coverImage: source.coverImage,
+      aiSummary: source.aiSummary,
+      aiCategory: source.aiCategory,
+      aiTags: source.aiTags,
+      isFavorited: false,
+      isArchived: false,
+    });
+    created = true;
+  }
+
+  await writeAdminAudit({
+    actorUserId,
+    targetUserId,
+    articleId,
+    action: 'article_copied_to_admin',
+    detail: { created },
+  });
+  return c.json({ article_id: articleId, copied_to_user_id: actorUserId, created });
+});
+
+/** 管理员：在目标用户的数据空间内重新生成 AI 摘要与标签。 */
+authRoutes.post('/admin/users/:id/articles/:articleId/regenerate-ai', requireAdmin, async (c) => {
+  const targetUserId = Number(c.req.param('id'));
+  const articleId = Number(c.req.param('articleId'));
+  if (!Number.isFinite(targetUserId) || !Number.isFinite(articleId)) return c.json({ error: { code: 'BAD_REQUEST', message: '用户或文章 ID 无效' } }, 400);
+
+  const [source] = await db.select({ id: articleMetadata.id }).from(articleMetadata)
+    .where(and(eq(articleMetadata.userId, targetUserId), eq(articleMetadata.articleId, articleId)))
+    .limit(1);
+  if (!source) return c.json({ error: { code: 'ARTICLE_NOT_FOUND', message: '该文章不属于目标用户' } }, 404);
+
+  await generateSummaryAndTags(articleId, targetUserId);
+  await writeAdminAudit({
+    actorUserId: getCurrentUser(c).id,
+    targetUserId,
+    articleId,
+    action: 'article_ai_regenerated',
+  });
+  return c.json({ article_id: articleId, user_id: targetUserId, regenerated: true });
+});
+
+/**
+ * 管理员：仅删除目标用户的私有元数据，不会删除其他用户或全局 articles 内容。
+ */
+authRoutes.delete('/admin/users/:id/articles/:articleId', requireAdmin, async (c) => {
+  const targetUserId = Number(c.req.param('id'));
+  const articleId = Number(c.req.param('articleId'));
+  if (!Number.isFinite(targetUserId) || !Number.isFinite(articleId)) return c.json({ error: { code: 'BAD_REQUEST', message: '用户或文章 ID 无效' } }, 400);
+
+  const [source] = await db.select({ id: articleMetadata.id, sourceType: articleMetadata.sourceType }).from(articleMetadata)
+    .where(and(eq(articleMetadata.userId, targetUserId), eq(articleMetadata.articleId, articleId)))
+    .limit(1);
+  if (!source) return c.json({ error: { code: 'ARTICLE_NOT_FOUND', message: '该文章不属于目标用户' } }, 404);
+
+  await db.delete(articleMetadata).where(and(eq(articleMetadata.userId, targetUserId), eq(articleMetadata.articleId, articleId)));
+  await writeAdminAudit({
+    actorUserId: getCurrentUser(c).id,
+    targetUserId,
+    articleId,
+    action: 'article_metadata_deleted',
+    detail: { source_type: source.sourceType },
+  });
+  return c.json({ article_id: articleId, user_id: targetUserId, deleted: true, scope: 'metadata' });
+});
+
+/** 管理员：查看跨用户管理行为审计记录。 */
+authRoutes.get('/admin/audit-logs', requireAdmin, async (c) => {
+  const targetUserParam = c.req.query('target_user_id');
+  const targetUserId = targetUserParam ? Number(targetUserParam) : null;
+  if (targetUserParam && !Number.isFinite(targetUserId)) return c.json({ error: { code: 'BAD_REQUEST', message: 'target_user_id 无效' } }, 400);
+  const requestedLimit = Number(c.req.query('limit') || 50);
+  const limit = Math.max(1, Math.min(Number.isFinite(requestedLimit) ? requestedLimit : 50, 100));
+  const offset = Math.max(0, Number(c.req.query('offset') || 0));
+  const whereCondition = targetUserId ? eq(adminAuditLogs.targetUserId, targetUserId) : undefined;
+
+  const [totalRow] = await db.select({ total: count() }).from(adminAuditLogs).where(whereCondition);
+  const rows = await db.select({
+    id: adminAuditLogs.id,
+    actorUserId: adminAuditLogs.actorUserId,
+    targetUserId: adminAuditLogs.targetUserId,
+    articleId: adminAuditLogs.articleId,
+    action: adminAuditLogs.action,
+    detail: adminAuditLogs.detail,
+    createdAt: adminAuditLogs.createdAt,
+    actorUsername: sql<string | null>`(SELECT "username" FROM "users" WHERE "id" = ${adminAuditLogs.actorUserId})`,
+    targetUsername: sql<string | null>`(SELECT "username" FROM "users" WHERE "id" = ${adminAuditLogs.targetUserId})`,
+    articleTitle: sql<string | null>`(SELECT "title" FROM "articles" WHERE "id" = ${adminAuditLogs.articleId})`,
+  }).from(adminAuditLogs).where(whereCondition).orderBy(desc(adminAuditLogs.createdAt), desc(adminAuditLogs.id)).limit(limit).offset(offset);
+
+  return c.json({
+    total: Number(totalRow?.total ?? 0),
+    limit,
+    offset,
+    logs: rows.map((row) => ({
+      id: row.id,
+      actor_user_id: row.actorUserId,
+      actor_username: row.actorUsername,
+      target_user_id: row.targetUserId,
+      target_username: row.targetUsername,
+      article_id: row.articleId,
+      article_title: row.articleTitle,
+      action: row.action,
+      detail: row.detail ?? null,
+      created_at: timestampToIso(row.createdAt),
     })),
   });
 });

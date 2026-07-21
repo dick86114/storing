@@ -193,6 +193,216 @@ function cleanText(value: string | null | undefined): string | null {
   return normalized ? normalized : null;
 }
 
+type WechatEmbeddedPicture = {
+  cdn_url: string;
+  width?: number;
+  height?: number;
+  theme_color?: string;
+};
+
+type JavascriptStringResult = { value: string; end: number };
+
+function readJavascriptString(source: string, quoteIndex: number): JavascriptStringResult | null {
+  const quote = source[quoteIndex];
+  if (quote !== "'" && quote !== '"') return null;
+
+  let value = '';
+  for (let index = quoteIndex + 1; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === quote) return { value, end: index + 1 };
+    if (char !== '\\') {
+      value += char;
+      continue;
+    }
+
+    const escaped = source[index + 1];
+    if (escaped === undefined) break;
+    index += 1;
+
+    if (escaped === 'x') {
+      const hex = source.slice(index + 1, index + 3);
+      if (/^[0-9a-f]{2}$/i.test(hex)) {
+        value += String.fromCharCode(Number.parseInt(hex, 16));
+        index += 2;
+        continue;
+      }
+    }
+    if (escaped === 'u') {
+      const hex = source.slice(index + 1, index + 5);
+      if (/^[0-9a-f]{4}$/i.test(hex)) {
+        value += String.fromCharCode(Number.parseInt(hex, 16));
+        index += 4;
+        continue;
+      }
+    }
+
+    const simpleEscapes: Record<string, string> = {
+      b: '\b',
+      f: '\f',
+      n: '\n',
+      r: '\r',
+      t: '\t',
+      v: '\v',
+      '0': '\0',
+      '\\': '\\',
+      "'": "'",
+      '"': '"',
+      '/': '/',
+    };
+    if (escaped === '\n' || escaped === '\r') continue;
+    value += simpleEscapes[escaped] ?? escaped;
+  }
+  return null;
+}
+
+function findJavascriptStringProperty(source: string, propertyName: string): string | null {
+  const escapedName = propertyName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const propertyPattern = new RegExp(`\\b${escapedName}\\s*:\\s*(['"])`, 'g');
+  const match = propertyPattern.exec(source);
+  if (!match) return null;
+  const quoteIndex = match.index + match[0].length - 1;
+  return readJavascriptString(source, quoteIndex)?.value ?? null;
+}
+
+function findBalancedArray(source: string, propertyName: string): string | null {
+  const propertyIndex = source.indexOf(propertyName);
+  if (propertyIndex < 0) return null;
+  const start = source.indexOf('[', propertyIndex + propertyName.length);
+  if (start < 0) return null;
+
+  let depth = 0;
+  let quote: string | null = null;
+  let escaped = false;
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === '[') depth += 1;
+    if (char === ']') {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, index + 1);
+    }
+  }
+  return null;
+}
+
+function splitTopLevelObjects(arraySource: string): string[] {
+  const objects: string[] = [];
+  let objectStart = -1;
+  let braceDepth = 0;
+  let quote: string | null = null;
+  let escaped = false;
+
+  for (let index = 0; index < arraySource.length; index += 1) {
+    const char = arraySource[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === '{') {
+      if (braceDepth === 0) objectStart = index;
+      braceDepth += 1;
+    } else if (char === '}') {
+      braceDepth -= 1;
+      if (braceDepth === 0 && objectStart >= 0) {
+        objects.push(arraySource.slice(objectStart, index + 1));
+        objectStart = -1;
+      }
+    }
+  }
+  return objects;
+}
+
+function extractWechatEmbeddedPictures(source: string): WechatEmbeddedPicture[] {
+  const arraySource = findBalancedArray(source, 'picture_page_info_list');
+  if (!arraySource) return [];
+
+  const pictures: WechatEmbeddedPicture[] = [];
+  const seen = new Set<string>();
+  for (const objectSource of splitTopLevelObjects(arraySource)) {
+    const cdnUrl = findJavascriptStringProperty(objectSource, 'cdn_url');
+    if (!cdnUrl) continue;
+    const normalizedUrl = normalizeImageUrl(cdnUrl);
+    if (seen.has(normalizedUrl)) continue;
+    seen.add(normalizedUrl);
+
+    const widthText = findJavascriptStringProperty(objectSource, 'width');
+    const heightText = findJavascriptStringProperty(objectSource, 'height');
+    const themeColor = findJavascriptStringProperty(objectSource, 'theme_color');
+    const width = widthText ? Number(widthText) : undefined;
+    const height = heightText ? Number(heightText) : undefined;
+    pictures.push({
+      cdn_url: normalizedUrl,
+      ...(Number.isFinite(width) && width! > 0 ? { width } : {}),
+      ...(Number.isFinite(height) && height! > 0 ? { height } : {}),
+      ...(themeColor ? { theme_color: themeColor } : {}),
+    });
+  }
+  return pictures;
+}
+
+/**
+ * Parses WeChat's public-page bootstrap object without evaluating page JavaScript.
+ * New picture-page posts often return 204 from the Reader JSON endpoint while the
+ * complete content_noencode and ordered picture list remain embedded in cgiDataNew.
+ */
+export function extractWechatEmbeddedDataFromHtml(html: string): any | null {
+  const marker = 'window.cgiDataNew';
+  const markerIndex = html.indexOf(marker);
+  if (markerIndex < 0) return null;
+  const scriptEnd = html.indexOf('</script>', markerIndex);
+  const source = html.slice(markerIndex, scriptEnd > markerIndex ? scriptEnd : undefined);
+
+  const title = findJavascriptStringProperty(source, 'title');
+  const nickName = findJavascriptStringProperty(source, 'nick_name');
+  const description = findJavascriptStringProperty(source, 'desc');
+  const contentNoencode = findJavascriptStringProperty(source, 'content_noencode') || description;
+  const pictures = extractWechatEmbeddedPictures(source);
+  if (!contentNoencode && pictures.length === 0) return null;
+
+  return {
+    base_resp: { ret: 0, errmsg: 'ok' },
+    title: cleanText(title),
+    nick_name: cleanText(nickName),
+    content_noencode: contentNoencode || (title ? `<p>${title}</p>` : '<p>微信公众号图片文章</p>'),
+    picture_page_info_list: pictures,
+    collect_source: 'wechat_embedded_page',
+  };
+}
+
+async function fetchWechatEmbeddedData(url: string): Promise<any | null> {
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Accept-Language': 'zh-CN,zh;q=0.9',
+      Accept: 'text/html,application/xhtml+xml',
+    },
+    redirect: 'follow',
+    signal: AbortSignal.timeout(45000),
+  });
+  if (!res.ok) throw new Error(`Wechat public page error: ${res.status}`);
+  const html = await res.text();
+  return extractWechatEmbeddedDataFromHtml(html);
+}
+
 function extractTitleFromDocument(doc: Document): string | null {
   return cleanText(
     doc.querySelector('meta[property="og:title"]')?.getAttribute('content')
@@ -483,20 +693,38 @@ export async function repairArticleDisplayMeta(articleId: number, userId?: numbe
   };
 }
 
-function getRawContentPictureUrls(rawContent: any): string[] {
+function getRawContentPictures(rawContent: any): WechatEmbeddedPicture[] {
   if (!Array.isArray(rawContent?.picture_page_info_list)) return [];
 
-  return rawContent.picture_page_info_list
-    .map((pic: any) => pic?.cdn_url)
-    .filter((url: unknown): url is string => typeof url === 'string' && url.trim().length > 0)
-    .map(normalizeImageUrl);
+  const pictures: WechatEmbeddedPicture[] = [];
+  const seen = new Set<string>();
+  for (const picture of rawContent.picture_page_info_list) {
+    if (typeof picture?.cdn_url !== 'string' || !picture.cdn_url.trim()) continue;
+    const cdnUrl = normalizeImageUrl(picture.cdn_url);
+    if (seen.has(cdnUrl)) continue;
+    seen.add(cdnUrl);
+    const width = Number(picture.width);
+    const height = Number(picture.height);
+    pictures.push({
+      cdn_url: cdnUrl,
+      ...(Number.isFinite(width) && width > 0 ? { width } : {}),
+      ...(Number.isFinite(height) && height > 0 ? { height } : {}),
+      ...(typeof picture.theme_color === 'string' && picture.theme_color ? { theme_color: picture.theme_color } : {}),
+    });
+  }
+  return pictures;
+}
+
+function getRawContentPictureUrls(rawContent: any): string[] {
+  return getRawContentPictures(rawContent).map((picture) => picture.cdn_url);
 }
 
 async function buildHtmlFromRawContent(rawContent: any): Promise<string | null> {
   if (!rawContent?.content_noencode) return null;
 
   const html = normalizeRawHtmlFragment(rawContent.content_noencode);
-  const pictureUrls = getRawContentPictureUrls(rawContent);
+  const pictures = getRawContentPictures(rawContent);
+  const pictureUrls = pictures.map((picture) => picture.cdn_url);
   if (pictureUrls.length === 0) return uploadImagesInHtml(html);
 
   const dom = new JSDOM(html);
@@ -520,6 +748,10 @@ async function buildHtmlFromRawContent(rawContent: any): Promise<string | null> 
     img.setAttribute('src', pictureUrl);
     img.setAttribute('alt', link.getAttribute('data-refer') || `图${seq}`);
     img.setAttribute('loading', 'lazy');
+    const picture = pictures[pictureIndex];
+    if (picture?.width) img.setAttribute('width', String(picture.width));
+    if (picture?.height) img.setAttribute('height', String(picture.height));
+    figure.setAttribute('data-seq', String(seq));
     figure.appendChild(img);
 
     const paragraph = link.closest('p, section, div');
@@ -531,17 +763,35 @@ async function buildHtmlFromRawContent(rawContent: any): Promise<string | null> 
   }
 
   if (!insertedByReference) {
-    for (let index = 0; index < pictureUrls.length; index += 1) {
+    const gallery = doc.createElement('section');
+    gallery.className = 'wechat-picture-article';
+    gallery.setAttribute('aria-label', `原文图片，共 ${pictures.length} 张`);
+    for (let index = 0; index < pictures.length; index += 1) {
+      const picture = pictures[index];
       const figure = doc.createElement('figure');
-      figure.className = 'wechat-inline-image';
+      figure.className = 'wechat-picture-page';
+      figure.setAttribute('data-seq', String(index + 1));
+      if (picture.theme_color) figure.style.backgroundColor = picture.theme_color;
 
       const img = doc.createElement('img');
-      img.setAttribute('src', pictureUrls[index]);
-      img.setAttribute('alt', `图${index + 1}`);
-      img.setAttribute('loading', 'lazy');
+      img.setAttribute('src', picture.cdn_url);
+      img.setAttribute('alt', `原文第 ${index + 1} 张图片`);
+      img.setAttribute('loading', index < 2 ? 'eager' : 'lazy');
+      if (picture.width) img.setAttribute('width', String(picture.width));
+      if (picture.height) img.setAttribute('height', String(picture.height));
       figure.appendChild(img);
-      doc.body.appendChild(figure);
+      gallery.appendChild(figure);
     }
+    doc.body.appendChild(gallery);
+
+    const style = doc.createElement('style');
+    style.setAttribute('data-storing-wechat-picture-style', 'true');
+    style.textContent = `
+      .wechat-picture-article { display: grid; gap: 16px; width: min(100%, 667px); margin: 18px auto 0; }
+      .wechat-picture-page { margin: 0; overflow: hidden; border-radius: 10px; }
+      .wechat-picture-page img { display: block; width: 100%; max-width: 100%; height: auto; margin: 0 auto; }
+    `;
+    doc.body.appendChild(style);
   } else {
     for (let index = 0; index < pictureUrls.length; index += 1) {
       if (usedPictureIndexes.has(index)) continue;
@@ -552,6 +802,9 @@ async function buildHtmlFromRawContent(rawContent: any): Promise<string | null> 
       img.setAttribute('src', pictureUrls[index]);
       img.setAttribute('alt', `图${index + 1}`);
       img.setAttribute('loading', 'lazy');
+      if (pictures[index]?.width) img.setAttribute('width', String(pictures[index].width));
+      if (pictures[index]?.height) img.setAttribute('height', String(pictures[index].height));
+      figure.setAttribute('data-seq', String(index + 1));
       figure.appendChild(img);
       doc.body.appendChild(figure);
     }
@@ -797,14 +1050,38 @@ async function fetchContent(url: string, format: 'markdown' | 'html' = 'markdown
  */
 export async function fetchWechatJson(url: string): Promise<any> {
   const apiUrl = `${READER_API_BASE}?url=${encodeURIComponent(url)}&format=json`;
-  const res = await fetch(apiUrl, {
-    headers: { 'User-Agent': 'StoringBot/1.0' },
-    signal: AbortSignal.timeout(30000),
-  });
-  if (!res.ok) throw new Error(`Reader API json error: ${res.status}`);
-  const data = await res.json() as any;
-  if (data?.base_resp?.ret !== 0 || !data?.content_noencode) return null;
-  return data;
+  let readerError: Error | null = null;
+
+  try {
+    const res = await fetch(apiUrl, {
+      headers: { 'User-Agent': 'StoringBot/1.0' },
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!res.ok && res.status !== 204) throw new Error(`Reader API json error: ${res.status}`);
+    if (res.status !== 204) {
+      const responseText = await res.text();
+      if (responseText.trim()) {
+        const data = JSON.parse(responseText) as any;
+        if (data?.base_resp?.ret === 0 && data?.content_noencode) return data;
+      }
+    }
+  } catch (error) {
+    readerError = error instanceof Error ? error : new Error(String(error));
+  }
+
+  try {
+    const embeddedData = await fetchWechatEmbeddedData(url);
+    if (embeddedData?.content_noencode || embeddedData?.picture_page_info_list?.length) {
+      return embeddedData;
+    }
+  } catch (error) {
+    const embeddedError = error instanceof Error ? error.message : String(error);
+    if (readerError) throw new Error(`${readerError.message}; embedded page fallback: ${embeddedError}`);
+    throw error;
+  }
+
+  if (readerError) throw readerError;
+  return null;
 }
 
 
@@ -958,7 +1235,9 @@ export async function fetchArticleContentFromSources(
   // 3. 公众号文章：json/md/html 都失败时，最后尝试 SingleFile 抓取
   if (!content && article.originalUrl && /mp\.weixin\.qq\.com/i.test(article.originalUrl)) {
     try {
-      const captured = await fetchSingleFileCaptureContent(article.originalUrl, htmlVariant);
+      const captured = format === 'html'
+        ? await fetchSingleFileCaptureContent(article.originalUrl, htmlVariant)
+        : await fetchSingleFileMarkdownContent(article.originalUrl);
       if (captured && hasUsefulContent(captured, format)) {
         content = captured;
       }

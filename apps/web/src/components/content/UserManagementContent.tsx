@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { AppstoreOutlined, CloseOutlined, EditOutlined, FolderOutlined, HeartOutlined, KeyOutlined, LockOutlined, PlusOutlined, ReloadOutlined, SafetyOutlined, SearchOutlined, SyncOutlined, UserOutlined } from '@ant-design/icons';
 import { api, type AdminBootstrapStatus, type AdminUser, type AdminUserActivity } from '@/lib/api';
@@ -38,6 +39,7 @@ function roleDescription(role: UserRole) {
 }
 
 export function UserManagementContent() {
+  const router = useRouter();
   const { user, isAuthenticated, isLoading } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [bootstrap, setBootstrap] = useState<AdminBootstrapStatus | null>(null);
@@ -177,6 +179,10 @@ export function UserManagementContent() {
     }
   }
 
+  function openUserLibrary(userId: number, view: 'inbox' | 'favorites' | 'archive' = 'inbox') {
+    router.push(`/admin/library?userId=${userId}&view=${view}`);
+  }
+
   async function toggleUser(item: AdminUser) {
     if (item.role === 'admin') {
       setError('管理员账号受保护，不能被禁用。');
@@ -257,23 +263,28 @@ export function UserManagementContent() {
       <div className="user-admin-list">
         {filteredUsers.map((item) => {
           const protectedAdmin = item.role === 'admin';
-          return <article className="user-admin-card" key={item.id}>
+          return <article className="user-admin-card user-admin-card--library-link" key={item.id} role="link" tabIndex={0} onClick={() => openUserLibrary(item.id)} onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              openUserLibrary(item.id);
+            }
+          }}>
             <div className="user-admin-card-head">
               <div className="user-admin-identity">
                 <span className="user-admin-avatar"><UserOutlined /></span>
-                <div><div className="user-admin-name"><h3>{item.username}</h3><span>{roleLabel(item.role)}</span><i className={item.status === 'active' ? 'is-active' : 'is-disabled'}>{item.status === 'active' ? '启用' : '禁用'}</i></div><p>注册于 {dateText(item.created_at)}</p><p className="user-admin-session">最后登录 {dateText(item.last_login_at)} · 最近 MCP 调用 {dateText(item.last_mcp_used_at)}</p></div>
+                <div><div className="user-admin-name"><h3>{item.username}</h3><span className={`user-admin-role-pill user-admin-role-pill--${item.role}`}>{roleLabel(item.role)}</span><i className={item.status === 'active' ? 'is-active' : 'is-disabled'}>{item.status === 'active' ? '启用' : '禁用'}</i></div><p>注册于 {dateText(item.created_at)}</p><p className="user-admin-session">最后登录 {dateText(item.last_login_at)} · 最近 MCP 调用 {dateText(item.last_mcp_used_at)}</p></div>
               </div>
               <div className="user-admin-actions">
-                <button type="button" className="user-admin-edit-button" aria-label="编辑用户" title="编辑用户" disabled={saving} onClick={() => openEditModal(item)}><EditOutlined /></button>
-                {protectedAdmin ? <span className="user-admin-protected"><SafetyOutlined /> 管理员受保护</span> : <button type="button" className="mcp-btn mcp-btn-quiet" disabled={saving} onClick={() => toggleUser(item)}>{item.status === 'active' ? '禁用' : '启用'}</button>}
+                <button type="button" className="user-admin-edit-button" aria-label="编辑用户" title="编辑用户" disabled={saving} onClick={(event) => { event.stopPropagation(); openEditModal(item); }}><EditOutlined /></button>
+                {protectedAdmin ? <span className="user-admin-protected"><SafetyOutlined /> 管理员受保护</span> : <button type="button" className="mcp-btn mcp-btn-quiet" disabled={saving} onClick={(event) => { event.stopPropagation(); toggleUser(item); }}>{item.status === 'active' ? '禁用' : '启用'}</button>}
               </div>
             </div>
             <div className="user-admin-usage">
-              <div><AppstoreOutlined /><span>收件箱</span><strong>{item.inbox_count}</strong></div>
-              <div><FolderOutlined /><span>归档</span><strong>{item.archive_count}</strong></div>
-              <div><HeartOutlined /><span>收藏</span><strong>{item.favorite_count}</strong></div>
-              <button type="button" className="user-admin-usage-button" onClick={() => openActivityModal(item)}><KeyOutlined /><span>MCP 连接</span><strong>共 {item.mcp_client_count} 个</strong><small>{item.mcp_client_count === 0 ? '暂无连接' : item.active_mcp_client_count === item.mcp_client_count ? '全部已启用' : `${item.active_mcp_client_count} 个已启用`}</small></button>
-              <button type="button" className="user-admin-usage-button" onClick={() => openActivityModal(item)}><SafetyOutlined /><span>MCP 调用</span><strong>{item.mcp_request_count} 次</strong><small>{item.last_mcp_used_at ? `最近 ${dateText(item.last_mcp_used_at)}` : '暂无调用记录'}</small></button>
+              <button type="button" className="user-admin-usage-button" onClick={(event) => { event.stopPropagation(); openUserLibrary(item.id, 'inbox'); }}><AppstoreOutlined /><span>收件箱</span><strong>{item.inbox_count}</strong><small>打开收件箱视图</small></button>
+              <button type="button" className="user-admin-usage-button" onClick={(event) => { event.stopPropagation(); openUserLibrary(item.id, 'archive'); }}><FolderOutlined /><span>归档</span><strong>{item.archive_count}</strong><small>打开归档视图</small></button>
+              <button type="button" className="user-admin-usage-button" onClick={(event) => { event.stopPropagation(); openUserLibrary(item.id, 'favorites'); }}><HeartOutlined /><span>收藏</span><strong>{item.favorite_count}</strong><small>打开收藏视图</small></button>
+              <button type="button" className="user-admin-usage-button" onClick={(event) => { event.stopPropagation(); openActivityModal(item); }}><KeyOutlined /><span>MCP 连接</span><strong>共 {item.mcp_client_count} 个</strong><small>{item.mcp_client_count === 0 ? '暂无连接' : item.active_mcp_client_count === item.mcp_client_count ? '全部已启用' : `${item.active_mcp_client_count} 个已启用`}</small></button>
+              <button type="button" className="user-admin-usage-button" onClick={(event) => { event.stopPropagation(); openActivityModal(item); }}><SafetyOutlined /><span>MCP 调用</span><strong>{item.mcp_request_count} 次</strong><small>{item.last_mcp_used_at ? `最近 ${dateText(item.last_mcp_used_at)}` : '暂无调用记录'}</small></button>
             </div>
           </article>;
         })}

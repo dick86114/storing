@@ -341,6 +341,7 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
       .set({
         content: {
           collectMethod: 'reader',
+          collectSource: wechatJson.collect_source || 'reader_json',
           originalUrl: normalizedUrl,
           content_noencode: wechatJson.content_noencode,
           picture_page_info_list: wechatJson.picture_page_info_list ?? [],

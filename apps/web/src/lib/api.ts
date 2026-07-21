@@ -37,6 +37,45 @@ export type AdminUserActivity = {
   logs: Array<{ id: number; client_id: number | null; client_name: string | null; tool_name: string; status: string; error_code: string | null; duration_ms: number | null; transport: string; client_agent: string | null; request_method: string | null; request_path: string | null; created_at: string | null }>;
 };
 
+export type AdminManagedArticle = {
+  id: number;
+  title: string | null;
+  author: string | null;
+  source: string | null;
+  original_url: string | null;
+  publish_time: string | null;
+  cover_image: string | null;
+  source_type: string;
+  client_id: number | null;
+  client_name: string | null;
+  is_favorited: boolean;
+  is_archived: boolean;
+  ai_summary: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type AdminUserArticleLibrary = {
+  user: { id: number; username: string; role: AdminUser['role']; status: AdminUser['status'] };
+  page: number;
+  per_page: number;
+  total: number;
+  data: AdminManagedArticle[];
+};
+
+export type AdminAuditLog = {
+  id: number;
+  actor_user_id: number;
+  actor_username: string | null;
+  target_user_id: number | null;
+  target_username: string | null;
+  article_id: number | null;
+  article_title: string | null;
+  action: string;
+  detail: Record<string, unknown> | null;
+  created_at: string | null;
+};
+
 export type McpClient = {
   id: number;
   name: string;
@@ -166,6 +205,32 @@ export const api = {
 
   getAdminUserActivity: (id: number, limit = 20, offset = 0) =>
     fetchJSON<AdminUserActivity>(`/admin/users/${id}/activity?limit=${limit}&offset=${offset}`),
+
+  getAdminUserArticles: (userId: number, options: { view?: 'inbox' | 'favorites' | 'archive'; q?: string; collectedSince?: string; page?: number; perPage?: number } = {}) => {
+    const params = new URLSearchParams({
+      view: options.view || 'inbox',
+      page: String(options.page || 1),
+      perPage: String(options.perPage || 20),
+    });
+    if (options.q?.trim()) params.set('q', options.q.trim());
+    if (options.collectedSince) params.set('collected_since', options.collectedSince);
+    return fetchJSON<AdminUserArticleLibrary>(`/admin/users/${userId}/articles?${params.toString()}`);
+  },
+
+  copyAdminUserArticleToMine: (userId: number, articleId: number) =>
+    fetchJSON<{ article_id: number; copied_to_user_id: number; created: boolean }>(`/admin/users/${userId}/articles/${articleId}/copy-to-me`, { method: 'POST' }),
+
+  regenerateAdminUserArticleAi: (userId: number, articleId: number) =>
+    fetchJSON<{ article_id: number; user_id: number; regenerated: boolean }>(`/admin/users/${userId}/articles/${articleId}/regenerate-ai`, { method: 'POST', timeoutMs: 120000 }),
+
+  deleteAdminUserArticle: (userId: number, articleId: number) =>
+    fetchJSON<{ article_id: number; user_id: number; deleted: boolean; scope: 'metadata' }>(`/admin/users/${userId}/articles/${articleId}`, { method: 'DELETE' }),
+
+  getAdminAuditLogs: (options: { targetUserId?: number; limit?: number; offset?: number } = {}) => {
+    const params = new URLSearchParams({ limit: String(options.limit || 30), offset: String(options.offset || 0) });
+    if (options.targetUserId) params.set('target_user_id', String(options.targetUserId));
+    return fetchJSON<{ total: number; limit: number; offset: number; logs: AdminAuditLog[] }>(`/admin/audit-logs?${params.toString()}`);
+  },
 
   getMyMcpLimits: () =>
     fetchJSON<{ rate_limit_per_minute: number; rate_limit_per_day: number; concurrent_collect_limit: number; managed_by: 'platform' }>('/mcp/me/limits'),

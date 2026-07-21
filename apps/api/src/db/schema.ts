@@ -327,3 +327,14 @@ export const wikiAnswers = pgTable('wiki_answers', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
+
+/** Durable audit history for privileged cross-user library administration. */
+export const adminAuditLogs = pgTable('admin_audit_logs', {
+  id: serial('id').primaryKey(),
+  actorUserId: integer('actor_user_id').notNull().references(() => users.id),
+  targetUserId: integer('target_user_id').references(() => users.id),
+  articleId: integer('article_id').references(() => articles.id),
+  action: text('action').notNull(),
+  detail: jsonb('detail'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
