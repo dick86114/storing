@@ -3,6 +3,7 @@ import { articles, articleMetadata } from '../db/schema.js';
 import { getAdminUserId } from './metadata-scope.service.js';
 import { and, eq, sql } from 'drizzle-orm';
 import { JSDOM } from 'jsdom';
+import { assertSafeOutboundUrl } from './outbound-url-policy.service.js';
 import {
   extractTextFromHtml,
   type HtmlVariant,
@@ -865,6 +866,7 @@ export async function uploadImage(imageUrl: string): Promise<string | null> {
       filename = dataImage.filename;
     } else {
       // 下载图片
+      await assertSafeOutboundUrl(imageUrl);
       const imgRes = await fetch(imageUrl, {
         headers: { 'User-Agent': 'StoringBot/1.0', 'Referer': 'https://mp.weixin.qq.com/' },
         signal: AbortSignal.timeout(15000),

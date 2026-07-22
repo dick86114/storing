@@ -141,7 +141,6 @@ type ApiRequestInit = RequestInit & {
 };
 
 async function fetchJSON<T>(path: string, init?: ApiRequestInit): Promise<T> {
-  const token = localStorage.getItem('token');
   const controller = new AbortController();
   const { timeoutMs = REQUEST_TIMEOUT_MS, ...fetchInit } = init ?? {};
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -149,20 +148,15 @@ async function fetchJSON<T>(path: string, init?: ApiRequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...fetchInit,
     signal: controller.signal,
+    credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...fetchInit.headers,
     },
   }).finally(() => window.clearTimeout(timeout));
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    // Only an authentication failure invalidates the saved session. A 403 can
-    // be a normal authorization or service response and must not force logout.
-    if (res.status === 401) {
-      localStorage.removeItem('token');
-    }
     throw new Error(body?.error?.message || `Request failed: ${res.status}`);
   }
   return res.json();
@@ -171,13 +165,16 @@ async function fetchJSON<T>(path: string, init?: ApiRequestInit): Promise<T> {
 export const api = {
   // 认证相关
   login: (username: string, password: string) =>
-    fetchJSON<{ token: string; user: { id: number; username: string; role?: string; status?: string } }>('/login', {
+    fetchJSON<{ user: { id: number; username: string; role?: string; status?: string } }>('/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     }),
 
   verifyToken: () =>
     fetchJSON<{ valid: boolean; user?: { id: number; username: string; role?: string; status?: string } }>('/verify'),
+
+  logout: () =>
+    fetchJSON<{ message: string }>('/logout', { method: 'POST' }),
 
   changePassword: (currentPassword: string, newPassword: string) =>
     fetchJSON<{ message: string }>('/change-password', {

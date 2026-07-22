@@ -18,15 +18,20 @@ export async function initUserManagementSchema() {
   await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at timestamp`);
 }
 
-function configuredAdminCredentials() {
-  return {
-    username: process.env.ADMIN_USERNAME || 'admin',
-    password: process.env.ADMIN_PASSWORD || 'admin123',
-  };
+export function requireConfiguredAdminCredentials() {
+  const username = process.env.ADMIN_USERNAME?.trim();
+  const password = process.env.ADMIN_PASSWORD;
+  if (!username || !password) {
+    throw new Error('ADMIN_USERNAME and ADMIN_PASSWORD must be configured');
+  }
+  if (process.env.NODE_ENV === 'production' && password.length < 12) {
+    throw new Error('ADMIN_PASSWORD must contain at least 12 characters in production');
+  }
+  return { username, password };
 }
 
 async function findConfiguredAdmin() {
-  const { username } = configuredAdminCredentials();
+  const { username } = requireConfiguredAdminCredentials();
   const [account] = await db.select().from(users).where(eq(users.username, username)).limit(1);
   return account ?? null;
 }
@@ -37,11 +42,11 @@ async function findConfiguredAdmin() {
  * effect after an administrator explicitly triggers the recovery action.
  */
 export async function ensureConfiguredAdmin() {
-  const { username, password } = configuredAdminCredentials();
+  const { username, password } = requireConfiguredAdminCredentials();
   const existing = await findConfiguredAdmin();
 
   if (!existing) {
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 12);
     const [created] = await db.insert(users).values({
       username,
       passwordHash,
@@ -51,15 +56,13 @@ export async function ensureConfiguredAdmin() {
     return { created: true, user: created };
   }
 
-  const [updated] = await db.update(users)
-    .set({ role: 'admin', status: 'active', updatedAt: new Date() })
-    .where(eq(users.id, existing.id))
-    .returning();
-  return { created: false, user: updated };
+  // Do not silently re-enable or re-promote an existing account at startup.
+  // Recovery is an explicit authenticated administrative action.
+  return { created: false, user: existing };
 }
 
 export async function getConfiguredAdminStatus(): Promise<ConfiguredAdminStatus> {
-  const { username, password } = configuredAdminCredentials();
+  const { username, password } = requireConfiguredAdminCredentials();
   const account = await findConfiguredAdmin();
 
   return {
@@ -77,8 +80,8 @@ export async function getConfiguredAdminStatus(): Promise<ConfiguredAdminStatus>
  * change cannot silently replace a database administrator's password.
  */
 export async function resetConfiguredAdminPassword() {
-  const { username, password } = configuredAdminCredentials();
-  const passwordHash = await bcrypt.hash(password, 10);
+  const { username, password } = requireConfiguredAdminCredentials();
+  const passwordHash = await bcrypt.hash(password, 12);
   const existing = await findConfiguredAdmin();
 
   if (!existing) {

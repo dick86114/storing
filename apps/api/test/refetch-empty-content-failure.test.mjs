@@ -20,3 +20,14 @@ test('refetch returns an error instead of reporting success when no useful body 
   const successResponseIndex = route.lastIndexOf('return c.json({');
   assert.ok(guardIndex >= 0 && successResponseIndex > guardIndex, 'the failure guard must precede the successful response');
 });
+
+const workspaceRoot = new URL('../../../', import.meta.url);
+const nextConfig = readFileSync(new URL('apps/web/next.config.ts', workspaceRoot), 'utf8');
+
+test('refetch does not block its response on slow cover-image uploads and the browser proxy matches the client timeout', () => {
+  const route = getRefetchRoute();
+
+  assert.doesNotMatch(route, /const \[contentHtml, contentHtmlMobile, contentMd, coverImage\] = await Promise\.all\(/);
+  assert.match(route, /void processCoverImage\(id, userId\)\.catch\(/);
+  assert.match(nextConfig, /experimental:\s*\{\s*proxyTimeout:\s*120_000,/);
+});

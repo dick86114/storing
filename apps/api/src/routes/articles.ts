@@ -11,6 +11,7 @@ import {
   repairArticleDisplayMeta,
 } from '../services/reader.service.js';
 import { requireAuth, optionalAuth, isAuthenticated, getCurrentUser } from '../middleware/auth.js';
+import { sanitizeCapturedHtml } from '../services/singlefile.service.js';
 
 export const articlesRoutes = new Hono();
 
@@ -97,33 +98,6 @@ function getArticleOrderBy(sort: ArticleSortField, order: SortOrder, hasActionTi
 }
 
 
-/**
- * 确保 article_metadata 记录存在，不存在则创建
- */
-async function ensureMetadata(userId: number, articleId: number) {
-  const [existing] = await db
-    .select({
-      id: articleMetadata.id,
-      articleId: articleMetadata.articleId,
-      isFavorited: articleMetadata.isFavorited,
-      isArchived: articleMetadata.isArchived,
-    })
-    .from(articleMetadata)
-    .where(metadataWhereCondition(articleId, userId));
-
-  if (existing) return existing;
-
-  await db
-    .insert(articleMetadata)
-    .values({ articleId, userId, sourceType: 'web' });
-
-  return {
-    articleId,
-    isFavorited: false,
-    isArchived: false,
-  };
-}
-
 async function getArticleRecord(id: number, userId: number) {
   const [article] = await db
     .select({
@@ -186,7 +160,7 @@ function serializePublicPublication(article: any) {
     publishTime: article.publishTime,
     coverImage: article.coverImage,
     contentMd: article.contentMd,
-    contentHtml: article.contentHtml,
+    contentHtml: sanitizeCapturedHtml(article.contentHtml || ''),
     aiSummary: article.aiSummary,
     aiCategory: article.aiCategory,
     aiTags: article.aiTags ?? [],
@@ -496,7 +470,7 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
   return c.json({
     ...serializeArticleRecord(article),
     contentMd: format === 'markdown' ? content : null,
-    contentHtml: format === 'html' ? content : null,
+    contentHtml: format === 'html' && content ? sanitizeCapturedHtml(content) : null,
   });
 });
 
@@ -509,12 +483,9 @@ articlesRoutes.post('/articles/:id/favorite', requireAuth, async (c) => {
   if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
   const id = parseInt(idParam);
 
-  // 验证文章存在
-  const [article] = await db.select().from(articles).where(eq(articles.id, id));
-  if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
-
   const userId = getCurrentUser(c).id;
-  const meta = await ensureMetadata(userId, id);
+  const meta = await getArticleRecord(id, userId);
+  if (!meta) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
   const newState = !meta.isFavorited;
   const now = new Date();
   const hasActionTimestamps = await hasMetadataTimestampColumns();
@@ -539,11 +510,9 @@ articlesRoutes.post('/articles/:id/archive', requireAuth, async (c) => {
   if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
   const id = parseInt(idParam);
 
-  const [article] = await db.select().from(articles).where(eq(articles.id, id));
-  if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
-
   const userId = getCurrentUser(c).id;
-  await ensureMetadata(userId, id);
+  const ownedArticle = await getArticleRecord(id, userId);
+  if (!ownedArticle) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
   const now = new Date();
   const hasActionTimestamps = await hasMetadataTimestampColumns();
   const updateValues = hasActionTimestamps
@@ -572,7 +541,8 @@ articlesRoutes.post('/articles/:id/unarchive', requireAuth, async (c) => {
   const id = parseInt(idParam);
 
   const userId = getCurrentUser(c).id;
-  await ensureMetadata(userId, id);
+  const ownedArticle = await getArticleRecord(id, userId);
+  if (!ownedArticle) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
   const now = new Date();
   const hasActionTimestamps = await hasMetadataTimestampColumns();
   const updateValues = hasActionTimestamps
@@ -691,21 +661,18 @@ articlesRoutes.post('/articles/:id/refetch', requireAuth, async (c) => {
   if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
   const id = parseInt(idParam);
 
-  const [article] = await db.select().from(articles).where(eq(articles.id, id));
-  if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
-
   const userId = getCurrentUser(c).id;
-  await ensureMetadata(userId, id);
+  const ownedArticle = await getArticleRecord(id, userId);
+  if (!ownedArticle) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
   await ensureArticleMetadataContentHtmlMobileColumn();
   await db.update(articleMetadata)
     .set({ contentMd: null, contentHtml: null, contentHtmlMobile: null, coverImage: null, updatedAt: new Date() })
     .where(metadataWhereCondition(id, userId));
 
-  const [contentHtml, contentHtmlMobile, contentMd, coverImage] = await Promise.all([
+  const [contentHtml, contentHtmlMobile, contentMd] = await Promise.all([
     getArticleContent(id, 'html', 'desktop', userId),
     getArticleContent(id, 'html', 'mobile', userId),
     getArticleContent(id, 'markdown', 'desktop', userId),
-    processCoverImage(id, userId),
   ]);
   const hasCapturedContent = Boolean(contentHtml || contentHtmlMobile || contentMd);
 
@@ -718,12 +685,19 @@ articlesRoutes.post('/articles/:id/refetch', requireAuth, async (c) => {
     }, 422);
   }
 
+  // Image uploads can take much longer than body capture. Do not make the
+  // user-facing refetch request wait for them; the detail view will pick up
+  // the refreshed cover on its next data refresh.
+  void processCoverImage(id, userId).catch((error) => {
+    console.error('Cover image process failed after refetch:', error instanceof Error ? error.message : error);
+  });
+
   return c.json({
     articleId: id,
     contentHtml: Boolean(contentHtml),
     contentHtmlMobile: Boolean(contentHtmlMobile),
     contentMd: Boolean(contentMd),
-    coverImage,
+    coverImage: ownedArticle.metadataCoverImage || ownedArticle.articleCoverImage || null,
   });
 });
 
@@ -736,11 +710,9 @@ articlesRoutes.post('/articles/:id/regenerate-ai', requireAuth, async (c) => {
   if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
   const id = parseInt(idParam);
 
-  const [article] = await db.select().from(articles).where(eq(articles.id, id));
-  if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
-
   const userId = getCurrentUser(c).id;
-  await ensureMetadata(userId, id);
+  const ownedArticle = await getArticleRecord(id, userId);
+  if (!ownedArticle) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
   await db.update(articleMetadata)
     .set({ aiSummary: null, aiTags: [], updatedAt: new Date() })
     .where(metadataWhereCondition(id, userId));
@@ -758,10 +730,10 @@ articlesRoutes.delete('/articles/:id', requireAuth, async (c) => {
   if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
   const id = parseInt(idParam);
 
-  const [article] = await db.select({ id: articles.id }).from(articles).where(eq(articles.id, id));
-  if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
-
   const userId = getCurrentUser(c).id;
+  const ownedArticle = await getArticleRecord(id, userId);
+  if (!ownedArticle) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
+
   // 软删除：标记 is_deleted 而非删行，避免启动时 initArticleMetadataUserScope 重建
   await db.update(articleMetadata).set({ isDeleted: true, updatedAt: new Date() }).where(metadataWhereCondition(id, userId));
 
@@ -777,10 +749,10 @@ articlesRoutes.delete('/articles/:id/permanent', requireAuth, async (c) => {
   if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
   const id = parseInt(idParam);
 
-  const [article] = await db.select({ id: articles.id }).from(articles).where(eq(articles.id, id));
-  if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
-
   const userId = getCurrentUser(c).id;
+  const ownedArticle = await getArticleRecord(id, userId);
+  if (!ownedArticle) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
+
   // 先查除当前用户外的其他用户是否还引用这篇文章
   const [{ remaining }] = await db
     .select({ remaining: count() })
