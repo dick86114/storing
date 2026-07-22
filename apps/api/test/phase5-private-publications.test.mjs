@@ -54,31 +54,3 @@ test('unpublish preserves archive data and hides only the public state', () => {
   assert.doesNotMatch(routes, /unpublish[\s\S]{0,900}isArchived: false/);
   assert.doesNotMatch(routes, /unpublish[\s\S]{0,900}publishedAt: null/);
 });
-
-
-test('Wiki storage and API handlers carry an explicit user scope', () => {
-  const schema = read('src/db/schema.ts');
-  const routes = read('src/routes/wiki.ts');
-  const wiki = read('src/services/wiki.service.ts');
-
-  assert.match(schema, /wikiArticles[\s\S]*userId: integer\('user_id'\)/);
-  assert.match(schema, /wikiPages[\s\S]*userId: integer\('user_id'\)/);
-  assert.match(routes, /wikiRoutes\.get\('\/wiki', requireAuth/);
-  assert.match(routes, /const userId = getCurrentUser\(c\)\.id as number/);
-  assert.match(wiki, /userId: number/);
-  assert.doesNotMatch(wiki, /getAdminUserId/);
-});
-
-test('Wiki user scope replaces global article and slug uniqueness', () => {
-  const migration = read('src/services/metadata-scope.service.ts');
-
-  assert.match(migration, /wiki_articles_user_article_unique/);
-  assert.match(migration, /wiki_pages_user_slug_unique/);
-});
-
-test('legacy global Wiki data is reset once instead of being attributed to a user', () => {
-  const migration = read('src/services/metadata-scope.service.ts');
-
-  assert.match(migration, /wiki_private_scope_reset_v1/);
-  assert.match(migration, /TRUNCATE TABLE wiki_articles, wiki_article_extracts, wiki_pages, wiki_page_sources/);
-});

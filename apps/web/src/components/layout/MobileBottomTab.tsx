@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers/AuthContext';
-import { AppstoreOutlined, HeartOutlined, FolderOutlined, BookOutlined, ExportOutlined, MoreOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, HeartOutlined, FolderOutlined, ExportOutlined, MoreOutlined } from '@ant-design/icons';
 import { APP_NAV_ITEMS, PRIMARY_NAV_KEYS, SECONDARY_NAV_KEYS, isSecondaryNavKey, type AppNavKey } from '@/lib/navigation';
 
 const NAV_ICONS = {
@@ -11,11 +11,10 @@ const NAV_ICONS = {
   favorites: HeartOutlined,
   archive: FolderOutlined,
   published: ExportOutlined,
-  wiki: BookOutlined,
 } satisfies Record<Exclude<AppNavKey, 'collect'>, React.ComponentType<{ className?: string; style?: React.CSSProperties }>>;
 
 interface MobileBottomTabProps {
-  counts: { inbox: number; favorites: number; archive: number; published?: number; wiki?: number };
+  counts: { inbox: number; favorites: number; archive: number; published?: number };
   activeKey: AppNavKey | null;
   onNavigate: (key: AppNavKey) => void;
 }
@@ -60,7 +59,7 @@ export function MobileBottomTab({ counts, activeKey, onNavigate }: MobileBottomT
                     <span className="mobile-more-option-icon"><Icon /></span>
                     <span className="mobile-more-option-copy">
                       <strong>{item.label}</strong>
-                      <small>{key === 'published' ? '管理已公开文章' : '浏览知识库内容'}</small>
+                      <small>管理已公开文章</small>
                     </span>
                     <span className="mobile-more-option-count">{count}</span>
                   </button>

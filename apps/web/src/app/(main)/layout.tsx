@@ -80,7 +80,7 @@ function MainContent({ children }: { children: ReactNode }) {
   // 游客访问私有路由时重定向到发布页
   useEffect(() => {
      if (!isAuthenticated && !isLoading) {
-       const privateRoutes = ['/inbox', '/favorites', '/archive', '/wiki', '/collect', '/settings', '/admin'];
+       const privateRoutes = ['/inbox', '/favorites', '/archive', '/collect', '/settings', '/admin'];
        if (privateRoutes.some(route => pathname === route || pathname.startsWith(`${route}/`))) {
          window.location.href = '/published';
        }

@@ -25,13 +25,6 @@ test('collect inbox side effects pass collection user scope', () => {
   assert.match(collect, /processCoverImage\(articleId, options\.userId\)/);
 });
 
-test('wiki queries and enqueue are explicitly scoped to the requesting user', () => {
-  const wiki = read('src/services/wiki.service.ts');
-  assert.match(wiki, /function metadataJoinCondition\(userId: number\)/);
-  assert.match(wiki, /enqueueArticleForWiki\(articleId: number, userId: number/);
-  assert.doesNotMatch(wiki, /getAdminUserId/);
-});
-
 test('reader display repair uses the caller user metadata scope', () => {
   const reader = read('src/services/reader.service.ts');
   const routes = read('src/routes/articles.ts');

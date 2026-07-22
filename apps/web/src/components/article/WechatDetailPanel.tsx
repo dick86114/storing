@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useSWRConfig } from 'swr';
 import useSWR from 'swr';
 import QRCode from 'qrcode';
-import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, DeleteOutlined, UpOutlined, DownOutlined, ExclamationCircleOutlined, CloseOutlined, BookOutlined } from '@ant-design/icons';
+import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, DeleteOutlined, UpOutlined, DownOutlined, ExclamationCircleOutlined, CloseOutlined } from '@ant-design/icons';
 import { useArticle, useArticleMeta } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/providers/AuthContext';
@@ -2293,12 +2293,6 @@ function DetailContent({
     || ''
   ).trim();
   const detailHeaderBadge = sourceIcon.kind === 'wechat' ? '公众号' : sourceIcon.label;
-  const { data: wikiStatus, mutate: mutateWikiStatus } = useSWR(
-    article?.id && article?.isArchived ? `wiki:article:${article.id}` : null,
-    () => api.getWikiArticleStatus(article.id),
-    { revalidateOnFocus: false }
-  );
-
   useEffect(() => {
     return () => {
       if (sharePoster?.imageUrl) URL.revokeObjectURL(sharePoster.imageUrl);
@@ -2456,15 +2450,6 @@ function DetailContent({
     }, '重新生成摘要失败');
   }
 
-  async function handleReindexWiki() {
-    if (!article) return;
-    await runArticleAction('wiki', async () => {
-      await api.reindexWikiArticle(article.id);
-      await mutateWikiStatus();
-      showToast('已更新知识库关联');
-    }, '重新编译到 Wiki 失败');
-  }
-
   const showArticleSkeleton = isLoading || pendingAction === 'refetch';
   const showAISkeleton = pendingAction === 'ai';
   const recordDeleteMode: DeleteConfirmMode | null = currentView === 'archive' && article?.isArchived
@@ -2611,14 +2596,7 @@ function DetailContent({
                     <button className="app-menu-item detail-more-menu-item" type="button" onClick={handleRegenerateAI} disabled={!!pendingAction}>
                       <RobotOutlined />
                       <span>{pendingAction === 'ai' ? '正在生成…' : '重新生成摘要和标签'}</span>
-                    </button>
-                    {article?.isArchived && (
-                      <button className="app-menu-item detail-more-menu-item" type="button" onClick={handleReindexWiki} disabled={!!pendingAction}>
-                        <BookOutlined />
-                        <span>{pendingAction === 'wiki' ? '正在编译…' : '重新编译到 Wiki'}</span>
-                      </button>
-                    )}
-                    <div className="detail-more-menu-divider" />
+                    </button>                    <div className="detail-more-menu-divider" />
                     <button className="app-menu-item detail-more-menu-item" type="button" onClick={handleCopyOriginalUrl}>
                       <CopyOutlined />
                       <span>复制原文链接</span>
@@ -2820,35 +2798,6 @@ function DetailContent({
 	              )}
 	            </div>
 	          )}
-
-          {article.isArchived && (
-            <div className="wiki-article-status-card">
-              <div className="wiki-article-status-head">
-                <span><BookOutlined /> Wiki 知识库</span>
-                {isAuthenticated && (
-                  <button type="button" onClick={handleReindexWiki} disabled={!!pendingAction}>
-                    {pendingAction === 'wiki' ? '编译中' : '重新编译'}
-                  </button>
-                )}
-              </div>
-              <p>
-                {wikiStatus?.status === 'indexed'
-                  ? `已加入 Wiki${wikiStatus.pages?.length ? `，贡献到 ${wikiStatus.pages.length} 个页面。` : '。'}`
-                  : wikiStatus?.status === 'failed'
-                    ? (isAuthenticated ? '编译失败，可重新编译。' : '编译失败。')
-                    : wikiStatus?.status === 'pending' || wikiStatus?.status === 'extracting'
-                      ? '正在等待或执行 Wiki 编译。'
-                      : (isAuthenticated ? '尚未加入 Wiki，可手动编译。' : '尚未加入 Wiki。')}
-              </p>
-              {wikiStatus?.pages?.length > 0 && (
-                <div className="wiki-article-page-links">
-                  {wikiStatus.pages.map((page: any) => (
-                    <a key={page.id} href={`/wiki/${encodeURIComponent(page.slug)}`}>{page.title}</a>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* 正文 */}
           <div

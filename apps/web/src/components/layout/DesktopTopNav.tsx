@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, PlusCircleOutlined, AppstoreOutlined, HeartOutlined, FolderOutlined, ExportOutlined, SunOutlined, MoonOutlined, DesktopOutlined, BookOutlined, CloudUploadOutlined, SettingOutlined, MoreOutlined } from '@ant-design/icons';
+import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, PlusCircleOutlined, AppstoreOutlined, HeartOutlined, FolderOutlined, ExportOutlined, SunOutlined, MoonOutlined, DesktopOutlined, CloudUploadOutlined, SettingOutlined, MoreOutlined } from '@ant-design/icons';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { LoginModal } from '@/components/auth/LoginModal';
@@ -16,13 +16,12 @@ const NAV_ICONS = {
   favorites: HeartOutlined,
   archive: FolderOutlined,
   published: ExportOutlined,
-  wiki: BookOutlined,
   collect: CloudUploadOutlined,
 } satisfies Record<AppNavKey, React.ComponentType<{ className?: string; style?: React.CSSProperties }>>;
 
 interface DesktopTopNavProps {
   onSearchOpen: () => void;
-  counts: { inbox: number; favorites: number; archive: number; published?: number; wiki?: number };
+  counts: { inbox: number; favorites: number; archive: number; published?: number };
   activeKey: AppNavKey | null;
   onNavigate: (key: AppNavKey) => void;
 }
@@ -219,7 +218,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
                         <Icon />
                         <span className="nav-more-menu-copy">
                           <strong>{item.label}</strong>
-                          <small>{key === 'published' ? '管理已公开文章' : '浏览知识库'}</small>
+                          <small>管理已公开文章</small>
                         </span>
                         <span className="nav-more-menu-count">{count}</span>
                       </button>

@@ -16,7 +16,6 @@ import {
   uploadImagesInCapturedDocument,
   validateCapturedHtml,
 } from './singlefile.service.js';
-import { enqueueArticleForWiki, processWikiJobs } from './wiki.service.js';
 
 const COLLECT_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS collect_jobs (
@@ -53,7 +52,7 @@ type CollectJobAccessFilter = {
   requestSource?: 'web' | 'mcp' | 'api' | 'system';
 };
 
-// Browser captures can launch Chromium, image processing, AI, and Wiki work.
+// Browser captures can launch Chromium, image processing, and AI work.
 // Keep them serialized by default so one user cannot make the API unavailable for everyone.
 const WEB_COLLECT_CONCURRENCY = Math.max(1, Number(process.env.WEB_COLLECT_CONCURRENCY || 1));
 const WEB_COLLECT_STALE_MS = Math.max(60_000, Number(process.env.WEB_COLLECT_STALE_MS || 5 * 60_000));
@@ -289,7 +288,6 @@ async function finishArticleSideEffects(jobId: number, articleId: number, option
     if (!options.userId) throw new Error('保存文章到收件箱需要用户归属');
     generateSummaryAndTags(articleId, options.userId).catch((e) => console.error('Collect AI summary/tags failed:', e.message));
     processCoverImage(articleId, options.userId).catch((e) => console.error('Collect cover image failed:', e.message));
-    enqueueArticleForWiki(articleId, options.userId).then(() => processWikiJobs(3)).catch((e) => console.error('Collect wiki enqueue failed:', e.message));
     return;
   }
 
