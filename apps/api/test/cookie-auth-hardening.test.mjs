@@ -44,3 +44,11 @@ test('Docker deployment allows its public Origin and logout clears the same prod
   assert.match(authContext, /logout: \(\) => Promise<void>/);
   assert.match(authContext, /const logout = useCallback\(async \(\) => \{\s*await api\.logout\(\);\s*setUser\(null\);/);
 });
+
+test('same-origin browser writes remain valid behind a reverse proxy even when APP_ORIGIN was not injected into the container', () => {
+  const middleware = read(apiRoot, 'src/middleware/auth.ts');
+
+  assert.match(middleware, /const fetchSite = c\.req\.header\('Sec-Fetch-Site'\);/);
+  assert.match(middleware, /fetchSite === 'same-origin'/);
+  assert.match(middleware, /originAllowed \|\| sameOriginBrowserRequest/);
+});

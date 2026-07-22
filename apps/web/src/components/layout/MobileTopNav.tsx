@@ -9,7 +9,9 @@ import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { LoginModal } from '@/components/auth/LoginModal';
 import { ChangePasswordModal } from '@/components/auth/ChangePasswordModal';
+import { LogoutConfirmDialog } from '@/components/auth/LogoutConfirmDialog';
 import { ThemeStyleMenu } from '@/components/layout/ThemeStyleMenu';
+import { useToast } from '@/components/ui/Toast';
 import { APP_NAV_ITEMS, type AppNavKey } from '@/lib/navigation';
 
 interface MobileTopNavProps {
@@ -21,10 +23,13 @@ export function MobileTopNav({ onAddClick, onNavigate }: MobileTopNavProps) {
   const router = useRouter();
   const { isAuthenticated, user, logout } = useAuth();
   const { theme, setTheme, colorScheme } = useTheme();
+  const { showToast } = useToast();
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [logoutPending, setLogoutPending] = useState(false);
   const menuWrapRef = useRef<HTMLDivElement>(null);
   const menuPanelRef = useRef<HTMLDivElement>(null);
 
@@ -78,6 +83,21 @@ export function MobileTopNav({ onAddClick, onNavigate }: MobileTopNavProps) {
       window.removeEventListener('blur', closeMenu);
     };
   }, [menuOpen]);
+
+  const handleConfirmLogout = async () => {
+    if (logoutPending) return;
+    setLogoutPending(true);
+    try {
+      await logout();
+      setLogoutConfirmOpen(false);
+      showToast('已退出登录');
+      router.replace('/published');
+    } catch (error) {
+      showToast(error instanceof Error && error.message ? error.message : '退出登录失败，请重试');
+    } finally {
+      setLogoutPending(false);
+    }
+  };
 
   return (
     <>
@@ -313,7 +333,7 @@ export function MobileTopNav({ onAddClick, onNavigate }: MobileTopNavProps) {
                       className="app-menu-item app-menu-item--logout"
                       onClick={() => {
                         setMenuOpen(false);
-                        logout();
+                        setLogoutConfirmOpen(true);
                       }}
                       style={{
                         display: 'flex',
@@ -366,6 +386,13 @@ export function MobileTopNav({ onAddClick, onNavigate }: MobileTopNavProps) {
       {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} />}
       {loginOpen && <LoginModal onClose={() => setLoginOpen(false)} />}
       {changePasswordOpen && <ChangePasswordModal onClose={() => setChangePasswordOpen(false)} />}
+      {logoutConfirmOpen && (
+        <LogoutConfirmDialog
+          loading={logoutPending}
+          onCancel={() => setLogoutConfirmOpen(false)}
+          onConfirm={handleConfirmLogout}
+        />
+      )}
     </>
   );
 }
