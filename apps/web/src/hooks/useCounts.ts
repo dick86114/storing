@@ -24,7 +24,6 @@ export function useCounts() {
     favorites: data?.favorites ?? 0,
     archive: data?.archive ?? 0,
     published: data?.published ?? 0,
-    wiki: data?.wiki ?? 0,
     refreshCounts,
   };
 }

@@ -215,7 +215,6 @@ unique(user_id, article_id)
 - [ ] `POST /articles/:id/refetch`
 - [ ] `GET /search`
 - [ ] counts 相关接口
-- [ ] Wiki 入库触发逻辑
 
 核心规则：
 
@@ -228,7 +227,6 @@ unique(user_id, article_id)
 - [ ] `ensureMetadata(articleId)` 改为 `ensureMetadata(userId, articleId)`。
 - [ ] `generateSummaryAndTags(articleId)` 评估是否应改为 user-scoped。
 - [ ] `processCoverImage(articleId)` 可继续 article-scoped 或 metadata-scoped。
-- [ ] Wiki 相关逻辑默认只处理当前用户归档内容，第一阶段可只支持 admin。
 
 ### 5.5 前端影响
 
@@ -252,7 +250,6 @@ unique(user_id, article_id)
 ### 5.7 风险点
 
 - 这是最大结构性迁移，涉及多处查询。
-- Wiki 当前可能假设归档文章是全局的，需要明确 Wiki 是否按用户隔离。
 - 如果外部 articles 表由其他系统写入，要确认 ID 和 URL 去重策略不被破坏。
 
 ---
@@ -482,7 +479,6 @@ Phase 2 涉及 `article_metadata` 唯一约束调整，风险较高。
 - 搜索。
 - 文章详情。
 - 归档触发 AI 摘要。
-- Wiki 相关入口。
 
 ---
 

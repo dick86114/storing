@@ -10,7 +10,6 @@ import {
   processCoverImage,
   repairArticleDisplayMeta,
 } from '../services/reader.service.js';
-import { enqueueArticleForWiki, processWikiJobs, removeArticleFromWiki } from '../services/wiki.service.js';
 import { requireAuth, optionalAuth, isAuthenticated, getCurrentUser } from '../middleware/auth.js';
 
 export const articlesRoutes = new Hono();
@@ -559,7 +558,6 @@ articlesRoutes.post('/articles/:id/archive', requireAuth, async (c) => {
   // 异步触发 AI 摘要和标签生成、封面图处理
   generateSummaryAndTags(id, userId).catch((e) => console.error('AI summary/tags failed:', e.message));
   processCoverImage(id, userId).catch((e) => console.error('Cover image process failed:', e.message));
-  enqueueArticleForWiki(id, userId).then(() => processWikiJobs(3)).catch((e) => console.error('Wiki enqueue failed:', e.message));
 
   return c.json({ articleId: id, isArchived: true });
 });
@@ -586,7 +584,6 @@ articlesRoutes.post('/articles/:id/unarchive', requireAuth, async (c) => {
     .set(updateValues)
     .where(metadataWhereCondition(id, userId));
 
-  removeArticleFromWiki(id, userId).then(() => processWikiJobs(3)).catch((e) => console.error('Wiki remove failed:', e.message));
 
   return c.json({ articleId: id, isArchived: false });
 });
@@ -655,7 +652,6 @@ articlesRoutes.post('/articles/:id/publish', requireAuth, async (c) => {
     return c.json({ error: { code: 'PUBLICATION_NOT_READY', message: '公开链接生成失败' } }, 500);
   }
 
-  enqueueArticleForWiki(id, userId).then(() => processWikiJobs(3)).catch((error) => console.error('Wiki enqueue failed:', error.message));
   return c.json({
     article: serializeArticleRecord(published),
     publicUrl: `/p/${published.publicId}`,
@@ -766,7 +762,6 @@ articlesRoutes.delete('/articles/:id', requireAuth, async (c) => {
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
   const userId = getCurrentUser(c).id;
-  await removeArticleFromWiki(id, userId).catch((e) => console.error('Wiki remove failed:', e.message));
   // 软删除：标记 is_deleted 而非删行，避免启动时 initArticleMetadataUserScope 重建
   await db.update(articleMetadata).set({ isDeleted: true, updatedAt: new Date() }).where(metadataWhereCondition(id, userId));
 
@@ -786,7 +781,6 @@ articlesRoutes.delete('/articles/:id/permanent', requireAuth, async (c) => {
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
   const userId = getCurrentUser(c).id;
-  await removeArticleFromWiki(id, userId).catch((e) => console.error('Wiki remove failed:', e.message));
   // 先查除当前用户外的其他用户是否还引用这篇文章
   const [{ remaining }] = await db
     .select({ remaining: count() })
@@ -815,7 +809,7 @@ articlesRoutes.get('/counts', optionalAuth, async (c) => {
       FROM article_metadata m
       WHERE m.is_published = true AND m.is_deleted = false
     `);
-    return c.json({ inbox: 0, favorites: 0, archive: 0, published: Number(result.rows[0]?.published || 0), wiki: 0 });
+    return c.json({ inbox: 0, favorites: 0, archive: 0, published: Number(result.rows[0]?.published || 0) });
   }
 
   // 登录用户获取所有计数（使用单个 SQL 查询）
@@ -838,8 +832,7 @@ articlesRoutes.get('/counts', optionalAuth, async (c) => {
       (SELECT COUNT(*) FROM article_metadata m
        WHERE m.user_id = ${userId}
          AND m.is_deleted = false
-         AND m.is_published = true) as published,
-      (SELECT COUNT(*) FROM wiki_pages WHERE status = 'active') as wiki
+         AND m.is_published = true) as published
   `);
 
   const row = result.rows[0];
@@ -848,7 +841,6 @@ articlesRoutes.get('/counts', optionalAuth, async (c) => {
     favorites: Number(row?.favorites || 0),
     archive: Number(row?.archive || 0),
     published: Number(row?.published || 0),
-    wiki: Number(row?.wiki || 0),
   });
 });
 

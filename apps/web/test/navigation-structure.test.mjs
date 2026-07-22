@@ -10,7 +10,8 @@ const readWorkspace = (path) => readFileSync(new URL(path, workspaceRoot), 'utf8
 test('navigation model separates primary pages, secondary pages, and collect action', () => {
   const navigation = readWeb('src/lib/navigation.ts');
   assert.match(navigation, /PRIMARY_NAV_KEYS[\s\S]*'inbox'[\s\S]*'favorites'[\s\S]*'archive'/);
-  assert.match(navigation, /SECONDARY_NAV_KEYS[\s\S]*'published'[\s\S]*'wiki'/);
+  assert.match(navigation, /SECONDARY_NAV_KEYS[\s\S]*'published'/);
+  assert.doesNotMatch(navigation, /wiki/i);
   assert.match(navigation, /getAppNavKey/);
 });
 

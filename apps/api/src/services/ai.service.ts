@@ -64,20 +64,6 @@ async function callAI(system: string, user: string, maxTokens = 1024, options: A
   return callOpenAICompatible(preset.baseUrl, apiKey, model, system, user, maxTokens);
 }
 
-export function getWikiAIConfig() {
-  const provider = process.env.WIKI_AI_PROVIDER || process.env.AI_PROVIDER || 'deepseek';
-  const preset = PROVIDERS[provider];
-  return {
-    provider,
-    model: process.env.WIKI_AI_MODEL || process.env.AI_MODEL || preset?.defaultModel || 'deepseek-v4-flash',
-  };
-}
-
-export async function callWikiAI(system: string, user: string, maxTokens = 2048): Promise<string> {
-  const config = getWikiAIConfig();
-  return callAI(system, user, maxTokens, config);
-}
-
 async function callOpenAICompatible(
   baseUrl: string,
   apiKey: string,
