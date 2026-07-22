@@ -240,7 +240,11 @@ authRoutes.post('/change-password', requireAuth, async (c) => {
  * POST /auth/logout
  */
 authRoutes.post('/logout', async (c) => {
-  deleteCookie(c, 'storing_token', { path: '/' });
+  deleteCookie(c, 'storing_token', {
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Lax',
+    path: '/',
+  });
   return c.json({ message: '已登出' });
 });
 /**

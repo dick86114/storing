@@ -17,6 +17,7 @@ services:
     environment:
       # 运行时配置
       - NODE_ENV=production
+      - APP_ORIGIN=${APP_ORIGIN:-https://storing.ali.idickies.com}
       # 网页采集：优先调用 SingleFile sidecar，失败时 API 会按配置尝试本地兜底
       - SINGLEFILE_SERVICE_URL=${SINGLEFILE_SERVICE_URL:-http://singlefile:3000}
       - SINGLEFILE_TIMEOUT_MS=${SINGLEFILE_TIMEOUT_MS:-180000}

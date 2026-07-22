@@ -15,7 +15,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -51,8 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
   }, []);
 
-  const logout = useCallback(() => {
-    void api.logout().catch(() => undefined);
+  const logout = useCallback(async () => {
+    await api.logout();
     setUser(null);
   }, []);
 
