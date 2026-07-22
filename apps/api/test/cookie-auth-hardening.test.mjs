@@ -33,3 +33,14 @@ test('configured administrator startup does not silently re-enable or re-promote
   assert.ok(ensure, 'ensureConfiguredAdmin should exist');
   assert.doesNotMatch(ensure, /\.set\(\{ role: 'admin', status: 'active'/);
 });
+
+test('Docker deployment allows its public Origin and logout clears the same production cookie attributes', () => {
+  const compose = read(workspaceRoot, 'docker-compose.yml');
+  const authRoute = read(apiRoot, 'src/routes/auth.ts');
+  const authContext = read(workspaceRoot, 'apps/web/src/components/providers/AuthContext.tsx');
+
+  assert.match(compose, /APP_ORIGIN=\$\{APP_ORIGIN:-https:\/\/storing\.ali\.idickies\.com\}/);
+  assert.match(authRoute, /deleteCookie\(c, 'storing_token', \{[\s\S]*?secure: process\.env\.NODE_ENV === 'production',[\s\S]*?sameSite: 'Lax',[\s\S]*?path: '\/'/);
+  assert.match(authContext, /logout: \(\) => Promise<void>/);
+  assert.match(authContext, /const logout = useCallback\(async \(\) => \{\s*await api\.logout\(\);\s*setUser\(null\);/);
+});
