@@ -1,6 +1,6 @@
 import { isIP } from 'net';
 import { JSDOM } from 'jsdom';
-import { and, asc, desc, eq, inArray, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { articleMetadata, articles, collectJobs } from '../db/schema.js';
 import { buildArticleSummaryResult, generateSummaryAndTags } from './ai.service.js';
@@ -55,8 +55,9 @@ type CollectJobAccessFilter = {
 // Browser captures can launch Chromium, image processing, and AI work.
 // Keep them serialized by default so one user cannot make the API unavailable for everyone.
 const WEB_COLLECT_CONCURRENCY = Math.max(1, Number(process.env.WEB_COLLECT_CONCURRENCY || 1));
-const WEB_COLLECT_STALE_MS = Math.max(60_000, Number(process.env.WEB_COLLECT_STALE_MS || 5 * 60_000));
+const MCP_COLLECT_CONCURRENCY = Math.max(1, Number(process.env.MCP_COLLECT_CONCURRENCY || 3));
 let activeWebCollectWorkers = 0;
+let activeMcpCollectWorkers = 0;
 
 function isWechatUrl(url: string) {
   try {
@@ -775,8 +776,10 @@ export async function createCollectJob(rawUrl: string, options: CreateCollectJob
 
   if (requestSource === 'web') {
     scheduleWebCollectJobs();
+  } else if (requestSource === 'mcp') {
+    scheduleMcpCollectJobs();
   } else {
-    processCollectJob(job.id).catch((e) => console.error(`Collect job ${job.id} failed:`, e.message));
+    void processCollectJob(job.id).catch((e) => console.error(`Collect job ${job.id} failed:`, e.message));
   }
   return job;
 }
@@ -806,25 +809,62 @@ export function scheduleWebCollectJobs() {
   }
 }
 
-export async function resumePendingWebCollectJobs() {
-  const staleBefore = new Date(Date.now() - WEB_COLLECT_STALE_MS);
+async function runNextMcpCollectJob() {
+  const [job] = await db
+    .select()
+    .from(collectJobs)
+    .where(and(eq(collectJobs.requestSource, 'mcp'), eq(collectJobs.status, 'pending')))
+    .orderBy(asc(collectJobs.createdAt), asc(collectJobs.id))
+    .limit(1);
+
+  if (!job) return false;
+  await processCollectJob(job.id);
+  return true;
+}
+
+export function scheduleMcpCollectJobs() {
+  while (activeMcpCollectWorkers < MCP_COLLECT_CONCURRENCY) {
+    activeMcpCollectWorkers += 1;
+    void runNextMcpCollectJob()
+      .catch((error) => console.error('MCP collect worker failed:', error instanceof Error ? error.message : error))
+      .then((processed) => {
+        activeMcpCollectWorkers -= 1;
+        if (processed) scheduleMcpCollectJobs();
+      });
+  }
+}
+
+/**
+ * A process restart interrupts in-memory collection work. Requeue every
+ * non-terminal Web and MCP job immediately, then restart their respective
+ * workers so neither source can remain permanently stuck in `running`.
+ */
+export async function resumePendingCollectJobs() {
   await db
     .update(collectJobs)
     .set({ status: 'pending', stage: 'queued', startedAt: null, updatedAt: new Date() })
     .where(and(
-      eq(collectJobs.requestSource, 'web'),
+      inArray(collectJobs.requestSource, ['web', 'mcp']),
       eq(collectJobs.status, 'running'),
-      lt(collectJobs.updatedAt, staleBefore),
     ));
   scheduleWebCollectJobs();
+  scheduleMcpCollectJobs();
 }
 
 export async function retryCollectJob(jobId: number) {
-  await db
+  const [job] = await db
     .update(collectJobs)
     .set({ status: 'pending', stage: 'queued', error: null, startedAt: null, finishedAt: null, updatedAt: new Date() })
-    .where(eq(collectJobs.id, jobId));
-  scheduleWebCollectJobs();
+    .where(eq(collectJobs.id, jobId))
+    .returning();
+
+  if (job?.requestSource === 'web') {
+    scheduleWebCollectJobs();
+  } else if (job?.requestSource === 'mcp') {
+    scheduleMcpCollectJobs();
+  } else if (job) {
+    void processCollectJob(job.id).catch((error) => console.error(`Collect job ${job.id} failed:`, error instanceof Error ? error.message : error));
+  }
 }
 
 export async function processCollectJob(jobId: number) {
