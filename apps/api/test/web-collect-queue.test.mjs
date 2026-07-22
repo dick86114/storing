@@ -14,7 +14,15 @@ test('web collections are queued and processed with a bounded worker', () => {
   assert.match(collectService, /if \(requestSource === 'web'\) \{\s*scheduleWebCollectJobs\(\);[\s\S]*?return job;/);
 });
 
-test('API startup resumes interrupted web collection jobs instead of leaving them running forever', () => {
-  assert.match(collectService, /export async function resumePendingWebCollectJobs\(\)/);
-  assert.match(apiIndex, /await resumePendingWebCollectJobs\(\)/);
+test('API startup resumes interrupted Web and MCP collection jobs instead of leaving them running forever', () => {
+  assert.match(collectService, /export async function resumePendingCollectJobs\(\)/);
+  assert.match(apiIndex, /await resumePendingCollectJobs\(\)/);
+});
+
+test('API startup resumes interrupted MCP collection jobs and schedules them again', () => {
+  assert.match(collectService, /export async function resumePendingCollectJobs\(\)/);
+  assert.match(collectService, /inArray\(collectJobs\.requestSource, \['web', 'mcp'\]\)/);
+  assert.match(collectService, /export function scheduleMcpCollectJobs\(\)/);
+  assert.match(collectService, /if \(requestSource === 'web'\) \{\s*scheduleWebCollectJobs\(\);\s*\} else if \(requestSource === 'mcp'\) \{\s*scheduleMcpCollectJobs\(\);/);
+  assert.match(apiIndex, /await resumePendingCollectJobs\(\)/);
 });

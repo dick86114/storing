@@ -9,7 +9,7 @@ import { healthRoutes } from './routes/health.js';
 import { authRoutes } from './routes/auth.js';
 import { collectRoutes } from './routes/collect.js';
 import { mcpRoutes } from './routes/mcp.js';
-import { initCollectSchema, resumePendingWebCollectJobs } from './services/collect.service.js';
+import { initCollectSchema, resumePendingCollectJobs } from './services/collect.service.js';
 import { initMcpSchema, startMcpLogCleanupScheduler } from './services/mcp-auth.service.js';
 import { ensurePrivateLibraryPublicationSchema, initArticleMetadataUserScope, repairCollectedArticleMetadataOwnership } from './services/metadata-scope.service.js';
 import { ensureConfiguredAdmin, initUserManagementSchema } from './services/admin-bootstrap.service.js';
@@ -44,7 +44,7 @@ async function startServer() {
   await ensurePrivateLibraryPublicationSchema().catch((err) => console.error('初始化文章发布字段失败:', err));
   await initCollectSchema().catch((err) => console.error('初始化采集表失败:', err));
   await repairCollectedArticleMetadataOwnership().catch((err) => console.error('修复采集文章归属失败:', err));
-  await resumePendingWebCollectJobs().catch((err) => console.error('恢复网页采集队列失败:', err));
+  await resumePendingCollectJobs().catch((err) => console.error('恢复采集队列失败:', err));
   await ensureDatabaseIndexes().catch((err) => console.error('初始化数据库索引失败:', err));
   startMcpLogCleanupScheduler();
   serve({ fetch: app.fetch, port: 1052 }, (info) => {
