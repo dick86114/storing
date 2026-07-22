@@ -122,7 +122,7 @@ export function LoginModal({ onClose }: { onClose: () => void }) {
 
         {/* 标题 */}
         <h2 style={{ fontSize: 22, fontWeight: 600, textAlign: 'center', marginBottom: 24, color: 'var(--fg)' }}>
-          管理员登录
+          登录
         </h2>
 
         <form onSubmit={handleSubmit}>
@@ -139,7 +139,7 @@ export function LoginModal({ onClose }: { onClose: () => void }) {
               style={{
                 ...inputStyle,
               }}
-              placeholder="admin"
+              placeholder="请输入用户名"
               className="auth-modal-input"
             />
           </div>

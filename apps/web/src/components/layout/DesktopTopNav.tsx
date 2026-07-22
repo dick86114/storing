@@ -8,7 +8,9 @@ import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { LoginModal } from '@/components/auth/LoginModal';
 import { ChangePasswordModal } from '@/components/auth/ChangePasswordModal';
+import { LogoutConfirmDialog } from '@/components/auth/LogoutConfirmDialog';
 import { ThemeStyleMenu } from '@/components/layout/ThemeStyleMenu';
+import { useToast } from '@/components/ui/Toast';
 import { APP_NAV_ITEMS, PRIMARY_NAV_KEYS, SECONDARY_NAV_KEYS, isSecondaryNavKey, type AppNavKey } from '@/lib/navigation';
 
 const NAV_ICONS = {
@@ -30,10 +32,13 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
   const router = useRouter();
   const { isAuthenticated, user, logout } = useAuth();
   const { theme, setTheme, colorScheme } = useTheme();
+  const { showToast } = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
   const [navMoreOpen, setNavMoreOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [logoutPending, setLogoutPending] = useState(false);
   const menuWrapRef = useRef<HTMLDivElement>(null);
   const menuPanelRef = useRef<HTMLDivElement>(null);
   const navMoreWrapRef = useRef<HTMLDivElement>(null);
@@ -108,6 +113,21 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [navMoreOpen]);
+
+  const handleConfirmLogout = async () => {
+    if (logoutPending) return;
+    setLogoutPending(true);
+    try {
+      await logout();
+      setLogoutConfirmOpen(false);
+      showToast('已退出登录');
+      router.replace('/published');
+    } catch (error) {
+      showToast(error instanceof Error && error.message ? error.message : '退出登录失败，请重试');
+    } finally {
+      setLogoutPending(false);
+    }
+  };
 
   return (
     <>
@@ -389,7 +409,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
                       </button>
                       <button
                         className="app-menu-item app-menu-item--logout"
-                        onClick={() => { setMenuOpen(false); logout(); }}
+                        onClick={() => { setMenuOpen(false); setLogoutConfirmOpen(true); }}
                         type="button"
                         style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 16px', textAlign: 'left', background: 'transparent', border: 'none', fontSize: '16px', color: '#fff', cursor: 'pointer' }}
                       >
@@ -418,6 +438,13 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
 
       {loginOpen && <LoginModal onClose={() => setLoginOpen(false)} />}
       {changePasswordOpen && <ChangePasswordModal onClose={() => setChangePasswordOpen(false)} />}
+      {logoutConfirmOpen && (
+        <LogoutConfirmDialog
+          loading={logoutPending}
+          onCancel={() => setLogoutConfirmOpen(false)}
+          onConfirm={handleConfirmLogout}
+        />
+      )}
     </>
   );
 }

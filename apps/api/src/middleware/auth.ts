@@ -38,7 +38,14 @@ export async function requireCsrfProtection(c: Context, next: Next) {
   if (!getCookie(c, 'storing_token')) return next();
 
   const origin = c.req.header('Origin');
-  if (!origin || !cookieAuthAllowedOrigins().includes(origin)) {
+  const fetchSite = c.req.header('Sec-Fetch-Site');
+  const originAllowed = Boolean(origin && cookieAuthAllowedOrigins().includes(origin));
+  // Browsers protect Sec-Fetch-* headers from script modification. Accept an
+  // explicitly same-origin navigation even when a reverse-proxy deployment did
+  // not inject APP_ORIGIN into the container, while still rejecting cross-site
+  // cookie-authenticated writes.
+  const sameOriginBrowserRequest = fetchSite === 'same-origin';
+  if (!(originAllowed || sameOriginBrowserRequest)) {
     return c.json({ error: { code: 'CSRF_FORBIDDEN', message: '请求来源无效' } }, 403);
   }
   await next();
