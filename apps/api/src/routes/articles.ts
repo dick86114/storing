@@ -148,8 +148,8 @@ function serializeArticleRecord(article: NonNullable<Awaited<ReturnType<typeof g
   };
 }
 
-function serializePublicPublication(article: any) {
-  return {
+function serializePublicPublication(article: any, options: { includeContent?: boolean } = {}) {
+  const serialized = {
     id: article.id,
     publicId: article.publicId,
     publicUrl: `/p/${article.publicId}`,
@@ -159,8 +159,6 @@ function serializePublicPublication(article: any) {
     originalUrl: article.originalUrl,
     publishTime: article.publishTime,
     coverImage: article.coverImage,
-    contentMd: article.contentMd,
-    contentHtml: sanitizeCapturedHtml(article.contentHtml || ''),
     aiSummary: article.aiSummary,
     aiCategory: article.aiCategory,
     aiTags: article.aiTags ?? [],
@@ -168,6 +166,13 @@ function serializePublicPublication(article: any) {
     isPublished: true,
     isArchived: true,
     isFavorited: false,
+  };
+
+  if (options.includeContent === false) return serialized;
+  return {
+    ...serialized,
+    contentMd: article.contentMd,
+    contentHtml: sanitizeCapturedHtml(article.contentHtml || ''),
   };
 }
 
@@ -313,8 +318,6 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
         originalUrl: articles.originalUrl,
         publishTime: articles.publishTime,
         coverImage: articleMetadata.coverImage,
-        contentMd: articleMetadata.contentMd,
-        contentHtml: articleMetadata.contentHtml,
         aiSummary: articleMetadata.aiSummary,
         aiCategory: articleMetadata.aiCategory,
         aiTags: articleMetadata.aiTags,
@@ -329,7 +332,7 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
       .offset((page - 1) * perPage);
 
     return c.json({
-      articles: data.map(serializePublicPublication),
+      articles: data.map((article) => serializePublicPublication(article, { includeContent: false })),
       total,
       page,
       perPage,
