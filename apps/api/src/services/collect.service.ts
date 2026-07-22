@@ -333,6 +333,7 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
     await updateCollectJob(jobId, {
       status: 'completed',
       stage: 'completed',
+      error: null,
       articleId,
       finishedAt: new Date(),
     });
@@ -345,6 +346,7 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
   await updateCollectJob(jobId, {
     status: 'completed',
     stage: 'completed',
+    error: null,
     articleId,
     finishedAt: new Date(),
   });
@@ -605,6 +607,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string, option
     await updateCollectJob(jobId, {
       status: 'completed',
       stage: 'completed',
+      error: null,
       articleId,
       title: primaryPrepared.title,
       captureStrategy: capture.strategy,
@@ -648,6 +651,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string, option
   await updateCollectJob(jobId, {
     status: 'completed',
     stage: 'completed',
+    error: null,
     articleId,
     title: primaryPrepared.title,
     captureStrategy: capture.strategy,
@@ -828,10 +832,18 @@ export async function retryCollectJob(jobId: number) {
 }
 
 export async function processCollectJob(jobId: number) {
-  const [job] = await db.select().from(collectJobs).where(eq(collectJobs.id, jobId)).limit(1);
-  if (!job || job.status === 'running' || job.status === 'completed') return job;
+  // Multiple MCP workers may observe the same pending row. Claim it in the
+  // database first so only one worker can perform the article/meta writes.
+  const [job] = await db
+    .update(collectJobs)
+    .set({ status: 'running', stage: 'starting', startedAt: new Date(), error: null, updatedAt: new Date() })
+    .where(and(eq(collectJobs.id, jobId), eq(collectJobs.status, 'pending')))
+    .returning();
 
-  await updateCollectJob(jobId, { status: 'running', stage: 'starting', startedAt: new Date(), error: null });
+  if (!job) {
+    const [existing] = await db.select().from(collectJobs).where(eq(collectJobs.id, jobId)).limit(1);
+    return existing;
+  }
 
   try {
     if (job.method === 'reader') {

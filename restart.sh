@@ -81,6 +81,61 @@ clear_frontend_cache() {
   echo "✓ 前端缓存已清理"
 }
 
+kill_workspace_dev_processes() {
+  local pids
+
+  pids=$(python3 - "$SCRIPT_DIR" <<'PY'
+import os
+import subprocess
+import sys
+
+workspace = os.path.realpath(sys.argv[1])
+markers = ('tsx', 'next', 'turbo', 'pnpm')
+
+processes = subprocess.run(
+    ['ps', '-axo', 'pid=,command='],
+    text=True,
+    capture_output=True,
+    check=True,
+).stdout.splitlines()
+
+for line in processes:
+    line = line.strip()
+    if not line:
+        continue
+    pid_text, _, command = line.partition(' ')
+    if not pid_text.isdigit() or not command.startswith('node '):
+        continue
+    if not any(marker in command for marker in markers):
+        continue
+
+    cwd_output = subprocess.run(
+        ['lsof', '-a', '-p', pid_text, '-d', 'cwd', '-Fn'],
+        text=True,
+        capture_output=True,
+    ).stdout.splitlines()
+    cwd = next((entry[1:] for entry in cwd_output if entry.startswith('n')), '')
+    if not cwd:
+        continue
+
+    cwd = os.path.realpath(cwd)
+    if cwd == workspace or cwd.startswith(workspace + os.sep):
+        print(pid_text)
+PY
+)
+
+  if [ -n "$pids" ]; then
+    echo "关闭工作区残留开发进程: $pids"
+    kill $pids 2>/dev/null || true
+    sleep 1
+    for pid in $pids; do
+      if kill -0 "$pid" 2>/dev/null; then
+        kill -9 "$pid" 2>/dev/null || true
+      fi
+    done
+  fi
+}
+
 check_dependencies() {
   local root_dir="$SCRIPT_DIR"
   local web_modules="$WEB_DIR/node_modules"
@@ -201,11 +256,7 @@ stop_all_services() {
   kill_port $MCP_HTTP_PORT "MCP HTTP"
   kill_port $FRONTEND_PORT "前端"
 
-  pkill -9 -f "node.*$SCRIPT_DIR" 2>/dev/null || true
-  pkill -9 -f "pnpm.*$SCRIPT_DIR" 2>/dev/null || true
-  pkill -9 -f "turbo.*$SCRIPT_DIR" 2>/dev/null || true
-  pkill -9 -f "next.*$SCRIPT_DIR" 2>/dev/null || true
-  pkill -9 -f "tsx.*$SCRIPT_DIR" 2>/dev/null || true
+  kill_workspace_dev_processes
 
   sleep 2
   echo "✓ 所有服务已停止"
