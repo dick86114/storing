@@ -101,8 +101,8 @@ collectRoutes.post('/collect', requireAuth, async (c) => {
     const job = await createCollectJob(parsed.data.url, { userId: user.id, requestSource: 'web', saveToInbox: true });
     return c.json({ job: serializeJob(job) }, 202);
   } catch (e) {
-    const message = e instanceof Error ? e.message : '创建采集任务失败';
-    return c.json({ error: { code: 'COLLECT_FAILED', message } }, 400);
+    console.error('Create collect job failed:', e instanceof Error ? e.message : String(e));
+    return c.json({ error: { code: 'COLLECT_FAILED', message: '创建采集任务失败' } }, 400);
   }
 });
 

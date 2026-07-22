@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { deleteCookie, setCookie } from 'hono/cookie';
 import { db } from '../db/index.js';
 import { adminAuditLogs, articleMetadata, articles, mcpClients, mcpRequestLogs, users } from '../db/schema.js';
 import { and, count, desc, eq, gt, ilike, or, sql } from 'drizzle-orm';
@@ -8,12 +9,15 @@ import { requireAuth, requireAdmin, getCurrentUser, generateToken } from '../mid
 import { getConfiguredAdminStatus, resetConfiguredAdminPassword } from '../services/admin-bootstrap.service.js';
 import { writeAdminAudit } from '../services/admin-audit.service.js';
 import { generateSummaryAndTags } from '../services/ai.service.js';
+import { checkLoginRateLimit, clearLoginFailures, getLoginRateLimitKey, recordLoginFailure } from '../services/login-rate-limit.service.js';
 
 export const authRoutes = new Hono();
 
+const PASSWORD_HASH_COST = 12;
+
 const adminCreateUserSchema = z.object({
   username: z.string().trim().min(2, '用户名至少 2 个字符').max(64, '用户名过长'),
-  password: z.string().min(4, '密码至少需要 4 个字符'),
+  password: z.string().min(12, '密码至少需要 12 个字符').max(256, '密码过长'),
   role: z.enum(['admin', 'user', 'service']).default('user'),
   status: z.enum(['active', 'disabled']).default('active'),
 });
@@ -22,7 +26,7 @@ const adminUpdateUserSchema = z.object({
   username: z.string().trim().min(2, '用户名至少 2 个字符').max(64, '用户名过长').optional(),
   role: z.enum(['admin', 'user', 'service']).optional(),
   status: z.enum(['active', 'disabled']).optional(),
-  password: z.string().min(4, '密码至少需要 4 个字符').optional(),
+  password: z.string().min(12, '密码至少需要 12 个字符').max(256, '密码过长').optional(),
 });
 
 const resetConfiguredAdminPasswordSchema = z.object({
@@ -101,11 +105,23 @@ function serializeAdminLibraryArticle(article: any) {
  */
 authRoutes.post('/login', async (c) => {
   try {
-    const body = await c.req.json();
-    const { username, password } = body;
+    const body = await c.req.json().catch(() => null);
+    const username = typeof body?.username === 'string' ? body.username.trim() : '';
+    const password = typeof body?.password === 'string' ? body.password : '';
 
-    if (!username || !password) {
-      return c.json({ error: { code: 'MISSING_FIELDS', message: '请输入用户名和密码' } }, 400);
+    if (!username || !password || username.length > 64 || password.length > 256) {
+      return c.json({ error: { code: 'MISSING_FIELDS', message: '请输入有效的用户名和密码' } }, 400);
+    }
+
+    const rateLimitKey = getLoginRateLimitKey({
+      username,
+      forwardedFor: c.req.header('X-Forwarded-For'),
+      trustProxy: process.env.TRUST_PROXY === 'true',
+    });
+    const rateLimit = checkLoginRateLimit(rateLimitKey);
+    if (!rateLimit.allowed) {
+      c.header('Retry-After', String(rateLimit.retryAfterSeconds));
+      return c.json({ error: { code: 'LOGIN_RATE_LIMITED', message: '登录尝试过于频繁，请稍后再试' } }, 429);
     }
 
     // 查找用户
@@ -114,27 +130,32 @@ authRoutes.post('/login', async (c) => {
       .from(users)
       .where(eq(users.username, username));
 
-    if (!user) {
+    if (!user || user.status !== 'active') {
+      recordLoginFailure(rateLimitKey);
       return c.json({ error: { code: 'INVALID_CREDENTIALS', message: '用户名或密码错误' } }, 401);
-    }
-
-    if (user.status !== 'active') {
-      return c.json({ error: { code: 'USER_DISABLED', message: '用户已禁用' } }, 403);
     }
 
     // 验证密码
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
+      recordLoginFailure(rateLimitKey);
       return c.json({ error: { code: 'INVALID_CREDENTIALS', message: '用户名或密码错误' } }, 401);
     }
+    clearLoginFailures(rateLimitKey);
 
     await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
 
-    // 生成 token
+    // 生成 token 并仅通过 HttpOnly Cookie 交付给浏览器。
     const token = generateToken(user.id);
+    setCookie(c, 'storing_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'Lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60,
+    });
 
     return c.json({
-      token,
       user: {
         id: user.id,
         username: user.username,
@@ -180,8 +201,8 @@ authRoutes.post('/change-password', requireAuth, async (c) => {
       return c.json({ error: { code: 'MISSING_FIELDS', message: '请输入当前密码和新密码' } }, 400);
     }
 
-    if (newPassword.length < 4) {
-      return c.json({ error: { code: 'PASSWORD_TOO_SHORT', message: '新密码至少需要 4 个字符' } }, 400);
+    if (typeof newPassword !== 'string' || newPassword.length < 12 || newPassword.length > 256) {
+      return c.json({ error: { code: 'PASSWORD_INVALID', message: '新密码需为 12 至 256 个字符' } }, 400);
     }
 
     // 获取用户完整信息
@@ -201,7 +222,7 @@ authRoutes.post('/change-password', requireAuth, async (c) => {
     }
 
     // 更新密码
-    const newPasswordHash = await bcrypt.hash(newPassword, 10);
+    const newPasswordHash = await bcrypt.hash(newPassword, PASSWORD_HASH_COST);
     await db
       .update(users)
       .set({ passwordHash: newPasswordHash, updatedAt: new Date() })
@@ -215,10 +236,11 @@ authRoutes.post('/change-password', requireAuth, async (c) => {
 });
 
 /**
- * 登出（客户端清除 token 即可）
+ * 登出并清除 HttpOnly 会话 Cookie。
  * POST /auth/logout
  */
 authRoutes.post('/logout', async (c) => {
+  deleteCookie(c, 'storing_token', { path: '/' });
   return c.json({ message: '已登出' });
 });
 /**

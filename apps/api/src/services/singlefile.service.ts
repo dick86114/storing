@@ -5,6 +5,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { JSDOM } from 'jsdom';
+import { assertSafeOutboundUrl, resolveSafeCaptureUrl } from './outbound-url-policy.service.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -202,22 +203,24 @@ export async function runSingleFileWithStrategy(
   variant: HtmlVariant,
   strategy: CollectCaptureStrategy
 ): Promise<{ html: string; strategy: CollectCaptureStrategy }> {
+  const safeUrl = await resolveSafeCaptureUrl(url);
+  await assertSafeOutboundUrl(safeUrl);
   const timeoutMs = Number(process.env.SINGLEFILE_TIMEOUT_MS || 180000);
   const maxBuffer = Number(process.env.SINGLEFILE_MAX_BUFFER || 80 * 1024 * 1024);
 
   if (strategy === 'singlefile_sidecar') {
-    return { html: await runSingleFileWithService(url, timeoutMs, variant), strategy };
+    return { html: await runSingleFileWithService(safeUrl, timeoutMs, variant), strategy };
   }
 
   if (strategy === 'singlefile_docker') {
-    return { html: await runSingleFileWithDocker(url, timeoutMs, maxBuffer, variant), strategy };
+    return { html: await runSingleFileWithDocker(safeUrl, timeoutMs, maxBuffer, variant), strategy };
   }
 
   if (strategy === 'singlefile_npx') {
-    return { html: await runSingleFileWithNpx(url, timeoutMs, variant), strategy };
+    return { html: await runSingleFileWithNpx(safeUrl, timeoutMs, variant), strategy };
   }
 
-  return { html: await runSingleFileWithLocalCommand(url, timeoutMs, maxBuffer, variant), strategy: 'singlefile_command' };
+  return { html: await runSingleFileWithLocalCommand(safeUrl, timeoutMs, maxBuffer, variant), strategy: 'singlefile_command' };
 }
 
 export async function runSingleFile(url: string, variant: HtmlVariant): Promise<{ html: string; strategy: CollectCaptureStrategy }> {
@@ -449,6 +452,42 @@ export function prepareCapturedDocument(rawHtml: string, baseUrl: string) {
   doc.body?.classList.add('manual-capture-page');
 
   return { title, source, coverImage, html: dom.serialize() };
+}
+
+export function sanitizeCapturedHtml(html: string) {
+  if (!html.trim()) return '';
+
+  const dom = new JSDOM(html);
+  const doc = dom.window.document;
+  const forbiddenTags = 'script,noscript,iframe,object,embed,applet,base,form,input,button,textarea,select,option,meta[http-equiv],link[rel="import"]';
+  doc.querySelectorAll(forbiddenTags).forEach((node) => node.remove());
+
+  for (const element of Array.from(doc.querySelectorAll('*'))) {
+    for (const attribute of Array.from(element.attributes)) {
+      const name = attribute.name.toLowerCase();
+      const value = attribute.value.trim();
+      if (name.startsWith('on') || name === 'srcdoc' || name === 'formaction') {
+        element.removeAttribute(attribute.name);
+        continue;
+      }
+
+      if (['href', 'src', 'poster', 'xlink:href'].includes(name)) {
+        const isSafeProtocol = /^(?:https?:|mailto:|tel:|#|\/|\.\/|\.\.\/)/i.test(value);
+        const isSafeDataImage = name === 'src' && /^data:image\/(?:avif|gif|jpe?g|png|webp);base64,/i.test(value);
+        if (value && !isSafeProtocol && !isSafeDataImage) element.removeAttribute(attribute.name);
+      }
+
+      if (name === 'style' && /(?:expression\s*\(|javascript\s*:|@import|behavior\s*:|-moz-binding)/i.test(value)) {
+        element.removeAttribute(attribute.name);
+      }
+    }
+
+    if (element.tagName === 'A' && element.getAttribute('target') === '_blank') {
+      element.setAttribute('rel', 'noopener noreferrer');
+    }
+  }
+
+  return doc.documentElement.outerHTML;
 }
 
 function extractFallbackTitleFromBody(doc: Document) {

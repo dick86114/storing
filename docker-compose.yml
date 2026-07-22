@@ -10,8 +10,8 @@ services:
     restart: unless-stopped
     ports:
       - "1050:1050"  # 前端
-      - "1052:1052"  # API
-      - "1053:1053"  # Remote MCP Streamable HTTP
+      - "127.0.0.1:1052:1052"  # API（由反向代理访问）
+      - "127.0.0.1:1053:1053"  # Remote MCP（由反向代理访问）
     env_file:
       - .env  # 直接读取宿主机的 .env 文件
     environment:

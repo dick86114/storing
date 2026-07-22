@@ -42,8 +42,8 @@ async function verifyApiKey(token: string): Promise<VerifiedClient | null> {
 const app = new Hono();
 app.use('/mcp', cors({
   origin: (origin) => {
-    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) return origin || '*';
-    return '';
+    if (!origin) return '';
+    return allowedOrigins.includes(origin) ? origin : '';
   },
   allowMethods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization', 'MCP-Protocol-Version', 'Mcp-Session-Id', 'Last-Event-ID', 'X-MCP-Client-Name'],
@@ -54,7 +54,7 @@ app.get('/health', (c) => c.json({ status: 'ok', transport: 'streamable-http', m
 
 app.all('/mcp', async (c) => {
   const origin = c.req.header('Origin');
-  if (origin && allowedOrigins.length > 0 && !allowedOrigins.includes(origin)) {
+  if (origin && !allowedOrigins.includes(origin)) {
     return c.json({ error: { code: 'MCP_ORIGIN_FORBIDDEN', message: 'Origin 不在允许列表中' } }, 403);
   }
 

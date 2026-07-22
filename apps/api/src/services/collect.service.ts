@@ -1,9 +1,9 @@
-import { isIP } from 'net';
 import { JSDOM } from 'jsdom';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { articleMetadata, articles, collectJobs } from '../db/schema.js';
 import { buildArticleSummaryResult, generateSummaryAndTags } from './ai.service.js';
+import { assertSafeOutboundUrl, normalizeOutboundUrl } from './outbound-url-policy.service.js';
 import { ensureArticleMetadataContentHtmlMobileColumn, fetchArticleContentFromSources, fetchWechatJson, getArticleContent, processCoverImage, uploadImage } from './reader.service.js';
 import {
   type CollectCaptureStrategy,
@@ -56,6 +56,7 @@ type CollectJobAccessFilter = {
 // Keep them serialized by default so one user cannot make the API unavailable for everyone.
 const WEB_COLLECT_CONCURRENCY = Math.max(1, Number(process.env.WEB_COLLECT_CONCURRENCY || 1));
 const MCP_COLLECT_CONCURRENCY = Math.max(1, Number(process.env.MCP_COLLECT_CONCURRENCY || 3));
+const MAX_ACTIVE_WEB_COLLECT_JOBS_PER_USER = Math.max(1, Number(process.env.MAX_ACTIVE_WEB_COLLECT_JOBS_PER_USER || 10));
 let activeWebCollectWorkers = 0;
 let activeMcpCollectWorkers = 0;
 
@@ -68,59 +69,8 @@ function isWechatUrl(url: string) {
 }
 
 function normalizeCollectUrl(rawUrl: string) {
-  const trimmed = rawUrl.trim();
-  if (!trimmed || /\s/.test(trimmed)) {
-    throw new Error('请输入有效的网页链接');
-  }
-  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  let url: URL;
-  try {
-    url = new URL(withProtocol);
-  } catch {
-    throw new Error('请输入有效的网页链接');
-  }
-  url.hash = '';
-  return url.toString();
+  return normalizeOutboundUrl(rawUrl).toString();
 }
-
-function isPrivateIpv4(host: string) {
-  const parts = host.split('.').map((part) => Number(part));
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return true;
-  const [first, second] = parts;
-  return (
-    first === 10 ||
-    first === 127 ||
-    (first === 172 && second >= 16 && second <= 31) ||
-    (first === 192 && second === 168) ||
-    (first === 169 && second === 254) ||
-    first === 0
-  );
-}
-
-function isPrivateIpv6(host: string) {
-  const normalized = host.toLowerCase();
-  return normalized === '::1' || normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe80:');
-}
-
-function isSafeCollectUrl(url: URL) {
-  if (!['http:', 'https:'].includes(url.protocol)) return false;
-  const host = url.hostname.toLowerCase();
-  if (
-    !host ||
-    host === 'localhost' ||
-    host.endsWith('.local')
-  ) {
-    return false;
-  }
-
-  const ipVersion = isIP(host);
-  if (ipVersion === 4) return !isPrivateIpv4(host);
-  if (ipVersion === 6) return !isPrivateIpv6(host);
-
-  if (!host.includes('.') || host.startsWith('.') || host.endsWith('.')) return false;
-  return true;
-}
-
 function extractTitle(doc: Document, fallbackUrl: string) {
   const values = [
     doc.querySelector('meta[property="og:title"]')?.getAttribute('content'),
@@ -751,13 +701,23 @@ function buildCollectJobWhere(filter: CollectJobAccessFilter = {}) {
 
 export async function createCollectJob(rawUrl: string, options: CreateCollectJobOptions = {}) {
   const normalizedUrl = normalizeCollectUrl(rawUrl);
-  const parsed = new URL(normalizedUrl);
-  if (!isSafeCollectUrl(parsed)) {
-    throw new Error('请输入有效的公开网页链接');
-  }
+  await assertSafeOutboundUrl(normalizedUrl);
 
   const method: CollectMethod = isWechatUrl(normalizedUrl) ? 'reader' : 'singlefile';
   const requestSource = options.requestSource ?? 'web';
+  if (requestSource === 'web' && options.userId !== undefined && options.userId !== null) {
+    const [{ activeJobs }] = await db
+      .select({ activeJobs: sql<number>`count(*)::int` })
+      .from(collectJobs)
+      .where(and(
+        eq(collectJobs.userId, options.userId),
+        eq(collectJobs.requestSource, 'web'),
+        inArray(collectJobs.status, ['pending', 'running']),
+      ));
+    if (activeJobs >= MAX_ACTIVE_WEB_COLLECT_JOBS_PER_USER) {
+      throw new Error('当前进行中的采集任务过多，请等待现有任务完成后再试');
+    }
+  }
   const [job] = await db
     .insert(collectJobs)
     .values({

@@ -1,12 +1,48 @@
 import { Context, Next } from 'hono';
 import { createRequire } from 'module';
+import { randomBytes } from 'crypto';
+import { getCookie } from 'hono/cookie';
 const require = createRequire(import.meta.url);
 const jwt = require('jsonwebtoken');
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'storing-jwt-secret-key';
+export function getRequiredJwtSecret() {
+  const configured = process.env.JWT_SECRET?.trim();
+  if (configured && configured.length >= 32) return configured;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET must be configured with at least 32 characters in production');
+  }
+  return randomBytes(32).toString('hex');
+}
+
+const JWT_SECRET = getRequiredJwtSecret();
+
+function getRequestToken(c: Context) {
+  const authHeader = c.req.header('Authorization');
+  if (authHeader?.startsWith('Bearer ')) return authHeader.slice('Bearer '.length).trim();
+  return getCookie(c, 'storing_token');
+}
+
+function cookieAuthAllowedOrigins() {
+  return (process.env.APP_ORIGIN || 'http://localhost:1050')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+export async function requireCsrfProtection(c: Context, next: Next) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) return next();
+  if (c.req.header('Authorization')?.startsWith('Bearer ')) return next();
+  if (!getCookie(c, 'storing_token')) return next();
+
+  const origin = c.req.header('Origin');
+  if (!origin || !cookieAuthAllowedOrigins().includes(origin)) {
+    return c.json({ error: { code: 'CSRF_FORBIDDEN', message: '请求来源无效' } }, 403);
+  }
+  await next();
+}
 
 /**
  * 验证 JWT token 并返回用户信息
@@ -25,8 +61,7 @@ function verifyToken(token: string) {
  * 必须登录的中间件
  */
 export async function requireAuth(c: Context, next: Next) {
-  const authHeader = c.req.header('Authorization');
-  const token = authHeader?.replace('Bearer ', '');
+  const token = getRequestToken(c);
 
   if (!token) {
     return c.json({ error: { code: 'UNAUTHORIZED', message: '请先登录' } }, 401);
@@ -59,8 +94,7 @@ export async function requireAuth(c: Context, next: Next) {
  * 提取用户信息但不强制要求登录
  */
 export async function optionalAuth(c: Context, next: Next) {
-  const authHeader = c.req.header('Authorization');
-  const token = authHeader?.replace('Bearer ', '');
+  const token = getRequestToken(c);
 
   if (token) {
     const userId = verifyToken(token);
@@ -82,8 +116,7 @@ export async function optionalAuth(c: Context, next: Next) {
  * 必须为管理员的中间件
  */
 export async function requireAdmin(c: Context, next: Next) {
-  const authHeader = c.req.header('Authorization');
-  const token = authHeader?.replace('Bearer ', '');
+  const token = getRequestToken(c);
 
   if (!token) {
     return c.json({ error: { code: 'UNAUTHORIZED', message: '请先登录' } }, 401);

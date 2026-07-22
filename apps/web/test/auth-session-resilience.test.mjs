@@ -7,11 +7,12 @@ const apiClient = readFileSync(new URL('../src/lib/api.ts', import.meta.url), 'u
 
 test('slow token verification does not log the user out', () => {
   assert.match(authContext, /const bootTimeout = window\.setTimeout\(finishLoading, AUTH_BOOT_TIMEOUT_MS\);/);
-  assert.doesNotMatch(authContext, /bootTimeout[\s\S]{0,220}localStorage\.removeItem\('token'\)/);
-  assert.doesNotMatch(authContext, /\.catch\(\(\) => \{\s*localStorage\.removeItem\('token'\);/);
+  assert.doesNotMatch(authContext, /bootTimeout[\s\S]{0,220}localStorage\./);
+  assert.doesNotMatch(authContext, /\.catch\(\(\) => \{\s*localStorage\./);
 });
 
-test('only an unauthenticated response clears the saved token', () => {
-  assert.match(apiClient, /if \(res\.status === 401\) \{\s*localStorage\.removeItem\('token'\);/);
-  assert.doesNotMatch(apiClient, /res\.status === 401 \|\| res\.status === 403/);
+test('API client relies on same-origin HttpOnly cookies instead of browser-readable tokens', () => {
+  assert.match(apiClient, /credentials: 'same-origin'/);
+  assert.doesNotMatch(apiClient, /localStorage\.(getItem|setItem|removeItem)\('token'/);
+  assert.doesNotMatch(apiClient, /Authorization: `Bearer/);
 });

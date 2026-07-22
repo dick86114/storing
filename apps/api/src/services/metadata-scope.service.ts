@@ -70,6 +70,14 @@ export async function initArticleMetadataUserScope() {
         SELECT 1
         FROM collect_jobs j
         WHERE j.article_id = m.article_id
+          AND j.request_source = 'mcp'
+          AND j.save_to_inbox = true
+          AND j.user_id = m.user_id
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM collect_jobs j
+        WHERE j.article_id = m.article_id
           AND j.request_source = 'web'
           AND j.save_to_inbox = true
       )
@@ -196,6 +204,61 @@ export async function repairCollectedArticleMetadataOwnership() {
             AND admin_job.save_to_inbox = TRUE
         )
     `);
+  });
+}
+
+/**
+ * One-time repair for the summarize-only cleanup bug that could remove an
+ * owner's real MCP library row when the same article also had a temporary
+ * summarize_url job. The current cleanup guard prevents new losses; this
+ * migration restores only the rows that were already removed.
+ */
+export async function repairMissingMcpSavedArticleMetadata() {
+  await db.transaction(async (tx) => {
+    await tx.execute(sql.raw(`SELECT pg_advisory_xact_lock(734291107)`));
+    await tx.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS storing_schema_migrations (
+        key TEXT PRIMARY KEY,
+        applied_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `));
+    const marker = await tx.execute(sql.raw(`
+      INSERT INTO storing_schema_migrations (key)
+      VALUES ('mcp_saved_metadata_repair_v1')
+      ON CONFLICT (key) DO NOTHING
+      RETURNING key
+    `));
+    if (marker.rows.length === 0) return;
+
+    await tx.execute(sql.raw(`
+      INSERT INTO article_metadata (
+        article_id, user_id, source_type, client_id,
+        is_favorited, is_archived, is_deleted, created_at, updated_at
+      )
+      SELECT DISTINCT ON (j.user_id, j.article_id)
+        j.article_id,
+        j.user_id,
+        'mcp',
+        j.client_id,
+        FALSE,
+        FALSE,
+        FALSE,
+        COALESCE(j.finished_at, j.created_at, NOW()),
+        NOW()
+      FROM collect_jobs j
+      WHERE j.request_source = 'mcp'
+        AND j.save_to_inbox = TRUE
+        AND j.user_id IS NOT NULL
+        AND j.article_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM article_metadata m
+          WHERE m.article_id = j.article_id
+            AND m.user_id = j.user_id
+        )
+      ORDER BY j.user_id, j.article_id, j.finished_at DESC NULLS LAST, j.id DESC
+      ON CONFLICT (user_id, article_id) DO NOTHING
+    `));
   });
 }
 
