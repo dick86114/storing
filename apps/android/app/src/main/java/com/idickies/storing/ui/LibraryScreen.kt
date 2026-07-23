@@ -102,6 +102,7 @@ fun LibraryScreen(
         TopAppBar(
           title = { Text(if (state.searchQuery.isBlank()) state.view.label else "搜索") },
           actions = {
+            IconButton(onClick = libraryViewModel::refresh) { Text("刷新") }
             IconButton(onClick = { showManualCollect = true }) { Text("采集") }
             IconButton(onClick = { showTasks = true }) { Text("任务") }
             IconButton(onClick = onLogout) { Text("退出") }
@@ -250,6 +251,7 @@ private fun LibraryList(
         } }
       }
     }
+    if (state.fromCache) item { Text("当前显示离线缓存，联网后可点刷新获取最新内容。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
     if (state.loading || state.refreshing) item { FullPageLoading("正在加载${state.view.label}…") }
     if (state.error != null) item { ErrorPage(state.error, onRefresh) }
     if (!state.loading && state.error == null && state.articles.isEmpty()) item { Text("这里还没有文章。你可以从其他应用分享链接到乾坤戒。", modifier = Modifier.padding(vertical = 48.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
