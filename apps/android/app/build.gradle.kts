@@ -1,6 +1,16 @@
 import com.android.build.gradle.internal.api.BaseVariantOutputImpl
 
-val appVersionName = "0.7.0"
+val defaultAppVersionName = "0.7.0"
+val defaultAppVersionCode = 7
+val configuredAppVersionName = providers.gradleProperty("qiankunjieVersionName")
+  .orElse(providers.environmentVariable("QIANKUNJIE_VERSION_NAME"))
+  .orNull
+val configuredAppVersionCode = providers.gradleProperty("qiankunjieVersionCode")
+  .orElse(providers.environmentVariable("QIANKUNJIE_VERSION_CODE"))
+  .orNull
+val appVersionName = configuredAppVersionName?.trim().takeUnless { it.isNullOrBlank() } ?: defaultAppVersionName
+val appVersionCode = configuredAppVersionCode?.toIntOrNull()?.takeIf { it > 0 }
+  ?: if (configuredAppVersionCode == null) defaultAppVersionCode else error("QIANKUNJIE_VERSION_CODE 必须为正整数")
 
 val releaseStoreFile = providers.environmentVariable("QIANKUNJIE_RELEASE_STORE_FILE").orNull
 val releaseStorePassword = providers.environmentVariable("QIANKUNJIE_RELEASE_STORE_PASSWORD").orNull
@@ -25,7 +35,7 @@ android {
     applicationId = "com.idickies.storing"
     minSdk = 31
     targetSdk = 36
-    versionCode = 7
+    versionCode = appVersionCode
     versionName = appVersionName
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
