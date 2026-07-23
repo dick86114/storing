@@ -1,6 +1,12 @@
 import com.android.build.gradle.internal.api.BaseVariantOutputImpl
 
-val appVersionName = "0.6.0"
+val appVersionName = "0.7.0"
+
+val releaseStoreFile = providers.environmentVariable("QIANKUNJIE_RELEASE_STORE_FILE").orNull
+val releaseStorePassword = providers.environmentVariable("QIANKUNJIE_RELEASE_STORE_PASSWORD").orNull
+val releaseKeyAlias = providers.environmentVariable("QIANKUNJIE_RELEASE_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.environmentVariable("QIANKUNJIE_RELEASE_KEY_PASSWORD").orNull
+val hasReleaseSigning = listOf(releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword).all { !it.isNullOrBlank() }
 
 plugins {
   alias(libs.plugins.android.application)
@@ -19,15 +25,27 @@ android {
     applicationId = "com.idickies.storing"
     minSdk = 31
     targetSdk = 36
-    versionCode = 6
+    versionCode = 7
     versionName = appVersionName
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     buildConfigField("String", "API_BASE_URL", "\"https://storing.idickies.com/api/v1/\"")
   }
 
+  signingConfigs {
+    if (hasReleaseSigning) {
+      create("qiankunjieRelease") {
+        storeFile = file(releaseStoreFile!!)
+        storePassword = releaseStorePassword
+        keyAlias = releaseKeyAlias
+        keyPassword = releaseKeyPassword
+      }
+    }
+  }
+
   buildTypes {
     release {
+      if (hasReleaseSigning) signingConfig = signingConfigs.getByName("qiankunjieRelease")
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
     }
@@ -95,5 +113,14 @@ dependencies {
 android.applicationVariants.all {
   outputs.all {
     (this as BaseVariantOutputImpl).outputFileName = "乾坤戒-v$appVersionName-$name.apk"
+  }
+}
+
+
+tasks.matching { it.name.startsWith("packageRelease") }.configureEach {
+  doFirst {
+    check(hasReleaseSigning) {
+      "正式 APK 需要 QIANKUNJIE_RELEASE_STORE_FILE、QIANKUNJIE_RELEASE_STORE_PASSWORD、QIANKUNJIE_RELEASE_KEY_ALIAS、QIANKUNJIE_RELEASE_KEY_PASSWORD"
+    }
   }
 }

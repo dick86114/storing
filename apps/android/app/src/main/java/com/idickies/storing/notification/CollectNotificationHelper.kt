@@ -27,6 +27,7 @@ object CollectNotificationHelper {
     val intent = Intent(context, MainActivity::class.java)
       .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
       .putExtra(MainActivity.EXTRA_ARTICLE_ID, job.articleId ?: -1)
+      .putExtra(MainActivity.EXTRA_COLLECT_JOB_ID, if (job.status == "failed") job.id else -1)
     val pendingIntent = PendingIntent.getActivity(context, job.id, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     val succeeded = job.status == "completed"
     val title = if (succeeded) "采集完成" else "采集失败"

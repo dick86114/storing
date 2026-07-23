@@ -34,6 +34,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -64,6 +65,8 @@ fun LibraryScreen(
   onSharedTextConsumed: () -> Unit,
   openArticleId: Int?,
   onArticleOpened: () -> Unit,
+  openCollectJobs: Boolean,
+  onCollectJobsOpened: () -> Unit,
   onLogout: () -> Unit,
   libraryViewModel: LibraryViewModel = hiltViewModel(),
   collectViewModel: ShareCollectViewModel = hiltViewModel(),
@@ -72,6 +75,7 @@ fun LibraryScreen(
   val collectState by collectViewModel.state.collectAsState()
   var showTasks by remember { mutableStateOf(false) }
   var showManualCollect by remember { mutableStateOf(false) }
+  LaunchedEffect(Unit) { collectViewModel.resumePendingSubmissions() }
   LaunchedEffect(sharedText) {
     if (sharedText != null) {
       collectViewModel.receiveSharedText(sharedText)
@@ -82,6 +86,12 @@ fun LibraryScreen(
     if (openArticleId != null) {
       libraryViewModel.open(openArticleId)
       onArticleOpened()
+    }
+  }
+  LaunchedEffect(openCollectJobs) {
+    if (openCollectJobs) {
+      showTasks = true
+      onCollectJobsOpened()
     }
   }
 
@@ -214,6 +224,7 @@ private fun CollectJobsDialog(
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun LibraryList(
   state: com.idickies.storing.library.LibraryUiState,
   collectUrls: List<String>,
@@ -229,11 +240,16 @@ private fun LibraryList(
   modifier: Modifier = Modifier,
 ) {
   var query by remember(state.searchQuery) { mutableStateOf(state.searchQuery) }
-  LazyColumn(
+  PullToRefreshBox(
+    isRefreshing = state.refreshing,
+    onRefresh = onRefresh,
     modifier = modifier.fillMaxSize(),
-    contentPadding = PaddingValues(16.dp),
-    verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
+    LazyColumn(
+      modifier = Modifier.fillMaxSize(),
+      contentPadding = PaddingValues(16.dp),
+      verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
     item {
       OutlinedTextField(
         value = query,
@@ -258,16 +274,17 @@ private fun LibraryList(
     if (state.error != null) item { ErrorPage(state.error, onRefresh) }
     if (!state.loading && !state.searchPending && state.error == null && state.articles.isEmpty()) item { Text("这里还没有文章。你可以从其他应用分享链接到乾坤戒。", modifier = Modifier.padding(vertical = 48.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
     items(state.articles, key = { it.id }) { article -> ArticleCardItem(article, onOpen) }
-    if (state.articles.isNotEmpty() && !state.fromCache) item {
-      Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        when {
-          state.loadingMore -> FullPageLoading("正在加载更多文章…")
-          state.loadMoreError != null -> {
-            Text(state.loadMoreError, color = MaterialTheme.colorScheme.error)
-            Button(onClick = onLoadMore, modifier = Modifier.padding(top = 8.dp)) { Text("重试加载更多") }
+      if (state.articles.isNotEmpty() && !state.fromCache) item {
+        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+          when {
+            state.loadingMore -> FullPageLoading("正在加载更多文章…")
+            state.loadMoreError != null -> {
+              Text(state.loadMoreError, color = MaterialTheme.colorScheme.error)
+              Button(onClick = onLoadMore, modifier = Modifier.padding(top = 8.dp)) { Text("重试加载更多") }
+            }
+            state.hasMore -> Button(onClick = onLoadMore) { Text("加载更多") }
+            else -> Text("已加载全部文章", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 12.dp))
           }
-          state.hasMore -> Button(onClick = onLoadMore) { Text("加载更多") }
-          else -> Text("已加载全部文章", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 12.dp))
         }
       }
     }
@@ -292,6 +309,7 @@ private fun ArticleCardItem(article: ArticleCard, onOpen: (Int) -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ArticleReader(article: ArticleDetail, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onDelete: () -> Unit) {
+  val context = LocalContext.current
   var confirmDelete by remember { mutableStateOf(false) }
   BackHandler(onBack = onBack)
   Scaffold(topBar = {
@@ -299,6 +317,18 @@ private fun ArticleReader(article: ArticleDetail, onBack: () -> Unit, onFavorite
       title = { Text(article.displayTitle, maxLines = 1) },
       navigationIcon = { IconButton(onClick = onBack) { Text("返回") } },
       actions = {
+        IconButton(
+          onClick = { article.originalUrl?.let { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) } },
+          enabled = !article.originalUrl.isNullOrBlank(),
+        ) { Text("原文") }
+        IconButton(
+          onClick = {
+            article.originalUrl?.let { url ->
+              context.startActivity(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, url))
+            }
+          },
+          enabled = !article.originalUrl.isNullOrBlank(),
+        ) { Text("分享") }
         IconButton(onClick = onFavorite) { Text(if (article.isFavorited) "藏✓" else "收藏") }
         IconButton(onClick = onArchive) { Text(if (article.isArchived) "收件箱" else "归档") }
         IconButton(onClick = { confirmDelete = true }) { Text("删除") }

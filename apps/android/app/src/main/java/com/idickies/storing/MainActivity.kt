@@ -16,11 +16,13 @@ import dagger.hilt.android.AndroidEntryPoint
 class MainActivity : ComponentActivity() {
   private val sharedText = mutableStateOf<String?>(null)
   private val articleId = mutableStateOf<Int?>(null)
+  private val collectJobId = mutableStateOf<Int?>(null)
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     sharedText.value = intent?.getStringExtra(EXTRA_SHARED_TEXT)
     articleId.value = intent?.getIntExtra(EXTRA_ARTICLE_ID, -1)?.takeIf { it > 0 }
+    collectJobId.value = intent?.getIntExtra(EXTRA_COLLECT_JOB_ID, -1)?.takeIf { it > 0 }
     if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
     enableEdgeToEdge()
     setContent {
@@ -30,6 +32,8 @@ class MainActivity : ComponentActivity() {
           onSharedTextConsumed = { sharedText.value = null },
           openArticleId = articleId.value,
           onArticleOpened = { articleId.value = null },
+          openCollectJobs = collectJobId.value != null,
+          onCollectJobsOpened = { collectJobId.value = null },
         )
       }
     }
@@ -39,10 +43,12 @@ class MainActivity : ComponentActivity() {
     super.onNewIntent(intent)
     sharedText.value = intent.getStringExtra(EXTRA_SHARED_TEXT)
     articleId.value = intent.getIntExtra(EXTRA_ARTICLE_ID, -1).takeIf { it > 0 }
+    collectJobId.value = intent.getIntExtra(EXTRA_COLLECT_JOB_ID, -1).takeIf { it > 0 }
   }
 
   companion object {
     const val EXTRA_SHARED_TEXT = "com.idickies.storing.extra.SHARED_TEXT"
     const val EXTRA_ARTICLE_ID = "com.idickies.storing.extra.ARTICLE_ID"
+    const val EXTRA_COLLECT_JOB_ID = "com.idickies.storing.extra.COLLECT_JOB_ID"
   }
 }
