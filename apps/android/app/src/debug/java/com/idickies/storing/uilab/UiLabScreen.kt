@@ -52,6 +52,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -62,6 +63,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.idickies.storing.ui.components.ActiveCollectJobsCard
 import com.idickies.storing.ui.components.ReaderActionBar
+import com.idickies.storing.reader.ReaderWebView
 import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 import com.idickies.storing.ui.components.QiankunjieArticleCard
 
@@ -125,6 +127,21 @@ private fun UiLabLibrary() {
 @Composable
 private fun UiLabReader() {
   Scaffold(
+    topBar = {
+      Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
+        Row(
+          modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 12.dp),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Column {
+            Text("真实 WebView 阅读器", style = MaterialTheme.typography.titleSmall)
+            Text("固定长文 · 图片 · 表格 · 外链约束", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          }
+          Icon(Icons.Outlined.AutoStories, contentDescription = "真实 WebView 夹具", tint = MaterialTheme.colorScheme.primary)
+        }
+      }
+    },
     bottomBar = {
       ReaderActionBar(
         isFavorited = false,
@@ -136,42 +153,15 @@ private fun UiLabReader() {
       )
     },
   ) { padding ->
-    LazyColumn(
+    AndroidView(
+      factory = { context ->
+        android.webkit.WebView(context).apply {
+          ReaderWebView.configure(this, onOpenExternalUrl = {})
+          ReaderWebView.loadCapturedHtml(this, UiLabReaderFixture.capturedHtml)
+        }
+      },
       modifier = Modifier.fillMaxSize().padding(padding),
-      contentPadding = PaddingValues(horizontal = 22.dp, vertical = 18.dp),
-      verticalArrangement = Arrangement.spacedBy(18.dp),
-    ) {
-      item {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-          Column {
-            Text("少数派 · 已保存阅读", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            Text("沉浸阅读", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-          }
-          IconButton(onClick = {}) { Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = "打开原网页") }
-        }
-      }
-      item {
-        Text(
-          UiLabFixtures.readerTitle,
-          style = MaterialTheme.typography.headlineSmall,
-        )
-      }
-      item {
-        Box(
-          modifier = Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Color(0xFF304E59), Color(0xFF91BEB4)))),
-          contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Outlined.AutoStories, contentDescription = "阅读视觉占位", tint = Color.White, modifier = Modifier.height(48.dp)) }
-      }
-      item {
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-          Column(Modifier.padding(18.dp)) {
-            Text("AI 摘要", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
-            Text(UiLabFixtures.readerSummary, modifier = Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
-          }
-        }
-      }
-      item { Text(UiLabFixtures.readerBody, style = MaterialTheme.typography.bodyLarge) }
-    }
+    )
   }
 }
 
