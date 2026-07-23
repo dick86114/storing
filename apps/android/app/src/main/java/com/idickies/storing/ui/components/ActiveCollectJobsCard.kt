@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Sync
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -35,7 +33,7 @@ fun ActiveCollectJobsCard(
   modifier: Modifier = Modifier,
 ) {
   val presentation = activeCollectJobsPresentation(activeJobCount)
-  Card(
+  QiankunjieGlassPanel(
     modifier = modifier
       .fillMaxWidth()
       .semantics {
@@ -43,7 +41,6 @@ fun ActiveCollectJobsCard(
       }
       .clickable(onClick = onOpenTasks),
     shape = MaterialTheme.shapes.medium,
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
   ) {
     Row(
       modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),

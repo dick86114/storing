@@ -44,6 +44,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,6 +62,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.idickies.storing.ui.components.ActiveCollectJobsCard
 import com.idickies.storing.ui.components.ReaderActionBar
+import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 import com.idickies.storing.ui.components.QiankunjieArticleCard
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,6 +76,7 @@ internal fun UiLabScreen(
   Scaffold(
     topBar = {
       TopAppBar(
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = liquidGlassSurfaceColor()),
         title = { Text("乾坤戒 UI Lab") },
         navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Outlined.Close, contentDescription = "关闭 UI Lab") } },
         actions = { Text(scenario.route, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(end = 16.dp)) },
