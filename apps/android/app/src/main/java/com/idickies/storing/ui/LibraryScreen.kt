@@ -71,6 +71,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -82,6 +83,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -96,6 +98,8 @@ import com.idickies.storing.collect.CollectJobsViewModel
 import com.idickies.storing.collect.ShareCollectViewModel
 import com.idickies.storing.ui.components.ActiveCollectJobsCard
 import com.idickies.storing.ui.components.ReaderActionBar
+import com.idickies.storing.ui.components.QiankunjieGlassPanel
+import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 import com.idickies.storing.library.ArticleCard
 import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.network.MobileCollectJob
@@ -179,6 +183,7 @@ fun LibraryScreen(
     else -> Scaffold(
       topBar = {
         TopAppBar(
+          colors = TopAppBarDefaults.topAppBarColors(containerColor = liquidGlassSurfaceColor()),
           title = {
             Column {
               Text("乾坤戒", style = MaterialTheme.typography.titleLarge)
@@ -201,20 +206,25 @@ fun LibraryScreen(
         )
       },
       bottomBar = {
-        NavigationBar {
-          LibraryView.entries.forEach { item ->
-            NavigationBarItem(
-              selected = state.view == item && state.searchQuery.isBlank(),
-              onClick = { libraryViewModel.select(item) },
-              icon = {
-                when (item) {
-                  LibraryView.Inbox -> Icon(Icons.Outlined.Inbox, contentDescription = item.label)
-                  LibraryView.Favorites -> Icon(Icons.Outlined.StarBorder, contentDescription = item.label)
-                  LibraryView.Archive -> Icon(Icons.Outlined.Inventory2, contentDescription = item.label)
-                }
-              },
-              label = { Text(item.label) },
-            )
+        QiankunjieGlassPanel(
+          modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+          shape = MaterialTheme.shapes.large,
+        ) {
+          NavigationBar(containerColor = Color.Transparent, tonalElevation = 0.dp) {
+            LibraryView.entries.forEach { item ->
+              NavigationBarItem(
+                selected = state.view == item && state.searchQuery.isBlank(),
+                onClick = { libraryViewModel.select(item) },
+                icon = {
+                  when (item) {
+                    LibraryView.Inbox -> Icon(Icons.Outlined.Inbox, contentDescription = item.label)
+                    LibraryView.Favorites -> Icon(Icons.Outlined.StarBorder, contentDescription = item.label)
+                    LibraryView.Archive -> Icon(Icons.Outlined.Inventory2, contentDescription = item.label)
+                  }
+                },
+                label = { Text(item.label) },
+              )
+            }
           }
         }
       },
@@ -604,6 +614,7 @@ private fun ArticleReader(article: ArticleDetail, onBack: () -> Unit, onFavorite
   Scaffold(
     topBar = {
       TopAppBar(
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = liquidGlassSurfaceColor()),
         title = {
           Column {
             Text(article.source ?: "乾坤戒阅读", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
