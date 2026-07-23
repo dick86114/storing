@@ -60,8 +60,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -95,6 +93,8 @@ import com.idickies.storing.collect.CollectJobsViewModel
 import com.idickies.storing.collect.ShareCollectViewModel
 import com.idickies.storing.ui.components.ActiveCollectJobsCard
 import com.idickies.storing.ui.components.ReaderActionBar
+import com.idickies.storing.ui.components.CompactBottomBarItem
+import com.idickies.storing.ui.components.QiankunjieCompactBottomBar
 import com.idickies.storing.ui.components.QiankunjieGlassPanel
 import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 import com.idickies.storing.library.ArticleCard
@@ -203,25 +203,18 @@ fun LibraryScreen(
         )
       },
       bottomBar = {
-        QiankunjieGlassPanel(
-          modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-          shape = MaterialTheme.shapes.large,
-        ) {
-          NavigationBar(containerColor = Color.Transparent, tonalElevation = 0.dp) {
-            LibraryView.entries.forEach { item ->
-              NavigationBarItem(
-                selected = state.view == item && state.searchQuery.isBlank(),
-                onClick = { libraryViewModel.select(item) },
-                icon = {
-                  when (item) {
-                    LibraryView.Inbox -> Icon(Icons.Outlined.Inbox, contentDescription = item.label)
-                    LibraryView.Favorites -> Icon(Icons.Outlined.StarBorder, contentDescription = item.label)
-                    LibraryView.Archive -> Icon(Icons.Outlined.Inventory2, contentDescription = item.label)
-                  }
-                },
-                label = { Text(item.label) },
-              )
-            }
+        QiankunjieCompactBottomBar {
+          LibraryView.entries.forEach { item ->
+            CompactBottomBarItem(
+              label = item.label,
+              icon = when (item) {
+                LibraryView.Inbox -> Icons.Outlined.Inbox
+                LibraryView.Favorites -> Icons.Outlined.StarBorder
+                LibraryView.Archive -> Icons.Outlined.Inventory2
+              },
+              selected = state.view == item && state.searchQuery.isBlank(),
+              onClick = { libraryViewModel.select(item) },
+            )
           }
         }
       },
