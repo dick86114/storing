@@ -12,4 +12,9 @@ class CollectRepository @Inject constructor(
 ) {
   suspend fun submitSharedUrl(url: String): MobileCollectJob =
     api.submit(MobileCollectRequest(url = url, source = "android_share")).job
+
+  suspend fun jobs() = api.jobs().jobs
+  suspend fun retry(id: Int) = api.retry(id).job
+  suspend fun delete(id: Int) = api.delete(id)
+  suspend fun clearFinished() = api.clearFinished()
 }
