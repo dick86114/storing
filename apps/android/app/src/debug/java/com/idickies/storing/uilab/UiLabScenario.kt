@@ -1,0 +1,15 @@
+package com.idickies.storing.uilab
+
+enum class UiLabScenario(
+  val route: String,
+  val title: String,
+) {
+  Library("library", "资料库"),
+  Reader("reader", "阅读器"),
+  Share("share", "分享采集"),
+  Tasks("tasks", "采集任务");
+
+  companion object {
+    fun fromRoute(route: String?): UiLabScenario = entries.firstOrNull { it.route == route } ?: Library
+  }
+}
