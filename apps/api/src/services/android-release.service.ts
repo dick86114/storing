@@ -39,3 +39,19 @@ export function parseAndroidReleaseManifest(value: unknown): AndroidReleaseManif
     publishedAt,
   };
 }
+
+export type AndroidReleaseManifestFetch = (url: string) => Promise<Response>;
+
+/** Loads the public GitHub Release asset used by Android clients without exposing a GitHub token. */
+export async function loadRemoteAndroidReleaseManifest(
+  manifestUrl: string,
+  fetchManifest: AndroidReleaseManifestFetch = (url) => fetch(url),
+): Promise<AndroidReleaseManifest> {
+  const endpoint = new URL(manifestUrl);
+  if (endpoint.protocol !== 'https:') throw new Error('Android 更新清单必须使用 HTTPS');
+  const response = await fetchManifest(endpoint.toString());
+  if (!response.ok) throw new Error(`Android 更新清单请求失败：HTTP ${response.status}`);
+  const release = parseAndroidReleaseManifest(await response.json());
+  if (!release) throw new Error('Android 更新清单无效');
+  return release;
+}
