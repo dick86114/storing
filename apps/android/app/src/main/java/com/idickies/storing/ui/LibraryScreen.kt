@@ -3,9 +3,6 @@ package com.idickies.storing.ui
 import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
-import android.webkit.WebResourceRequest
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -105,7 +102,7 @@ import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.network.MobileCollectJob
 import com.idickies.storing.library.LibraryView
 import com.idickies.storing.library.LibraryViewModel
-import com.idickies.storing.reader.ReaderDocument
+import com.idickies.storing.reader.ReaderWebView
 import com.idickies.storing.settings.BatteryOptimizationGuidance
 import com.idickies.storing.ui.components.QiankunjieArticleCard
 
@@ -671,21 +668,9 @@ private fun ArticleReader(article: ArticleDetail, onBack: () -> Unit, onFavorite
     if (!html.isNullOrBlank()) {
       AndroidView(
         factory = { webContext ->
-          WebView(webContext).apply {
-            settings.javaScriptEnabled = false
-            settings.allowFileAccess = false
-            settings.allowContentAccess = false
-            settings.domStorageEnabled = false
-            settings.loadWithOverviewMode = false
-            settings.useWideViewPort = false
-            webViewClient = object : WebViewClient() {
-              override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                val uri = request?.url ?: return true
-                if (uri.scheme == "http" || uri.scheme == "https") webContext.startActivity(Intent(Intent.ACTION_VIEW, uri))
-                return true
-              }
-            }
-            loadDataWithBaseURL("https://storing.idickies.com", ReaderDocument.forWebView(html), "text/html", "UTF-8", null)
+          android.webkit.WebView(webContext).apply {
+            ReaderWebView.configure(this) { uri -> webContext.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+            ReaderWebView.loadCapturedHtml(this, html)
           }
         },
         modifier = Modifier.fillMaxSize().padding(padding),

@@ -1,5 +1,6 @@
 package com.idickies.storing.reader
 
+import com.idickies.storing.uilab.UiLabReaderFixture
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -11,7 +12,7 @@ class ReaderDocumentTest {
 
     assertTrue(document.contains("<title>原文</title>"))
     assertTrue(document.contains("name=\"viewport\""))
-    assertTrue(document.contains("max-width:100%"))
+    assertTrue(document.contains("max-width:none !important"))
     assertTrue(document.contains("overflow-x:auto"))
     assertTrue(document.contains("https://example.com/a.jpg"))
   }
@@ -25,5 +26,16 @@ class ReaderDocumentTest {
     assertTrue(document.contains("text-size-adjust:100%"))
     assertTrue(document.contains("blockquote, p, li { overflow-wrap:anywhere; }"))
     assertTrue(document.contains("style=\"color:#222;background:#fff\""))
+  }
+
+  @Test
+  fun `debug reader fixture exercises the same constrained document with long content tables and images`() {
+    val document = ReaderDocument.forWebView(UiLabReaderFixture.capturedHtml)
+
+    assertTrue(document.contains("data-ui-lab-reader=\"true\""))
+    assertTrue(document.contains("min-width:680px"))
+    assertTrue(document.contains("table { display:block; width:max-content; max-width:none !important; overflow-x:auto"))
+    assertTrue(document.contains("data:image/svg+xml"))
+    assertTrue(document.contains("qiankunjie-mobile-reader"))
   }
 }
