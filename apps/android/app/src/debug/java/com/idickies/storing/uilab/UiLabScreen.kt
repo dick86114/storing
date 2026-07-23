@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Replay
@@ -125,13 +126,25 @@ private fun UiLabLibrary() {
       ActiveCollectJobsCard(activeJobCount = 2, onOpenTasks = {})
     }
     item {
-      AssistChip(
-        onClick = {},
-        label = { Text("最近采集") },
-        leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = null, modifier = Modifier.size(18.dp)) },
-      )
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        AssistChip(
+          onClick = {},
+          label = { Text("最近归档") },
+          leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = null, modifier = Modifier.size(18.dp)) },
+        )
+        AssistChip(
+          onClick = {},
+          label = { Text("微信公众号 · 12") },
+          leadingIcon = { Icon(Icons.Outlined.FilterList, contentDescription = null, modifier = Modifier.size(18.dp)) },
+        )
+      }
     }
-    item { Text("收件箱", style = MaterialTheme.typography.headlineSmall) }
+    item {
+      Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text("归档资料库", style = MaterialTheme.typography.headlineSmall)
+        Text("来源筛选只在归档的非搜索状态显示。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+    }
     items(UiLabFixtures.library) { article -> QiankunjieArticleCard(article = article, onOpen = {}) }
   }
 }
