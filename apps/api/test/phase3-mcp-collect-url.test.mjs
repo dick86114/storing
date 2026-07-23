@@ -30,6 +30,6 @@ test('MCP WeChat collection keeps saved items in inbox instead of defaulting to 
   assert.ok(processWechat, 'processWechatJob implementation should be present');
   assert.match(
     processWechat,
-    /persistMetadata: options\.saveToInbox[\s\S]*?markArchived: options\.sourceType !== 'mcp'/,
+    /persistMetadata: options\.saveToInbox[\s\S]*?markArchived: shouldArchiveCollectedArticle\(options\.sourceType\)/,
   );
 });
