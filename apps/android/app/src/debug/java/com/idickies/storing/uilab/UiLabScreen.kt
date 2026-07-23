@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -28,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.idickies.storing.ui.components.QiankunjieArticleCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,18 +85,7 @@ private fun UiLabLibrary() {
       }
     }
     item { Text("收件箱", style = MaterialTheme.typography.headlineSmall) }
-    items(UiLabFixtures.library) { article ->
-      Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-          Text(article.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-          Text(article.source, modifier = Modifier.padding(top = 5.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-          Text(article.summary, modifier = Modifier.padding(top = 10.dp), maxLines = 3, overflow = TextOverflow.Ellipsis)
-          Row(modifier = Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            article.labels.forEach { AssistChip(onClick = {}, label = { Text(it) }) }
-          }
-        }
-      }
-    }
+    items(UiLabFixtures.library) { article -> QiankunjieArticleCard(article = article, onOpen = {}) }
   }
 }
 

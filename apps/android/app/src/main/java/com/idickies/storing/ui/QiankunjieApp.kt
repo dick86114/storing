@@ -64,7 +64,25 @@ fun QiankunjieApp(
       onArticleOpened = onArticleOpened,
       openCollectJobs = openCollectJobs,
       onCollectJobsOpened = onCollectJobsOpened,
+      onManualUpdateCheck = updateViewModel::checkNow,
+      updateChecking = updateState.checking,
       onLogout = authViewModel::logout,
+    )
+  }
+  updateState.statusMessage?.let { message ->
+    AlertDialog(
+      onDismissRequest = updateViewModel::dismiss,
+      title = { Text("检查更新") },
+      text = { Text(message) },
+      confirmButton = { Button(onClick = updateViewModel::dismiss) { Text("知道了") } },
+    )
+  }
+  updateState.error?.takeIf { updateState.release == null }?.let { message ->
+    AlertDialog(
+      onDismissRequest = updateViewModel::dismiss,
+      title = { Text("检查更新") },
+      text = { Text(message) },
+      confirmButton = { Button(onClick = updateViewModel::dismiss) { Text("关闭") } },
     )
   }
   updateState.release?.let { release ->
@@ -141,6 +159,8 @@ private fun HomeSkeleton(
   onArticleOpened: () -> Unit,
   openCollectJobs: Boolean,
   onCollectJobsOpened: () -> Unit,
+  onManualUpdateCheck: () -> Unit,
+  updateChecking: Boolean,
   onLogout: () -> Unit,
 ) {
   LibraryScreen(
@@ -150,6 +170,8 @@ private fun HomeSkeleton(
     onArticleOpened = onArticleOpened,
     openCollectJobs = openCollectJobs,
     onCollectJobsOpened = onCollectJobsOpened,
+    onManualUpdateCheck = onManualUpdateCheck,
+    updateChecking = updateChecking,
     onLogout = onLogout,
   )
 }
