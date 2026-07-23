@@ -47,3 +47,8 @@ turbo/.turbo/
 .claude/
 output/
 tmp/
+
+# Android local build files
+apps/android/.gradle/
+apps/android/**/build/
+apps/android/local.properties

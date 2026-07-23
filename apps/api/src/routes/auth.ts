@@ -5,11 +5,12 @@ import { adminAuditLogs, articleMetadata, articles, mcpClients, mcpRequestLogs, 
 import { and, count, desc, eq, gt, ilike, or, sql } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
-import { requireAuth, requireAdmin, getCurrentUser, generateToken } from '../middleware/auth.js';
+import { requireAuth, requireAdmin, getCurrentUser, generateMobileAccessToken, generateToken } from '../middleware/auth.js';
 import { getConfiguredAdminStatus, resetConfiguredAdminPassword } from '../services/admin-bootstrap.service.js';
 import { writeAdminAudit } from '../services/admin-audit.service.js';
 import { generateSummaryAndTags } from '../services/ai.service.js';
 import { checkLoginRateLimit, clearLoginFailures, getLoginRateLimitKey, recordLoginFailure } from '../services/login-rate-limit.service.js';
+import { createMobileSession, listMobileSessions, revokeMobileSession, revokeMobileSessionByRefreshToken, revokeMobileSessionsForUser, rotateMobileSession, validateMobileDevice } from '../services/mobile-session.service.js';
 
 export const authRoutes = new Hono();
 
@@ -31,6 +32,28 @@ const adminUpdateUserSchema = z.object({
 
 const resetConfiguredAdminPasswordSchema = z.object({
   confirm_username: z.string().trim().min(2, '请输入管理员用户名以确认操作'),
+});
+
+
+const mobileDeviceSchema = z.object({
+  deviceId: z.string().trim(),
+  deviceName: z.string().trim(),
+  appVersion: z.string().trim(),
+});
+
+const mobileLoginSchema = z.object({
+  username: z.string().trim().min(1, '请输入用户名').max(64, '用户名过长'),
+  password: z.string().min(1, '请输入密码').max(256, '密码过长'),
+  device: mobileDeviceSchema,
+});
+
+const mobileRefreshSchema = z.object({
+  refresh_token: z.string().min(40, '刷新令牌无效').max(128, '刷新令牌无效'),
+  device: mobileDeviceSchema.optional(),
+});
+
+const mobileLogoutSchema = z.object({
+  refresh_token: z.string().min(40, '刷新令牌无效').max(128, '刷新令牌无效'),
 });
 
 function timestampToIso(value: unknown) {
@@ -58,6 +81,38 @@ function serializeUser(user: any) {
     inbox_count: Number(user.inboxCount ?? 0),
     archive_count: Number(user.archiveCount ?? 0),
     favorite_count: Number(user.favoriteCount ?? 0),
+  };
+}
+
+
+function serializeMobileUser(user: { id: number; username: string; role: string; status: string }) {
+  return { id: user.id, username: user.username, role: user.role, status: user.status };
+}
+
+function serializeMobileSession(session: Awaited<ReturnType<typeof listMobileSessions>>[number]) {
+  return {
+    id: session.id,
+    device_id: session.deviceId,
+    device_name: session.deviceName,
+    app_version: session.appVersion,
+    created_at: timestampToIso(session.createdAt),
+    last_used_at: timestampToIso(session.lastUsedAt),
+    expires_at: timestampToIso(session.expiresAt),
+    revoked_at: timestampToIso(session.revokedAt),
+  };
+}
+
+function mobileAuthResponse(user: { id: number; username: string; role: string; status: string }, session: { id: string; expiresAt: Date }, refreshToken: string) {
+  return {
+    access_token: generateMobileAccessToken(user.id, session.id),
+    access_token_expires_in: 30 * 60,
+    refresh_token: refreshToken,
+    refresh_token_expires_in: 90 * 24 * 60 * 60,
+    user: serializeMobileUser(user),
+    session: {
+      id: session.id,
+      expires_at: timestampToIso(session.expiresAt),
+    },
   };
 }
 
@@ -98,6 +153,92 @@ function serializeAdminLibraryArticle(article: any) {
     updated_at: timestampToIso(article.updatedAt),
   };
 }
+
+/**
+ * Native Android login. Browser login deliberately remains cookie-only.
+ * POST /mobile/auth/login
+ */
+authRoutes.post('/mobile/auth/login', async (c) => {
+  const parsed = mobileLoginSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: { code: 'BAD_REQUEST', message: parsed.error.errors[0]?.message || '参数错误' } }, 400);
+
+  let device;
+  try {
+    device = validateMobileDevice(parsed.data.device);
+  } catch (error) {
+    return c.json({ error: { code: 'BAD_REQUEST', message: error instanceof Error ? error.message : '设备信息无效' } }, 400);
+  }
+
+  const rateLimitKey = getLoginRateLimitKey({
+    username: parsed.data.username,
+    forwardedFor: c.req.header('X-Forwarded-For'),
+    trustProxy: process.env.TRUST_PROXY === 'true',
+  });
+  const rateLimit = checkLoginRateLimit(rateLimitKey);
+  if (!rateLimit.allowed) {
+    c.header('Retry-After', String(rateLimit.retryAfterSeconds));
+    return c.json({ error: { code: 'LOGIN_RATE_LIMITED', message: '登录尝试过于频繁，请稍后再试' } }, 429);
+  }
+
+  const [user] = await db.select().from(users).where(eq(users.username, parsed.data.username)).limit(1);
+  if (!user || user.status !== 'active' || !(await bcrypt.compare(parsed.data.password, user.passwordHash))) {
+    recordLoginFailure(rateLimitKey);
+    return c.json({ error: { code: 'INVALID_CREDENTIALS', message: '用户名或密码错误' } }, 401);
+  }
+
+  clearLoginFailures(rateLimitKey);
+  await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+  const created = await createMobileSession({ userId: user.id, device });
+  return c.json(mobileAuthResponse(user, created.session, created.refreshToken));
+});
+
+/** POST /mobile/auth/refresh */
+authRoutes.post('/mobile/auth/refresh', async (c) => {
+  const parsed = mobileRefreshSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: { code: 'BAD_REQUEST', message: parsed.error.errors[0]?.message || '参数错误' } }, 400);
+
+  let device;
+  try {
+    device = parsed.data.device ? validateMobileDevice(parsed.data.device) : undefined;
+  } catch (error) {
+    return c.json({ error: { code: 'BAD_REQUEST', message: error instanceof Error ? error.message : '设备信息无效' } }, 400);
+  }
+
+  const rotated = await rotateMobileSession(parsed.data.refresh_token, device);
+  if (!rotated) return c.json({ error: { code: 'INVALID_REFRESH_TOKEN', message: '登录已失效，请重新登录' } }, 401);
+
+  const [user] = await db.select({ id: users.id, username: users.username, role: users.role, status: users.status }).from(users).where(eq(users.id, rotated.userId)).limit(1);
+  if (!user || user.status !== 'active') {
+    if (user) await revokeMobileSessionsForUser(user.id);
+    return c.json({ error: { code: user ? 'USER_DISABLED' : 'INVALID_REFRESH_TOKEN', message: user ? '用户已禁用' : '登录已失效，请重新登录' } }, user ? 403 : 401);
+  }
+
+  return c.json(mobileAuthResponse(user, rotated.session, rotated.refreshToken));
+});
+
+/** POST /mobile/auth/logout */
+authRoutes.post('/mobile/auth/logout', async (c) => {
+  const parsed = mobileLogoutSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: { code: 'BAD_REQUEST', message: parsed.error.errors[0]?.message || '参数错误' } }, 400);
+  await revokeMobileSessionByRefreshToken(parsed.data.refresh_token);
+  return c.json({ revoked: true });
+});
+
+/** GET /mobile/auth/sessions */
+authRoutes.get('/mobile/auth/sessions', requireAuth, async (c) => {
+  const user = getCurrentUser(c);
+  return c.json({ sessions: (await listMobileSessions(user.id)).map(serializeMobileSession) });
+});
+
+/** DELETE /mobile/auth/sessions/:id */
+authRoutes.delete('/mobile/auth/sessions/:id', requireAuth, async (c) => {
+  const user = getCurrentUser(c);
+  const id = c.req.param('id');
+  if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return c.json({ error: { code: 'BAD_REQUEST', message: '会话 ID 无效' } }, 400);
+  const revoked = await revokeMobileSession(id, user.id);
+  if (!revoked) return c.json({ error: { code: 'NOT_FOUND', message: '会话不存在或已失效' } }, 404);
+  return c.json({ revoked: true });
+});
 
 /**
  * 登录
@@ -227,6 +368,7 @@ authRoutes.post('/change-password', requireAuth, async (c) => {
       .update(users)
       .set({ passwordHash: newPasswordHash, updatedAt: new Date() })
       .where(eq(users.id, user.id));
+    await revokeMobileSessionsForUser(user.id);
 
     return c.json({ message: '密码已更新' });
   } catch (err) {
@@ -281,6 +423,7 @@ authRoutes.post('/admin/bootstrap/reset-password', requireAdmin, async (c) => {
   }
 
   const result = await resetConfiguredAdminPassword();
+  await revokeMobileSessionsForUser(result.user.id);
   return c.json({
     message: result.created ? '已创建并同步配置管理员密码' : '已同步配置管理员密码',
     configured_username: result.user.username,
@@ -682,5 +825,6 @@ authRoutes.patch('/admin/users/:id', requireAdmin, async (c) => {
   if (parsed.data.password !== undefined) values.passwordHash = await bcrypt.hash(parsed.data.password, 10);
 
   const [updated] = await db.update(users).set(values).where(eq(users.id, id)).returning();
+  if (parsed.data.password !== undefined || parsed.data.status === 'disabled') await revokeMobileSessionsForUser(id);
   return c.json({ user: serializeUser(updated) });
 });

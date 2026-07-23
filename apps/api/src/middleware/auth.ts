@@ -175,3 +175,8 @@ export function isAuthenticated(c: Context) {
 export function generateToken(userId: number) {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
 }
+
+/** Short-lived access token for a revocable native mobile refresh session. */
+export function generateMobileAccessToken(userId: number, sessionId: string) {
+  return jwt.sign({ userId, sessionId, client: 'android' }, JWT_SECRET, { expiresIn: '30m' });
+}

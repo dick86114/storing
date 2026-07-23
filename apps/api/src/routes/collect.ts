@@ -9,6 +9,10 @@ const collectSchema = z.object({
   url: z.string().min(1, '请输入链接').max(4000, '链接过长'),
 });
 
+const mobileCollectSchema = collectSchema.extend({
+  source: z.enum(['android', 'android_share']).default('android'),
+});
+
 function formatCollectError(error?: string | null) {
   if (!error) {
     return {
@@ -88,6 +92,65 @@ function serializeJob(job: any) {
     finishedAt: job.finishedAt,
   };
 }
+
+
+
+/** Native Android collection routes deliberately keep a separate source namespace from Web. */
+collectRoutes.post('/mobile/collect', requireAuth, async (c) => {
+  const parsed = mobileCollectSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: { code: 'BAD_REQUEST', message: parsed.error.errors[0]?.message || '参数错误' } }, 400);
+  try {
+    const user = getCurrentUser(c);
+    const job = await createCollectJob(parsed.data.url, { userId: user.id, requestSource: parsed.data.source, saveToInbox: true });
+    return c.json({ job: serializeJob(job) }, 202);
+  } catch (error) {
+    console.error('Create mobile collect job failed:', error instanceof Error ? error.message : String(error));
+    return c.json({ error: { code: 'COLLECT_FAILED', message: '创建采集任务失败' } }, 400);
+  }
+});
+
+collectRoutes.get('/mobile/collect/jobs', requireAuth, async (c) => {
+  const limit = Math.min(30, Math.max(1, Number(c.req.query('limit') || 12)));
+  const offset = Math.max(0, Number(c.req.query('offset') || 0));
+  const user = getCurrentUser(c);
+  const result = await listCollectJobs(limit, offset, { userId: user.id, requestSource: ['android', 'android_share'] });
+  return c.json({ jobs: result.jobs.map(serializeJob), total: result.total, hasMore: result.hasMore });
+});
+
+collectRoutes.get('/mobile/collect/jobs/:id', requireAuth, async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: { code: 'BAD_REQUEST', message: '任务 ID 无效' } }, 400);
+  const user = getCurrentUser(c);
+  const job = await getCollectJob(id, { userId: user.id, requestSource: ['android', 'android_share'] });
+  if (!job) return c.json({ error: { code: 'NOT_FOUND', message: '任务不存在' } }, 404);
+  return c.json({ job: serializeJob(job) });
+});
+
+collectRoutes.post('/mobile/collect/jobs/:id/retry', requireAuth, async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: { code: 'BAD_REQUEST', message: '任务 ID 无效' } }, 400);
+  const user = getCurrentUser(c);
+  const job = await getCollectJob(id, { userId: user.id, requestSource: ['android', 'android_share'] });
+  if (!job) return c.json({ error: { code: 'NOT_FOUND', message: '任务不存在' } }, 404);
+  if (job.status === 'running') return c.json({ job: serializeJob(job) });
+  await retryCollectJob(id);
+  return c.json({ job: serializeJob({ ...job, status: 'pending', stage: 'queued', error: null }) });
+});
+
+collectRoutes.delete('/mobile/collect/jobs', requireAuth, async (c) => {
+  const user = getCurrentUser(c);
+  return c.json(await clearFinishedCollectJobs({ userId: user.id, requestSource: ['android', 'android_share'] }));
+});
+
+collectRoutes.delete('/mobile/collect/jobs/:id', requireAuth, async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: { code: 'BAD_REQUEST', message: '任务 ID 无效' } }, 400);
+  const user = getCurrentUser(c);
+  const result = await deleteCollectJob(id, { userId: user.id, requestSource: ['android', 'android_share'] });
+  if (!result.deleted && result.reason === 'not_found') return c.json({ error: { code: 'NOT_FOUND', message: '任务不存在' } }, 404);
+  if (!result.deleted && result.reason === 'running') return c.json({ error: { code: 'JOB_RUNNING', message: '运行中的采集任务暂不能删除' } }, 409);
+  return c.json({ deleted: true });
+});
 
 collectRoutes.post('/collect', requireAuth, async (c) => {
   const body = await c.req.json().catch(() => null);

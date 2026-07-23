@@ -14,6 +14,7 @@ import { initMcpSchema, startMcpLogCleanupScheduler } from './services/mcp-auth.
 import { ensurePrivateLibraryPublicationSchema, initArticleMetadataUserScope, repairCollectedArticleMetadataOwnership, repairMissingMcpSavedArticleMetadata } from './services/metadata-scope.service.js';
 import { ensureConfiguredAdmin, initUserManagementSchema } from './services/admin-bootstrap.service.js';
 import { initAdminAuditSchema } from './services/admin-audit.service.js';
+import { initMobileSessionSchema } from './services/mobile-session.service.js';
 import { ensureDatabaseIndexes } from './services/db-indexes.service.js';
 import { requireCsrfProtection } from './middleware/auth.js';
 
@@ -41,6 +42,7 @@ async function startServer() {
   await initMcpSchema().catch((err) => console.error('初始化 MCP 表失败:', err));
   await initUserManagementSchema().catch((err) => console.error('初始化用户管理字段失败:', err));
   await initAdminAuditSchema().catch((err) => console.error('初始化管理员审计表失败:', err));
+  await initMobileSessionSchema().catch((err) => console.error('初始化移动会话表失败:', err));
   const admin = await ensureConfiguredAdmin();
   console.log(admin.created ? `管理员账号已创建: ${admin.user.username}` : `管理员账号已就绪: ${admin.user.username}`);
   await initArticleMetadataUserScope().catch((err) => console.error('初始化用户级文章元数据失败:', err));
