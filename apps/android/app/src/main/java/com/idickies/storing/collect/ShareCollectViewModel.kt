@@ -37,12 +37,25 @@ class ShareCollectViewModel @Inject constructor(
 
   fun select(url: String) = mutableState.update { it.copy(selectedUrl = url) }
 
+  fun submitManual(rawUrl: String) {
+    val url = ManualCollectUrl.normalize(rawUrl)
+    if (url == null) {
+      mutableState.update { it.copy(message = "请输入有效的 http 或 https 链接") }
+      return
+    }
+    submitUrl(url, "android")
+  }
+
   fun submit() {
     val url = mutableState.value.selectedUrl ?: return
+    submitUrl(url, "android_share")
+  }
+
+  private fun submitUrl(url: String, source: String) {
     if (mutableState.value.submitting) return
     viewModelScope.launch {
       mutableState.update { it.copy(submitting = true, message = null) }
-      runCatching { collectRepository.submitSharedUrl(url) }
+      runCatching { collectRepository.submit(url, source) }
         .onSuccess { job ->
           CollectTrackingScheduler.schedule(context, job.id)
           mutableState.update { it.copy(submitting = false, message = "已加入采集队列 #${job.id}") }

@@ -10,8 +10,11 @@ import javax.inject.Singleton
 class CollectRepository @Inject constructor(
   private val api: MobileCollectApi,
 ) {
-  suspend fun submitSharedUrl(url: String): MobileCollectJob =
-    api.submit(MobileCollectRequest(url = url, source = "android_share")).job
+  suspend fun submit(url: String, source: String): MobileCollectJob =
+    api.submit(MobileCollectRequest(url = url, source = source)).job
+
+  suspend fun submitSharedUrl(url: String): MobileCollectJob = submit(url, "android_share")
+  suspend fun submitManualUrl(url: String): MobileCollectJob = submit(url, "android")
 
   suspend fun jobs() = api.jobs().jobs
   suspend fun retry(id: Int) = api.retry(id).job

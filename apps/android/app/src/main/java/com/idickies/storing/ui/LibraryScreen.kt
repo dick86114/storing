@@ -1,5 +1,6 @@
 package com.idickies.storing.ui
 
+import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
 import android.webkit.WebResourceRequest
@@ -40,6 +41,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,6 +71,7 @@ fun LibraryScreen(
   val state by libraryViewModel.state.collectAsState()
   val collectState by collectViewModel.state.collectAsState()
   var showTasks by remember { mutableStateOf(false) }
+  var showManualCollect by remember { mutableStateOf(false) }
   LaunchedEffect(sharedText) {
     if (sharedText != null) {
       collectViewModel.receiveSharedText(sharedText)
@@ -99,6 +102,7 @@ fun LibraryScreen(
         TopAppBar(
           title = { Text(if (state.searchQuery.isBlank()) state.view.label else "搜索") },
           actions = {
+            IconButton(onClick = { showManualCollect = true }) { Text("采集") }
             IconButton(onClick = { showTasks = true }) { Text("任务") }
             IconButton(onClick = onLogout) { Text("退出") }
           },
@@ -136,6 +140,40 @@ fun LibraryScreen(
   if (showTasks) CollectJobsDialog(
     onDismiss = { showTasks = false },
     onOpenArticle = { id -> showTasks = false; libraryViewModel.open(id) },
+  )
+  if (showManualCollect) ManualCollectDialog(onDismiss = { showManualCollect = false }, viewModel = collectViewModel)
+}
+
+@Composable
+private fun ManualCollectDialog(
+  onDismiss: () -> Unit,
+  viewModel: ShareCollectViewModel,
+) {
+  val state by viewModel.state.collectAsState()
+  val context = LocalContext.current
+  var url by rememberSaveable { mutableStateOf("") }
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text("采集链接") },
+    text = { Column {
+      OutlinedTextField(
+        value = url,
+        onValueChange = { url = it },
+        label = { Text("网页链接") },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+      )
+      Button(
+        onClick = {
+          val clipboard = context.getSystemService(ClipboardManager::class.java)
+          url = clipboard?.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
+        },
+        modifier = Modifier.padding(top = 8.dp),
+      ) { Text("从剪贴板粘贴") }
+      state.message?.let { Text(it, modifier = Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    } },
+    confirmButton = { Button(onClick = { viewModel.submitManual(url) }, enabled = !state.submitting) { Text(if (state.submitting) "提交中…" else "一键采集") } },
+    dismissButton = { Button(onClick = onDismiss) { Text("关闭") } },
   )
 }
 
