@@ -8,6 +8,7 @@ import com.idickies.storing.auth.KeystoreSessionStore
 import com.idickies.storing.auth.SessionStore
 import com.idickies.storing.network.AccessTokenInterceptor
 import com.idickies.storing.network.ClientHeadersInterceptor
+import com.idickies.storing.network.ArticleApi
 import com.idickies.storing.network.MobileAuthApi
 import com.idickies.storing.network.MobileCollectApi
 import dagger.Module
@@ -65,6 +66,10 @@ object AppModule {
   @Provides
   @Singleton
   fun provideMobileAuthApi(retrofit: Retrofit): MobileAuthApi = retrofit.create(MobileAuthApi::class.java)
+
+  @Provides
+  @Singleton
+  fun provideArticleApi(retrofit: Retrofit): ArticleApi = retrofit.create(ArticleApi::class.java)
 
   @Provides
   @Singleton
