@@ -11,6 +11,12 @@ class LibrarySortTest {
     assertEquals(LibrarySort.Collected, LibrarySort.defaultFor(LibraryView.Inbox))
     assertEquals(LibrarySort.Favorited, LibrarySort.defaultFor(LibraryView.Favorites))
     assertEquals(LibrarySort.Archived, LibrarySort.defaultFor(LibraryView.Archive))
+    assertEquals(LibrarySort.Published, LibrarySort.defaultFor(LibraryView.Published))
+  }
+
+  @Test
+  fun `library opens on the public publication view by default`() {
+    assertEquals(LibraryView.Published, LibraryUiState().view)
   }
 
   @Test

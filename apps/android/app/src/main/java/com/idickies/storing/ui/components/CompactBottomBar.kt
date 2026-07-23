@@ -31,7 +31,7 @@ data class CompactBottomBarMetrics(
 
 val compactBottomBarMetrics = CompactBottomBarMetrics(
   actionHeight = 56.dp,
-  verticalInset = 6.dp,
+  verticalInset = 0.dp,
 )
 
 /** A compact glass shell that keeps bottom actions precise instead of Material's 80dp navigation default. */
@@ -40,21 +40,15 @@ fun QiankunjieCompactBottomBar(
   modifier: Modifier = Modifier,
   content: @Composable () -> Unit,
 ) {
-  QiankunjieGlassPanel(
+  Row(
     modifier = modifier
       .fillMaxWidth()
-      .padding(horizontal = 12.dp, vertical = compactBottomBarMetrics.verticalInset),
-    shape = MaterialTheme.shapes.large,
+      .padding(horizontal = 12.dp, vertical = compactBottomBarMetrics.verticalInset)
+      .height(compactBottomBarMetrics.actionHeight),
+    horizontalArrangement = Arrangement.SpaceEvenly,
+    verticalAlignment = Alignment.CenterVertically,
   ) {
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .height(compactBottomBarMetrics.actionHeight),
-      horizontalArrangement = Arrangement.SpaceEvenly,
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      content()
-    }
+    content()
   }
 }
 

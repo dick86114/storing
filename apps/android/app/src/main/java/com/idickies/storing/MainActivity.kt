@@ -9,7 +9,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
 import com.idickies.storing.ui.QiankunjieApp
-import com.idickies.storing.ui.theme.QiankunjieTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -26,16 +25,14 @@ class MainActivity : ComponentActivity() {
     if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
     enableEdgeToEdge()
     setContent {
-      QiankunjieTheme {
-        QiankunjieApp(
-          sharedText = sharedText.value,
-          onSharedTextConsumed = { sharedText.value = null },
-          openArticleId = articleId.value,
-          onArticleOpened = { articleId.value = null },
-          openCollectJobs = collectJobId.value != null,
-          onCollectJobsOpened = { collectJobId.value = null },
-        )
-      }
+      QiankunjieApp(
+        sharedText = sharedText.value,
+        onSharedTextConsumed = { sharedText.value = null },
+        openArticleId = articleId.value,
+        onArticleOpened = { articleId.value = null },
+        openCollectJobs = collectJobId.value != null,
+        onCollectJobsOpened = { collectJobId.value = null },
+      )
     }
   }
 

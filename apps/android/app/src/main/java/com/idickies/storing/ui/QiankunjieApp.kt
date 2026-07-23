@@ -1,6 +1,9 @@
 package com.idickies.storing.ui
 
+import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -45,6 +48,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -55,6 +59,9 @@ import com.idickies.storing.auth.LoginCredentials
 import com.idickies.storing.collect.ShareCollectViewModel
 import com.idickies.storing.update.AndroidReleaseUpdatePolicy
 import com.idickies.storing.update.UpdateViewModel
+import com.idickies.storing.reader.ReaderColorScheme
+import com.idickies.storing.ui.theme.AppearanceViewModel
+import com.idickies.storing.ui.theme.QiankunjieTheme
 
 @Composable
 fun QiankunjieApp(
@@ -66,20 +73,33 @@ fun QiankunjieApp(
   onCollectJobsOpened: () -> Unit,
   authViewModel: AuthViewModel = hiltViewModel(),
   updateViewModel: UpdateViewModel = hiltViewModel(),
+  appearanceViewModel: AppearanceViewModel = hiltViewModel(),
 ) {
   val state by authViewModel.state.collectAsState()
   val updateState by updateViewModel.state.collectAsState()
+  val themeMode by appearanceViewModel.themeMode.collectAsState()
+  val systemDark = isSystemInDarkTheme()
   val user = state.user
-  LaunchedEffect(user?.id) { if (user != null) updateViewModel.checkOnLaunch() }
+  var showLogin by rememberSaveable { mutableStateOf(false) }
+  LaunchedEffect(user?.id) {
+    if (user != null) {
+      showLogin = false
+      updateViewModel.checkOnLaunch()
+    }
+  }
+  QiankunjieTheme(darkTheme = themeMode.resolve(systemDark)) {
   when {
     state.checkingSession -> LoadingScreen()
-    user == null -> LoginScreen(
-      submitting = state.submitting,
-      errorMessage = state.errorMessage,
-      onLogin = authViewModel::login,
-    )
+    user == null && showLogin -> {
+      BackHandler { showLogin = false }
+      LoginScreen(
+        submitting = state.submitting,
+        errorMessage = state.errorMessage,
+        onLogin = authViewModel::login,
+      )
+    }
     else -> HomeSkeleton(
-      username = user.username,
+      username = user?.username,
       sharedText = sharedText,
       onSharedTextConsumed = onSharedTextConsumed,
       openArticleId = openArticleId,
@@ -88,6 +108,11 @@ fun QiankunjieApp(
       onCollectJobsOpened = onCollectJobsOpened,
       onManualUpdateCheck = updateViewModel::checkNow,
       updateChecking = updateState.checking,
+      themeMode = themeMode,
+      onThemeModeChange = appearanceViewModel::selectThemeMode,
+      isAuthenticated = user != null,
+      readerColorScheme = if (themeMode.resolve(systemDark)) ReaderColorScheme.Dark else ReaderColorScheme.Light,
+      onRequestLogin = { showLogin = true },
       onLogout = authViewModel::logout,
     )
   }
@@ -137,6 +162,7 @@ fun QiankunjieApp(
         }
       } else null,
     )
+  }
   }
 }
 
@@ -233,7 +259,7 @@ internal fun LoginScreen(
 
 @Composable
 private fun HomeSkeleton(
-  @Suppress("UNUSED_PARAMETER") username: String,
+  @Suppress("UNUSED_PARAMETER") username: String?,
   sharedText: String?,
   onSharedTextConsumed: () -> Unit,
   openArticleId: Int?,
@@ -242,8 +268,18 @@ private fun HomeSkeleton(
   onCollectJobsOpened: () -> Unit,
   onManualUpdateCheck: () -> Unit,
   updateChecking: Boolean,
+  themeMode: com.idickies.storing.ui.theme.ThemeMode,
+  onThemeModeChange: (com.idickies.storing.ui.theme.ThemeMode) -> Unit,
+  isAuthenticated: Boolean,
+  readerColorScheme: ReaderColorScheme,
+  onRequestLogin: () -> Unit,
   onLogout: () -> Unit,
 ) {
+  val context = LocalContext.current
+  var confirmExit by rememberSaveable { mutableStateOf(false) }
+  BackHandler {
+    if (ExitConfirmationPolicy.requiresConfirmation(isRootScreen = true)) confirmExit = true
+  }
   LibraryScreen(
     sharedText = sharedText,
     onSharedTextConsumed = onSharedTextConsumed,
@@ -253,6 +289,21 @@ private fun HomeSkeleton(
     onCollectJobsOpened = onCollectJobsOpened,
     onManualUpdateCheck = onManualUpdateCheck,
     updateChecking = updateChecking,
+    themeMode = themeMode,
+    onThemeModeChange = onThemeModeChange,
+    isAuthenticated = isAuthenticated,
+    readerColorScheme = readerColorScheme,
+    onRequestLogin = onRequestLogin,
     onLogout = onLogout,
   )
+  if (confirmExit) {
+    AlertDialog(
+      onDismissRequest = { confirmExit = false },
+      icon = { Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+      title = { Text("退出乾坤戒？") },
+      text = { Text("再次确认后将退出应用。") },
+      confirmButton = { Button(onClick = { (context as? Activity)?.finish(); confirmExit = false }) { Text("确认退出") } },
+      dismissButton = { TextButton(onClick = { confirmExit = false }) { Text("继续阅读") } },
+    )
+  }
 }

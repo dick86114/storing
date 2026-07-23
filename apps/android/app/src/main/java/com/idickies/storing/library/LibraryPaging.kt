@@ -17,3 +17,8 @@ fun appendUniqueArticles(current: List<ArticleCard>, next: List<ArticleCard>): L
   val knownIds = current.mapTo(mutableSetOf()) { it.id }
   return current + next.filter { knownIds.add(it.id) }
 }
+
+
+/** Trigger automatic pagination when the user scrolls into the final three visible slots. */
+fun shouldLoadMore(lastVisibleItemIndex: Int, itemCount: Int, hasMore: Boolean): Boolean =
+  hasMore && itemCount > 0 && lastVisibleItemIndex >= itemCount - 3

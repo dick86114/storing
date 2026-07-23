@@ -14,12 +14,14 @@ enum class LibrarySort(
       LibraryView.Inbox -> Collected
       LibraryView.Favorites -> Favorited
       LibraryView.Archive -> Archived
+      LibraryView.Published -> Published
     }
 
     fun availableFor(view: LibraryView): List<LibrarySort> = when (view) {
       LibraryView.Inbox -> listOf(Collected, Published)
       LibraryView.Favorites -> listOf(Favorited, Collected, Published)
       LibraryView.Archive -> listOf(Archived, Collected, Published)
+      LibraryView.Published -> listOf(Published)
     }
   }
 }

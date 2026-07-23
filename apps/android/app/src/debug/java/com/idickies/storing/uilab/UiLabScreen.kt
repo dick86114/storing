@@ -52,6 +52,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
@@ -68,8 +69,10 @@ import com.idickies.storing.ui.components.ReaderActionBar
 import com.idickies.storing.reader.ReaderWebView
 import com.idickies.storing.ui.QiankunjieSettingsScreen
 import com.idickies.storing.ui.LoginScreen
+import com.idickies.storing.ui.theme.ThemeMode
 import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 import com.idickies.storing.ui.components.QiankunjieArticleCard
+import com.idickies.storing.ui.components.QiankunjieCompactArticleRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -145,12 +148,20 @@ private fun UiLabLibrary() {
         Text("来源筛选只在归档的非搜索状态显示。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
       }
     }
-    items(UiLabFixtures.library) { article -> QiankunjieArticleCard(article = article, onOpen = {}) }
+    items(UiLabFixtures.library.take(1)) { article -> QiankunjieArticleCard(article = article, onOpen = {}) }
+    item {
+      Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("紧凑列表显示", style = MaterialTheme.typography.titleMedium)
+        Text("封面左置，便于快速查找更多文章。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+    }
+    items(UiLabFixtures.library.drop(1)) { article -> QiankunjieCompactArticleRow(article = article, onOpen = {}) }
   }
 }
 
 @Composable
 private fun UiLabReader() {
+  val readerColorScheme = if (isSystemInDarkTheme()) com.idickies.storing.reader.ReaderColorScheme.Dark else com.idickies.storing.reader.ReaderColorScheme.Light
   Scaffold(
     topBar = {
       Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
@@ -182,7 +193,7 @@ private fun UiLabReader() {
       factory = { context ->
         android.webkit.WebView(context).apply {
           ReaderWebView.configure(this, onOpenExternalUrl = {})
-          ReaderWebView.loadCapturedHtml(this, UiLabReaderFixture.capturedHtml)
+          ReaderWebView.loadCapturedHtml(this, UiLabReaderFixture.capturedHtml, readerColorScheme)
         }
       },
       modifier = Modifier.fillMaxSize().padding(padding),
@@ -194,6 +205,8 @@ private fun UiLabReader() {
 private fun UiLabSettings() {
   QiankunjieSettingsScreen(
     checkingUpdate = false,
+    themeMode = ThemeMode.System,
+    onThemeModeChange = {},
     onCheckUpdate = {},
     onOpenBatteryGuidance = {},
     onLogout = {},

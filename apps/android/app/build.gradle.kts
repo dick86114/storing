@@ -111,6 +111,7 @@ dependencies {
   implementation(libs.serialization.json)
   implementation(libs.work.runtime)
   implementation(libs.coil.compose)
+  implementation(libs.coil.network.okhttp)
   ksp(libs.hilt.compiler)
   ksp(libs.room.compiler)
 

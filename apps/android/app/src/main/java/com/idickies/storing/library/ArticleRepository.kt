@@ -42,7 +42,8 @@ class ArticleRepository @Inject constructor(
 
   suspend fun search(query: String, page: Int = 1) = api.search(query, page)
   suspend fun sources() = api.sources()
-  suspend fun detail(id: Int) = api.article(id)
+  suspend fun detail(id: Int, publicId: String? = null) =
+    publicId?.let { api.publication(it).article } ?: api.article(id)
   suspend fun toggleFavorite(id: Int) = api.toggleFavorite(id)
   suspend fun toggleArchive(id: Int, archived: Boolean) = if (archived) api.unarchive(id) else api.archive(id)
   suspend fun delete(id: Int) = api.delete(id)
@@ -52,4 +53,5 @@ enum class LibraryView(val apiValue: String, val label: String) {
   Inbox("inbox", "收件箱"),
   Favorites("favorites", "收藏"),
   Archive("archive", "归档"),
+  Published("published", "发布"),
 }

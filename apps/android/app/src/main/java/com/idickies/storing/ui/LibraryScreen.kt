@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddLink
@@ -38,11 +39,15 @@ import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.ViewModule
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.MoveToInbox
 import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.automirrored.outlined.Sort
+import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.StarBorder
@@ -72,6 +77,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -101,15 +107,20 @@ import com.idickies.storing.ui.components.QiankunjieGlassPanel
 import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 import com.idickies.storing.library.ArticleCard
 import com.idickies.storing.library.ArticleDetail
+import com.idickies.storing.library.ArticleListPresentationMode
 import com.idickies.storing.library.ArchiveSourceFilter
 import com.idickies.storing.network.MobileCollectJob
 import com.idickies.storing.library.LibraryView
 import com.idickies.storing.library.LibrarySort
 import com.idickies.storing.library.LibraryViewModel
+import com.idickies.storing.library.shouldLoadMore
 import com.idickies.storing.library.archiveSourceFilters
 import com.idickies.storing.reader.ReaderWebView
+import com.idickies.storing.reader.ReaderColorScheme
 import com.idickies.storing.settings.BatteryOptimizationGuidance
 import com.idickies.storing.ui.components.QiankunjieArticleCard
+import com.idickies.storing.ui.components.QiankunjieCompactArticleRow
+import com.idickies.storing.ui.theme.ThemeMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -122,6 +133,11 @@ fun LibraryScreen(
   onCollectJobsOpened: () -> Unit,
   onManualUpdateCheck: () -> Unit,
   updateChecking: Boolean,
+  themeMode: ThemeMode,
+  onThemeModeChange: (ThemeMode) -> Unit,
+  isAuthenticated: Boolean,
+  readerColorScheme: ReaderColorScheme,
+  onRequestLogin: () -> Unit,
   onLogout: () -> Unit,
   libraryViewModel: LibraryViewModel = hiltViewModel(),
   collectViewModel: ShareCollectViewModel = hiltViewModel(),
@@ -135,6 +151,7 @@ fun LibraryScreen(
   var showManualCollect by remember { mutableStateOf(false) }
   var showBatteryGuidance by remember { mutableStateOf(false) }
   var showSettings by remember { mutableStateOf(false) }
+  var presentationMode by rememberSaveable { mutableStateOf(ArticleListPresentationMode.default) }
   DisposableEffect(lifecycleOwner) {
     val observer = LifecycleEventObserver { _, event ->
       when (event) {
@@ -170,11 +187,22 @@ fun LibraryScreen(
     }
   }
 
+  BackHandler(enabled = showSettings || showTasks || showManualCollect || showBatteryGuidance) {
+    when {
+      showSettings -> showSettings = false
+      showTasks -> showTasks = false
+      showManualCollect -> showManualCollect = false
+      showBatteryGuidance -> showBatteryGuidance = false
+    }
+  }
+
   val detail = state.detail
   val detailError = state.detailError
   when {
     showSettings -> QiankunjieSettingsScreen(
       checkingUpdate = updateChecking,
+      themeMode = themeMode,
+      onThemeModeChange = onThemeModeChange,
       onCheckUpdate = onManualUpdateCheck,
       onOpenBatteryGuidance = { showSettings = false; showBatteryGuidance = true },
       onLogout = onLogout,
@@ -183,6 +211,8 @@ fun LibraryScreen(
     detail != null -> ArticleReader(
       article = detail,
       onBack = libraryViewModel::closeDetail,
+      canManage = isAuthenticated,
+      readerColorScheme = readerColorScheme,
       onFavorite = { libraryViewModel.toggleFavorite(detail) },
       onArchive = { libraryViewModel.toggleArchive(detail) },
       onDelete = { libraryViewModel.delete(detail) },
@@ -200,26 +230,34 @@ fun LibraryScreen(
             }
           },
           actions = {
-            IconButton(onClick = { showManualCollect = true }) {
-              Icon(Icons.Outlined.AddLink, contentDescription = "手动采集链接")
-            }
-            IconButton(onClick = { showTasks = true }) {
-              BadgedBox(badge = { if (jobsState.activeJobCount > 0) Badge { Text(jobsState.activeJobCount.toString()) } }) {
-                Icon(Icons.Outlined.TaskAlt, contentDescription = "采集任务")
+            if (isAuthenticated) {
+              IconButton(onClick = { showManualCollect = true }) {
+                Icon(Icons.Outlined.AddLink, contentDescription = "手动采集链接")
               }
-            }
-            IconButton(onClick = { showSettings = true }) {
-              Icon(Icons.Outlined.Settings, contentDescription = "设置与更新")
+              IconButton(onClick = { showTasks = true }) {
+                BadgedBox(badge = { if (jobsState.activeJobCount > 0) Badge { Text(jobsState.activeJobCount.toString()) } }) {
+                  Icon(Icons.Outlined.TaskAlt, contentDescription = "采集任务")
+                }
+              }
+              IconButton(onClick = { showSettings = true }) {
+                Icon(Icons.Outlined.Settings, contentDescription = "设置与更新")
+              }
+            } else {
+              IconButton(onClick = onRequestLogin) {
+                Icon(Icons.Outlined.Person, contentDescription = "登录")
+              }
             }
           },
         )
       },
       bottomBar = {
         QiankunjieCompactBottomBar {
-          LibraryView.entries.forEach { item ->
+          val visibleViews = if (isAuthenticated) LibraryView.entries else listOf(LibraryView.Published)
+          visibleViews.forEach { item ->
             CompactBottomBarItem(
               label = item.label,
               icon = when (item) {
+                LibraryView.Published -> Icons.Outlined.Public
                 LibraryView.Inbox -> Icons.Outlined.Inbox
                 LibraryView.Favorites -> Icons.Outlined.StarBorder
                 LibraryView.Archive -> Icons.Outlined.Inventory2
@@ -241,6 +279,8 @@ fun LibraryScreen(
         onOpenTasks = { showTasks = true },
         onSearch = libraryViewModel::search,
         onSort = libraryViewModel::selectSort,
+        presentationMode = presentationMode,
+        onPresentationModeChange = { presentationMode = it },
         onArchiveSource = libraryViewModel::selectArchiveSource,
         onRefresh = libraryViewModel::refresh,
         onLoadMore = libraryViewModel::loadMore,
@@ -494,6 +534,8 @@ private fun LibraryList(
   onOpenTasks: () -> Unit,
   onSearch: (String) -> Unit,
   onSort: (LibrarySort) -> Unit,
+  presentationMode: ArticleListPresentationMode,
+  onPresentationModeChange: (ArticleListPresentationMode) -> Unit,
   onArchiveSource: (ArchiveSourceFilter) -> Unit,
   onRefresh: () -> Unit,
   onLoadMore: () -> Unit,
@@ -503,6 +545,11 @@ private fun LibraryList(
   modifier: Modifier = Modifier,
 ) {
   var query by remember(state.searchQuery) { mutableStateOf(state.searchQuery) }
+  val lazyListState = rememberLazyListState()
+  val lastVisibleItemIndex by remember { derivedStateOf { lazyListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 } }
+  LaunchedEffect(lastVisibleItemIndex, state.articles.size, state.hasMore, state.loadingMore, state.fromCache) {
+    if (!state.loadingMore && !state.fromCache && shouldLoadMore(lastVisibleItemIndex, lazyListState.layoutInfo.totalItemsCount, state.hasMore)) onLoadMore()
+  }
   PullToRefreshBox(
     isRefreshing = state.refreshing,
     onRefresh = onRefresh,
@@ -510,6 +557,7 @@ private fun LibraryList(
   ) {
     LazyColumn(
       modifier = Modifier.fillMaxSize(),
+      state = lazyListState,
       contentPadding = PaddingValues(16.dp),
       verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -519,7 +567,7 @@ private fun LibraryList(
         Text("${state.view.label} · ${state.articles.size} 篇", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 6.dp))
       }
     }
-    item {
+    if (state.view != LibraryView.Published) item {
       OutlinedTextField(
         value = query,
         onValueChange = { query = it; onSearch(it) },
@@ -555,6 +603,21 @@ private fun LibraryList(
             }
           }
         }
+        AssistChip(
+          onClick = {
+            onPresentationModeChange(
+              if (presentationMode == ArticleListPresentationMode.Card) ArticleListPresentationMode.CompactList else ArticleListPresentationMode.Card,
+            )
+          },
+          label = { Text(presentationMode.label) },
+          leadingIcon = {
+            Icon(
+              if (presentationMode == ArticleListPresentationMode.Card) Icons.Outlined.ViewModule else Icons.AutoMirrored.Outlined.ViewList,
+              contentDescription = "切换文章显示方式",
+              modifier = Modifier.size(18.dp),
+            )
+          },
+        )
         if (ArchiveSourceFilter.isAvailableFor(state.view, state.searchQuery)) {
           Box {
             AssistChip(
@@ -596,13 +659,18 @@ private fun LibraryList(
     if (state.loading || state.refreshing || state.searchPending) item { FullPageLoading(if (state.searchPending) "正在准备搜索…" else "正在加载${state.view.label}…") }
     if (state.error != null) item { ErrorPage(state.error, onRefresh) }
     if (!state.loading && !state.searchPending && state.error == null && state.articles.isEmpty()) item { LibraryEmptyState(view = state.view, isSearchResult = state.searchQuery.isNotBlank()) }
-    items(state.articles, key = { it.id }) { article -> QiankunjieArticleCard(article, onOpen) }
+    items(state.articles, key = { it.id }) { article ->
+      when (presentationMode) {
+        ArticleListPresentationMode.Card -> QiankunjieArticleCard(article, onOpen)
+        ArticleListPresentationMode.CompactList -> QiankunjieCompactArticleRow(article, onOpen)
+      }
+    }
       if (state.articles.isNotEmpty() && !state.fromCache) item {
         Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
           when {
             state.loadingMore -> InlineLoading("正在加载更多文章…")
             state.loadMoreError != null -> InlineLoadMoreError(message = state.loadMoreError, retry = onLoadMore)
-            state.hasMore -> TextButton(onClick = onLoadMore) { Icon(Icons.Outlined.Sync, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(6.dp)); Text("加载更多") }
+            state.hasMore -> Text("继续上拉加载更多", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 12.dp), style = MaterialTheme.typography.bodySmall)
             else -> Text("你已经看到全部文章了", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 12.dp), style = MaterialTheme.typography.bodySmall)
           }
         }
@@ -613,7 +681,7 @@ private fun LibraryList(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onDelete: () -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onDelete: () -> Unit) {
   val context = LocalContext.current
   var confirmDelete by remember { mutableStateOf(false) }
   var moreExpanded by remember { mutableStateOf(false) }
@@ -648,17 +716,17 @@ private fun ArticleReader(article: ArticleDetail, onBack: () -> Unit, onFavorite
                 leadingIcon = { Icon(Icons.Outlined.IosShare, contentDescription = null) },
                 enabled = !article.originalUrl.isNullOrBlank(),
               )
-              DropdownMenuItem(
+              if (canManage) DropdownMenuItem(
                 text = { Text(if (article.isFavorited) "取消收藏" else "收藏") },
                 onClick = { moreExpanded = false; onFavorite() },
                 leadingIcon = { Icon(if (article.isFavorited) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, contentDescription = null) },
               )
-              DropdownMenuItem(
+              if (canManage) DropdownMenuItem(
                 text = { Text(if (article.isArchived) "移回收件箱" else "归档") },
                 onClick = { moreExpanded = false; onArchive() },
                 leadingIcon = { Icon(if (article.isArchived) Icons.Outlined.MoveToInbox else Icons.Outlined.Archive, contentDescription = null) },
               )
-              DropdownMenuItem(
+              if (canManage) DropdownMenuItem(
                 text = { Text("删除", color = MaterialTheme.colorScheme.error) },
                 onClick = { moreExpanded = false; confirmDelete = true },
                 leadingIcon = { Icon(Icons.Outlined.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
@@ -669,7 +737,7 @@ private fun ArticleReader(article: ArticleDetail, onBack: () -> Unit, onFavorite
       )
     },
     bottomBar = {
-      ReaderActionBar(
+      if (canManage) ReaderActionBar(
         isFavorited = article.isFavorited,
         isArchived = article.isArchived,
         shareEnabled = !article.originalUrl.isNullOrBlank(),
@@ -685,7 +753,7 @@ private fun ArticleReader(article: ArticleDetail, onBack: () -> Unit, onFavorite
         factory = { webContext ->
           android.webkit.WebView(webContext).apply {
             ReaderWebView.configure(this) { uri -> webContext.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
-            ReaderWebView.loadCapturedHtml(this, html)
+            ReaderWebView.loadCapturedHtml(this, html, readerColorScheme)
           }
         },
         modifier = Modifier.fillMaxSize().padding(padding),
@@ -737,6 +805,7 @@ private fun LibraryEmptyState(view: LibraryView, isSearchResult: Boolean) {
     LibraryView.Inbox -> Triple(Icons.Outlined.Inbox, "收件箱还是空的", "从浏览器、微信或其他应用分享网页到乾坤戒，内容会出现在这里。")
     LibraryView.Favorites -> Triple(Icons.Outlined.StarBorder, "还没有收藏", "在阅读器中点按收藏图标，就能把文章留在这里。")
     LibraryView.Archive -> Triple(Icons.Outlined.Inventory2, "归档资料库为空", "归档后的文章会被整理到这里，随时可以移回收件箱。")
+    LibraryView.Published -> Triple(Icons.Outlined.Public, "暂时还没有公开文章", "发布后的文章会出现在这里，任何人都可以阅读。")
   }
   Column(
     modifier = Modifier.fillMaxWidth().padding(vertical = 44.dp, horizontal = 24.dp),
