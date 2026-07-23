@@ -71,10 +71,11 @@ private fun ShareReceiverScreen(
     if (state.submissionAccepted) onFinished()
   }
 
-  Column(
-    modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 32.dp),
-    verticalArrangement = Arrangement.Center,
-  ) {
+  Surface(color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxSize()) {
+    Column(
+      modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 72.dp),
+      verticalArrangement = Arrangement.Top,
+    ) {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
       Surface(
         color = androidx.compose.ui.graphics.Color.Transparent,
@@ -83,7 +84,7 @@ private fun ShareReceiverScreen(
       ) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.AddLink, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(30.dp)) } }
       Column {
         Text("采集到乾坤戒", style = MaterialTheme.typography.headlineSmall)
-        Text("确认后会在后台保存到收件箱", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+        Text("确认后会在后台保存到收件箱", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium)
       }
     }
     when {
@@ -99,21 +100,21 @@ private fun ShareReceiverScreen(
             val host = runCatching { Uri.parse(url).host }.getOrNull().orEmpty().removePrefix("www.")
             Card(
               modifier = Modifier.fillMaxWidth().clickable { viewModel.select(url) },
-              colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh),
+              colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface),
             ) {
               Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, shape = CircleShape, modifier = Modifier.size(38.dp)) {
+                Surface(color = if (selected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant, shape = CircleShape, modifier = Modifier.size(38.dp)) {
                   Box(contentAlignment = Alignment.Center) { Icon(if (selected) Icons.Outlined.CheckCircle else Icons.Outlined.Link, contentDescription = null, tint = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp)) }
                 }
                 Column(modifier = Modifier.weight(1f)) {
-                  Text(host.ifBlank { "网页链接" }, style = MaterialTheme.typography.titleSmall, color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
-                  Text(url, maxLines = 1, overflow = TextOverflow.Ellipsis, color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 3.dp))
+                  Text(host.ifBlank { "网页链接" }, style = MaterialTheme.typography.titleSmall, color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)
+                  Text(url, maxLines = 1, overflow = TextOverflow.Ellipsis, color = if (selected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.88f) else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 3.dp))
                 }
               }
             }
           }
         }
-        Text("仅支持公开的 HTTP / HTTPS 网页链接。", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 14.dp))
+        Text("仅支持公开的 HTTP / HTTPS 网页链接。", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 14.dp))
         state.message?.let { message ->
           Row(modifier = Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
@@ -121,7 +122,7 @@ private fun ShareReceiverScreen(
           }
         }
         Row(modifier = Modifier.fillMaxWidth().padding(top = 26.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-          TextButton(onClick = onFinished, modifier = Modifier.weight(1f), enabled = !state.submitting) { Text("取消") }
+          TextButton(onClick = onFinished, modifier = Modifier.weight(1f), enabled = !state.submitting) { Text("取消", color = MaterialTheme.colorScheme.onSurfaceVariant) }
           Button(onClick = viewModel::submit, enabled = state.selectedUrl != null && !state.submitting, modifier = Modifier.weight(2f), shape = MaterialTheme.shapes.medium) {
             if (state.submitting) { CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary); Spacer(Modifier.size(8.dp)) }
             Icon(Icons.Outlined.AddLink, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -130,6 +131,7 @@ private fun ShareReceiverScreen(
           }
         }
       }
+    }
     }
   }
 }

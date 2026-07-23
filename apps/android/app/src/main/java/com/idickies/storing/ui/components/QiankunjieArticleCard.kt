@@ -6,13 +6,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
@@ -33,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.idickies.storing.library.ArticleCard
 
+private val WechatCoverHeight = 156.dp
+
 @Composable
 fun QiankunjieArticleCard(
   article: ArticleCard,
@@ -43,9 +42,11 @@ fun QiankunjieArticleCard(
     modifier = modifier.fillMaxWidth().clickable { onOpen(article.id) },
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    shape = MaterialTheme.shapes.large,
   ) {
-    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
-      Column(modifier = Modifier.weight(1f)) {
+    Column {
+      ArticleVisual(article = article)
+      Column(modifier = Modifier.padding(16.dp)) {
         listOfNotNull(article.source, article.author).takeIf { it.isNotEmpty() }?.let { metadata ->
           Text(
             metadata.joinToString(" · "),
@@ -59,7 +60,7 @@ fun QiankunjieArticleCard(
           article.displayTitle,
           style = MaterialTheme.typography.titleLarge,
           modifier = Modifier.padding(top = 7.dp),
-          maxLines = 3,
+          maxLines = 2,
           overflow = TextOverflow.Ellipsis,
         )
         article.aiSummary?.takeIf { it.isNotBlank() }?.let { summary ->
@@ -67,13 +68,13 @@ fun QiankunjieArticleCard(
             summary,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 9.dp),
+            modifier = Modifier.padding(top = 8.dp),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
           )
         }
         Row(
-          modifier = Modifier.padding(top = 13.dp),
+          modifier = Modifier.padding(top = 12.dp),
           horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
           article.aiTags.take(2).forEach { tag -> AssistChip(onClick = {}, label = { Text(tag) }) }
@@ -81,20 +82,18 @@ fun QiankunjieArticleCard(
           if (article.isArchived) AssistChip(onClick = {}, label = { Text("已归档") })
         }
       }
-      Spacer(Modifier.width(14.dp))
-      ArticleVisual(article = article)
     }
   }
 }
 
 @Composable
 private fun ArticleVisual(article: ArticleCard) {
-  val shape = MaterialTheme.shapes.medium
+  val shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
   val imageUrl = article.coverImage?.takeIf { it.isNotBlank() }
   Box(
     modifier = Modifier
-      .width(122.dp)
-      .height(82.dp)
+      .fillMaxWidth()
+      .height(WechatCoverHeight)
       .clip(shape),
     contentAlignment = Alignment.Center,
   ) {
@@ -103,14 +102,14 @@ private fun ArticleVisual(article: ArticleCard) {
         model = imageUrl,
         contentDescription = "${article.displayTitle} 的封面图",
         contentScale = ContentScale.Crop,
-        modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+        modifier = Modifier.fillMaxWidth(),
       )
     } else {
       val palette = ArticleVisualPalettes.forArticle(article.id)
       Box(
         modifier = Modifier
           .fillMaxWidth()
-          .fillMaxHeight()
+          .height(WechatCoverHeight)
           .background(Brush.linearGradient(listOf(palette.start, palette.end))),
         contentAlignment = Alignment.Center,
       ) {
@@ -118,7 +117,7 @@ private fun ArticleVisual(article: ArticleCard) {
           imageVector = Icons.Outlined.AutoStories,
           contentDescription = "文章视觉占位",
           tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
-          modifier = Modifier.size(30.dp),
+          modifier = Modifier.size(34.dp),
         )
       }
     }
