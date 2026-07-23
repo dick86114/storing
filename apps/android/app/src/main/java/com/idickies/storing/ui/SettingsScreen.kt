@@ -3,6 +3,7 @@ package com.idickies.storing.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,9 +16,12 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.BatterySaver
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Brightness4
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -38,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.idickies.storing.BuildConfig
 import com.idickies.storing.ui.components.QiankunjieGlassPanel
+import com.idickies.storing.ui.theme.ThemeMode
 import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 import com.idickies.storing.update.settingsUpdatePresentation
 
@@ -45,6 +50,8 @@ import com.idickies.storing.update.settingsUpdatePresentation
 @Composable
 fun QiankunjieSettingsScreen(
   checkingUpdate: Boolean,
+  themeMode: ThemeMode,
+  onThemeModeChange: (ThemeMode) -> Unit,
   onCheckUpdate: () -> Unit,
   onOpenBatteryGuidance: () -> Unit,
   onLogout: () -> Unit,
@@ -76,6 +83,30 @@ fun QiankunjieSettingsScreen(
             Text("乾坤戒", style = MaterialTheme.typography.titleLarge)
             Text("当前设备上的应用与采集运行设置。", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
             Text("版本 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
+          }
+        }
+      }
+      item { SettingsSectionTitle("外观") }
+      item {
+        Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+          Column(modifier = Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(13.dp), verticalAlignment = Alignment.CenterVertically) {
+              Icon(Icons.Outlined.Brightness4, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+              Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("显示模式", style = MaterialTheme.typography.titleSmall)
+                Text("选择浅色、深色或跟随系统", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+              }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              ThemeMode.entries.forEach { option ->
+                FilterChip(
+                  selected = option == themeMode,
+                  onClick = { onThemeModeChange(option) },
+                  label = { Text(option.label) },
+                  leadingIcon = if (option == themeMode) { { Icon(Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) } } else null,
+                )
+              }
+            }
           }
         }
       }

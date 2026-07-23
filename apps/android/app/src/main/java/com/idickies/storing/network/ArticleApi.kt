@@ -4,6 +4,7 @@ import com.idickies.storing.library.ArchiveResponse
 import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.library.ArticleListResponse
 import com.idickies.storing.library.ArticleSource
+import com.idickies.storing.library.PublicArticleResponse
 import com.idickies.storing.library.ToggleFavoriteResponse
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -31,6 +32,9 @@ interface ArticleApi {
     @Query("page") page: Int = 1,
     @Query("perPage") perPage: Int = 20,
   ): ArticleListResponse
+
+  @GET("publications/{publicId}")
+  suspend fun publication(@Path("publicId") publicId: String): PublicArticleResponse
 
   @GET("articles/{id}")
   suspend fun article(

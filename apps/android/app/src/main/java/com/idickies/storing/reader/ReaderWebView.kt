@@ -45,7 +45,11 @@ object ReaderWebView {
     }
   }
 
-  fun loadCapturedHtml(webView: WebView, capturedHtml: String) {
-    webView.loadDataWithBaseURL(baseUrl, ReaderDocument.forWebView(capturedHtml), "text/html", "UTF-8", null)
+  fun loadCapturedHtml(
+    webView: WebView,
+    capturedHtml: String,
+    colorScheme: ReaderColorScheme = ReaderColorScheme.Light,
+  ) {
+    webView.loadDataWithBaseURL(baseUrl, ReaderDocument.forWebView(capturedHtml, colorScheme), "text/html", "UTF-8", null)
   }
 }

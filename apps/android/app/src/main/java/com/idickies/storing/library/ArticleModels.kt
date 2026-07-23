@@ -10,6 +10,7 @@ data class ArticleCard(
   val author: String? = null,
   val source: String? = null,
   @SerialName("originalUrl") val originalUrl: String? = null,
+  @SerialName("publicId") val publicId: String? = null,
   @SerialName("coverImage") val coverImage: String? = null,
   @SerialName("aiSummary") val aiSummary: String? = null,
   @SerialName("aiCategory") val aiCategory: String? = null,
@@ -46,6 +47,7 @@ data class ArticleDetail(
   val author: String? = null,
   val source: String? = null,
   @SerialName("originalUrl") val originalUrl: String? = null,
+  @SerialName("publicId") val publicId: String? = null,
   @SerialName("coverImage") val coverImage: String? = null,
   @SerialName("aiSummary") val aiSummary: String? = null,
   @SerialName("aiCategory") val aiCategory: String? = null,
@@ -68,4 +70,10 @@ data class ToggleFavoriteResponse(
 data class ArchiveResponse(
   @SerialName("articleId") val articleId: Int,
   @SerialName("isArchived") val isArchived: Boolean,
+)
+
+
+@Serializable
+data class PublicArticleResponse(
+  val article: ArticleDetail,
 )

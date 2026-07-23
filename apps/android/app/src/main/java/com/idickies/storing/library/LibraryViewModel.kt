@@ -22,7 +22,7 @@ private data class LibraryRequest(
 )
 
 data class LibraryUiState(
-  val view: LibraryView = LibraryView.Inbox,
+  val view: LibraryView = LibraryView.Published,
   val articles: List<ArticleCard> = emptyList(),
   val loading: Boolean = true,
   val refreshing: Boolean = false,
@@ -32,7 +32,7 @@ data class LibraryUiState(
   val loadMoreError: String? = null,
   val fromCache: Boolean = false,
   val searchQuery: String = "",
-  val sort: LibrarySort = LibrarySort.defaultFor(LibraryView.Inbox),
+  val sort: LibrarySort = LibrarySort.defaultFor(LibraryView.Published),
   val archiveSource: ArchiveSourceFilter = ArchiveSourceFilter.All,
   val archiveSources: List<ArticleSource> = emptyList(),
   val archiveSourcesLoading: Boolean = false,
@@ -259,8 +259,9 @@ class LibraryViewModel @Inject constructor(
 
   fun open(id: Int) {
     viewModelScope.launch {
+      val card = mutableState.value.articles.firstOrNull { it.id == id }
       mutableState.update { it.copy(loadingDetail = true, detail = null, detailError = null) }
-      runCatching { repository.detail(id) }
+      runCatching { repository.detail(id, card?.publicId.takeIf { mutableState.value.view == LibraryView.Published }) }
         .onSuccess { article -> mutableState.update { it.copy(loadingDetail = false, detail = article) } }
         .onFailure { error -> mutableState.update { it.copy(loadingDetail = false, detailError = error.message ?: "加载文章失败") } }
     }
