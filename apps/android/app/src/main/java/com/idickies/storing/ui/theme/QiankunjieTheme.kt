@@ -35,39 +35,41 @@ private val LightColors = lightColorScheme(
 )
 
 private val DarkColors = darkColorScheme(
-  primary = Color(0xFFFFB4A9),
-  onPrimary = Color(0xFF651812),
-  primaryContainer = Color(0xFF5C2C28),
-  onPrimaryContainer = Color(0xFFFFDAD4),
-  error = Color(0xFFFFB4AB),
-  onError = Color(0xFF690005),
-  errorContainer = Color(0xFF5E2927),
-  onErrorContainer = Color(0xFFFFDAD6),
-  secondary = Color(0xFFE8C483),
-  background = Color(0xFF171412),
-  onBackground = Color(0xFFEAE1DC),
-  surface = Color(0xFF201C19),
-  onSurface = Color(0xFFEAE1DC),
-  surfaceVariant = Color(0xFF49413D),
-  onSurfaceVariant = Color(0xFFD5C4BD),
-  outline = Color(0xFF9D8D86),
+  primary = Color(0xFF88C0D0),
+  onPrimary = Color(0xFF2E3440),
+  primaryContainer = Color(0xFF455F72),
+  onPrimaryContainer = Color(0xFFE5E9F0),
+  secondary = Color(0xFFA3BE8C),
+  secondaryContainer = Color(0xFF46554A),
+  tertiary = Color(0xFFB48EAD),
+  error = Color(0xFFBF616A),
+  onError = Color(0xFF2E3440),
+  errorContainer = Color(0xFF593842),
+  onErrorContainer = Color(0xFFF5E6E8),
+  background = Color(0xFF2E3440),
+  onBackground = Color(0xFFECEFF4),
+  surface = Color(0xFF3B4252),
+  onSurface = Color(0xFFECEFF4),
+  surfaceVariant = Color(0xFF434C5E),
+  onSurfaceVariant = Color(0xFFD8DEE9),
+  outline = Color(0xFF81A1C1),
 )
 
 private val QiankunjieTypography = Typography(
-  headlineMedium = TextStyle(fontSize = 30.sp, lineHeight = 38.sp, fontWeight = FontWeight.SemiBold),
-  headlineSmall = TextStyle(fontSize = 24.sp, lineHeight = 31.sp, fontWeight = FontWeight.SemiBold),
-  titleLarge = TextStyle(fontSize = 20.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold),
-  titleMedium = TextStyle(fontSize = 17.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold),
-  bodyLarge = TextStyle(fontSize = 17.sp, lineHeight = 29.sp),
-  bodyMedium = TextStyle(fontSize = 15.sp, lineHeight = 22.sp),
-  labelLarge = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold),
-  labelMedium = TextStyle(fontSize = 12.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium),
+  headlineMedium = TextStyle(fontSize = 27.sp, lineHeight = 35.sp, fontWeight = FontWeight.SemiBold),
+  headlineSmall = TextStyle(fontSize = 22.sp, lineHeight = 29.sp, fontWeight = FontWeight.SemiBold),
+  titleLarge = TextStyle(fontSize = 18.sp, lineHeight = 25.sp, fontWeight = FontWeight.SemiBold),
+  titleMedium = TextStyle(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold),
+  bodyLarge = TextStyle(fontSize = 16.sp, lineHeight = 27.sp),
+  bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 21.sp),
+  labelLarge = TextStyle(fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold),
+  labelMedium = TextStyle(fontSize = 11.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium),
 )
 
 private val QiankunjieShapes = Shapes(
-  small = RoundedCornerShape(12.dp),
-  medium = RoundedCornerShape(20.dp),
-  large = RoundedCornerShape(28.dp),
+  small = RoundedCornerShape(10.dp),
+  medium = RoundedCornerShape(18.dp),
+  large = RoundedCornerShape(24.dp),
 )
 
 @Composable

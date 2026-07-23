@@ -11,8 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -43,11 +43,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.idickies.storing.R
 import com.idickies.storing.auth.AuthViewModel
 import com.idickies.storing.auth.LoginCredentials
 import com.idickies.storing.collect.ShareCollectViewModel
@@ -174,7 +176,7 @@ private fun LoginScreen(
       ),
     ) {
       androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
-        Icon(Icons.Outlined.AutoStories, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(42.dp))
+        Image(painter = painterResource(R.drawable.ic_qiankunjie_mark), contentDescription = "乾坤戒产品标志", modifier = Modifier.size(46.dp))
       }
     }
     Spacer(Modifier.height(24.dp))
@@ -188,6 +190,7 @@ private fun LoginScreen(
       enabled = !submitting,
       label = { Text("用户名") },
       leadingIcon = { Icon(Icons.Outlined.Person, contentDescription = null) },
+      shape = MaterialTheme.shapes.medium,
       singleLine = true,
     )
     Spacer(Modifier.height(12.dp))
@@ -207,6 +210,7 @@ private fun LoginScreen(
         }
       },
       visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+      shape = MaterialTheme.shapes.medium,
       singleLine = true,
     )
     errorMessage?.let { message ->
@@ -216,7 +220,7 @@ private fun LoginScreen(
       }
     }
     Spacer(Modifier.height(22.dp))
-    Button(onClick = { onLogin(credentials) }, modifier = Modifier.fillMaxWidth(), enabled = credentials.isSubmittable && !submitting) {
+    Button(onClick = { onLogin(credentials) }, modifier = Modifier.fillMaxWidth(), enabled = credentials.isSubmittable && !submitting, shape = MaterialTheme.shapes.medium) {
       if (submitting) {
         CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
         Spacer(Modifier.size(10.dp))

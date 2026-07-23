@@ -122,7 +122,7 @@ private fun ShareReceiverScreen(
         }
         Row(modifier = Modifier.fillMaxWidth().padding(top = 26.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
           TextButton(onClick = onFinished, modifier = Modifier.weight(1f), enabled = !state.submitting) { Text("取消") }
-          Button(onClick = viewModel::submit, enabled = state.selectedUrl != null && !state.submitting, modifier = Modifier.weight(2f)) {
+          Button(onClick = viewModel::submit, enabled = state.selectedUrl != null && !state.submitting, modifier = Modifier.weight(2f), shape = MaterialTheme.shapes.medium) {
             if (state.submitting) { CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary); Spacer(Modifier.size(8.dp)) }
             Icon(Icons.Outlined.AddLink, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(7.dp))
