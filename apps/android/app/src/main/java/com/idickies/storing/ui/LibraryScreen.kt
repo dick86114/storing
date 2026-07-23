@@ -32,6 +32,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -47,9 +48,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.idickies.storing.collect.CollectJobsViewModel
 import com.idickies.storing.collect.ShareCollectViewModel
 import com.idickies.storing.library.ArticleCard
@@ -57,6 +61,7 @@ import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.library.LibraryView
 import com.idickies.storing.library.LibraryViewModel
 import com.idickies.storing.reader.ReaderDocument
+import com.idickies.storing.settings.BatteryOptimizationGuidance
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,11 +75,30 @@ fun LibraryScreen(
   onLogout: () -> Unit,
   libraryViewModel: LibraryViewModel = hiltViewModel(),
   collectViewModel: ShareCollectViewModel = hiltViewModel(),
+  jobsViewModel: CollectJobsViewModel = hiltViewModel(),
 ) {
   val state by libraryViewModel.state.collectAsState()
   val collectState by collectViewModel.state.collectAsState()
+  val jobsState by jobsViewModel.state.collectAsState()
+  val lifecycleOwner = LocalLifecycleOwner.current
   var showTasks by remember { mutableStateOf(false) }
   var showManualCollect by remember { mutableStateOf(false) }
+  var showBatteryGuidance by remember { mutableStateOf(false) }
+  DisposableEffect(lifecycleOwner) {
+    val observer = LifecycleEventObserver { _, event ->
+      when (event) {
+        Lifecycle.Event.ON_START -> jobsViewModel.start()
+        Lifecycle.Event.ON_STOP -> jobsViewModel.stop()
+        else -> Unit
+      }
+    }
+    lifecycleOwner.lifecycle.addObserver(observer)
+    if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) jobsViewModel.start()
+    onDispose {
+      lifecycleOwner.lifecycle.removeObserver(observer)
+      jobsViewModel.stop()
+    }
+  }
   LaunchedEffect(Unit) { collectViewModel.resumePendingSubmissions() }
   LaunchedEffect(sharedText) {
     if (sharedText != null) {
@@ -114,7 +138,7 @@ fun LibraryScreen(
           actions = {
             IconButton(onClick = libraryViewModel::refresh) { Text("刷新") }
             IconButton(onClick = { showManualCollect = true }) { Text("采集") }
-            IconButton(onClick = { showTasks = true }) { Text("任务") }
+            IconButton(onClick = { showTasks = true }) { Text(if (jobsState.activeJobCount > 0) "任务${jobsState.activeJobCount}" else "任务") }
             IconButton(onClick = onLogout) { Text("退出") }
           },
         )
@@ -138,6 +162,8 @@ fun LibraryScreen(
         collectSelectedUrl = collectState.selectedUrl,
         collectSubmitting = collectState.submitting,
         collectMessage = collectState.message,
+        activeJobCount = jobsState.activeJobCount,
+        onOpenTasks = { showTasks = true },
         onSearch = libraryViewModel::search,
         onRefresh = libraryViewModel::refresh,
         onLoadMore = libraryViewModel::loadMore,
@@ -152,7 +178,10 @@ fun LibraryScreen(
   if (showTasks) CollectJobsDialog(
     onDismiss = { showTasks = false },
     onOpenArticle = { id -> showTasks = false; libraryViewModel.open(id) },
+    onOpenBatteryGuidance = { showTasks = false; showBatteryGuidance = true },
+    viewModel = jobsViewModel,
   )
+  if (showBatteryGuidance) BatteryOptimizationDialog(onDismiss = { showBatteryGuidance = false })
   if (showManualCollect) ManualCollectDialog(onDismiss = { showManualCollect = false }, viewModel = collectViewModel)
 }
 
@@ -193,11 +222,10 @@ private fun ManualCollectDialog(
 private fun CollectJobsDialog(
   onDismiss: () -> Unit,
   onOpenArticle: (Int) -> Unit,
-  viewModel: CollectJobsViewModel = hiltViewModel(),
+  onOpenBatteryGuidance: () -> Unit,
+  viewModel: CollectJobsViewModel,
 ) {
   val state by viewModel.state.collectAsState()
-  LaunchedEffect(Unit) { viewModel.start() }
-  DisposableEffect(Unit) { onDispose { viewModel.stop() } }
   AlertDialog(
     onDismissRequest = onDismiss,
     title = { Text("采集任务") },
@@ -219,7 +247,18 @@ private fun CollectJobsDialog(
       }
     },
     confirmButton = { Button(onClick = { viewModel.clearFinished() }) { Text("清理已完成") } },
-    dismissButton = { Button(onClick = onDismiss) { Text("关闭") } },
+    dismissButton = { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { TextButton(onClick = onOpenBatteryGuidance) { Text("后台说明") }; Button(onClick = onDismiss) { Text("关闭") } } },
+  )
+}
+
+@Composable
+private fun BatteryOptimizationDialog(onDismiss: () -> Unit) {
+  val guidance = BatteryOptimizationGuidance.forManufacturer(android.os.Build.MANUFACTURER)
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(guidance.title) },
+    text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { guidance.steps.forEachIndexed { index, step -> Text("${index + 1}. $step") } } },
+    confirmButton = { Button(onClick = onDismiss) { Text("知道了") } },
   )
 }
 
@@ -231,6 +270,8 @@ private fun LibraryList(
   collectSelectedUrl: String?,
   collectSubmitting: Boolean,
   collectMessage: String?,
+  activeJobCount: Int,
+  onOpenTasks: () -> Unit,
   onSearch: (String) -> Unit,
   onRefresh: () -> Unit,
   onLoadMore: () -> Unit,
@@ -258,6 +299,14 @@ private fun LibraryList(
         label = { Text("搜索标题、来源、摘要或标签") },
         singleLine = true,
       )
+    }
+    if (activeJobCount > 0) item {
+      Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenTasks)) {
+        Column(Modifier.padding(14.dp)) {
+          Text("正在采集 $activeJobCount 条内容", style = MaterialTheme.typography.titleSmall)
+          Text("点击查看实时任务状态", modifier = Modifier.padding(top = 4.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+      }
     }
     if (collectUrls.isNotEmpty()) {
       item {
