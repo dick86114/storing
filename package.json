@@ -6,7 +6,11 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "db:push": "pnpm --filter api db:push",
-    "db:seed": "pnpm --filter api db:seed"
+    "db:seed": "pnpm --filter api db:seed",
+    "android:lint": "cd apps/android && ./gradlew lint",
+    "android:test": "cd apps/android && ./gradlew testDebugUnitTest",
+    "android:assembleDebug": "cd apps/android && ./gradlew assembleDebug",
+    "android:assembleRelease": "cd apps/android && ./gradlew assembleRelease"
   },
   "devDependencies": {
     "turbo": "^2.10.5"

@@ -15,6 +15,21 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+
+/** Revocable device sessions used by the native Android client. */
+export const mobileSessions = pgTable('mobile_sessions', {
+  id: text('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id),
+  deviceId: text('device_id').notNull(),
+  deviceName: text('device_name').notNull(),
+  refreshTokenHash: text('refresh_token_hash').notNull().unique(),
+  appVersion: text('app_version').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  lastUsedAt: timestamp('last_used_at').defaultNow(),
+  expiresAt: timestamp('expires_at').notNull(),
+  revokedAt: timestamp('revoked_at'),
+});
+
 /**
  * 已有 articles 表的映射（只读，不修改）
  * 对应 weread 数据库中的 articles 表
