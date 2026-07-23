@@ -3,24 +3,41 @@ package com.idickies.storing.library
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+private const val SEARCH_DEBOUNCE_MILLIS = 350L
+
+private data class LibraryRequest(
+  val view: LibraryView,
+  val query: String,
+)
+
 data class LibraryUiState(
   val view: LibraryView = LibraryView.Inbox,
   val articles: List<ArticleCard> = emptyList(),
   val loading: Boolean = true,
   val refreshing: Boolean = false,
+  val loadingMore: Boolean = false,
+  val searchPending: Boolean = false,
   val error: String? = null,
+  val loadMoreError: String? = null,
   val fromCache: Boolean = false,
   val searchQuery: String = "",
+  val page: Int = 1,
+  val totalPages: Int = 0,
   val detail: ArticleDetail? = null,
   val loadingDetail: Boolean = false,
   val detailError: String? = null,
-)
+) {
+  val hasMore: Boolean get() = LibraryPaging(page = page, totalPages = totalPages).hasMore
+}
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
@@ -29,34 +46,143 @@ class LibraryViewModel @Inject constructor(
   private val mutableState = MutableStateFlow(LibraryUiState())
   val state = mutableState.asStateFlow()
 
-  init { load() }
+  private var listLoadJob: Job? = null
+  private var searchDebounceJob: Job? = null
+  private var loadMoreJob: Job? = null
+
+  init { loadInitial() }
 
   fun select(view: LibraryView) {
     if (view == mutableState.value.view && mutableState.value.searchQuery.isEmpty()) return
-    mutableState.update { it.copy(view = view, searchQuery = "", articles = emptyList()) }
-    load()
+    searchDebounceJob?.cancel()
+    mutableState.update {
+      it.copy(
+        view = view,
+        searchQuery = "",
+        articles = emptyList(),
+        page = 1,
+        totalPages = 0,
+        fromCache = false,
+        searchPending = false,
+        loadMoreError = null,
+      )
+    }
+    loadInitial()
   }
 
-  fun refresh() = load(refreshing = true)
+  fun refresh() {
+    searchDebounceJob?.cancel()
+    loadInitial(refreshing = true)
+  }
 
   fun search(query: String) {
-    mutableState.update { it.copy(searchQuery = query) }
-    if (query.isBlank()) load() else load(query = query)
+    searchDebounceJob?.cancel()
+    mutableState.update {
+      it.copy(
+        searchQuery = query,
+        articles = emptyList(),
+        page = 1,
+        totalPages = 0,
+        loading = query.isNotBlank(),
+        refreshing = false,
+        loadingMore = false,
+        searchPending = query.isNotBlank(),
+        error = null,
+        loadMoreError = null,
+        fromCache = false,
+      )
+    }
+    if (query.isBlank()) {
+      loadInitial()
+      return
+    }
+    searchDebounceJob = viewModelScope.launch {
+      delay(SEARCH_DEBOUNCE_MILLIS)
+      loadInitial()
+    }
   }
 
-  private fun load(refreshing: Boolean = false, query: String = mutableState.value.searchQuery) {
-    viewModelScope.launch {
-      mutableState.update { it.copy(loading = !refreshing, refreshing = refreshing, error = null) }
-      runCatching {
-        if (query.isBlank()) repository.list(mutableState.value.view)
-        else ArticleListLoad(repository.search(query), fromCache = false)
-      }.onSuccess { result ->
-        mutableState.update { it.copy(articles = result.response.articles, fromCache = result.fromCache, loading = false, refreshing = false) }
-      }.onFailure { error ->
-        mutableState.update { it.copy(loading = false, refreshing = false, error = error.message ?: "加载文章失败") }
+  fun loadMore() {
+    val snapshot = mutableState.value
+    if (snapshot.loading || snapshot.refreshing || snapshot.loadingMore || snapshot.fromCache || !snapshot.hasMore) return
+
+    val request = LibraryRequest(snapshot.view, snapshot.searchQuery)
+    val nextPage = snapshot.page + 1
+    mutableState.update { it.copy(loadingMore = true, loadMoreError = null) }
+    loadMoreJob = viewModelScope.launch {
+      try {
+        val result = loadPage(request, nextPage)
+        if (!matches(request) || mutableState.value.page != snapshot.page) return@launch
+        mutableState.update {
+          it.copy(
+            articles = appendUniqueArticles(it.articles, result.response.articles),
+            page = result.response.page,
+            totalPages = result.response.totalPages,
+            loadingMore = false,
+            loadMoreError = null,
+            fromCache = false,
+          )
+        }
+      } catch (error: CancellationException) {
+        throw error
+      } catch (error: Throwable) {
+        if (matches(request)) {
+          mutableState.update { it.copy(loadingMore = false, loadMoreError = error.message ?: "加载更多文章失败") }
+        }
       }
     }
   }
+
+  private fun loadInitial(refreshing: Boolean = false) {
+    listLoadJob?.cancel()
+    loadMoreJob?.cancel()
+    val request = LibraryRequest(mutableState.value.view, mutableState.value.searchQuery)
+    listLoadJob = viewModelScope.launch {
+      mutableState.update {
+        it.copy(
+          loading = !refreshing,
+          refreshing = refreshing,
+          loadingMore = false,
+          searchPending = false,
+          error = null,
+          loadMoreError = null,
+        )
+      }
+      try {
+        val result = loadPage(request, page = 1)
+        if (!matches(request)) return@launch
+        mutableState.update {
+          it.copy(
+            articles = result.response.articles,
+            page = result.response.page,
+            totalPages = result.response.totalPages,
+            fromCache = result.fromCache,
+            loading = false,
+            refreshing = false,
+          )
+        }
+      } catch (error: CancellationException) {
+        throw error
+      } catch (error: Throwable) {
+        if (matches(request)) {
+          mutableState.update {
+            it.copy(
+              loading = false,
+              refreshing = false,
+              error = error.message ?: "加载文章失败",
+            )
+          }
+        }
+      }
+    }
+  }
+
+  private suspend fun loadPage(request: LibraryRequest, page: Int): ArticleListLoad =
+    if (request.query.isBlank()) repository.list(request.view, page)
+    else ArticleListLoad(repository.search(request.query, page), fromCache = false)
+
+  private fun matches(request: LibraryRequest): Boolean =
+    mutableState.value.view == request.view && mutableState.value.searchQuery == request.query
 
   fun open(id: Int) {
     viewModelScope.launch {

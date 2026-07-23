@@ -130,6 +130,7 @@ fun LibraryScreen(
         collectMessage = collectState.message,
         onSearch = libraryViewModel::search,
         onRefresh = libraryViewModel::refresh,
+        onLoadMore = libraryViewModel::loadMore,
         onOpen = libraryViewModel::open,
         onSelectCollectUrl = collectViewModel::select,
         onSubmitCollect = collectViewModel::submit,
@@ -221,6 +222,7 @@ private fun LibraryList(
   collectMessage: String?,
   onSearch: (String) -> Unit,
   onRefresh: () -> Unit,
+  onLoadMore: () -> Unit,
   onOpen: (Int) -> Unit,
   onSelectCollectUrl: (String) -> Unit,
   onSubmitCollect: () -> Unit,
@@ -252,10 +254,23 @@ private fun LibraryList(
       }
     }
     if (state.fromCache) item { Text("当前显示离线缓存，联网后可点刷新获取最新内容。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-    if (state.loading || state.refreshing) item { FullPageLoading("正在加载${state.view.label}…") }
+    if (state.loading || state.refreshing || state.searchPending) item { FullPageLoading(if (state.searchPending) "正在准备搜索…" else "正在加载${state.view.label}…") }
     if (state.error != null) item { ErrorPage(state.error, onRefresh) }
-    if (!state.loading && state.error == null && state.articles.isEmpty()) item { Text("这里还没有文章。你可以从其他应用分享链接到乾坤戒。", modifier = Modifier.padding(vertical = 48.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    if (!state.loading && !state.searchPending && state.error == null && state.articles.isEmpty()) item { Text("这里还没有文章。你可以从其他应用分享链接到乾坤戒。", modifier = Modifier.padding(vertical = 48.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
     items(state.articles, key = { it.id }) { article -> ArticleCardItem(article, onOpen) }
+    if (state.articles.isNotEmpty() && !state.fromCache) item {
+      Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        when {
+          state.loadingMore -> FullPageLoading("正在加载更多文章…")
+          state.loadMoreError != null -> {
+            Text(state.loadMoreError, color = MaterialTheme.colorScheme.error)
+            Button(onClick = onLoadMore, modifier = Modifier.padding(top = 8.dp)) { Text("重试加载更多") }
+          }
+          state.hasMore -> Button(onClick = onLoadMore) { Text("加载更多") }
+          else -> Text("已加载全部文章", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 12.dp))
+        }
+      }
+    }
   }
 }
 
