@@ -1,0 +1,160 @@
+package com.idickies.storing.uilab
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun UiLabScreen(
+  initialScenario: UiLabScenario,
+  onClose: () -> Unit,
+) {
+  var scenarioRoute by rememberSaveable { mutableStateOf(initialScenario.route) }
+  val scenario = UiLabScenario.fromRoute(scenarioRoute)
+  Scaffold(
+    topBar = {
+      TopAppBar(
+        title = { Text("乾坤戒 UI Lab") },
+        navigationIcon = { TextButton(onClick = onClose) { Text("关闭") } },
+        actions = { Text(scenario.route, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(end = 16.dp)) },
+      )
+    },
+  ) { padding ->
+    Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+      Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        UiLabScenario.entries.forEach { candidate ->
+          FilterChip(
+            selected = scenario == candidate,
+            onClick = { scenarioRoute = candidate.route },
+            label = { Text(candidate.title) },
+          )
+        }
+      }
+      when (scenario) {
+        UiLabScenario.Library -> UiLabLibrary()
+        UiLabScenario.Reader -> UiLabReader()
+        UiLabScenario.Share -> UiLabShare()
+        UiLabScenario.Tasks -> UiLabTasks()
+      }
+    }
+  }
+}
+
+@Composable
+private fun UiLabLibrary() {
+  LazyColumn(
+    modifier = Modifier.fillMaxSize(),
+    contentPadding = PaddingValues(16.dp),
+    verticalArrangement = Arrangement.spacedBy(12.dp),
+  ) {
+    item {
+      Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+          Text("正在采集 2 条内容", style = MaterialTheme.typography.titleSmall)
+          Text("固定进行中状态 · 点击后未来会进入任务页", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+        }
+      }
+    }
+    item { Text("收件箱", style = MaterialTheme.typography.headlineSmall) }
+    items(UiLabFixtures.library) { article ->
+      Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+          Text(article.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+          Text(article.source, modifier = Modifier.padding(top = 5.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+          Text(article.summary, modifier = Modifier.padding(top = 10.dp), maxLines = 3, overflow = TextOverflow.Ellipsis)
+          Row(modifier = Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            article.labels.forEach { AssistChip(onClick = {}, label = { Text(it) }) }
+          }
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun UiLabReader() {
+  LazyColumn(
+    modifier = Modifier.fillMaxSize(),
+    contentPadding = PaddingValues(20.dp),
+    verticalArrangement = Arrangement.spacedBy(18.dp),
+  ) {
+    item { Text(UiLabFixtures.readerTitle, style = MaterialTheme.typography.headlineMedium) }
+    item {
+      Card { Column(Modifier.padding(16.dp)) {
+        Text("AI 摘要", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text(UiLabFixtures.readerSummary, modifier = Modifier.padding(top = 8.dp))
+      } }
+    }
+    item {
+      Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+          modifier = Modifier.fillMaxWidth().padding(16.dp),
+          horizontalAlignment = Alignment.CenterHorizontally,
+        ) { Text("正文图片占位", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+      }
+    }
+    item { Text(UiLabFixtures.readerBody, style = MaterialTheme.typography.bodyLarge) }
+  }
+}
+
+@Composable
+private fun UiLabShare() {
+  LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    item { Text("从其他应用采集", style = MaterialTheme.typography.headlineSmall) }
+    item { Text("用于评审单链接、多链接和错误状态；所有内容都是固定夹具。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    items(listOf("https://example.com/long-form-article", "https://example.org/another-reading")) { url ->
+      Card(modifier = Modifier.fillMaxWidth().clickable { }) { Column(Modifier.padding(16.dp)) { Text("example.com", color = MaterialTheme.colorScheme.primary); Text(url, modifier = Modifier.padding(top = 6.dp)) } }
+    }
+    item { Card { Text("无有效 URL：未识别到可采集的网页链接", modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) } }
+  }
+}
+
+@Composable
+private fun UiLabTasks() {
+  LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    item { Text("采集任务", style = MaterialTheme.typography.headlineSmall) }
+    item { UiLabTaskCard("正在抓取：一篇较长的网页文章标题", "running · capture", null) }
+    item { UiLabTaskCard("已完成：知识管理的长期价值", "completed · done", null) }
+    item { UiLabTaskCard("采集失败：页面暂时无法访问", "failed · capture", "可在此验证失败原因、重试按钮和后台说明入口。") }
+  }
+}
+
+@Composable
+private fun UiLabTaskCard(title: String, status: String, error: String?) {
+  Card(modifier = Modifier.fillMaxWidth()) {
+    Column(Modifier.padding(16.dp)) {
+      Text(title, style = MaterialTheme.typography.titleMedium)
+      Text(status, modifier = Modifier.padding(top = 6.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+      error?.let { Text(it, modifier = Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.error) }
+    }
+  }
+}

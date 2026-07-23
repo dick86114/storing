@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!-- Debug-only, fixture-only entry point. It is absent from Release manifests. -->
+    <activity
+        android:name=".uilab.UiLabActivity"
+        android:exported="true"
+        android:label="乾坤戒 UI Lab" />
+  </application>
+</manifest>
