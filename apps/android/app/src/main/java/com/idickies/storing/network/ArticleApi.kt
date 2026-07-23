@@ -16,6 +16,8 @@ interface ArticleApi {
     @Query("view") view: String,
     @Query("page") page: Int = 1,
     @Query("perPage") perPage: Int = 20,
+    @Query("sort") sort: String? = null,
+    @Query("order") order: String = "desc",
   ): ArticleListResponse
 
   @GET("search")

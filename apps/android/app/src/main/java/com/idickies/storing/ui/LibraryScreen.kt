@@ -41,6 +41,7 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.MoveToInbox
 import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.StarBorder
@@ -101,6 +102,7 @@ import com.idickies.storing.library.ArticleCard
 import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.network.MobileCollectJob
 import com.idickies.storing.library.LibraryView
+import com.idickies.storing.library.LibrarySort
 import com.idickies.storing.library.LibraryViewModel
 import com.idickies.storing.reader.ReaderWebView
 import com.idickies.storing.settings.BatteryOptimizationGuidance
@@ -235,6 +237,7 @@ fun LibraryScreen(
         activeJobCount = jobsState.activeJobCount,
         onOpenTasks = { showTasks = true },
         onSearch = libraryViewModel::search,
+        onSort = libraryViewModel::selectSort,
         onRefresh = libraryViewModel::refresh,
         onLoadMore = libraryViewModel::loadMore,
         onOpen = libraryViewModel::open,
@@ -486,6 +489,7 @@ private fun LibraryList(
   activeJobCount: Int,
   onOpenTasks: () -> Unit,
   onSearch: (String) -> Unit,
+  onSort: (LibrarySort) -> Unit,
   onRefresh: () -> Unit,
   onLoadMore: () -> Unit,
   onOpen: (Int) -> Unit,
@@ -523,6 +527,25 @@ private fun LibraryList(
         shape = MaterialTheme.shapes.medium,
         singleLine = true,
       )
+    }
+    if (state.searchQuery.isBlank()) item {
+      var sortExpanded by remember { mutableStateOf(false) }
+      Box {
+        AssistChip(
+          onClick = { sortExpanded = true },
+          label = { Text(state.sort.label) },
+          leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = "排序方式", modifier = Modifier.size(18.dp)) },
+        )
+        DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }) {
+          LibrarySort.availableFor(state.view).forEach { sort ->
+            DropdownMenuItem(
+              text = { Text(sort.label) },
+              leadingIcon = { if (sort == state.sort) Icon(Icons.Outlined.CheckCircle, contentDescription = null) },
+              onClick = { sortExpanded = false; onSort(sort) },
+            )
+          }
+        }
+      }
     }
     if (activeJobCount > 0) item {
       ActiveCollectJobsCard(

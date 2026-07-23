@@ -15,13 +15,19 @@ class ArticleRepository @Inject constructor(
   private val sessionStore: SessionStore,
   private val cacheDao: ArticleCacheDao,
 ) {
-  suspend fun list(view: LibraryView, page: Int = 1): ArticleListLoad {
+  suspend fun list(view: LibraryView, page: Int = 1, sort: LibrarySort = LibrarySort.defaultFor(view)): ArticleListLoad {
     val userId = sessionStore.read()?.userId
-    return runCatching { api.articles(view.apiValue, page) }
-      .onSuccess { response -> if (userId != null && page == 1) cacheDao.replace(userId, view.apiValue, response.articles.map { it.toCached(userId, view.apiValue) }) }
+    val canUseViewCache = sort == LibrarySort.defaultFor(view)
+    return runCatching { api.articles(view.apiValue, page, sort = sort.apiValue) }
+      .onSuccess { response ->
+        if (userId != null && page == 1 && canUseViewCache) {
+          cacheDao.replace(userId, view.apiValue, response.articles.map { it.toCached(userId, view.apiValue) })
+        }
+      }
       .fold(
         onSuccess = { ArticleListLoad(it, fromCache = false) },
         onFailure = { error ->
+          if (!canUseViewCache) throw error
           val cached = if (userId == null) emptyList() else cacheDao.cards(userId, view.apiValue).map { it.toArticleCard() }
           if (cached.isEmpty()) throw error
           ArticleListLoad(ArticleListResponse(articles = cached, total = cached.size, page = 1, perPage = cached.size, totalPages = 1), fromCache = true)

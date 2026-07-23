@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -122,6 +123,13 @@ private fun UiLabLibrary() {
   ) {
     item {
       ActiveCollectJobsCard(activeJobCount = 2, onOpenTasks = {})
+    }
+    item {
+      AssistChip(
+        onClick = {},
+        label = { Text("最近采集") },
+        leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = null, modifier = Modifier.size(18.dp)) },
+      )
     }
     item { Text("收件箱", style = MaterialTheme.typography.headlineSmall) }
     items(UiLabFixtures.library) { article -> QiankunjieArticleCard(article = article, onOpen = {}) }
