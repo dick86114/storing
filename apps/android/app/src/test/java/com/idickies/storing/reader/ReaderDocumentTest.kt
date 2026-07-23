@@ -15,4 +15,15 @@ class ReaderDocumentTest {
     assertTrue(document.contains("overflow-x:auto"))
     assertTrue(document.contains("https://example.com/a.jpg"))
   }
+
+  @Test
+  fun `reader document keeps author colors intact while adding mobile text scaling and long content wrapping`() {
+    val original = "<html><head></head><body style=\"color:#222;background:#fff\"><p>正文</p><blockquote>引用</blockquote></body></html>"
+    val document = ReaderDocument.forWebView(original)
+
+    assertTrue(document.contains("-webkit-text-size-adjust:100%"))
+    assertTrue(document.contains("text-size-adjust:100%"))
+    assertTrue(document.contains("blockquote, p, li { overflow-wrap:anywhere; }"))
+    assertTrue(document.contains("style=\"color:#222;background:#fff\""))
+  }
 }

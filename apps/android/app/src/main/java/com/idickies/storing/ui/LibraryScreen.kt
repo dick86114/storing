@@ -95,6 +95,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.idickies.storing.collect.CollectJobsViewModel
 import com.idickies.storing.collect.ShareCollectViewModel
 import com.idickies.storing.ui.components.ActiveCollectJobsCard
+import com.idickies.storing.ui.components.ReaderActionBar
 import com.idickies.storing.library.ArticleCard
 import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.network.MobileCollectJob
@@ -606,7 +607,7 @@ private fun ArticleReader(article: ArticleDetail, onBack: () -> Unit, onFavorite
         title = {
           Column {
             Text(article.source ?: "乾坤戒阅读", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-            Text("阅读", style = MaterialTheme.typography.titleMedium)
+            Text(article.displayTitle, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
           }
         },
         navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回资料库") } },
@@ -645,16 +646,14 @@ private fun ArticleReader(article: ArticleDetail, onBack: () -> Unit, onFavorite
       )
     },
     bottomBar = {
-      Surface(tonalElevation = 3.dp) {
-        Row(
-          modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 8.dp),
-          horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
-          IconButton(onClick = onFavorite) { Icon(if (article.isFavorited) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, contentDescription = if (article.isFavorited) "取消收藏" else "收藏") }
-          IconButton(onClick = onArchive) { Icon(if (article.isArchived) Icons.Outlined.MoveToInbox else Icons.Outlined.Archive, contentDescription = if (article.isArchived) "移回收件箱" else "归档") }
-          IconButton(onClick = ::shareOriginalUrl, enabled = !article.originalUrl.isNullOrBlank()) { Icon(Icons.Outlined.IosShare, contentDescription = "分享原网页") }
-        }
-      }
+      ReaderActionBar(
+        isFavorited = article.isFavorited,
+        isArchived = article.isArchived,
+        shareEnabled = !article.originalUrl.isNullOrBlank(),
+        onFavorite = onFavorite,
+        onArchive = onArchive,
+        onShare = ::shareOriginalUrl,
+      )
     },
   ) { padding ->
     val html = article.contentHtml

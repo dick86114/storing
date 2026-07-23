@@ -9,9 +9,11 @@ object ReaderDocument {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style id="qiankunjie-mobile-reader">
   html, body { width:100%; max-width:100%; margin:0; padding:0; overflow-x:hidden; }
+  html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   img, video, iframe, svg, canvas { display:block; max-width:100% !important; height:auto !important; }
   table { display:block; width:max-content; max-width:100% !important; overflow-x:auto; border-collapse:collapse; }
   pre, code { white-space:pre-wrap; overflow-wrap:anywhere; }
+  blockquote, p, li { overflow-wrap:anywhere; }
   * { box-sizing:border-box; }
 </style>
 """.trimIndent()
