@@ -9,6 +9,7 @@ import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -22,9 +23,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddLink
+import androidx.compose.material.icons.outlined.Archive
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.MoveToInbox
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AlertDialog
@@ -33,6 +43,8 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -42,6 +54,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -409,35 +422,75 @@ private fun LibraryList(
 private fun ArticleReader(article: ArticleDetail, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onDelete: () -> Unit) {
   val context = LocalContext.current
   var confirmDelete by remember { mutableStateOf(false) }
+  var moreExpanded by remember { mutableStateOf(false) }
   BackHandler(onBack = onBack)
-  Scaffold(topBar = {
-    TopAppBar(
-      title = { Text(article.displayTitle, maxLines = 1) },
-      navigationIcon = { IconButton(onClick = onBack) { Text("返回") } },
-      actions = {
-        IconButton(
-          onClick = { article.originalUrl?.let { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) } },
-          enabled = !article.originalUrl.isNullOrBlank(),
-        ) { Text("原文") }
-        IconButton(
-          onClick = {
-            article.originalUrl?.let { url ->
-              context.startActivity(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, url))
+  fun shareOriginalUrl() {
+    article.originalUrl?.let { url ->
+      context.startActivity(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, url))
+    }
+  }
+  Scaffold(
+    topBar = {
+      TopAppBar(
+        title = {
+          Column {
+            Text(article.source ?: "乾坤戒阅读", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Text("阅读", style = MaterialTheme.typography.titleMedium)
+          }
+        },
+        navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回资料库") } },
+        actions = {
+          IconButton(
+            onClick = { article.originalUrl?.let { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) } },
+            enabled = !article.originalUrl.isNullOrBlank(),
+          ) { Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = "打开原网页") }
+          Box {
+            IconButton(onClick = { moreExpanded = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "更多阅读操作") }
+            DropdownMenu(expanded = moreExpanded, onDismissRequest = { moreExpanded = false }) {
+              DropdownMenuItem(
+                text = { Text("分享原网页") },
+                onClick = { moreExpanded = false; shareOriginalUrl() },
+                leadingIcon = { Icon(Icons.Outlined.IosShare, contentDescription = null) },
+                enabled = !article.originalUrl.isNullOrBlank(),
+              )
+              DropdownMenuItem(
+                text = { Text(if (article.isFavorited) "取消收藏" else "收藏") },
+                onClick = { moreExpanded = false; onFavorite() },
+                leadingIcon = { Icon(if (article.isFavorited) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, contentDescription = null) },
+              )
+              DropdownMenuItem(
+                text = { Text(if (article.isArchived) "移回收件箱" else "归档") },
+                onClick = { moreExpanded = false; onArchive() },
+                leadingIcon = { Icon(if (article.isArchived) Icons.Outlined.MoveToInbox else Icons.Outlined.Archive, contentDescription = null) },
+              )
+              DropdownMenuItem(
+                text = { Text("删除", color = MaterialTheme.colorScheme.error) },
+                onClick = { moreExpanded = false; confirmDelete = true },
+                leadingIcon = { Icon(Icons.Outlined.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+              )
             }
-          },
-          enabled = !article.originalUrl.isNullOrBlank(),
-        ) { Text("分享") }
-        IconButton(onClick = onFavorite) { Text(if (article.isFavorited) "藏✓" else "收藏") }
-        IconButton(onClick = onArchive) { Text(if (article.isArchived) "收件箱" else "归档") }
-        IconButton(onClick = { confirmDelete = true }) { Text("删除") }
-      },
-    )
-  }) { padding ->
+          }
+        },
+      )
+    },
+    bottomBar = {
+      Surface(tonalElevation = 3.dp) {
+        Row(
+          modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 8.dp),
+          horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+          IconButton(onClick = onFavorite) { Icon(if (article.isFavorited) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, contentDescription = if (article.isFavorited) "取消收藏" else "收藏") }
+          IconButton(onClick = onArchive) { Icon(if (article.isArchived) Icons.Outlined.MoveToInbox else Icons.Outlined.Archive, contentDescription = if (article.isArchived) "移回收件箱" else "归档") }
+          IconButton(onClick = ::shareOriginalUrl, enabled = !article.originalUrl.isNullOrBlank()) { Icon(Icons.Outlined.IosShare, contentDescription = "分享原网页") }
+        }
+      }
+    },
+  ) { padding ->
     val html = article.contentHtml
     if (!html.isNullOrBlank()) {
       AndroidView(
-        factory = { context ->
-          WebView(context).apply {
+        factory = { webContext ->
+          WebView(webContext).apply {
             settings.javaScriptEnabled = false
             settings.allowFileAccess = false
             settings.allowContentAccess = false
@@ -447,7 +500,7 @@ private fun ArticleReader(article: ArticleDetail, onBack: () -> Unit, onFavorite
             webViewClient = object : WebViewClient() {
               override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val uri = request?.url ?: return true
-                if (uri.scheme == "http" || uri.scheme == "https") context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                if (uri.scheme == "http" || uri.scheme == "https") webContext.startActivity(Intent(Intent.ACTION_VIEW, uri))
                 return true
               }
             }
@@ -459,13 +512,24 @@ private fun ArticleReader(article: ArticleDetail, onBack: () -> Unit, onFavorite
     } else {
       LazyColumn(
         modifier = Modifier.fillMaxSize().padding(padding),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(horizontal = 22.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
       ) {
-        item { Text(article.displayTitle, style = MaterialTheme.typography.titleLarge) }
-        article.aiSummary?.takeIf { it.isNotBlank() }?.let { summary ->
-          item { Card(modifier = Modifier.padding(top = 12.dp)) { Column(Modifier.padding(14.dp)) { Text("AI 摘要", style = MaterialTheme.typography.titleSmall); Text(summary, modifier = Modifier.padding(top = 8.dp)) } } }
+        item {
+          Text(article.source ?: "已保存文章", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+          Text(article.displayTitle, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 8.dp))
         }
-        item { Text(article.contentMd?.takeIf { it.isNotBlank() } ?: "正文暂时不可用", modifier = Modifier.padding(top = 16.dp), style = MaterialTheme.typography.bodyLarge) }
+        article.aiSummary?.takeIf { it.isNotBlank() }?.let { summary ->
+          item {
+            Card(colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+              Column(Modifier.padding(18.dp)) {
+                Text("AI 摘要", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text(summary, modifier = Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+              }
+            }
+          }
+        }
+        item { Text(article.contentMd?.takeIf { it.isNotBlank() } ?: "正文暂时不可用", style = MaterialTheme.typography.bodyLarge) }
       }
     }
   }
@@ -474,7 +538,7 @@ private fun ArticleReader(article: ArticleDetail, onBack: () -> Unit, onFavorite
     title = { Text("删除文章？") },
     text = { Text("此操作会从你的资料库删除该文章。") },
     confirmButton = { Button(onClick = { confirmDelete = false; onDelete() }) { Text("删除") } },
-    dismissButton = { Button(onClick = { confirmDelete = false }) { Text("取消") } },
+    dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
   )
 }
 
