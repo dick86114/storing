@@ -1,20 +1,36 @@
 package com.idickies.storing.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import com.idickies.storing.library.ArticleCard
 
 @Composable
@@ -28,40 +44,82 @@ fun QiankunjieArticleCard(
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
   ) {
-    Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
-      listOfNotNull(article.source, article.author).takeIf { it.isNotEmpty() }?.let { metadata ->
+    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
+      Column(modifier = Modifier.weight(1f)) {
+        listOfNotNull(article.source, article.author).takeIf { it.isNotEmpty() }?.let { metadata ->
+          Text(
+            metadata.joinToString(" · "),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
+        }
         Text(
-          metadata.joinToString(" · "),
-          style = MaterialTheme.typography.labelMedium,
-          color = MaterialTheme.colorScheme.primary,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-        )
-      }
-      Text(
-        article.displayTitle,
-        style = MaterialTheme.typography.titleLarge,
-        modifier = Modifier.padding(top = 7.dp),
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis,
-      )
-      article.aiSummary?.takeIf { it.isNotBlank() }?.let { summary ->
-        Text(
-          summary,
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.padding(top = 9.dp),
+          article.displayTitle,
+          style = MaterialTheme.typography.titleLarge,
+          modifier = Modifier.padding(top = 7.dp),
           maxLines = 3,
           overflow = TextOverflow.Ellipsis,
         )
+        article.aiSummary?.takeIf { it.isNotBlank() }?.let { summary ->
+          Text(
+            summary,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 9.dp),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+          )
+        }
+        Row(
+          modifier = Modifier.padding(top = 13.dp),
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+          article.aiTags.take(2).forEach { tag -> AssistChip(onClick = {}, label = { Text(tag) }) }
+          if (article.isFavorited) AssistChip(onClick = {}, label = { Text("已收藏") })
+          if (article.isArchived) AssistChip(onClick = {}, label = { Text("已归档") })
+        }
       }
-      Row(
-        modifier = Modifier.padding(top = 13.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+      Spacer(Modifier.width(14.dp))
+      ArticleVisual(article = article)
+    }
+  }
+}
+
+@Composable
+private fun ArticleVisual(article: ArticleCard) {
+  val shape = RoundedCornerShape(18.dp)
+  val imageUrl = article.coverImage?.takeIf { it.isNotBlank() }
+  Box(
+    modifier = Modifier
+      .width(96.dp)
+      .height(120.dp)
+      .clip(shape),
+    contentAlignment = Alignment.Center,
+  ) {
+    if (imageUrl != null) {
+      AsyncImage(
+        model = imageUrl,
+        contentDescription = "${article.displayTitle} 的封面图",
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+      )
+    } else {
+      val palette = ArticleVisualPalettes.forArticle(article.id)
+      Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .fillMaxHeight()
+          .background(Brush.linearGradient(listOf(palette.start, palette.end))),
+        contentAlignment = Alignment.Center,
       ) {
-        article.aiTags.take(2).forEach { tag -> AssistChip(onClick = {}, label = { Text(tag) }) }
-        if (article.isFavorited) AssistChip(onClick = {}, label = { Text("已收藏") })
-        if (article.isArchived) AssistChip(onClick = {}, label = { Text("已归档") })
+        Icon(
+          imageVector = Icons.Outlined.AutoStories,
+          contentDescription = "文章视觉占位",
+          tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+          modifier = Modifier.size(30.dp),
+        )
       }
     }
   }
