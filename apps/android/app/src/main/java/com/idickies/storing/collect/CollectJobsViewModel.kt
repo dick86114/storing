@@ -16,7 +16,9 @@ data class CollectJobsUiState(
   val jobs: List<MobileCollectJob> = emptyList(),
   val loading: Boolean = true,
   val error: String? = null,
-)
+) {
+  val activeJobCount: Int get() = jobs.count { !it.isTerminal }
+}
 
 @HiltViewModel
 class CollectJobsViewModel @Inject constructor(

@@ -20,11 +20,22 @@ class UpdateRepository @Inject constructor(
     if (now - preferences.getLong(KEY_LAST_CHECK, 0L) < DAILY_CHECK_INTERVAL_MS) return null
     preferences.edit().putLong(KEY_LAST_CHECK, now).apply()
     val response = api.latest(BuildConfig.VERSION_CODE)
-    return if (response.isSuccessful) response.body() else null
+    val release = if (response.isSuccessful) response.body() else null
+    if (release != null && preferences.getInt(KEY_IGNORED_VERSION_CODE, 0) == release.versionCode &&
+      AndroidReleaseUpdatePolicy.canIgnore(BuildConfig.VERSION_CODE, release)
+    ) return null
+    return release
+  }
+
+  fun ignore(release: AndroidRelease) {
+    if (AndroidReleaseUpdatePolicy.canIgnore(BuildConfig.VERSION_CODE, release)) {
+      preferences.edit().putInt(KEY_IGNORED_VERSION_CODE, release.versionCode).apply()
+    }
   }
 
   private companion object {
     const val KEY_LAST_CHECK = "last_check"
+    const val KEY_IGNORED_VERSION_CODE = "ignored_version_code"
     const val DAILY_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1_000L
   }
 }
