@@ -1,8 +1,10 @@
 package com.idickies.storing.collect
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -19,6 +21,7 @@ data class ShareCollectUiState(
 @HiltViewModel
 class ShareCollectViewModel @Inject constructor(
   private val collectRepository: CollectRepository,
+  @ApplicationContext private val context: Context,
 ) : ViewModel() {
   private val mutableState = MutableStateFlow(ShareCollectUiState())
   val state = mutableState.asStateFlow()
@@ -40,7 +43,10 @@ class ShareCollectViewModel @Inject constructor(
     viewModelScope.launch {
       mutableState.update { it.copy(submitting = true, message = null) }
       runCatching { collectRepository.submitSharedUrl(url) }
-        .onSuccess { job -> mutableState.update { it.copy(submitting = false, message = "已加入采集队列 #${job.id}") } }
+        .onSuccess { job ->
+          CollectTrackingScheduler.schedule(context, job.id)
+          mutableState.update { it.copy(submitting = false, message = "已加入采集队列 #${job.id}") }
+        }
         .onFailure { error -> mutableState.update { it.copy(submitting = false, message = error.message ?: "提交采集失败") } }
     }
   }

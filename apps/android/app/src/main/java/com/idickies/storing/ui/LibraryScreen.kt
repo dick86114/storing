@@ -60,6 +60,8 @@ import com.idickies.storing.reader.ReaderDocument
 fun LibraryScreen(
   sharedText: String?,
   onSharedTextConsumed: () -> Unit,
+  openArticleId: Int?,
+  onArticleOpened: () -> Unit,
   onLogout: () -> Unit,
   libraryViewModel: LibraryViewModel = hiltViewModel(),
   collectViewModel: ShareCollectViewModel = hiltViewModel(),
@@ -71,6 +73,12 @@ fun LibraryScreen(
     if (sharedText != null) {
       collectViewModel.receiveSharedText(sharedText)
       onSharedTextConsumed()
+    }
+  }
+  LaunchedEffect(openArticleId) {
+    if (openArticleId != null) {
+      libraryViewModel.open(openArticleId)
+      onArticleOpened()
     }
   }
 

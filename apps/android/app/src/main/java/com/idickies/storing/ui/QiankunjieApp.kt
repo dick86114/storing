@@ -32,6 +32,8 @@ import com.idickies.storing.collect.ShareCollectViewModel
 fun QiankunjieApp(
   sharedText: String?,
   onSharedTextConsumed: () -> Unit,
+  openArticleId: Int?,
+  onArticleOpened: () -> Unit,
   authViewModel: AuthViewModel = hiltViewModel(),
 ) {
   val state by authViewModel.state.collectAsState()
@@ -47,6 +49,8 @@ fun QiankunjieApp(
       username = user.username,
       sharedText = sharedText,
       onSharedTextConsumed = onSharedTextConsumed,
+      openArticleId = openArticleId,
+      onArticleOpened = onArticleOpened,
       onLogout = authViewModel::logout,
     )
   }
@@ -98,11 +102,15 @@ private fun HomeSkeleton(
   @Suppress("UNUSED_PARAMETER") username: String,
   sharedText: String?,
   onSharedTextConsumed: () -> Unit,
+  openArticleId: Int?,
+  onArticleOpened: () -> Unit,
   onLogout: () -> Unit,
 ) {
   LibraryScreen(
     sharedText = sharedText,
     onSharedTextConsumed = onSharedTextConsumed,
+    openArticleId = openArticleId,
+    onArticleOpened = onArticleOpened,
     onLogout = onLogout,
   )
 }
