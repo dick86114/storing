@@ -94,6 +94,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.idickies.storing.collect.CollectJobsViewModel
 import com.idickies.storing.collect.ShareCollectViewModel
+import com.idickies.storing.ui.components.ActiveCollectJobsCard
 import com.idickies.storing.library.ArticleCard
 import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.network.MobileCollectJob
@@ -553,12 +554,10 @@ private fun LibraryList(
       )
     }
     if (activeJobCount > 0) item {
-      Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenTasks)) {
-        Column(Modifier.padding(14.dp)) {
-          Text("正在采集 $activeJobCount 条内容", style = MaterialTheme.typography.titleSmall)
-          Text("点击查看实时任务状态", modifier = Modifier.padding(top = 4.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-      }
+      ActiveCollectJobsCard(
+        activeJobCount = activeJobCount,
+        onOpenTasks = onOpenTasks,
+      )
     }
     if (collectUrls.isNotEmpty()) {
       item {

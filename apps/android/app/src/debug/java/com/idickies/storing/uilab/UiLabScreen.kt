@@ -59,6 +59,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.idickies.storing.ui.components.ActiveCollectJobsCard
 import com.idickies.storing.ui.components.QiankunjieArticleCard
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -110,12 +111,7 @@ private fun UiLabLibrary() {
     verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
     item {
-      Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-          Text("正在采集 2 条内容", style = MaterialTheme.typography.titleSmall)
-          Text("固定进行中状态 · 点击后未来会进入任务页", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
-        }
-      }
+      ActiveCollectJobsCard(activeJobCount = 2, onOpenTasks = {})
     }
     item { Text("收件箱", style = MaterialTheme.typography.headlineSmall) }
     items(UiLabFixtures.library) { article -> QiankunjieArticleCard(article = article, onOpen = {}) }
