@@ -64,6 +64,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import com.idickies.storing.ui.components.ActiveCollectJobsCard
 import com.idickies.storing.ui.components.ReaderActionBar
 import com.idickies.storing.reader.ReaderWebView
+import com.idickies.storing.ui.QiankunjieSettingsScreen
+import com.idickies.storing.ui.LoginScreen
 import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 import com.idickies.storing.ui.components.QiankunjieArticleCard
 
@@ -99,11 +101,13 @@ internal fun UiLabScreen(
         }
       }
       when (scenario) {
+        UiLabScenario.Login -> LoginScreen(submitting = false, errorMessage = null, onLogin = {})
         UiLabScenario.Library -> UiLabLibrary()
         UiLabScenario.Reader -> UiLabReader()
         UiLabScenario.Share -> UiLabShare()
         UiLabScenario.Tasks -> UiLabTasks()
         UiLabScenario.States -> UiLabStates()
+        UiLabScenario.Settings -> UiLabSettings()
       }
     }
   }
@@ -163,6 +167,17 @@ private fun UiLabReader() {
       modifier = Modifier.fillMaxSize().padding(padding),
     )
   }
+}
+
+@Composable
+private fun UiLabSettings() {
+  QiankunjieSettingsScreen(
+    checkingUpdate = false,
+    onCheckUpdate = {},
+    onOpenBatteryGuidance = {},
+    onLogout = {},
+    onBack = {},
+  )
 }
 
 @Composable

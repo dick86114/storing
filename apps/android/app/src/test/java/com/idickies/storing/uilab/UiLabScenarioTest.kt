@@ -8,6 +8,8 @@ class UiLabScenarioTest {
   fun `unknown UI Lab route safely falls back to the library scenario`() {
     assertEquals(UiLabScenario.Library, UiLabScenario.fromRoute(null))
     assertEquals(UiLabScenario.Reader, UiLabScenario.fromRoute("reader"))
+    assertEquals(UiLabScenario.Settings, UiLabScenario.fromRoute("settings"))
+    assertEquals(UiLabScenario.Login, UiLabScenario.fromRoute("login"))
     assertEquals(UiLabScenario.Library, UiLabScenario.fromRoute("not-a-page"))
   }
 
@@ -15,5 +17,7 @@ class UiLabScenarioTest {
   fun `each scenario exposes a stable route for adb screenshot commands`() {
     assertEquals("library", UiLabScenario.Library.route)
     assertEquals("tasks", UiLabScenario.Tasks.route)
+    assertEquals("settings", UiLabScenario.Settings.route)
+    assertEquals("login", UiLabScenario.Login.route)
   }
 }

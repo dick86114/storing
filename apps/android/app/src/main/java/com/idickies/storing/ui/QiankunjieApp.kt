@@ -154,7 +154,7 @@ private fun LoadingScreen() {
 }
 
 @Composable
-private fun LoginScreen(
+internal fun LoginScreen(
   submitting: Boolean,
   errorMessage: String?,
   onLogin: (LoginCredentials) -> Unit,
