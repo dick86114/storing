@@ -15,6 +15,7 @@ data class LibraryUiState(
   val loading: Boolean = true,
   val refreshing: Boolean = false,
   val error: String? = null,
+  val fromCache: Boolean = false,
   val searchQuery: String = "",
   val detail: ArticleDetail? = null,
   val loadingDetail: Boolean = false,
@@ -47,9 +48,10 @@ class LibraryViewModel @Inject constructor(
     viewModelScope.launch {
       mutableState.update { it.copy(loading = !refreshing, refreshing = refreshing, error = null) }
       runCatching {
-        if (query.isBlank()) repository.list(mutableState.value.view) else repository.search(query)
-      }.onSuccess { response ->
-        mutableState.update { it.copy(articles = response.articles, loading = false, refreshing = false) }
+        if (query.isBlank()) repository.list(mutableState.value.view)
+        else ArticleListLoad(repository.search(query), fromCache = false)
+      }.onSuccess { result ->
+        mutableState.update { it.copy(articles = result.response.articles, fromCache = result.fromCache, loading = false, refreshing = false) }
       }.onFailure { error ->
         mutableState.update { it.copy(loading = false, refreshing = false, error = error.message ?: "加载文章失败") }
       }

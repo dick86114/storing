@@ -1,6 +1,6 @@
 import com.android.build.gradle.internal.api.BaseVariantOutputImpl
 
-val appVersionName = "0.4.0"
+val appVersionName = "0.5.0"
 
 plugins {
   alias(libs.plugins.android.application)
@@ -19,7 +19,7 @@ android {
     applicationId = "com.idickies.storing"
     minSdk = 31
     targetSdk = 36
-    versionCode = 4
+    versionCode = 5
     versionName = appVersionName
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

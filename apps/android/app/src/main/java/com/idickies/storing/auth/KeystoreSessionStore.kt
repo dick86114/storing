@@ -84,16 +84,18 @@ class KeystoreSessionStore(context: Context) : SessionStore {
     tokens.accessTokenExpiresAtEpochMs.toString(),
     tokens.refreshToken,
     tokens.refreshTokenExpiresAtEpochMs.toString(),
+    tokens.userId?.toString().orEmpty(),
   ).joinToString("\n")
 
   private fun decode(value: String): SessionTokens {
     val fields = value.split("\n")
-    require(fields.size == 4) { "会话字段无效" }
+    require(fields.size == 4 || fields.size == 5) { "会话字段无效" }
     return SessionTokens(
       accessToken = fields[0],
       accessTokenExpiresAtEpochMs = fields[1].toLong(),
       refreshToken = fields[2],
       refreshTokenExpiresAtEpochMs = fields[3].toLong(),
+      userId = fields.getOrNull(4)?.toIntOrNull(),
     )
   }
 }

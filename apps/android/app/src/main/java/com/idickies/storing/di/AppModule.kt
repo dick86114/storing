@@ -1,11 +1,13 @@
 package com.idickies.storing.di
 
 import android.content.Context
+import androidx.room.Room
 import com.idickies.storing.ApiConfiguration
 import com.idickies.storing.BuildConfig
 import com.idickies.storing.auth.DeviceIdentityProvider
 import com.idickies.storing.auth.KeystoreSessionStore
 import com.idickies.storing.auth.SessionStore
+import com.idickies.storing.database.ArticleCacheDatabase
 import com.idickies.storing.network.AccessTokenInterceptor
 import com.idickies.storing.network.ClientHeadersInterceptor
 import com.idickies.storing.network.ArticleApi
@@ -33,6 +35,14 @@ object AppModule {
   @Provides
   @Singleton
   fun provideSessionStore(@ApplicationContext context: Context): SessionStore = KeystoreSessionStore(context)
+
+  @Provides
+  @Singleton
+  fun provideArticleCacheDatabase(@ApplicationContext context: Context): ArticleCacheDatabase =
+    Room.databaseBuilder(context, ArticleCacheDatabase::class.java, "qiankunjie_article_cache").build()
+
+  @Provides
+  fun provideArticleCacheDao(database: ArticleCacheDatabase) = database.articleCacheDao()
 
   @Provides
   @Singleton

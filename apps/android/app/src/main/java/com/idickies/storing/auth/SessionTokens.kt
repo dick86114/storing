@@ -7,6 +7,7 @@ data class SessionTokens(
   val accessTokenExpiresAtEpochMs: Long,
   val refreshToken: String,
   val refreshTokenExpiresAtEpochMs: Long,
+  val userId: Int? = null,
 ) {
   fun hasUsableAccessToken(nowEpochMs: Long = System.currentTimeMillis()): Boolean =
     accessToken.isNotBlank() && nowEpochMs < accessTokenExpiresAtEpochMs - ACCESS_TOKEN_LEEWAY_MS

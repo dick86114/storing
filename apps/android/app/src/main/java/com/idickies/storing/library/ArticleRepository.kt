@@ -1,12 +1,34 @@
 package com.idickies.storing.library
 
+import com.idickies.storing.auth.SessionStore
+import com.idickies.storing.database.ArticleCacheDao
+import com.idickies.storing.database.toCached
 import com.idickies.storing.network.ArticleApi
 import javax.inject.Inject
 import javax.inject.Singleton
 
+data class ArticleListLoad(val response: ArticleListResponse, val fromCache: Boolean)
+
 @Singleton
-class ArticleRepository @Inject constructor(private val api: ArticleApi) {
-  suspend fun list(view: LibraryView, page: Int = 1) = api.articles(view.apiValue, page)
+class ArticleRepository @Inject constructor(
+  private val api: ArticleApi,
+  private val sessionStore: SessionStore,
+  private val cacheDao: ArticleCacheDao,
+) {
+  suspend fun list(view: LibraryView, page: Int = 1): ArticleListLoad {
+    val userId = sessionStore.read()?.userId
+    return runCatching { api.articles(view.apiValue, page) }
+      .onSuccess { response -> if (userId != null && page == 1) cacheDao.replace(userId, view.apiValue, response.articles.map { it.toCached(userId, view.apiValue) }) }
+      .fold(
+        onSuccess = { ArticleListLoad(it, fromCache = false) },
+        onFailure = { error ->
+          val cached = if (userId == null) emptyList() else cacheDao.cards(userId, view.apiValue).map { it.toArticleCard() }
+          if (cached.isEmpty()) throw error
+          ArticleListLoad(ArticleListResponse(articles = cached, total = cached.size, page = 1, perPage = cached.size, totalPages = 1), fromCache = true)
+        },
+      )
+  }
+
   suspend fun search(query: String, page: Int = 1) = api.search(query, page)
   suspend fun detail(id: Int) = api.article(id)
   suspend fun toggleFavorite(id: Int) = api.toggleFavorite(id)
