@@ -1,7 +1,7 @@
 # 乾坤戒 Android 原生客户端开发计划
 
-**状态：** 已批准，分阶段实施  
-**唯一生产 API：** `https://storing.idickies.com/api/v1`  
+**状态：** 已批准，分阶段实施
+**唯一生产 API：** `https://storing.idickies.com/api/v1`
 **应用标识：** `乾坤戒` / `com.idickies.storing`
 
 ## 固定技术决策
