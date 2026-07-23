@@ -37,12 +37,12 @@ import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Inbox
-import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.MoveToInbox
 import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AlertDialog
@@ -129,7 +129,7 @@ fun LibraryScreen(
   var showTasks by remember { mutableStateOf(false) }
   var showManualCollect by remember { mutableStateOf(false) }
   var showBatteryGuidance by remember { mutableStateOf(false) }
-  var showActions by remember { mutableStateOf(false) }
+  var showSettings by remember { mutableStateOf(false) }
   DisposableEffect(lifecycleOwner) {
     val observer = LifecycleEventObserver { _, event ->
       when (event) {
@@ -168,6 +168,13 @@ fun LibraryScreen(
   val detail = state.detail
   val detailError = state.detailError
   when {
+    showSettings -> QiankunjieSettingsScreen(
+      checkingUpdate = updateChecking,
+      onCheckUpdate = onManualUpdateCheck,
+      onOpenBatteryGuidance = { showSettings = false; showBatteryGuidance = true },
+      onLogout = onLogout,
+      onBack = { showSettings = false },
+    )
     detail != null -> ArticleReader(
       article = detail,
       onBack = libraryViewModel::closeDetail,
@@ -196,8 +203,8 @@ fun LibraryScreen(
                 Icon(Icons.Outlined.TaskAlt, contentDescription = "采集任务")
               }
             }
-            IconButton(onClick = { showActions = true }) {
-              Icon(Icons.Outlined.MoreHoriz, contentDescription = "更多操作")
+            IconButton(onClick = { showSettings = true }) {
+              Icon(Icons.Outlined.Settings, contentDescription = "设置与更新")
             }
           },
         )
@@ -245,44 +252,7 @@ fun LibraryScreen(
     viewModel = jobsViewModel,
   )
   if (showBatteryGuidance) BatteryOptimizationDialog(onDismiss = { showBatteryGuidance = false })
-  if (showActions) AppActionsDialog(
-    checkingUpdate = updateChecking,
-    onDismiss = { showActions = false },
-    onCheckUpdate = { onManualUpdateCheck(); showActions = false },
-    onLogout = { showActions = false; onLogout() },
-  )
   if (showManualCollect) ManualCollectDialog(onDismiss = { showManualCollect = false }, viewModel = collectViewModel)
-}
-
-@Composable
-private fun AppActionsDialog(
-  checkingUpdate: Boolean,
-  onDismiss: () -> Unit,
-  onCheckUpdate: () -> Unit,
-  onLogout: () -> Unit,
-) {
-  AlertDialog(
-    onDismissRequest = onDismiss,
-    icon = { Icon(Icons.Outlined.MoreHoriz, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-    title = { Text("更多操作") },
-    text = {
-      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth().clickable(enabled = !checkingUpdate, onClick = onCheckUpdate)) {
-          Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.Sync, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Column { Text(if (checkingUpdate) "正在检查更新…" else "手动检查更新", style = MaterialTheme.typography.titleSmall); Text("立即检查 GitHub Release 中是否有新版本", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
-          }
-        }
-        Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth().clickable(onClick = onLogout)) {
-          Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-            Column { Text("退出当前设备", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onErrorContainer); Text("清除当前设备上的登录会话", color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall) }
-          }
-        }
-      }
-    },
-    confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
-  )
 }
 
 @Composable

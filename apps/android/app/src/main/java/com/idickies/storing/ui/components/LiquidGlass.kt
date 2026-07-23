@@ -2,6 +2,7 @@ package com.idickies.storing.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -67,7 +68,7 @@ fun QiankunjieGlassPanel(
     tonalElevation = 0.dp,
     shadowElevation = 8.dp,
   ) {
-    Box(modifier = Modifier.clip(shape)) {
+    Box(modifier = Modifier.fillMaxWidth().clip(shape)) {
       Box(
         modifier = Modifier
           .matchParentSize()
