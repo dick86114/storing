@@ -15,10 +15,15 @@ class ArticleRepository @Inject constructor(
   private val sessionStore: SessionStore,
   private val cacheDao: ArticleCacheDao,
 ) {
-  suspend fun list(view: LibraryView, page: Int = 1, sort: LibrarySort = LibrarySort.defaultFor(view)): ArticleListLoad {
+  suspend fun list(
+    view: LibraryView,
+    page: Int = 1,
+    sort: LibrarySort = LibrarySort.defaultFor(view),
+    category: String? = null,
+  ): ArticleListLoad {
     val userId = sessionStore.read()?.userId
-    val canUseViewCache = sort == LibrarySort.defaultFor(view)
-    return runCatching { api.articles(view.apiValue, page, sort = sort.apiValue) }
+    val canUseViewCache = sort == LibrarySort.defaultFor(view) && category == null
+    return runCatching { api.articles(view.apiValue, page, sort = sort.apiValue, category = category) }
       .onSuccess { response ->
         if (userId != null && page == 1 && canUseViewCache) {
           cacheDao.replace(userId, view.apiValue, response.articles.map { it.toCached(userId, view.apiValue) })
@@ -36,6 +41,7 @@ class ArticleRepository @Inject constructor(
   }
 
   suspend fun search(query: String, page: Int = 1) = api.search(query, page)
+  suspend fun sources() = api.sources()
   suspend fun detail(id: Int) = api.article(id)
   suspend fun toggleFavorite(id: Int) = api.toggleFavorite(id)
   suspend fun toggleArchive(id: Int, archived: Boolean) = if (archived) api.unarchive(id) else api.archive(id)

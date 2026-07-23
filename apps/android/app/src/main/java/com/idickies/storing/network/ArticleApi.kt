@@ -3,6 +3,7 @@ package com.idickies.storing.network
 import com.idickies.storing.library.ArchiveResponse
 import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.library.ArticleListResponse
+import com.idickies.storing.library.ArticleSource
 import com.idickies.storing.library.ToggleFavoriteResponse
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -18,7 +19,11 @@ interface ArticleApi {
     @Query("perPage") perPage: Int = 20,
     @Query("sort") sort: String? = null,
     @Query("order") order: String = "desc",
+    @Query("category") category: String? = null,
   ): ArticleListResponse
+
+  @GET("sources")
+  suspend fun sources(): List<ArticleSource>
 
   @GET("search")
   suspend fun search(

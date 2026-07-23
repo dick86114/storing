@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.automirrored.outlined.Logout
@@ -100,10 +101,12 @@ import com.idickies.storing.ui.components.QiankunjieGlassPanel
 import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 import com.idickies.storing.library.ArticleCard
 import com.idickies.storing.library.ArticleDetail
+import com.idickies.storing.library.ArchiveSourceFilter
 import com.idickies.storing.network.MobileCollectJob
 import com.idickies.storing.library.LibraryView
 import com.idickies.storing.library.LibrarySort
 import com.idickies.storing.library.LibraryViewModel
+import com.idickies.storing.library.archiveSourceFilters
 import com.idickies.storing.reader.ReaderWebView
 import com.idickies.storing.settings.BatteryOptimizationGuidance
 import com.idickies.storing.ui.components.QiankunjieArticleCard
@@ -238,6 +241,7 @@ fun LibraryScreen(
         onOpenTasks = { showTasks = true },
         onSearch = libraryViewModel::search,
         onSort = libraryViewModel::selectSort,
+        onArchiveSource = libraryViewModel::selectArchiveSource,
         onRefresh = libraryViewModel::refresh,
         onLoadMore = libraryViewModel::loadMore,
         onOpen = libraryViewModel::open,
@@ -490,6 +494,7 @@ private fun LibraryList(
   onOpenTasks: () -> Unit,
   onSearch: (String) -> Unit,
   onSort: (LibrarySort) -> Unit,
+  onArchiveSource: (ArchiveSourceFilter) -> Unit,
   onRefresh: () -> Unit,
   onLoadMore: () -> Unit,
   onOpen: (Int) -> Unit,
@@ -530,19 +535,43 @@ private fun LibraryList(
     }
     if (state.searchQuery.isBlank()) item {
       var sortExpanded by remember { mutableStateOf(false) }
-      Box {
-        AssistChip(
-          onClick = { sortExpanded = true },
-          label = { Text(state.sort.label) },
-          leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = "排序方式", modifier = Modifier.size(18.dp)) },
-        )
-        DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }) {
-          LibrarySort.availableFor(state.view).forEach { sort ->
-            DropdownMenuItem(
-              text = { Text(sort.label) },
-              leadingIcon = { if (sort == state.sort) Icon(Icons.Outlined.CheckCircle, contentDescription = null) },
-              onClick = { sortExpanded = false; onSort(sort) },
+      var sourceExpanded by remember { mutableStateOf(false) }
+      val sourceOptions = archiveSourceFilters(state.archiveSources)
+      val sourceCounts = state.archiveSources.associate { it.source to it.count }
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box {
+          AssistChip(
+            onClick = { sortExpanded = true },
+            label = { Text(state.sort.label) },
+            leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = "排序方式", modifier = Modifier.size(18.dp)) },
+          )
+          DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }) {
+            LibrarySort.availableFor(state.view).forEach { sort ->
+              DropdownMenuItem(
+                text = { Text(sort.label) },
+                leadingIcon = { if (sort == state.sort) Icon(Icons.Outlined.CheckCircle, contentDescription = null) },
+                onClick = { sortExpanded = false; onSort(sort) },
+              )
+            }
+          }
+        }
+        if (ArchiveSourceFilter.isAvailableFor(state.view, state.searchQuery)) {
+          Box {
+            AssistChip(
+              onClick = { sourceExpanded = true },
+              label = { Text(if (state.archiveSourcesLoading) "加载来源…" else state.archiveSource.label) },
+              leadingIcon = { Icon(Icons.Outlined.FilterList, contentDescription = "归档来源", modifier = Modifier.size(18.dp)) },
             )
+            DropdownMenu(expanded = sourceExpanded, onDismissRequest = { sourceExpanded = false }) {
+              sourceOptions.forEach { filter ->
+                val count = filter.category?.let(sourceCounts::get)
+                DropdownMenuItem(
+                  text = { Text(if (count == null) filter.label else "${filter.label} · $count") },
+                  leadingIcon = { if (filter == state.archiveSource) Icon(Icons.Outlined.CheckCircle, contentDescription = null) },
+                  onClick = { sourceExpanded = false; onArchiveSource(filter) },
+                )
+              }
+            }
           }
         }
       }

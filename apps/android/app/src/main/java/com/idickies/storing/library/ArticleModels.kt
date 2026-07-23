@@ -24,6 +24,13 @@ data class ArticleCard(
 }
 
 @Serializable
+data class ArticleSource(
+  val source: String,
+  val count: Int,
+  @SerialName("latestCreatedAt") val latestCreatedAt: String? = null,
+)
+
+@Serializable
 data class ArticleListResponse(
   val articles: List<ArticleCard> = emptyList(),
   val total: Int = 0,
