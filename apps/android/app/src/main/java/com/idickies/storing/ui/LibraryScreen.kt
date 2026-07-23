@@ -20,12 +20,22 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AddLink
+import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -145,9 +155,17 @@ fun LibraryScreen(
             }
           },
           actions = {
-            IconButton(onClick = { showManualCollect = true }) { Text("采集") }
-            IconButton(onClick = { showTasks = true }) { Text(if (jobsState.activeJobCount > 0) "任务${jobsState.activeJobCount}" else "任务") }
-            IconButton(onClick = { showActions = true }) { Text("更多") }
+            IconButton(onClick = { showManualCollect = true }) {
+              Icon(Icons.Outlined.AddLink, contentDescription = "手动采集链接")
+            }
+            IconButton(onClick = { showTasks = true }) {
+              BadgedBox(badge = { if (jobsState.activeJobCount > 0) Badge { Text(jobsState.activeJobCount.toString()) } }) {
+                Icon(Icons.Outlined.TaskAlt, contentDescription = "采集任务")
+              }
+            }
+            IconButton(onClick = { showActions = true }) {
+              Icon(Icons.Outlined.MoreHoriz, contentDescription = "更多操作")
+            }
           },
         )
       },
@@ -157,7 +175,13 @@ fun LibraryScreen(
             NavigationBarItem(
               selected = state.view == item && state.searchQuery.isBlank(),
               onClick = { libraryViewModel.select(item) },
-              icon = { Text(if (item == LibraryView.Inbox) "收" else if (item == LibraryView.Favorites) "藏" else "档") },
+              icon = {
+                when (item) {
+                  LibraryView.Inbox -> Icon(Icons.Outlined.Inbox, contentDescription = item.label)
+                  LibraryView.Favorites -> Icon(Icons.Outlined.StarBorder, contentDescription = item.label)
+                  LibraryView.Archive -> Icon(Icons.Outlined.Inventory2, contentDescription = item.label)
+                }
+              },
               label = { Text(item.label) },
             )
           }
