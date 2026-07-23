@@ -51,6 +51,7 @@ import com.idickies.storing.library.ArticleCard
 import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.library.LibraryView
 import com.idickies.storing.library.LibraryViewModel
+import com.idickies.storing.reader.ReaderDocument
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -185,43 +186,60 @@ private fun ArticleCardItem(article: ArticleCard, onOpen: (Int) -> Unit) {
 private fun ArticleReader(article: ArticleDetail, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onDelete: () -> Unit) {
   var confirmDelete by remember { mutableStateOf(false) }
   BackHandler(onBack = onBack)
-  Scaffold(topBar = { TopAppBar(title = { Text(article.displayTitle, maxLines = 1) }, navigationIcon = { IconButton(onClick = onBack) { Text("返回") } }) }) { padding ->
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      item { Text(article.displayTitle, style = MaterialTheme.typography.headlineSmall) }
-      item { listOfNotNull(article.source, article.author).takeIf { it.isNotEmpty() }?.let { Text(it.joinToString(" · "), color = MaterialTheme.colorScheme.onSurfaceVariant) } }
-      item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { Button(onClick = onFavorite) { Text(if (article.isFavorited) "取消收藏" else "收藏") }; Button(onClick = onArchive) { Text(if (article.isArchived) "移回收件箱" else "归档") }; Button(onClick = { confirmDelete = true }) { Text("删除") } } }
-      article.aiSummary?.takeIf { it.isNotBlank() }?.let { item { Card { Column(Modifier.padding(14.dp)) { Text("AI 摘要", style = MaterialTheme.typography.titleSmall); Text(it, modifier = Modifier.padding(top = 8.dp)) } } } }
-      item { HorizontalDivider() }
-      item { ReaderBody(article) }
+  Scaffold(topBar = {
+    TopAppBar(
+      title = { Text(article.displayTitle, maxLines = 1) },
+      navigationIcon = { IconButton(onClick = onBack) { Text("返回") } },
+      actions = {
+        IconButton(onClick = onFavorite) { Text(if (article.isFavorited) "藏✓" else "收藏") }
+        IconButton(onClick = onArchive) { Text(if (article.isArchived) "收件箱" else "归档") }
+        IconButton(onClick = { confirmDelete = true }) { Text("删除") }
+      },
+    )
+  }) { padding ->
+    val html = article.contentHtml
+    if (!html.isNullOrBlank()) {
+      AndroidView(
+        factory = { context ->
+          WebView(context).apply {
+            settings.javaScriptEnabled = false
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            settings.domStorageEnabled = false
+            settings.loadWithOverviewMode = false
+            settings.useWideViewPort = false
+            webViewClient = object : WebViewClient() {
+              override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                val uri = request?.url ?: return true
+                if (uri.scheme == "http" || uri.scheme == "https") context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                return true
+              }
+            }
+            loadDataWithBaseURL("https://storing.idickies.com", ReaderDocument.forWebView(html), "text/html", "UTF-8", null)
+          }
+        },
+        modifier = Modifier.fillMaxSize().padding(padding),
+      )
+    } else {
+      LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(padding),
+        contentPadding = PaddingValues(16.dp),
+      ) {
+        item { Text(article.displayTitle, style = MaterialTheme.typography.titleLarge) }
+        article.aiSummary?.takeIf { it.isNotBlank() }?.let { summary ->
+          item { Card(modifier = Modifier.padding(top = 12.dp)) { Column(Modifier.padding(14.dp)) { Text("AI 摘要", style = MaterialTheme.typography.titleSmall); Text(summary, modifier = Modifier.padding(top = 8.dp)) } } }
+        }
+        item { Text(article.contentMd?.takeIf { it.isNotBlank() } ?: "正文暂时不可用", modifier = Modifier.padding(top = 16.dp), style = MaterialTheme.typography.bodyLarge) }
+      }
     }
   }
-  if (confirmDelete) AlertDialog(onDismissRequest = { confirmDelete = false }, title = { Text("删除文章？") }, text = { Text("此操作会从你的资料库删除该文章。") }, confirmButton = { Button(onClick = { confirmDelete = false; onDelete() }) { Text("删除") } }, dismissButton = { Button(onClick = { confirmDelete = false }) { Text("取消") } })
-}
-
-@Composable
-private fun ReaderBody(article: ArticleDetail) {
-  val context = LocalContext.current
-  val html = article.contentHtml
-  if (!html.isNullOrBlank()) {
-    AndroidView(factory = {
-      WebView(it).apply {
-        settings.javaScriptEnabled = false
-        settings.allowFileAccess = false
-        settings.allowContentAccess = false
-        settings.domStorageEnabled = false
-        webViewClient = object : WebViewClient() {
-          override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-            val uri = request?.url ?: return true
-            if (uri.scheme == "http" || uri.scheme == "https") context.startActivity(Intent(Intent.ACTION_VIEW, uri))
-            return true
-          }
-        }
-        loadDataWithBaseURL("https://storing.idickies.com", html, "text/html", "UTF-8", null)
-      }
-    }, modifier = Modifier.fillMaxWidth().height(640.dp))
-  } else {
-    Text(article.contentMd?.takeIf { it.isNotBlank() } ?: "正文暂时不可用", style = MaterialTheme.typography.bodyLarge)
-  }
+  if (confirmDelete) AlertDialog(
+    onDismissRequest = { confirmDelete = false },
+    title = { Text("删除文章？") },
+    text = { Text("此操作会从你的资料库删除该文章。") },
+    confirmButton = { Button(onClick = { confirmDelete = false; onDelete() }) { Text("删除") } },
+    dismissButton = { Button(onClick = { confirmDelete = false }) { Text("取消") } },
+  )
 }
 
 @Composable
