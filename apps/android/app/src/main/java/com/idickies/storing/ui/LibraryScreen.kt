@@ -565,18 +565,15 @@ private fun LibraryList(
     if (state.fromCache) item { Text("当前显示离线缓存，联网后可点刷新获取最新内容。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
     if (state.loading || state.refreshing || state.searchPending) item { FullPageLoading(if (state.searchPending) "正在准备搜索…" else "正在加载${state.view.label}…") }
     if (state.error != null) item { ErrorPage(state.error, onRefresh) }
-    if (!state.loading && !state.searchPending && state.error == null && state.articles.isEmpty()) item { Text("这里还没有文章。你可以从其他应用分享链接到乾坤戒。", modifier = Modifier.padding(vertical = 48.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    if (!state.loading && !state.searchPending && state.error == null && state.articles.isEmpty()) item { LibraryEmptyState(view = state.view, isSearchResult = state.searchQuery.isNotBlank()) }
     items(state.articles, key = { it.id }) { article -> QiankunjieArticleCard(article, onOpen) }
       if (state.articles.isNotEmpty() && !state.fromCache) item {
         Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
           when {
-            state.loadingMore -> FullPageLoading("正在加载更多文章…")
-            state.loadMoreError != null -> {
-              Text(state.loadMoreError, color = MaterialTheme.colorScheme.error)
-              Button(onClick = onLoadMore, modifier = Modifier.padding(top = 8.dp)) { Text("重试加载更多") }
-            }
-            state.hasMore -> Button(onClick = onLoadMore) { Text("加载更多") }
-            else -> Text("已加载全部文章", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 12.dp))
+            state.loadingMore -> InlineLoading("正在加载更多文章…")
+            state.loadMoreError != null -> InlineLoadMoreError(message = state.loadMoreError, retry = onLoadMore)
+            state.hasMore -> TextButton(onClick = onLoadMore) { Icon(Icons.Outlined.Sync, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(6.dp)); Text("加载更多") }
+            else -> Text("你已经看到全部文章了", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 12.dp), style = MaterialTheme.typography.bodySmall)
           }
         }
       }
@@ -710,7 +707,72 @@ private fun ArticleReader(article: ArticleDetail, onBack: () -> Unit, onFavorite
 }
 
 @Composable
-private fun FullPageLoading(message: String) = Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) { CircularProgressIndicator(Modifier.size(28.dp)); Text(message, modifier = Modifier.padding(top = 12.dp)) }
+private fun LibraryEmptyState(view: LibraryView, isSearchResult: Boolean) {
+  val (icon, title, message) = if (isSearchResult) {
+    Triple(Icons.Outlined.ErrorOutline, "没有匹配的文章", "试试更短的关键词，或切换到其他资料库。")
+  } else when (view) {
+    LibraryView.Inbox -> Triple(Icons.Outlined.Inbox, "收件箱还是空的", "从浏览器、微信或其他应用分享网页到乾坤戒，内容会出现在这里。")
+    LibraryView.Favorites -> Triple(Icons.Outlined.StarBorder, "还没有收藏", "在阅读器中点按收藏图标，就能把文章留在这里。")
+    LibraryView.Archive -> Triple(Icons.Outlined.Inventory2, "归档资料库为空", "归档后的文章会被整理到这里，随时可以移回收件箱。")
+  }
+  Column(
+    modifier = Modifier.fillMaxWidth().padding(vertical = 44.dp, horizontal = 24.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(10.dp),
+  ) {
+    Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = androidx.compose.foundation.shape.CircleShape, modifier = Modifier.size(68.dp)) {
+      Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(32.dp)) }
+    }
+    Text(title, style = MaterialTheme.typography.titleMedium)
+    Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.fillMaxWidth())
+  }
+}
 
 @Composable
-private fun ErrorPage(message: String, retry: () -> Unit) = Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text(message, color = MaterialTheme.colorScheme.error); Button(onClick = retry, modifier = Modifier.padding(top = 12.dp)) { Text("重试") } }
+private fun FullPageLoading(message: String) = Column(
+  Modifier.fillMaxWidth().padding(vertical = 32.dp, horizontal = 24.dp),
+  horizontalAlignment = Alignment.CenterHorizontally,
+  verticalArrangement = Arrangement.spacedBy(12.dp),
+) {
+  Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = androidx.compose.foundation.shape.CircleShape, modifier = Modifier.size(58.dp)) {
+    Box(contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(26.dp), strokeWidth = 2.5.dp, color = MaterialTheme.colorScheme.primary) }
+  }
+  Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+}
+
+@Composable
+private fun InlineLoading(message: String) = Row(
+  modifier = Modifier.padding(vertical = 16.dp),
+  horizontalArrangement = Arrangement.spacedBy(10.dp),
+  verticalAlignment = Alignment.CenterVertically,
+) {
+  CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+  Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+}
+
+@Composable
+private fun InlineLoadMoreError(message: String, retry: () -> Unit) = Column(
+  horizontalAlignment = Alignment.CenterHorizontally,
+  verticalArrangement = Arrangement.spacedBy(6.dp),
+) {
+  Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+  TextButton(onClick = retry) { Icon(Icons.Outlined.Replay, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(6.dp)); Text("重试加载更多") }
+}
+
+@Composable
+private fun ErrorPage(message: String, retry: () -> Unit) = Surface(
+  modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp, horizontal = 4.dp),
+  color = MaterialTheme.colorScheme.errorContainer,
+  shape = MaterialTheme.shapes.large,
+) {
+  Column(
+    modifier = Modifier.padding(22.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(10.dp),
+  ) {
+    Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(34.dp))
+    Text("暂时无法加载", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+    Text(message, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodyMedium)
+    Button(onClick = retry) { Icon(Icons.Outlined.Replay, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(6.dp)); Text("重新尝试") }
+  }
+}

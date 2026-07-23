@@ -2,6 +2,8 @@ package com.idickies.storing.uilab
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -77,7 +79,7 @@ internal fun UiLabScreen(
   ) { padding ->
     Column(modifier = Modifier.fillMaxSize().padding(padding)) {
       Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
       ) {
         UiLabScenario.entries.forEach { candidate ->
@@ -93,6 +95,7 @@ internal fun UiLabScreen(
         UiLabScenario.Reader -> UiLabReader()
         UiLabScenario.Share -> UiLabShare()
         UiLabScenario.Tasks -> UiLabTasks()
+        UiLabScenario.States -> UiLabStates()
       }
     }
   }
@@ -205,6 +208,50 @@ private fun UiLabShare() {
         Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
           Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error)
           Text("未识别到可采集的网页链接", color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodyMedium)
+        }
+      }
+    }
+  }
+}
+
+
+@Composable
+private fun UiLabStates() {
+  LazyColumn(
+    modifier = Modifier.fillMaxSize(),
+    contentPadding = PaddingValues(horizontal = 22.dp, vertical = 20.dp),
+    verticalArrangement = Arrangement.spacedBy(16.dp),
+  ) {
+    item {
+      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("状态反馈", style = MaterialTheme.typography.headlineSmall)
+        Text("验证加载、空状态、错误重试与分页反馈。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+    }
+    item {
+      Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.padding(18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+          androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 2.5.dp)
+          Column { Text("正在加载收件箱", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer); Text("网络恢复后会自动显示最新内容", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer) }
+        }
+      }
+    }
+    item {
+      Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(28.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+          Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = CircleShape, modifier = Modifier.size(62.dp)) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.TaskAlt, contentDescription = null, modifier = Modifier.size(30.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer) } }
+          Text("收件箱还是空的", style = MaterialTheme.typography.titleMedium)
+          Text("从浏览器或其他应用分享网页到乾坤戒，内容会出现在这里。", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+        }
+      }
+    }
+    item {
+      Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(28.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+          Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(34.dp))
+          Text("暂时无法加载", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+          Text("网络连接超时，请检查网络后重新尝试。", color = MaterialTheme.colorScheme.onErrorContainer)
+          Button(onClick = {}) { Icon(Icons.Outlined.Replay, contentDescription = null, modifier = Modifier.size(18.dp)); Text("  重新尝试") }
         }
       }
     }
