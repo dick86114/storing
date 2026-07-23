@@ -27,7 +27,10 @@ class AuthRepository @Inject constructor(
     val tokens = sessionStore.read() ?: return null
     if (tokens.hasUsableAccessToken()) {
       val user = runCatching { api.me().user }.getOrNull()
-      if (user != null) return user
+      if (user != null) {
+        if (tokens.userId != user.id) sessionStore.write(tokens.copy(userId = user.id))
+        return user
+      }
     }
     return refresh()
   }

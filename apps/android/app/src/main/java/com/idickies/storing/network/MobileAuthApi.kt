@@ -65,6 +65,7 @@ data class MobileAuthResponse(
     accessTokenExpiresAtEpochMs = nowEpochMs + accessTokenExpiresIn * 1_000,
     refreshToken = refreshToken,
     refreshTokenExpiresAtEpochMs = nowEpochMs + refreshTokenExpiresIn * 1_000,
+    userId = user.id,
   )
 }
 
