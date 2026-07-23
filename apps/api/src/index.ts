@@ -9,6 +9,7 @@ import { healthRoutes } from './routes/health.js';
 import { authRoutes } from './routes/auth.js';
 import { collectRoutes } from './routes/collect.js';
 import { mcpRoutes } from './routes/mcp.js';
+import { releasesRoutes } from './routes/releases.js';
 import { initCollectSchema, resumePendingCollectJobs } from './services/collect.service.js';
 import { initMcpSchema, startMcpLogCleanupScheduler } from './services/mcp-auth.service.js';
 import { ensurePrivateLibraryPublicationSchema, initArticleMetadataUserScope, repairCollectedArticleMetadataOwnership, repairMissingMcpSavedArticleMetadata } from './services/metadata-scope.service.js';
@@ -31,6 +32,7 @@ app.route('/api/v1', articlesRoutes);
 app.route('/api/v1', searchRoutes);
 app.route('/api/v1', collectRoutes);
 app.route('/api/v1', mcpRoutes);
+app.route('/api/v1', releasesRoutes);
 
 app.onError((err, c) => {
   console.error(err);

@@ -6,10 +6,13 @@ import com.idickies.storing.BuildConfig
 import com.idickies.storing.auth.DeviceIdentityProvider
 import com.idickies.storing.auth.KeystoreSessionStore
 import com.idickies.storing.auth.SessionStore
+import com.idickies.storing.database.ArticleCacheDatabase
 import com.idickies.storing.network.AccessTokenInterceptor
 import com.idickies.storing.network.ClientHeadersInterceptor
+import com.idickies.storing.network.ArticleApi
 import com.idickies.storing.network.MobileAuthApi
 import com.idickies.storing.network.MobileCollectApi
+import com.idickies.storing.network.MobileReleaseApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -32,6 +35,17 @@ object AppModule {
   @Provides
   @Singleton
   fun provideSessionStore(@ApplicationContext context: Context): SessionStore = KeystoreSessionStore(context)
+
+  @Provides
+  @Singleton
+  fun provideArticleCacheDatabase(@ApplicationContext context: Context): ArticleCacheDatabase =
+    ArticleCacheDatabase.create(context)
+
+  @Provides
+  fun provideArticleCacheDao(database: ArticleCacheDatabase) = database.articleCacheDao()
+
+  @Provides
+  fun providePendingCollectSubmissionDao(database: ArticleCacheDatabase) = database.pendingCollectSubmissionDao()
 
   @Provides
   @Singleton
@@ -65,6 +79,14 @@ object AppModule {
   @Provides
   @Singleton
   fun provideMobileAuthApi(retrofit: Retrofit): MobileAuthApi = retrofit.create(MobileAuthApi::class.java)
+
+  @Provides
+  @Singleton
+  fun provideMobileReleaseApi(retrofit: Retrofit): MobileReleaseApi = retrofit.create(MobileReleaseApi::class.java)
+
+  @Provides
+  @Singleton
+  fun provideArticleApi(retrofit: Retrofit): ArticleApi = retrofit.create(ArticleApi::class.java)
 
   @Provides
   @Singleton

@@ -41,6 +41,12 @@ type CollectMethod = 'reader' | 'singlefile';
 type CollectRequestSource = 'web' | 'android' | 'android_share' | 'mcp' | 'api' | 'system';
 const FIRST_PARTY_COLLECT_SOURCES: CollectRequestSource[] = ['web', 'android', 'android_share'];
 
+// Web collection historically enters Archive. MCP and native Android collection are
+// explicit inbox saves, so they must not be auto-archived after capture completes.
+function shouldArchiveCollectedArticle(sourceType?: string) {
+  return sourceType === undefined || sourceType === 'web' || sourceType === 'api' || sourceType === 'system';
+}
+
 type CreateCollectJobOptions = {
   userId?: number | null;
   clientId?: number | null;
@@ -273,7 +279,7 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
     userId: options.userId,
     clientId: options.clientId,
     sourceType: options.sourceType,
-    markArchived: options.sourceType !== 'mcp',
+    markArchived: shouldArchiveCollectedArticle(options.sourceType),
   });
 
   await updateCollectJob(jobId, { stage: 'reader_fetch', captureStrategy: 'wechat_reader', articleId, title });
@@ -648,7 +654,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string, option
     contentMarkdown,
     coverImage: uploadedCoverImage || primaryPrepared.coverImage,
     method: 'singlefile',
-  }, { persistMetadata: true, userId: options.userId, clientId: options.clientId, sourceType: options.sourceType, markArchived: options.sourceType !== 'mcp' });
+  }, { persistMetadata: true, userId: options.userId, clientId: options.clientId, sourceType: options.sourceType, markArchived: shouldArchiveCollectedArticle(options.sourceType) });
 
   await updateCollectJob(jobId, {
     status: 'completed',
