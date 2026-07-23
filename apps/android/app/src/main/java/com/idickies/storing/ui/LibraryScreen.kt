@@ -26,6 +26,7 @@ import androidx.compose.material.icons.outlined.AddLink
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.BatterySaver
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -44,6 +45,7 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.MoveToInbox
 import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AlertDialog
@@ -542,6 +544,10 @@ private fun LibraryList(
         onValueChange = { query = it; onSearch(it) },
         modifier = Modifier.fillMaxWidth(),
         label = { Text("搜索标题、来源、摘要或标签") },
+        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = "搜索") },
+        trailingIcon = if (query.isNotBlank()) {
+          { IconButton(onClick = { query = ""; onSearch("") }) { Icon(Icons.Outlined.Clear, contentDescription = "清空搜索") } }
+        } else null,
         shape = MaterialTheme.shapes.medium,
         singleLine = true,
       )
@@ -701,10 +707,16 @@ private fun ArticleReader(article: ArticleDetail, onBack: () -> Unit, onFavorite
   }
   if (confirmDelete) AlertDialog(
     onDismissRequest = { confirmDelete = false },
-    title = { Text("删除文章？") },
-    text = { Text("此操作会从你的资料库删除该文章。") },
-    confirmButton = { Button(onClick = { confirmDelete = false; onDelete() }) { Text("删除") } },
-    dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
+    icon = { Icon(Icons.Outlined.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+    title = { Text("从资料库删除？") },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(article.displayTitle, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text("删除后将不再显示在你的资料库中；此操作不会影响原网页。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+    },
+    confirmButton = { Button(onClick = { confirmDelete = false; onDelete() }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError)) { Text("确认删除") } },
+    dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("保留文章") } },
   )
 }
 
