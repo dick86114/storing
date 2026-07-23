@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddLink
 import androidx.compose.material.icons.outlined.Archive
+import androidx.compose.material.icons.outlined.BatterySaver
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.DeleteSweep
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.MoreHoriz
@@ -257,11 +259,22 @@ private fun AppActionsDialog(
 ) {
   AlertDialog(
     onDismissRequest = onDismiss,
+    icon = { Icon(Icons.Outlined.MoreHoriz, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
     title = { Text("更多操作") },
     text = {
-      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(onClick = onCheckUpdate, enabled = !checkingUpdate, modifier = Modifier.fillMaxWidth()) { Text(if (checkingUpdate) "正在检查更新…" else "手动检查更新") }
-        TextButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) { Text("退出当前设备") }
+      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth().clickable(enabled = !checkingUpdate, onClick = onCheckUpdate)) {
+          Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.Sync, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Column { Text(if (checkingUpdate) "正在检查更新…" else "手动检查更新", style = MaterialTheme.typography.titleSmall); Text("立即检查 GitHub Release 中是否有新版本", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+          }
+        }
+        Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth().clickable(onClick = onLogout)) {
+          Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+            Column { Text("退出当前设备", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onErrorContainer); Text("清除当前设备上的登录会话", color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall) }
+          }
+        }
       }
     },
     confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
@@ -480,8 +493,9 @@ private fun BatteryOptimizationDialog(onDismiss: () -> Unit) {
   val guidance = BatteryOptimizationGuidance.forManufacturer(android.os.Build.MANUFACTURER)
   AlertDialog(
     onDismissRequest = onDismiss,
+    icon = { Icon(Icons.Outlined.BatterySaver, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
     title = { Text(guidance.title) },
-    text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { guidance.steps.forEachIndexed { index, step -> Text("${index + 1}. $step") } } },
+    text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { Text("为了让采集结果在锁屏或切后台后继续同步，请按下面步骤检查系统设置。", color = MaterialTheme.colorScheme.onSurfaceVariant); guidance.steps.forEachIndexed { index, step -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) { Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = androidx.compose.foundation.shape.CircleShape, modifier = Modifier.size(24.dp)) { Box(contentAlignment = Alignment.Center) { Text((index + 1).toString(), color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.labelMedium) } }; Text(step, modifier = Modifier.weight(1f)) } } } },
     confirmButton = { Button(onClick = onDismiss) { Text("知道了") } },
   )
 }

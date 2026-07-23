@@ -13,6 +13,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Visibility
@@ -88,16 +92,18 @@ fun QiankunjieApp(
   updateState.statusMessage?.let { message ->
     AlertDialog(
       onDismissRequest = updateViewModel::dismiss,
-      title = { Text("检查更新") },
-      text = { Text(message) },
+      icon = { Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+      title = { Text("已检查更新") },
+      text = { Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant) },
       confirmButton = { Button(onClick = updateViewModel::dismiss) { Text("知道了") } },
     )
   }
   updateState.error?.takeIf { updateState.release == null }?.let { message ->
     AlertDialog(
       onDismissRequest = updateViewModel::dismiss,
-      title = { Text("检查更新") },
-      text = { Text(message) },
+      icon = { Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+      title = { Text("暂时无法检查更新") },
+      text = { Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant) },
       confirmButton = { Button(onClick = updateViewModel::dismiss) { Text("关闭") } },
     )
   }
@@ -105,14 +111,21 @@ fun QiankunjieApp(
     val mandatory = AndroidReleaseUpdatePolicy.isMandatory(com.idickies.storing.BuildConfig.VERSION_CODE, release)
     AlertDialog(
       onDismissRequest = { if (!mandatory && !updateState.downloading) updateViewModel.dismiss() },
-      title = { Text(if (mandatory) "需要更新乾坤戒" else "发现新版本 ${release.versionName}") },
+      icon = { Icon(Icons.Outlined.Sync, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+      title = { Text(if (mandatory) "需要更新乾坤戒" else "发现新版本") },
       text = {
-        Column {
-          Text(release.releaseNotes.ifEmpty { listOf("此版本包含体验改进。") }.joinToString("\n"))
-          updateState.error?.let { Text(it, modifier = Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.error) }
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(16.dp)) {
+            Column(Modifier.padding(14.dp)) {
+              Text("乾坤戒 ${release.versionName}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+              Text(if (mandatory) "此版本需要安装后才能继续使用。" else "新版本已经准备好，可随时下载并安装。", color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+            }
+          }
+          Text(release.releaseNotes.ifEmpty { listOf("此版本包含体验改进。") }.joinToString("\n"), color = MaterialTheme.colorScheme.onSurfaceVariant)
+          updateState.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
         }
       },
-      confirmButton = { Button(onClick = updateViewModel::download, enabled = !updateState.downloading) { Text(if (updateState.downloading) "下载并校验中…" else "下载更新") } },
+      confirmButton = { Button(onClick = updateViewModel::download, enabled = !updateState.downloading) { Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(7.dp)); Text(if (updateState.downloading) "下载并校验中…" else "下载更新") } },
       dismissButton = if (!mandatory) {
         {
           Row {
