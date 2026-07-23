@@ -34,6 +34,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -46,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.idickies.storing.collect.CollectJobsViewModel
 import com.idickies.storing.collect.ShareCollectViewModel
 import com.idickies.storing.library.ArticleCard
 import com.idickies.storing.library.ArticleDetail
@@ -64,6 +66,7 @@ fun LibraryScreen(
 ) {
   val state by libraryViewModel.state.collectAsState()
   val collectState by collectViewModel.state.collectAsState()
+  var showTasks by remember { mutableStateOf(false) }
   LaunchedEffect(sharedText) {
     if (sharedText != null) {
       collectViewModel.receiveSharedText(sharedText)
@@ -87,7 +90,10 @@ fun LibraryScreen(
       topBar = {
         TopAppBar(
           title = { Text(if (state.searchQuery.isBlank()) state.view.label else "搜索") },
-          actions = { IconButton(onClick = onLogout) { Text("退出") } },
+          actions = {
+            IconButton(onClick = { showTasks = true }) { Text("任务") }
+            IconButton(onClick = onLogout) { Text("退出") }
+          },
         )
       },
       bottomBar = {
@@ -118,6 +124,45 @@ fun LibraryScreen(
       )
     }
   }
+
+  if (showTasks) CollectJobsDialog(
+    onDismiss = { showTasks = false },
+    onOpenArticle = { id -> showTasks = false; libraryViewModel.open(id) },
+  )
+}
+
+@Composable
+private fun CollectJobsDialog(
+  onDismiss: () -> Unit,
+  onOpenArticle: (Int) -> Unit,
+  viewModel: CollectJobsViewModel = hiltViewModel(),
+) {
+  val state by viewModel.state.collectAsState()
+  LaunchedEffect(Unit) { viewModel.start() }
+  DisposableEffect(Unit) { onDispose { viewModel.stop() } }
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text("采集任务") },
+    text = {
+      if (state.loading) FullPageLoading("正在加载任务…")
+      else LazyColumn(modifier = Modifier.height(360.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (state.jobs.isEmpty()) item { Text("还没有来自 Android 的采集任务。") }
+        items(state.jobs, key = { it.id }) { job ->
+          Card { Column(Modifier.padding(12.dp)) {
+            Text(job.title ?: job.normalizedUrl, style = MaterialTheme.typography.titleSmall, maxLines = 2)
+            Text("${job.status} · ${job.stage}", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+            job.errorSummary?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp)) }
+            Row(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+              if (job.status == "failed") Button(onClick = { viewModel.retry(job.id) }) { Text("重试") }
+              if (job.articleId != null) Button(onClick = { onOpenArticle(job.articleId) }) { Text("打开文章") }
+            }
+          } }
+        }
+      }
+    },
+    confirmButton = { Button(onClick = { viewModel.clearFinished() }) { Text("清理已完成") } },
+    dismissButton = { Button(onClick = onDismiss) { Text("关闭") } },
+  )
 }
 
 @Composable

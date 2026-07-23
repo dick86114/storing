@@ -1,3 +1,7 @@
+import com.android.build.gradle.internal.api.BaseVariantOutputImpl
+
+val appVersionName = "0.2.0"
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.android)
@@ -15,8 +19,8 @@ android {
     applicationId = "com.idickies.storing"
     minSdk = 31
     targetSdk = 36
-    versionCode = 1
-    versionName = "0.1.0"
+    versionCode = 2
+    versionName = appVersionName
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     buildConfigField("String", "API_BASE_URL", "\"https://storing.idickies.com/api/v1/\"")
@@ -84,4 +88,12 @@ dependencies {
   androidTestImplementation(platform(libs.compose.bom))
   androidTestImplementation(libs.compose.ui.test.junit4)
   debugImplementation(libs.compose.ui.tooling)
+}
+
+
+@Suppress("DEPRECATION")
+android.applicationVariants.all {
+  outputs.all {
+    (this as BaseVariantOutputImpl).outputFileName = "乾坤戒-v$appVersionName-$name.apk"
+  }
 }
