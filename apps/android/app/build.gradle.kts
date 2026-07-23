@@ -40,6 +40,8 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     buildConfigField("String", "API_BASE_URL", "\"https://storing.idickies.com/api/v1/\"")
+    // All build types must define this field; Debug overrides it below.
+    buildConfigField("boolean", "ENABLE_NETWORK_LOGGING", "false")
   }
 
   signingConfigs {
@@ -127,7 +129,7 @@ android.applicationVariants.all {
 }
 
 
-tasks.matching { it.name.startsWith("packageRelease") }.configureEach {
+tasks.matching { it.name == "packageRelease" }.configureEach {
   doFirst {
     check(hasReleaseSigning) {
       "正式 APK 需要 QIANKUNJIE_RELEASE_STORE_FILE、QIANKUNJIE_RELEASE_STORE_PASSWORD、QIANKUNJIE_RELEASE_KEY_ALIAS、QIANKUNJIE_RELEASE_KEY_PASSWORD"
