@@ -18,6 +18,8 @@ services:
       # 运行时配置
       - NODE_ENV=production
       - APP_ORIGIN=${APP_ORIGIN:-https://storing.idickies.com}
+      # Android 更新清单：优先读取 GitHub 最新 Release 的 latest.json，挂载文件仍可作为回退。
+      - ANDROID_RELEASE_MANIFEST_URL=${ANDROID_RELEASE_MANIFEST_URL:-https://github.com/dick86114/storing/releases/download/android-latest/latest.json}
       # 网页采集：优先调用 SingleFile sidecar，失败时 API 会按配置尝试本地兜底
       - SINGLEFILE_SERVICE_URL=${SINGLEFILE_SERVICE_URL:-http://singlefile:3000}
       - SINGLEFILE_TIMEOUT_MS=${SINGLEFILE_TIMEOUT_MS:-180000}
