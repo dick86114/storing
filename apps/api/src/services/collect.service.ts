@@ -38,18 +38,20 @@ const COLLECT_TABLE_SQL = `
 
 type CollectJobStatus = 'pending' | 'running' | 'completed' | 'failed';
 type CollectMethod = 'reader' | 'singlefile';
+type CollectRequestSource = 'web' | 'android' | 'android_share' | 'mcp' | 'api' | 'system';
+const FIRST_PARTY_COLLECT_SOURCES: CollectRequestSource[] = ['web', 'android', 'android_share'];
 
 type CreateCollectJobOptions = {
   userId?: number | null;
   clientId?: number | null;
-  requestSource?: 'web' | 'mcp' | 'api' | 'system';
+  requestSource?: CollectRequestSource;
   saveToInbox?: boolean;
 };
 
 type CollectJobAccessFilter = {
   userId?: number;
   clientId?: number;
-  requestSource?: 'web' | 'mcp' | 'api' | 'system';
+  requestSource?: CollectRequestSource | CollectRequestSource[];
 };
 
 // Browser captures can launch Chromium, image processing, and AI work.
@@ -690,7 +692,7 @@ export async function initCollectSchema() {
 function canAccessCollectJob(job: typeof collectJobs.$inferSelect, filter: CollectJobAccessFilter = {}) {
   if (filter.userId !== undefined && job.userId !== filter.userId) return false;
   if (filter.clientId !== undefined && job.clientId !== filter.clientId) return false;
-  if (filter.requestSource !== undefined && job.requestSource !== filter.requestSource) return false;
+  if (filter.requestSource !== undefined && !(Array.isArray(filter.requestSource) ? filter.requestSource : [filter.requestSource]).includes(job.requestSource as CollectRequestSource)) return false;
   return true;
 }
 
@@ -698,7 +700,10 @@ function buildCollectJobWhere(filter: CollectJobAccessFilter = {}) {
   const conditions = [];
   if (filter.userId !== undefined) conditions.push(eq(collectJobs.userId, filter.userId));
   if (filter.clientId !== undefined) conditions.push(eq(collectJobs.clientId, filter.clientId));
-  if (filter.requestSource !== undefined) conditions.push(eq(collectJobs.requestSource, filter.requestSource));
+  if (filter.requestSource !== undefined) {
+    const sources = Array.isArray(filter.requestSource) ? filter.requestSource : [filter.requestSource];
+    conditions.push(sources.length === 1 ? eq(collectJobs.requestSource, sources[0]) : inArray(collectJobs.requestSource, sources));
+  }
   if (conditions.length === 0) return undefined;
   return conditions.length === 1 ? conditions[0] : and(...conditions);
 }
@@ -709,13 +714,13 @@ export async function createCollectJob(rawUrl: string, options: CreateCollectJob
 
   const method: CollectMethod = isWechatUrl(normalizedUrl) ? 'reader' : 'singlefile';
   const requestSource = options.requestSource ?? 'web';
-  if (requestSource === 'web' && options.userId !== undefined && options.userId !== null) {
+  if (requestSource !== 'mcp' && options.userId !== undefined && options.userId !== null) {
     const [{ activeJobs }] = await db
       .select({ activeJobs: sql<number>`count(*)::int` })
       .from(collectJobs)
       .where(and(
         eq(collectJobs.userId, options.userId),
-        eq(collectJobs.requestSource, 'web'),
+        inArray(collectJobs.requestSource, FIRST_PARTY_COLLECT_SOURCES),
         inArray(collectJobs.status, ['pending', 'running']),
       ));
     if (activeJobs >= MAX_ACTIVE_WEB_COLLECT_JOBS_PER_USER) {
@@ -738,7 +743,7 @@ export async function createCollectJob(rawUrl: string, options: CreateCollectJob
     })
     .returning();
 
-  if (requestSource === 'web') {
+  if (FIRST_PARTY_COLLECT_SOURCES.includes(requestSource)) {
     scheduleWebCollectJobs();
   } else if (requestSource === 'mcp') {
     scheduleMcpCollectJobs();
@@ -752,7 +757,7 @@ async function runNextWebCollectJob() {
   const [job] = await db
     .select()
     .from(collectJobs)
-    .where(and(eq(collectJobs.requestSource, 'web'), eq(collectJobs.status, 'pending')))
+    .where(and(inArray(collectJobs.requestSource, ['web', 'android', 'android_share']), eq(collectJobs.status, 'pending')))
     .orderBy(asc(collectJobs.createdAt), asc(collectJobs.id))
     .limit(1);
 
@@ -808,7 +813,7 @@ export async function resumePendingCollectJobs() {
     .update(collectJobs)
     .set({ status: 'pending', stage: 'queued', startedAt: null, updatedAt: new Date() })
     .where(and(
-      inArray(collectJobs.requestSource, ['web', 'mcp']),
+      inArray(collectJobs.requestSource, ['web', 'android', 'android_share', 'mcp']),
       eq(collectJobs.status, 'running'),
     ));
   scheduleWebCollectJobs();
@@ -822,7 +827,7 @@ export async function retryCollectJob(jobId: number) {
     .where(eq(collectJobs.id, jobId))
     .returning();
 
-  if (job?.requestSource === 'web') {
+  if (job?.requestSource !== 'mcp') {
     scheduleWebCollectJobs();
   } else if (job?.requestSource === 'mcp') {
     scheduleMcpCollectJobs();
