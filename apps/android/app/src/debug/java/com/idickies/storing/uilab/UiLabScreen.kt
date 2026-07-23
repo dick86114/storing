@@ -11,20 +11,33 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.AddLink
 import androidx.compose.material.icons.outlined.Archive
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.IosShare
+import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.Replay
+import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -38,8 +51,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.idickies.storing.ui.components.QiankunjieArticleCard
 
@@ -139,33 +154,127 @@ private fun UiLabReader() {
 
 @Composable
 private fun UiLabShare() {
-  LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-    item { Text("从其他应用采集", style = MaterialTheme.typography.headlineSmall) }
-    item { Text("用于评审单链接、多链接和错误状态；所有内容都是固定夹具。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-    items(listOf("https://example.com/long-form-article", "https://example.org/another-reading")) { url ->
-      Card(modifier = Modifier.fillMaxWidth().clickable { }) { Column(Modifier.padding(16.dp)) { Text("example.com", color = MaterialTheme.colorScheme.primary); Text(url, modifier = Modifier.padding(top = 6.dp)) } }
+  LazyColumn(
+    modifier = Modifier.fillMaxSize(),
+    contentPadding = PaddingValues(horizontal = 22.dp, vertical = 20.dp),
+    verticalArrangement = Arrangement.spacedBy(16.dp),
+  ) {
+    item {
+      Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(18.dp), modifier = Modifier.height(56.dp)) {
+          Box(modifier = Modifier.padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
+            Icon(Icons.Outlined.AddLink, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+          }
+        }
+        Column {
+          Text("从其他应用采集", style = MaterialTheme.typography.headlineSmall)
+          Text("网页会保存到你的收件箱", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+        }
+      }
     }
-    item { Card { Text("无有效 URL：未识别到可采集的网页链接", modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) } }
+    item { Text("发现 2 个网页链接", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
+    items(listOf("https://example.com/long-form-article", "https://example.org/another-reading")) { url ->
+      val selected = url.contains("example.com")
+      Card(
+        modifier = Modifier.fillMaxWidth().clickable { },
+        colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh),
+      ) {
+        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+          Surface(color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, shape = CircleShape, modifier = Modifier.height(38.dp)) {
+            Box(modifier = Modifier.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
+              Icon(if (selected) Icons.Outlined.CheckCircle else Icons.Outlined.Link, contentDescription = null, tint = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.height(20.dp))
+            }
+          }
+          Column {
+            Text(if (url.contains("example.com")) "example.com" else "example.org", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+            Text(url, modifier = Modifier.padding(top = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+          }
+        }
+      }
+    }
+    item {
+      Button(onClick = {}, modifier = Modifier.fillMaxWidth()) {
+        Icon(Icons.Outlined.AddLink, contentDescription = null, modifier = Modifier.height(18.dp))
+        Text("  一键采集")
+      }
+    }
+    item { Text("仅支持公开的 HTTP / HTTPS 网页链接", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+    item { Text("异常状态示例", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.error) }
+    item {
+      Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+        Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+          Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+          Text("未识别到可采集的网页链接", color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodyMedium)
+        }
+      }
+    }
   }
 }
 
 @Composable
 private fun UiLabTasks() {
-  LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-    item { Text("采集任务", style = MaterialTheme.typography.headlineSmall) }
-    item { UiLabTaskCard("正在抓取：一篇较长的网页文章标题", "running · capture", null) }
-    item { UiLabTaskCard("已完成：知识管理的长期价值", "completed · done", null) }
-    item { UiLabTaskCard("采集失败：页面暂时无法访问", "failed · capture", "可在此验证失败原因、重试按钮和后台说明入口。") }
+  LazyColumn(
+    modifier = Modifier.fillMaxSize(),
+    contentPadding = PaddingValues(horizontal = 22.dp, vertical = 20.dp),
+    verticalArrangement = Arrangement.spacedBy(14.dp),
+  ) {
+    item {
+      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Column {
+          Text("采集任务", style = MaterialTheme.typography.headlineSmall)
+          Text("可在后台继续跟踪采集结果", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+        }
+        AssistChip(onClick = {}, label = { Text("1 进行中") }, leadingIcon = { Icon(Icons.Outlined.Sync, contentDescription = null, modifier = Modifier.height(16.dp)) })
+      }
+    }
+    item { UiLabTaskCard("正在抓取：一篇较长的网页文章标题", "example.com/long-form", "正在采集", "正在抓取内容", UiLabTaskTone.Progress, null) }
+    item { UiLabTaskCard("已完成：知识管理的长期价值", "notebook.example/article", "已保存到收件箱", "已完成", UiLabTaskTone.Success, "打开文章") }
+    item { UiLabTaskCard("采集失败：页面暂时无法访问", "archive.example/unavailable", "采集失败", "抓取失败", UiLabTaskTone.Error, "重新采集") }
   }
 }
 
+private enum class UiLabTaskTone { Progress, Success, Error }
+
+private data class UiLabTaskVisual(
+  val icon: ImageVector,
+  val containerColor: Color,
+  val iconContainerColor: Color,
+  val iconColor: Color,
+)
+
 @Composable
-private fun UiLabTaskCard(title: String, status: String, error: String?) {
-  Card(modifier = Modifier.fillMaxWidth()) {
-    Column(Modifier.padding(16.dp)) {
-      Text(title, style = MaterialTheme.typography.titleMedium)
-      Text(status, modifier = Modifier.padding(top = 6.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-      error?.let { Text(it, modifier = Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.error) }
+private fun UiLabTaskCard(title: String, url: String, status: String, stage: String, tone: UiLabTaskTone, action: String?) {
+  val visual = when (tone) {
+    UiLabTaskTone.Progress -> UiLabTaskVisual(Icons.Outlined.Sync, MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
+    UiLabTaskTone.Success -> UiLabTaskVisual(Icons.Outlined.CheckCircle, MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.onSecondary)
+    UiLabTaskTone.Error -> UiLabTaskVisual(Icons.Outlined.ErrorOutline, MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.error, MaterialTheme.colorScheme.onError)
+  }
+  Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = visual.containerColor)) {
+    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+        Surface(color = visual.iconContainerColor, shape = CircleShape, modifier = Modifier.size(42.dp)) {
+          Box(contentAlignment = Alignment.Center) {
+            Icon(visual.icon, contentDescription = null, tint = visual.iconColor, modifier = Modifier.size(22.dp))
+          }
+        }
+        Column {
+          Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+          Text(url, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+      }
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        AssistChip(onClick = {}, label = { Text(status) }, leadingIcon = { Icon(visual.icon, contentDescription = null, modifier = Modifier.size(16.dp)) })
+        Text(stage, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+      if (tone == UiLabTaskTone.Error) {
+        Text("页面暂时无法访问，可稍后重试。", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+      }
+      action?.let { label ->
+        TextButton(onClick = {}) {
+          Icon(if (label == "重新采集") Icons.Outlined.Replay else Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+          Text("  $label")
+        }
+      }
     }
   }
 }
