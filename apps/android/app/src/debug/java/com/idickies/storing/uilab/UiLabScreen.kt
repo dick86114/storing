@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.AddLink
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -72,7 +73,7 @@ internal fun UiLabScreen(
     topBar = {
       TopAppBar(
         title = { Text("乾坤戒 UI Lab") },
-        navigationIcon = { TextButton(onClick = onClose) { Text("关闭") } },
+        navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Outlined.Close, contentDescription = "关闭 UI Lab") } },
         actions = { Text(scenario.route, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(end = 16.dp)) },
       )
     },

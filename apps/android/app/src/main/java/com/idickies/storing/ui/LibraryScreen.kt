@@ -309,6 +309,7 @@ private fun ManualCollectDialog(
             }) { Icon(Icons.Outlined.ContentPaste, contentDescription = "从剪贴板粘贴") }
           },
           modifier = Modifier.fillMaxWidth(),
+          shape = MaterialTheme.shapes.medium,
           singleLine = true,
         )
         state.message?.let { message ->
@@ -541,6 +542,7 @@ private fun LibraryList(
         onValueChange = { query = it; onSearch(it) },
         modifier = Modifier.fillMaxWidth(),
         label = { Text("搜索标题、来源、摘要或标签") },
+        shape = MaterialTheme.shapes.medium,
         singleLine = true,
       )
     }

@@ -89,12 +89,12 @@ fun QiankunjieArticleCard(
 
 @Composable
 private fun ArticleVisual(article: ArticleCard) {
-  val shape = RoundedCornerShape(18.dp)
+  val shape = MaterialTheme.shapes.medium
   val imageUrl = article.coverImage?.takeIf { it.isNotBlank() }
   Box(
     modifier = Modifier
-      .width(96.dp)
-      .height(120.dp)
+      .width(122.dp)
+      .height(82.dp)
       .clip(shape),
     contentAlignment = Alignment.Center,
   ) {
