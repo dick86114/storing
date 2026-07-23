@@ -56,3 +56,6 @@ apps/android/local.properties
 # Self-hosted Android update artifacts (kept on the production host, never committed)
 /releases/android/*.apk
 /releases/android/latest.json
+
+# Local Android UI Lab screenshots and Emulator artifacts
+/artifacts/android-ui-lab/
