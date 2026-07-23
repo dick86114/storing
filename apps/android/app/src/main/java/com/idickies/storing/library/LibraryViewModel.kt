@@ -17,6 +17,7 @@ private const val SEARCH_DEBOUNCE_MILLIS = 350L
 private data class LibraryRequest(
   val view: LibraryView,
   val query: String,
+  val sort: LibrarySort,
 )
 
 data class LibraryUiState(
@@ -30,6 +31,7 @@ data class LibraryUiState(
   val loadMoreError: String? = null,
   val fromCache: Boolean = false,
   val searchQuery: String = "",
+  val sort: LibrarySort = LibrarySort.defaultFor(LibraryView.Inbox),
   val page: Int = 1,
   val totalPages: Int = 0,
   val detail: ArticleDetail? = null,
@@ -59,6 +61,7 @@ class LibraryViewModel @Inject constructor(
       it.copy(
         view = view,
         searchQuery = "",
+        sort = LibrarySort.defaultFor(view),
         articles = emptyList(),
         page = 1,
         totalPages = 0,
@@ -73,6 +76,22 @@ class LibraryViewModel @Inject constructor(
   fun refresh() {
     searchDebounceJob?.cancel()
     loadInitial(refreshing = true)
+  }
+
+  fun selectSort(sort: LibrarySort) {
+    val snapshot = mutableState.value
+    if (snapshot.searchQuery.isNotBlank() || sort !in LibrarySort.availableFor(snapshot.view) || sort == snapshot.sort) return
+    mutableState.update {
+      it.copy(
+        sort = sort,
+        articles = emptyList(),
+        page = 1,
+        totalPages = 0,
+        fromCache = false,
+        loadMoreError = null,
+      )
+    }
+    loadInitial()
   }
 
   fun search(query: String) {
@@ -106,7 +125,7 @@ class LibraryViewModel @Inject constructor(
     val snapshot = mutableState.value
     if (snapshot.loading || snapshot.refreshing || snapshot.loadingMore || snapshot.fromCache || !snapshot.hasMore) return
 
-    val request = LibraryRequest(snapshot.view, snapshot.searchQuery)
+    val request = LibraryRequest(snapshot.view, snapshot.searchQuery, snapshot.sort)
     val nextPage = snapshot.page + 1
     mutableState.update { it.copy(loadingMore = true, loadMoreError = null) }
     loadMoreJob = viewModelScope.launch {
@@ -136,7 +155,7 @@ class LibraryViewModel @Inject constructor(
   private fun loadInitial(refreshing: Boolean = false) {
     listLoadJob?.cancel()
     loadMoreJob?.cancel()
-    val request = LibraryRequest(mutableState.value.view, mutableState.value.searchQuery)
+    val request = LibraryRequest(mutableState.value.view, mutableState.value.searchQuery, mutableState.value.sort)
     listLoadJob = viewModelScope.launch {
       mutableState.update {
         it.copy(
@@ -178,11 +197,13 @@ class LibraryViewModel @Inject constructor(
   }
 
   private suspend fun loadPage(request: LibraryRequest, page: Int): ArticleListLoad =
-    if (request.query.isBlank()) repository.list(request.view, page)
+    if (request.query.isBlank()) repository.list(request.view, page, request.sort)
     else ArticleListLoad(repository.search(request.query, page), fromCache = false)
 
   private fun matches(request: LibraryRequest): Boolean =
-    mutableState.value.view == request.view && mutableState.value.searchQuery == request.query
+    mutableState.value.view == request.view &&
+      mutableState.value.searchQuery == request.query &&
+      mutableState.value.sort == request.sort
 
   fun open(id: Int) {
     viewModelScope.launch {
