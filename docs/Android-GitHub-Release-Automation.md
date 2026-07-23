@@ -84,7 +84,7 @@ docker compose up -d --build
 成功后 GitHub 会创建标签，例如 `android-v0.7.0`，并创建对应的版本 Release，包含：
 
 ```text
-qiankunjie-v0.7.0.apk
+Qiankunjie-v0.7.0-universal-release.apk
 latest.json
 ```
 
@@ -97,6 +97,8 @@ https://github.com/dick86114/storing/releases/download/android-latest/latest.jso
 因此即使仓库未来存在非 Android 的 GitHub Release，也不会错误影响 App 的更新通道。
 
 App 只在正式 Release 包中每日最多检查一次；Debug 包不会提示 GitHub 更新，以免尝试用正式包覆盖 `com.idickies.storing.debug`。
+
+GitHub Release 资产使用 `Qiankunjie-v<版本>-universal-release.apk` 命名：`universal` 表示该 APK 未做 ABI 拆分，可供支持该 App 的 ARM 设备及兼容设备直接安装；这比在文件名中错误标注单一芯片架构更准确。
 
 ## 回滚
 

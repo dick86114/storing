@@ -17,4 +17,6 @@ data class AndroidRelease(
 object AndroidReleaseUpdatePolicy {
   fun shouldPrompt(currentVersionCode: Int, release: AndroidRelease) = release.versionCode > currentVersionCode
   fun isMandatory(currentVersionCode: Int, release: AndroidRelease) = release.mandatory || currentVersionCode < release.minimumSupportedVersionCode
+  fun canIgnore(currentVersionCode: Int, release: AndroidRelease) =
+    shouldPrompt(currentVersionCode, release) && !isMandatory(currentVersionCode, release)
 }

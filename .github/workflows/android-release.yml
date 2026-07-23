@@ -116,13 +116,13 @@ jobs:
         run: |
           TAG="android-v${VERSION_NAME}"
           SOURCE_APK="apps/android/app/build/outputs/apk/release/乾坤戒-v${VERSION_NAME}-release.apk"
-          RELEASE_APK="$RUNNER_TEMP/qiankunjie-v${VERSION_NAME}.apk"
+          RELEASE_APK="$RUNNER_TEMP/Qiankunjie-v${VERSION_NAME}-universal-release.apk"
           MANIFEST="$RUNNER_TEMP/latest.json"
           test -f "$SOURCE_APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$SOURCE_APK"
           cp "$SOURCE_APK" "$RELEASE_APK"
           APK_SHA256="$(sha256sum "$RELEASE_APK" | awk '{print $1}')"
-          APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/qiankunjie-v${VERSION_NAME}.apk"
+          APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/Qiankunjie-v${VERSION_NAME}-universal-release.apk"
           export VERSION_NAME VERSION_CODE MINIMUM_SUPPORTED_VERSION_CODE MANDATORY RELEASE_NOTES APK_SHA256 APK_URL MANIFEST
           python3 - <<'PYTHON'
           import json
@@ -188,7 +188,7 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: qiankunjie-v${{ inputs.version_name }}
+          name: Qiankunjie-v${{ inputs.version_name }}-universal-release
           path: |
             ${{ steps.assets.outputs.apk }}
             ${{ steps.assets.outputs.manifest }}

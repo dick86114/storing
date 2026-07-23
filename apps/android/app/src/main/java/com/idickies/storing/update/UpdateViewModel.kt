@@ -26,6 +26,12 @@ class UpdateViewModel @Inject constructor(
 
   fun dismiss() { mutableState.value = UpdateUiState() }
 
+  fun ignore() {
+    val release = mutableState.value.release ?: return
+    repository.ignore(release)
+    mutableState.value = UpdateUiState()
+  }
+
   fun download() {
     val release = mutableState.value.release ?: return
     viewModelScope.launch {
