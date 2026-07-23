@@ -24,20 +24,29 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddLink
 import androidx.compose.material.icons.outlined.Archive
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.ContentPaste
+import androidx.compose.material.icons.outlined.DeleteSweep
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.IosShare
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.MoveToInbox
+import androidx.compose.material.icons.outlined.Replay
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
@@ -69,10 +78,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -81,6 +92,7 @@ import com.idickies.storing.collect.CollectJobsViewModel
 import com.idickies.storing.collect.ShareCollectViewModel
 import com.idickies.storing.library.ArticleCard
 import com.idickies.storing.library.ArticleDetail
+import com.idickies.storing.network.MobileCollectJob
 import com.idickies.storing.library.LibraryView
 import com.idickies.storing.library.LibraryViewModel
 import com.idickies.storing.reader.ReaderDocument
@@ -264,28 +276,48 @@ private fun ManualCollectDialog(
   val state by viewModel.state.collectAsState()
   val context = LocalContext.current
   var url by rememberSaveable { mutableStateOf("") }
+  val messageColor = if (state.submissionAccepted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
   AlertDialog(
     onDismissRequest = onDismiss,
-    title = { Text("采集链接") },
-    text = { Column {
-      OutlinedTextField(
-        value = url,
-        onValueChange = { url = it },
-        label = { Text("网页链接") },
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true,
-      )
-      Button(
-        onClick = {
-          val clipboard = context.getSystemService(ClipboardManager::class.java)
-          url = clipboard?.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
-        },
-        modifier = Modifier.padding(top = 8.dp),
-      ) { Text("从剪贴板粘贴") }
-      state.message?.let { Text(it, modifier = Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
-    } },
-    confirmButton = { Button(onClick = { viewModel.submitManual(url) }, enabled = !state.submitting) { Text(if (state.submitting) "提交中…" else "一键采集") } },
-    dismissButton = { Button(onClick = onDismiss) { Text("关闭") } },
+    icon = { Icon(Icons.Outlined.Link, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+    title = { Text("采集网页链接") },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("粘贴公开的 HTTP 或 HTTPS 网页，乾坤戒会将它保存到收件箱。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(
+          value = url,
+          onValueChange = { url = it },
+          label = { Text("网页链接") },
+          leadingIcon = { Icon(Icons.Outlined.Link, contentDescription = null) },
+          trailingIcon = {
+            IconButton(onClick = {
+              val clipboard = context.getSystemService(ClipboardManager::class.java)
+              url = clipboard?.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
+            }) { Icon(Icons.Outlined.ContentPaste, contentDescription = "从剪贴板粘贴") }
+          },
+          modifier = Modifier.fillMaxWidth(),
+          singleLine = true,
+        )
+        state.message?.let { message ->
+          Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(
+              if (state.submissionAccepted) Icons.Outlined.CheckCircle else Icons.Outlined.ErrorOutline,
+              contentDescription = null,
+              tint = messageColor,
+            )
+            Text(message, color = messageColor, style = MaterialTheme.typography.bodyMedium)
+          }
+        }
+      }
+    },
+    confirmButton = {
+      Button(onClick = { viewModel.submitManual(url) }, enabled = !state.submitting) {
+        Icon(Icons.Outlined.AddLink, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.size(8.dp))
+        Text(if (state.submitting) "正在提交…" else "一键采集")
+      }
+    },
+    dismissButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
   )
 }
 
@@ -299,27 +331,148 @@ private fun CollectJobsDialog(
   val state by viewModel.state.collectAsState()
   AlertDialog(
     onDismissRequest = onDismiss,
-    title = { Text("采集任务") },
+    icon = { Icon(Icons.Outlined.Sync, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+    title = {
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("采集任务")
+        if (state.activeJobCount > 0) AssistChip(onClick = {}, label = { Text("${state.activeJobCount} 进行中") })
+      }
+    },
     text = {
-      if (state.loading) FullPageLoading("正在加载任务…")
-      else LazyColumn(modifier = Modifier.height(360.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (state.jobs.isEmpty()) item { Text("还没有来自 Android 的采集任务。") }
-        items(state.jobs, key = { it.id }) { job ->
-          Card { Column(Modifier.padding(12.dp)) {
-            Text(job.title ?: job.normalizedUrl, style = MaterialTheme.typography.titleSmall, maxLines = 2)
-            Text("${job.status} · ${job.stage}", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
-            job.errorSummary?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp)) }
-            Row(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-              if (job.status == "failed") Button(onClick = { viewModel.retry(job.id) }) { Text("重试") }
-              if (job.articleId != null) Button(onClick = { onOpenArticle(job.articleId) }) { Text("打开文章") }
-            }
-          } }
+      when {
+        state.loading -> FullPageLoading("正在加载任务…")
+        state.error != null && state.jobs.isEmpty() -> state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        state.jobs.isEmpty() -> EmptyCollectJobs()
+        else -> LazyColumn(modifier = Modifier.height(340.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          items(state.jobs, key = { it.id }) { job ->
+            CollectJobCard(job = job, onRetry = { viewModel.retry(job.id) }, onOpenArticle = { job.articleId?.let(onOpenArticle) })
+          }
         }
       }
     },
-    confirmButton = { Button(onClick = { viewModel.clearFinished() }) { Text("清理已完成") } },
-    dismissButton = { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { TextButton(onClick = onOpenBatteryGuidance) { Text("后台说明") }; Button(onClick = onDismiss) { Text("关闭") } } },
+    confirmButton = {
+      TextButton(onClick = { viewModel.clearFinished() }, enabled = state.jobs.any { it.isTerminal }) {
+        Icon(Icons.Outlined.DeleteSweep, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.size(6.dp))
+        Text("清理已完成")
+      }
+    },
+    dismissButton = {
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(onClick = onOpenBatteryGuidance) { Text("后台说明") }
+        Button(onClick = onDismiss) { Text("关闭") }
+      }
+    },
   )
+}
+
+@Composable
+private fun EmptyCollectJobs() {
+  Column(
+    modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    Icon(Icons.Outlined.TaskAlt, contentDescription = null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
+    Text("还没有来自 Android 的采集任务", style = MaterialTheme.typography.titleSmall)
+    Text("从浏览器或其他应用分享网页后，进度会显示在这里。", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+  }
+}
+
+@Composable
+private fun CollectJobCard(
+  job: MobileCollectJob,
+  onRetry: () -> Unit,
+  onOpenArticle: () -> Unit,
+) {
+  val status = collectJobStatusPresentation(job.status)
+  Card(
+    modifier = Modifier.fillMaxWidth(),
+    colors = CardDefaults.cardColors(containerColor = status.containerColor()),
+  ) {
+    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+        Surface(color = status.iconContainerColor(), shape = androidx.compose.foundation.shape.CircleShape, modifier = Modifier.size(42.dp)) {
+          Box(contentAlignment = Alignment.Center) {
+            Icon(status.icon, contentDescription = null, tint = status.iconColor(), modifier = Modifier.size(22.dp))
+          }
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+          Text(job.title ?: job.normalizedUrl, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+          Text(job.normalizedUrl, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+      }
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        AssistChip(onClick = {}, label = { Text(status.label) }, leadingIcon = { Icon(status.icon, contentDescription = null, modifier = Modifier.size(16.dp)) })
+        Text(collectStageLabel(job.stage), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+      job.errorSummary?.let { error ->
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Top) {
+          Icon(Icons.Outlined.ErrorOutline, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+          Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+      }
+      if (job.status == "failed" || job.articleId != null) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+          if (job.status == "failed") {
+            TextButton(onClick = onRetry) {
+              Icon(Icons.Outlined.Replay, contentDescription = null, modifier = Modifier.size(18.dp))
+              Spacer(Modifier.size(5.dp))
+              Text("重新采集")
+            }
+          }
+          if (job.articleId != null) {
+            TextButton(onClick = onOpenArticle) {
+              Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+              Spacer(Modifier.size(5.dp))
+              Text("打开文章")
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+private data class CollectJobStatusPresentation(
+  val label: String,
+  val icon: ImageVector,
+  val tone: CollectJobTone,
+) {
+  @Composable fun containerColor() = when (tone) {
+    CollectJobTone.Progress -> MaterialTheme.colorScheme.surfaceContainerHigh
+    CollectJobTone.Success -> MaterialTheme.colorScheme.secondaryContainer
+    CollectJobTone.Error -> MaterialTheme.colorScheme.errorContainer
+  }
+
+  @Composable fun iconContainerColor() = when (tone) {
+    CollectJobTone.Progress -> MaterialTheme.colorScheme.primaryContainer
+    CollectJobTone.Success -> MaterialTheme.colorScheme.secondary
+    CollectJobTone.Error -> MaterialTheme.colorScheme.error
+  }
+
+  @Composable fun iconColor() = when (tone) {
+    CollectJobTone.Progress -> MaterialTheme.colorScheme.onPrimaryContainer
+    CollectJobTone.Success -> MaterialTheme.colorScheme.onSecondary
+    CollectJobTone.Error -> MaterialTheme.colorScheme.onError
+  }
+}
+
+private enum class CollectJobTone { Progress, Success, Error }
+
+private fun collectJobStatusPresentation(status: String): CollectJobStatusPresentation = when (status) {
+  "completed" -> CollectJobStatusPresentation("已保存到收件箱", Icons.Outlined.CheckCircle, CollectJobTone.Success)
+  "failed" -> CollectJobStatusPresentation("采集失败", Icons.Outlined.ErrorOutline, CollectJobTone.Error)
+  else -> CollectJobStatusPresentation("正在采集", Icons.Outlined.Sync, CollectJobTone.Progress)
+}
+
+private fun collectStageLabel(stage: String): String = when (stage.lowercase()) {
+  "queued" -> "等待开始"
+  "capture", "capturing" -> "正在抓取内容"
+  "processing" -> "正在整理文章"
+  "summarizing", "summary" -> "正在生成摘要"
+  "completed", "done" -> "已完成"
+  else -> stage.ifBlank { "等待处理" }
 }
 
 @Composable
