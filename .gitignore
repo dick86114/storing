@@ -52,3 +52,7 @@ tmp/
 apps/android/.gradle/
 apps/android/**/build/
 apps/android/local.properties
+
+# Self-hosted Android update artifacts (kept on the production host, never committed)
+/releases/android/*.apk
+/releases/android/latest.json

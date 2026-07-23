@@ -17,7 +17,7 @@ services:
     environment:
       # 运行时配置
       - NODE_ENV=production
-      - APP_ORIGIN=${APP_ORIGIN:-https://storing.ali.idickies.com}
+      - APP_ORIGIN=${APP_ORIGIN:-https://storing.idickies.com}
       # 网页采集：优先调用 SingleFile sidecar，失败时 API 会按配置尝试本地兜底
       - SINGLEFILE_SERVICE_URL=${SINGLEFILE_SERVICE_URL:-http://singlefile:3000}
       - SINGLEFILE_TIMEOUT_MS=${SINGLEFILE_TIMEOUT_MS:-180000}
@@ -27,6 +27,8 @@ services:
     volumes:
       # 可选：持久化日志
       - ./logs:/app/logs
+      # Android 自托管更新清单；APK 由反向代理或静态服务提供
+      - ./releases:/app/releases:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:1052/api/v1/health"]
       interval: 30s
