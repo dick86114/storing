@@ -62,6 +62,7 @@ import com.idickies.storing.library.LibraryView
 import com.idickies.storing.library.LibraryViewModel
 import com.idickies.storing.reader.ReaderDocument
 import com.idickies.storing.settings.BatteryOptimizationGuidance
+import com.idickies.storing.ui.components.QiankunjieArticleCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,6 +73,8 @@ fun LibraryScreen(
   onArticleOpened: () -> Unit,
   openCollectJobs: Boolean,
   onCollectJobsOpened: () -> Unit,
+  onManualUpdateCheck: () -> Unit,
+  updateChecking: Boolean,
   onLogout: () -> Unit,
   libraryViewModel: LibraryViewModel = hiltViewModel(),
   collectViewModel: ShareCollectViewModel = hiltViewModel(),
@@ -84,6 +87,7 @@ fun LibraryScreen(
   var showTasks by remember { mutableStateOf(false) }
   var showManualCollect by remember { mutableStateOf(false) }
   var showBatteryGuidance by remember { mutableStateOf(false) }
+  var showActions by remember { mutableStateOf(false) }
   DisposableEffect(lifecycleOwner) {
     val observer = LifecycleEventObserver { _, event ->
       when (event) {
@@ -134,12 +138,16 @@ fun LibraryScreen(
     else -> Scaffold(
       topBar = {
         TopAppBar(
-          title = { Text(if (state.searchQuery.isBlank()) state.view.label else "搜索") },
+          title = {
+            Column {
+              Text("乾坤戒", style = MaterialTheme.typography.titleLarge)
+              Text(if (state.searchQuery.isBlank()) state.view.label else "搜索结果", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+          },
           actions = {
-            IconButton(onClick = libraryViewModel::refresh) { Text("刷新") }
             IconButton(onClick = { showManualCollect = true }) { Text("采集") }
             IconButton(onClick = { showTasks = true }) { Text(if (jobsState.activeJobCount > 0) "任务${jobsState.activeJobCount}" else "任务") }
-            IconButton(onClick = onLogout) { Text("退出") }
+            IconButton(onClick = { showActions = true }) { Text("更多") }
           },
         )
       },
@@ -182,7 +190,33 @@ fun LibraryScreen(
     viewModel = jobsViewModel,
   )
   if (showBatteryGuidance) BatteryOptimizationDialog(onDismiss = { showBatteryGuidance = false })
+  if (showActions) AppActionsDialog(
+    checkingUpdate = updateChecking,
+    onDismiss = { showActions = false },
+    onCheckUpdate = { onManualUpdateCheck(); showActions = false },
+    onLogout = { showActions = false; onLogout() },
+  )
   if (showManualCollect) ManualCollectDialog(onDismiss = { showManualCollect = false }, viewModel = collectViewModel)
+}
+
+@Composable
+private fun AppActionsDialog(
+  checkingUpdate: Boolean,
+  onDismiss: () -> Unit,
+  onCheckUpdate: () -> Unit,
+  onLogout: () -> Unit,
+) {
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text("更多操作") },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(onClick = onCheckUpdate, enabled = !checkingUpdate, modifier = Modifier.fillMaxWidth()) { Text(if (checkingUpdate) "正在检查更新…" else "手动检查更新") }
+        TextButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) { Text("退出当前设备") }
+      }
+    },
+    confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
+  )
 }
 
 @Composable
@@ -292,6 +326,12 @@ private fun LibraryList(
       verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
     item {
+      Column(modifier = Modifier.padding(top = 4.dp)) {
+        Text("把值得阅读的内容，留在自己的知识空间。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("${state.view.label} · ${state.articles.size} 篇", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 6.dp))
+      }
+    }
+    item {
       OutlinedTextField(
         value = query,
         onValueChange = { query = it; onSearch(it) },
@@ -322,7 +362,7 @@ private fun LibraryList(
     if (state.loading || state.refreshing || state.searchPending) item { FullPageLoading(if (state.searchPending) "正在准备搜索…" else "正在加载${state.view.label}…") }
     if (state.error != null) item { ErrorPage(state.error, onRefresh) }
     if (!state.loading && !state.searchPending && state.error == null && state.articles.isEmpty()) item { Text("这里还没有文章。你可以从其他应用分享链接到乾坤戒。", modifier = Modifier.padding(vertical = 48.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
-    items(state.articles, key = { it.id }) { article -> ArticleCardItem(article, onOpen) }
+    items(state.articles, key = { it.id }) { article -> QiankunjieArticleCard(article, onOpen) }
       if (state.articles.isNotEmpty() && !state.fromCache) item {
         Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
           when {
@@ -335,21 +375,6 @@ private fun LibraryList(
             else -> Text("已加载全部文章", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 12.dp))
           }
         }
-      }
-    }
-  }
-}
-
-@Composable
-private fun ArticleCardItem(article: ArticleCard, onOpen: (Int) -> Unit) {
-  Card(modifier = Modifier.fillMaxWidth().clickable { onOpen(article.id) }) {
-    Column(Modifier.padding(16.dp)) {
-      Text(article.displayTitle, style = MaterialTheme.typography.titleMedium)
-      listOfNotNull(article.source, article.author).takeIf { it.isNotEmpty() }?.let { Text(it.joinToString(" · "), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp)) }
-      article.aiSummary?.takeIf { it.isNotBlank() }?.let { Text(it, maxLines = 3, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp)) }
-      Row(Modifier.padding(top = 10.dp)) {
-        if (article.isFavorited) Text("收藏", color = MaterialTheme.colorScheme.primary)
-        if (article.isArchived) Text("归档", color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(start = 10.dp))
       }
     }
   }

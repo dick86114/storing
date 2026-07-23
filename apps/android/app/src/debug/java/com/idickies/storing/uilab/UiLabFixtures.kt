@@ -1,32 +1,12 @@
 package com.idickies.storing.uilab
 
-internal data class UiLabArticle(
-  val title: String,
-  val source: String,
-  val summary: String,
-  val labels: List<String> = emptyList(),
-)
+import com.idickies.storing.library.ArticleCard
 
 internal object UiLabFixtures {
   val library = listOf(
-    UiLabArticle(
-      title = "在信息洪流中建立一套真正可长期使用的个人知识系统",
-      source = "少数派 · 12 分钟阅读",
-      summary = "从采集、整理到再次发现，关键不在于收藏得更多，而是让内容在需要时重新出现。",
-      labels = listOf("知识管理", "长期主义"),
-    ),
-    UiLabArticle(
-      title = "为什么好的移动端阅读体验应该把注意力还给正文",
-      source = "Storing Design Notes",
-      summary = "真正的阅读器不该像网页缩小版，而应该在排版、留白和操作密度之间建立克制的平衡。",
-      labels = listOf("阅读", "产品设计"),
-    ),
-    UiLabArticle(
-      title = "来自系统分享的一条长标题示例，用于验证两行截断、卡片高度和标签换行表现",
-      source = "微信公众号",
-      summary = "这是固定的 UI Lab 演示数据，不包含真实账号、链接或采集正文。",
-      labels = listOf("分享采集"),
-    ),
+    ArticleCard(id = 1, title = "在信息洪流中建立一套真正可长期使用的个人知识系统", source = "少数派", author = "12 分钟阅读", aiSummary = "从采集、整理到再次发现，关键不在于收藏得更多，而是让内容在需要时重新出现。", aiTags = listOf("知识管理", "长期主义")),
+    ArticleCard(id = 2, title = "为什么好的移动端阅读体验应该把注意力还给正文", source = "Storing Design Notes", aiSummary = "真正的阅读器不该像网页缩小版，而应该在排版、留白和操作密度之间建立克制的平衡。", aiTags = listOf("阅读", "产品设计")),
+    ArticleCard(id = 3, title = "来自系统分享的一条长标题示例，用于验证两行截断、卡片高度和标签换行表现", source = "微信公众号", aiSummary = "这是固定的 UI Lab 演示数据，不包含真实账号、链接或采集正文。", aiTags = listOf("分享采集")),
   )
 
   const val readerTitle = "把真正重要的内容留下来：从稍后读到个人知识空间"

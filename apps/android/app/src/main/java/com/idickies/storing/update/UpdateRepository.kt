@@ -14,10 +14,14 @@ class UpdateRepository @Inject constructor(
 ) {
   private val preferences = context.getSharedPreferences("qiankunjie_update_check", Context.MODE_PRIVATE)
 
-  suspend fun checkOnLaunch(): AndroidRelease? {
+  suspend fun checkOnLaunch(): AndroidRelease? = check(force = false)
+
+  suspend fun checkNow(): AndroidRelease? = check(force = true)
+
+  private suspend fun check(force: Boolean): AndroidRelease? {
     if (BuildConfig.DEBUG) return null
     val now = System.currentTimeMillis()
-    if (now - preferences.getLong(KEY_LAST_CHECK, 0L) < DAILY_CHECK_INTERVAL_MS) return null
+    if (!UpdateCheckPolicy.shouldRequest(preferences.getLong(KEY_LAST_CHECK, 0L), now, force)) return null
     preferences.edit().putLong(KEY_LAST_CHECK, now).apply()
     val response = api.latest(BuildConfig.VERSION_CODE)
     val release = if (response.isSuccessful) response.body() else null
@@ -36,6 +40,5 @@ class UpdateRepository @Inject constructor(
   private companion object {
     const val KEY_LAST_CHECK = "last_check"
     const val KEY_IGNORED_VERSION_CODE = "ignored_version_code"
-    const val DAILY_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1_000L
   }
 }
