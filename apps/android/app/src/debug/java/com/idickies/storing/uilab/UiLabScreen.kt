@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.idickies.storing.ui.components.ActiveCollectJobsCard
+import com.idickies.storing.ui.components.ReaderActionBar
 import com.idickies.storing.ui.components.QiankunjieArticleCard
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -120,35 +121,54 @@ private fun UiLabLibrary() {
 
 @Composable
 private fun UiLabReader() {
-  LazyColumn(
-    modifier = Modifier.fillMaxSize(),
-    contentPadding = PaddingValues(horizontal = 22.dp, vertical = 18.dp),
-    verticalArrangement = Arrangement.spacedBy(18.dp),
-  ) {
-    item {
-      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text("Storing Design Notes", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-        Row {
-          IconButton(onClick = {}) { Icon(Icons.Outlined.FavoriteBorder, contentDescription = "收藏") }
-          IconButton(onClick = {}) { Icon(Icons.Outlined.Archive, contentDescription = "归档") }
-          IconButton(onClick = {}) { Icon(Icons.Outlined.IosShare, contentDescription = "分享") }
+  Scaffold(
+    bottomBar = {
+      ReaderActionBar(
+        isFavorited = false,
+        isArchived = false,
+        shareEnabled = true,
+        onFavorite = {},
+        onArchive = {},
+        onShare = {},
+      )
+    },
+  ) { padding ->
+    LazyColumn(
+      modifier = Modifier.fillMaxSize().padding(padding),
+      contentPadding = PaddingValues(horizontal = 22.dp, vertical = 18.dp),
+      verticalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+      item {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+          Column {
+            Text("少数派 · 已保存阅读", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text("沉浸阅读", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          }
+          IconButton(onClick = {}) { Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = "打开原网页") }
         }
       }
+      item {
+        Text(
+          UiLabFixtures.readerTitle,
+          style = MaterialTheme.typography.headlineSmall,
+        )
+      }
+      item {
+        Box(
+          modifier = Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Color(0xFF304E59), Color(0xFF91BEB4)))),
+          contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Outlined.AutoStories, contentDescription = "阅读视觉占位", tint = Color.White, modifier = Modifier.height(48.dp)) }
+      }
+      item {
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+          Column(Modifier.padding(18.dp)) {
+            Text("AI 摘要", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(UiLabFixtures.readerSummary, modifier = Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+          }
+        }
+      }
+      item { Text(UiLabFixtures.readerBody, style = MaterialTheme.typography.bodyLarge) }
     }
-    item { Text(UiLabFixtures.readerTitle, style = MaterialTheme.typography.headlineMedium) }
-    item {
-      Box(
-        modifier = Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(28.dp)).background(Brush.linearGradient(listOf(Color(0xFF304E59), Color(0xFF91BEB4)))),
-        contentAlignment = Alignment.Center,
-      ) { Icon(Icons.Outlined.AutoStories, contentDescription = "阅读视觉占位", tint = Color.White, modifier = Modifier.height(54.dp)) }
-    }
-    item {
-      Card { Column(Modifier.padding(18.dp)) {
-        Text("AI 摘要", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-        Text(UiLabFixtures.readerSummary, modifier = Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyLarge)
-      } }
-    }
-    item { Text(UiLabFixtures.readerBody, style = MaterialTheme.typography.bodyLarge) }
   }
 }
 
