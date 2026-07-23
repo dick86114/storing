@@ -95,45 +95,14 @@ private fun LoginScreen(
 
 @Composable
 private fun HomeSkeleton(
-  username: String,
+  @Suppress("UNUSED_PARAMETER") username: String,
   sharedText: String?,
   onSharedTextConsumed: () -> Unit,
   onLogout: () -> Unit,
-  collectViewModel: ShareCollectViewModel = hiltViewModel(),
 ) {
-  val collectState by collectViewModel.state.collectAsState()
-  LaunchedEffect(sharedText) {
-    if (sharedText != null) {
-      collectViewModel.receiveSharedText(sharedText)
-      onSharedTextConsumed()
-    }
-  }
-
-  Column(
-    modifier = Modifier.fillMaxSize().padding(28.dp),
-    verticalArrangement = Arrangement.Center,
-    horizontalAlignment = Alignment.CenterHorizontally,
-  ) {
-    Text("你好，$username", style = MaterialTheme.typography.headlineMedium)
-    if (collectState.urls.isNotEmpty()) {
-      Spacer(Modifier.height(20.dp))
-      Text("识别到 ${collectState.urls.size} 个链接", style = MaterialTheme.typography.titleMedium)
-      collectState.urls.forEach { url ->
-        Button(
-          onClick = { collectViewModel.select(url) },
-          enabled = !collectState.submitting,
-          modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-        ) { Text(if (url == collectState.selectedUrl) "✓ $url" else url, maxLines = 1) }
-      }
-      Spacer(Modifier.height(12.dp))
-      Button(onClick = collectViewModel::submit, enabled = collectState.selectedUrl != null && !collectState.submitting, modifier = Modifier.fillMaxWidth()) {
-        Text(if (collectState.submitting) "提交中…" else "一键采集")
-      }
-    }
-    if (collectState.message != null) Text(collectState.message!!, modifier = Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-    Spacer(Modifier.height(20.dp))
-    Text("收件箱、任务跟踪和阅读器将在下一批接入。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-    Spacer(Modifier.height(20.dp))
-    Button(onClick = onLogout) { Text("退出当前设备") }
-  }
+  LibraryScreen(
+    sharedText = sharedText,
+    onSharedTextConsumed = onSharedTextConsumed,
+    onLogout = onLogout,
+  )
 }
