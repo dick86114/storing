@@ -9,6 +9,7 @@ import com.idickies.storing.library.ArticleSource
 import com.idickies.storing.library.PublicArticleResponse
 import com.idickies.storing.library.PublicationResponse
 import com.idickies.storing.library.ToggleFavoriteResponse
+import com.idickies.storing.network.ArticleCounts
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Path
@@ -69,4 +70,10 @@ interface ArticleApi {
 
   @DELETE("articles/{id}")
   suspend fun delete(@Path("id") id: Int)
+
+  @DELETE("articles/{id}/permanent")
+  suspend fun deletePermanent(@Path("id") id: Int): PermanentDeleteResponse
+
+  @GET("counts")
+  suspend fun counts(): ArticleCounts
 }

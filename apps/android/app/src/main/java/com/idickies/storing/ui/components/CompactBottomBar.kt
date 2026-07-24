@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.Badge
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -59,6 +61,7 @@ fun CompactBottomBarItem(
   icon: ImageVector,
   selected: Boolean,
   enabled: Boolean = true,
+  badgeCount: Int? = null,
   onClick: () -> Unit,
 ) {
   val selectedContainer = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.58f)
@@ -77,7 +80,21 @@ fun CompactBottomBarItem(
       horizontalAlignment = Alignment.CenterHorizontally,
       verticalArrangement = Arrangement.Center,
     ) {
-      Icon(imageVector = icon, contentDescription = label, modifier = Modifier.height(22.dp))
+      Box {
+        Icon(imageVector = icon, contentDescription = label, modifier = Modifier.height(22.dp))
+        if (badgeCount != null && badgeCount > 0) {
+          Badge(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.align(Alignment.TopEnd),
+          ) {
+            Text(
+              if (badgeCount > 99) "99+" else badgeCount.toString(),
+              style = MaterialTheme.typography.labelSmall,
+            )
+          }
+        }
+      }
       Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 2.dp))
     }
   }

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -162,6 +163,7 @@ fun LibraryScreen(
   var showBatteryGuidance by remember { mutableStateOf(false) }
   var showReaderSettings by remember { mutableStateOf(false) }
   var showSharePoster by remember { mutableStateOf(false) }
+  var showChangePassword by remember { mutableStateOf(false) }
   var showDeviceSessions by remember { mutableStateOf(false) }
   var showSettings by remember { mutableStateOf(false) }
   var presentationMode by rememberSaveable { mutableStateOf(ArticleListPresentationMode.default) }
@@ -200,10 +202,11 @@ fun LibraryScreen(
     }
   }
 
-  BackHandler(enabled = showSettings || showReaderSettings || showSharePoster || showDeviceSessions || showTasks || showManualCollect || showBatteryGuidance) {
+  BackHandler(enabled = showSettings || showReaderSettings || showSharePoster || showChangePassword || showDeviceSessions || showTasks || showManualCollect || showBatteryGuidance) {
     when {
       showReaderSettings -> showReaderSettings = false
       showSharePoster -> showSharePoster = false
+      showChangePassword -> showChangePassword = false
       showDeviceSessions -> showDeviceSessions = false
       showSettings -> showSettings = false
       showTasks -> showTasks = false
@@ -221,6 +224,10 @@ fun LibraryScreen(
       publicUrl = "https://storing.idickies.com/p/${detail.publicId}",
       onBack = { showSharePoster = false },
     )
+    showChangePassword -> ChangePasswordScreen(
+      onBack = { showChangePassword = false },
+      onPasswordChanged = onLogout,
+    )
     showDeviceSessions -> DeviceSessionsScreen(onBack = { showDeviceSessions = false })
     showSettings -> QiankunjieSettingsScreen(
       checkingUpdate = updateChecking,
@@ -228,6 +235,7 @@ fun LibraryScreen(
       onThemeModeChange = onThemeModeChange,
       onCheckUpdate = onManualUpdateCheck,
       onOpenReaderSettings = { showSettings = false; showReaderSettings = true },
+      onOpenChangePassword = { showSettings = false; showChangePassword = true },
       onOpenDeviceSessions = { showSettings = false; showDeviceSessions = true },
       onOpenBatteryGuidance = { showSettings = false; showBatteryGuidance = true },
       onLogout = onLogout,
@@ -240,12 +248,14 @@ fun LibraryScreen(
       readerColorScheme = readerColorScheme,
       readerPreferences = readerPreferences,
       processingAction = state.processingAction,
+      permanentDeleting = state.permanentDeleting,
       onFavorite = { libraryViewModel.toggleFavorite(detail) },
       onArchive = { libraryViewModel.toggleArchive(detail) },
       onPublication = { libraryViewModel.togglePublication(detail) },
       onOpenSharePoster = { showSharePoster = true },
       onProcess = { action -> libraryViewModel.processArticle(detail, action) },
       onDelete = { libraryViewModel.delete(detail) },
+      onDeletePermanent = { libraryViewModel.deletePermanent(detail) },
     )
     state.loadingDetail -> FullPageLoading("正在加载文章…")
     detailError != null -> ErrorPage(detailError, libraryViewModel::closeDetail)
@@ -284,6 +294,14 @@ fun LibraryScreen(
         QiankunjieCompactBottomBar {
           val visibleViews = if (isAuthenticated) LibraryView.entries else listOf(LibraryView.Published)
           visibleViews.forEach { item ->
+            val count = state.counts?.let { c ->
+              when (item) {
+                LibraryView.Inbox -> c.inbox
+                LibraryView.Favorites -> c.favorites
+                LibraryView.Archive -> c.archive
+                LibraryView.Published -> c.published
+              }
+            }
             CompactBottomBarItem(
               label = item.label,
               icon = when (item) {
@@ -293,6 +311,7 @@ fun LibraryScreen(
                 LibraryView.Archive -> Icons.Outlined.Inventory2
               },
               selected = state.view == item && state.searchQuery.isBlank(),
+              badgeCount = count,
               onClick = { libraryViewModel.select(item) },
             )
           }
@@ -480,10 +499,28 @@ private fun CollectJobCard(
         AssistChip(onClick = {}, label = { Text(status.label) }, leadingIcon = { Icon(status.icon, contentDescription = null, modifier = Modifier.size(16.dp)) })
         Text(collectStageLabel(job.stage), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
       }
+      val detailChips = buildList {
+        job.method?.let { add(collectMethodLabel(it)) }
+        job.captureStrategy?.let { add(collectStrategyLabel(it)) }
+      }
+      if (detailChips.isNotEmpty()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+          detailChips.forEach { label ->
+            Surface(color = MaterialTheme.colorScheme.surfaceContainerHighest, shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)) {
+              Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+            }
+          }
+        }
+      }
       job.errorSummary?.let { error ->
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Top) {
           Icon(Icons.Outlined.ErrorOutline, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
-          Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+          Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            job.errorHint?.let { hint ->
+              Text(hint, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+            }
+          }
         }
       }
       if (job.status == "failed" || job.articleId != null) {
@@ -538,6 +575,20 @@ private fun collectJobStatusPresentation(status: String): CollectJobStatusPresen
   "completed" -> CollectJobStatusPresentation("已保存到收件箱", Icons.Outlined.CheckCircle, CollectJobTone.Success)
   "failed" -> CollectJobStatusPresentation("采集失败", Icons.Outlined.ErrorOutline, CollectJobTone.Error)
   else -> CollectJobStatusPresentation("正在采集", Icons.Outlined.Sync, CollectJobTone.Progress)
+}
+
+private fun collectMethodLabel(method: String): String = when (method) {
+  "singlefile" -> "SingleFile"
+  "reader" -> "Reader API"
+  "local" -> "本地兜底"
+  else -> method
+}
+
+private fun collectStrategyLabel(strategy: String): String = when (strategy) {
+  "full_page" -> "完整页面"
+  "article_only" -> "仅正文"
+  "auto" -> "自动"
+  else -> strategy
 }
 
 private fun collectStageLabel(stage: String): String = when (stage.lowercase()) {
@@ -720,9 +771,10 @@ private fun LibraryList(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDelete: () -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit) {
   val context = LocalContext.current
   var confirmDelete by remember { mutableStateOf(false) }
+  var confirmPermanentDelete by remember { mutableStateOf(false) }
   var confirmPublication by remember { mutableStateOf<PublicationAction?>(null) }
   var confirmProcessing by remember { mutableStateOf<ArticleProcessingAction?>(null) }
   var moreExpanded by remember { mutableStateOf(false) }
@@ -818,6 +870,11 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                 text = { Text("删除", color = MaterialTheme.colorScheme.error) },
                 onClick = { moreExpanded = false; confirmDelete = true },
                 leadingIcon = { Icon(Icons.Outlined.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+              )
+              if (canManage) DropdownMenuItem(
+                text = { Text("永久删除", color = MaterialTheme.colorScheme.error) },
+                onClick = { moreExpanded = false; confirmPermanentDelete = true },
+                leadingIcon = { Icon(Icons.Outlined.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
               )
             }
           }

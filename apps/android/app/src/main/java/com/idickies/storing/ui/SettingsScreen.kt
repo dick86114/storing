@@ -16,11 +16,13 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.BatterySaver
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.LockReset
 import androidx.compose.material.icons.outlined.Brightness4
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.TextFields
+import androidx.compose.material.icons.outlined.CleaningServices
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -33,6 +35,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,11 +43,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.idickies.storing.BuildConfig
 import com.idickies.storing.ui.components.QiankunjieGlassPanel
 import com.idickies.storing.ui.theme.ThemeMode
+import com.idickies.storing.cache.CacheManager
 import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 import com.idickies.storing.update.settingsUpdatePresentation
 
@@ -56,6 +61,7 @@ fun QiankunjieSettingsScreen(
   onThemeModeChange: (ThemeMode) -> Unit,
   onCheckUpdate: () -> Unit,
   onOpenReaderSettings: () -> Unit,
+  onOpenChangePassword: () -> Unit,
   onOpenDeviceSessions: () -> Unit,
   onOpenBatteryGuidance: () -> Unit,
   onLogout: () -> Unit,
@@ -136,11 +142,44 @@ fun QiankunjieSettingsScreen(
       item { SettingsSectionTitle("账户与设备") }
       item {
         SettingsRow(
+          icon = Icons.Outlined.LockReset,
+          title = "修改密码",
+          detail = "修改后会退出所有设备，需用新密码重新登录",
+          onClick = onOpenChangePassword,
+        )
+      }
+      item {
+        SettingsRow(
           icon = Icons.Outlined.Devices,
           title = "设备会话",
           detail = "查看当前账号已登录的手机，并撤销其他设备",
           onClick = onOpenDeviceSessions,
         )
+      }
+      item { SettingsSectionTitle("存储与缓存") }
+      item {
+        val context = LocalContext.current
+        var cacheSize by remember { mutableStateOf<Long?>(null) }
+        var clearing by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) { cacheSize = CacheManager.totalCacheSize(context) }
+        val cleared = cacheSize == 0L
+        SettingsRow(
+          icon = Icons.Outlined.CleaningServices,
+          title = if (clearing) "正在清理…" else "清理图片缓存",
+          detail = "当前占用 ${cacheSize?.let { CacheManager.formatSize(it) } ?: "计算中…"}（不含离线下载内容）",
+          enabled = !clearing && cacheSize != null && cacheSize!! > 0L,
+          onClick = {
+            clearing = true
+            cacheSize = null
+          },
+        )
+        LaunchedEffect(clearing) {
+          if (clearing) {
+            CacheManager.clearImageCache(context)
+            cacheSize = CacheManager.totalCacheSize(context)
+            clearing = false
+          }
+        }
       }
       item { SettingsSectionTitle("采集与后台") }
       item {

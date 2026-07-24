@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.idickies.storing.network.ArticleCounts
 import javax.inject.Inject
 
 private const val SEARCH_DEBOUNCE_MILLIS = 350L
@@ -43,6 +44,8 @@ data class LibraryUiState(
   val detailError: String? = null,
   val processingAction: ArticleProcessingAction? = null,
   val processingError: String? = null,
+  val counts: ArticleCounts? = null,
+  val permanentDeleting: Boolean = false,
 ) {
   val hasMore: Boolean get() = LibraryPaging(page = page, totalPages = totalPages).hasMore
 }
@@ -59,7 +62,10 @@ class LibraryViewModel @Inject constructor(
   private var loadMoreJob: Job? = null
   private var sourceLoadJob: Job? = null
 
-  init { loadInitial() }
+  init {
+    loadInitial()
+    loadCounts()
+  }
 
   fun select(view: LibraryView) {
     if (view == mutableState.value.view && mutableState.value.searchQuery.isEmpty()) return
@@ -88,6 +94,7 @@ class LibraryViewModel @Inject constructor(
     searchDebounceJob?.cancel()
     loadInitial(refreshing = true)
     if (ArchiveSourceFilter.isAvailableFor(mutableState.value.view, mutableState.value.searchQuery)) loadArchiveSources()
+    loadCounts()
   }
 
   fun selectArchiveSource(filter: ArchiveSourceFilter) {
@@ -364,6 +371,28 @@ class LibraryViewModel @Inject constructor(
     viewModelScope.launch {
       runCatching { repository.delete(article.id) }.onSuccess {
         mutableState.update { state -> state.copy(detail = null, articles = state.articles.filterNot { it.id == article.id }) }
+        loadCounts()
+      }
+    }
+  }
+
+  fun deletePermanent(article: ArticleDetail) {
+    if (mutableState.value.permanentDeleting) return
+    viewModelScope.launch {
+      mutableState.update { it.copy(permanentDeleting = true) }
+      runCatching { repository.deletePermanent(article.id) }.onSuccess {
+        mutableState.update { state -> state.copy(detail = null, permanentDeleting = false, articles = state.articles.filterNot { it.id == article.id }) }
+        loadCounts()
+      }.onFailure { error ->
+        mutableState.update { it.copy(permanentDeleting = false, processingError = error.message ?: "永久删除失败") }
+      }
+    }
+  }
+
+  private fun loadCounts() {
+    viewModelScope.launch {
+      runCatching { repository.counts() }.onSuccess { counts ->
+        mutableState.update { it.copy(counts = counts) }
       }
     }
   }

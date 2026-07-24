@@ -1,5 +1,6 @@
 package com.idickies.storing.auth
 
+import com.idickies.storing.network.ChangePasswordRequest
 import com.idickies.storing.network.MobileAuthApi
 import com.idickies.storing.network.MobileLoginRequest
 import com.idickies.storing.network.MobileLogoutRequest
@@ -68,6 +69,14 @@ class AuthRepository @Inject constructor(
   suspend fun revokeSession(sessionId: String): Boolean {
     if (!ensureValidAccessToken()) return false
     return api.revokeSession(sessionId).revoked
+  }
+
+  suspend fun changePassword(currentPassword: String, newPassword: String): Boolean {
+    if (!ensureValidAccessToken()) return false
+    api.changePassword(ChangePasswordRequest(currentPassword, newPassword))
+    // Password change revokes all mobile sessions server-side, so clear local session
+    sessionStore.clear()
+    return true
   }
 
   suspend fun logout() {
