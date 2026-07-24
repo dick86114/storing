@@ -24,6 +24,7 @@ import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.CleaningServices
 import androidx.compose.material.icons.outlined.CloudDone
+import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -64,6 +65,7 @@ fun QiankunjieSettingsScreen(
   onOpenReaderSettings: () -> Unit,
   onOpenChangePassword: () -> Unit,
   onOpenOfflineContent: () -> Unit,
+  onOpenMcp: () -> Unit,
   onOpenDeviceSessions: () -> Unit,
   onOpenBatteryGuidance: () -> Unit,
   onLogout: () -> Unit,
@@ -142,6 +144,14 @@ fun QiankunjieSettingsScreen(
         )
       }
       item { SettingsSectionTitle("账户与设备") }
+      item {
+        SettingsRow(
+          icon = Icons.Outlined.Hub,
+          title = "我的 MCP",
+          detail = "管理 API Client、权限和调用日志",
+          onClick = onOpenMcp,
+        )
+      }
       item {
         SettingsRow(
           icon = Icons.Outlined.LockReset,

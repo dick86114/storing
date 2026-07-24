@@ -168,6 +168,7 @@ fun LibraryScreen(
   var showSharePoster by remember { mutableStateOf(false) }
   var showChangePassword by remember { mutableStateOf(false) }
   var showOfflineContent by remember { mutableStateOf(false) }
+  var showMcp by remember { mutableStateOf(false) }
   var showDeviceSessions by remember { mutableStateOf(false) }
   var showSettings by remember { mutableStateOf(false) }
   var presentationMode by rememberSaveable { mutableStateOf(ArticleListPresentationMode.default) }
@@ -206,12 +207,13 @@ fun LibraryScreen(
     }
   }
 
-  BackHandler(enabled = showSettings || showReaderSettings || showSharePoster || showChangePassword || showOfflineContent || showDeviceSessions || showTasks || showManualCollect || showBatteryGuidance) {
+  BackHandler(enabled = showSettings || showReaderSettings || showSharePoster || showChangePassword || showOfflineContent || showMcp || showDeviceSessions || showTasks || showManualCollect || showBatteryGuidance) {
     when {
       showReaderSettings -> showReaderSettings = false
       showSharePoster -> showSharePoster = false
       showChangePassword -> showChangePassword = false
       showOfflineContent -> showOfflineContent = false
+      showMcp -> showMcp = false
       showDeviceSessions -> showDeviceSessions = false
       showSettings -> showSettings = false
       showTasks -> showTasks = false
@@ -230,6 +232,7 @@ fun LibraryScreen(
       onBack = { showSharePoster = false },
     )
     showOfflineContent -> OfflineContentScreen(onBack = { showOfflineContent = false })
+    showMcp -> McpScreen(onBack = { showMcp = false })
     showChangePassword -> ChangePasswordScreen(
       onBack = { showChangePassword = false },
       onPasswordChanged = onLogout,
@@ -243,6 +246,7 @@ fun LibraryScreen(
       onOpenReaderSettings = { showSettings = false; showReaderSettings = true },
       onOpenChangePassword = { showSettings = false; showChangePassword = true },
       onOpenOfflineContent = { showSettings = false; showOfflineContent = true },
+      onOpenMcp = { showSettings = false; showMcp = true },
       onOpenDeviceSessions = { showSettings = false; showDeviceSessions = true },
       onOpenBatteryGuidance = { showSettings = false; showBatteryGuidance = true },
       onLogout = onLogout,
