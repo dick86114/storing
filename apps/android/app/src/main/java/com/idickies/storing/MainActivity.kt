@@ -4,7 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
@@ -12,7 +12,7 @@ import com.idickies.storing.ui.QiankunjieApp
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
   private val sharedText = mutableStateOf<String?>(null)
   private val articleId = mutableStateOf<Int?>(null)
   private val collectJobId = mutableStateOf<Int?>(null)

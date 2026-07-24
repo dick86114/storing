@@ -26,12 +26,14 @@ import androidx.compose.material.icons.outlined.CleaningServices
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.AdminPanelSettings
+import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -68,6 +70,9 @@ fun QiankunjieSettingsScreen(
   onOpenOfflineContent: () -> Unit,
   onOpenMcp: () -> Unit,
   onOpenAdmin: (() -> Unit)? = null,
+  biometricAvailable: Boolean = false,
+  biometricEnabled: Boolean = false,
+  onBiometricEnabledChange: (Boolean) -> Unit = {},
   onOpenDeviceSessions: () -> Unit,
   onOpenBatteryGuidance: () -> Unit,
   onLogout: () -> Unit,
@@ -144,6 +149,25 @@ fun QiankunjieSettingsScreen(
           enabled = update.enabled,
           onClick = onCheckUpdate,
         )
+      }
+      if (biometricAvailable) {
+        item { SettingsSectionTitle("安全") }
+        item {
+          Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+            Row(
+              modifier = Modifier.padding(horizontal = 15.dp, vertical = 14.dp),
+              horizontalArrangement = Arrangement.spacedBy(13.dp),
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Icon(Icons.Outlined.Fingerprint, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+              Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("生物识别锁定", style = MaterialTheme.typography.titleSmall)
+                Text("App 切后台超过 30 秒后需要验证指纹或面容", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+              }
+              Switch(checked = biometricEnabled, onCheckedChange = onBiometricEnabledChange)
+            }
+          }
+        }
       }
       item { SettingsSectionTitle("账户与设备") }
       if (onOpenAdmin != null) item {

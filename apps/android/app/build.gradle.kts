@@ -113,6 +113,7 @@ dependencies {
   implementation(libs.coil.compose)
   implementation(libs.coil.network.okhttp)
   implementation(libs.zxing.core)
+  implementation(libs.androidx.biometric)
   ksp(libs.hilt.compiler)
   ksp(libs.room.compiler)
 
