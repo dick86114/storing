@@ -4,6 +4,7 @@ import com.idickies.storing.network.MobileAuthApi
 import com.idickies.storing.network.MobileLoginRequest
 import com.idickies.storing.network.MobileLogoutRequest
 import com.idickies.storing.network.MobileRefreshRequest
+import com.idickies.storing.network.MobileSessionInfo
 import com.idickies.storing.network.MobileUser
 import com.idickies.storing.network.toPayload
 import javax.inject.Inject
@@ -57,6 +58,16 @@ class AuthRepository @Inject constructor(
       sessionStore.clear()
       null
     }
+  }
+
+  suspend fun sessions(): List<MobileSessionInfo> {
+    if (!ensureValidAccessToken()) return emptyList()
+    return api.sessions().sessions
+  }
+
+  suspend fun revokeSession(sessionId: String): Boolean {
+    if (!ensureValidAccessToken()) return false
+    return api.revokeSession(sessionId).revoked
   }
 
   suspend fun logout() {

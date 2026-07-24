@@ -153,6 +153,7 @@ fun LibraryScreen(
   var showTasks by remember { mutableStateOf(false) }
   var showManualCollect by remember { mutableStateOf(false) }
   var showBatteryGuidance by remember { mutableStateOf(false) }
+  var showDeviceSessions by remember { mutableStateOf(false) }
   var showSettings by remember { mutableStateOf(false) }
   var presentationMode by rememberSaveable { mutableStateOf(ArticleListPresentationMode.default) }
   DisposableEffect(lifecycleOwner) {
@@ -190,8 +191,9 @@ fun LibraryScreen(
     }
   }
 
-  BackHandler(enabled = showSettings || showTasks || showManualCollect || showBatteryGuidance) {
+  BackHandler(enabled = showSettings || showDeviceSessions || showTasks || showManualCollect || showBatteryGuidance) {
     when {
+      showDeviceSessions -> showDeviceSessions = false
       showSettings -> showSettings = false
       showTasks -> showTasks = false
       showManualCollect -> showManualCollect = false
@@ -202,11 +204,13 @@ fun LibraryScreen(
   val detail = state.detail
   val detailError = state.detailError
   when {
+    showDeviceSessions -> DeviceSessionsScreen(onBack = { showDeviceSessions = false })
     showSettings -> QiankunjieSettingsScreen(
       checkingUpdate = updateChecking,
       themeMode = themeMode,
       onThemeModeChange = onThemeModeChange,
       onCheckUpdate = onManualUpdateCheck,
+      onOpenDeviceSessions = { showSettings = false; showDeviceSessions = true },
       onOpenBatteryGuidance = { showSettings = false; showBatteryGuidance = true },
       onLogout = onLogout,
       onBack = { showSettings = false },
