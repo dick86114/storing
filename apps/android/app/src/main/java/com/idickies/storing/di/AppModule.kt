@@ -14,6 +14,7 @@ import com.idickies.storing.network.ClientHeadersInterceptor
 import com.idickies.storing.network.ArticleApi
 import com.idickies.storing.network.MobileAuthApi
 import com.idickies.storing.network.MobileCollectApi
+import com.idickies.storing.mcp.McpApi
 import com.idickies.storing.network.MobileReleaseApi
 import dagger.Binds
 import dagger.Module
@@ -100,6 +101,10 @@ object AppModule {
   @Provides
   @Singleton
   fun provideMobileCollectApi(retrofit: Retrofit): MobileCollectApi = retrofit.create(MobileCollectApi::class.java)
+
+  @Provides
+  @Singleton
+  fun provideMcpApi(retrofit: Retrofit): McpApi = retrofit.create(McpApi::class.java)
 }
 
 
