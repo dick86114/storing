@@ -212,6 +212,7 @@ private fun UiLabSettings() {
     onOpenChangePassword = {},
     onOpenOfflineContent = {},
     onOpenMcp = {},
+    onOpenAdmin = null,
     onOpenDeviceSessions = {},
     onOpenBatteryGuidance = {},
     onLogout = {},
