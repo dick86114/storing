@@ -249,6 +249,7 @@ fun LibraryScreen(
       readerPreferences = readerPreferences,
       processingAction = state.processingAction,
       permanentDeleting = state.permanentDeleting,
+      savedReadingPosition = state.savedReadingPosition,
       onFavorite = { libraryViewModel.toggleFavorite(detail) },
       onArchive = { libraryViewModel.toggleArchive(detail) },
       onPublication = { libraryViewModel.togglePublication(detail) },
@@ -256,6 +257,7 @@ fun LibraryScreen(
       onProcess = { action -> libraryViewModel.processArticle(detail, action) },
       onDelete = { libraryViewModel.delete(detail) },
       onDeletePermanent = { libraryViewModel.deletePermanent(detail) },
+      onSaveReadingPosition = { percentage -> libraryViewModel.saveReadingPosition(detail.id, percentage) },
     )
     state.loadingDetail -> FullPageLoading("正在加载文章…")
     detailError != null -> ErrorPage(detailError, libraryViewModel::closeDetail)
@@ -771,7 +773,7 @@ private fun LibraryList(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, savedReadingPosition: Float?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onSaveReadingPosition: (Float) -> Unit) {
   val context = LocalContext.current
   var confirmDelete by remember { mutableStateOf(false) }
   var confirmPermanentDelete by remember { mutableStateOf(false) }
@@ -907,15 +909,27 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
     val html = article.contentHtml
     if (!html.isNullOrBlank()) {
       key(readerColorScheme, readerPreferences) {
+        var currentScrollPercentage by remember { mutableStateOf(0f) }
         AndroidView(
           factory = { webContext ->
             android.webkit.WebView(webContext).apply {
-              ReaderWebView.configure(this, readerPreferences) { uri -> webContext.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+              ReaderWebView.configure(
+                this,
+                readerPreferences,
+                onOpenExternalUrl = { uri -> webContext.startActivity(Intent(Intent.ACTION_VIEW, uri)) },
+                onPageFinished = {
+                  savedReadingPosition?.let { pos -> ReaderWebView.restoreScrollPosition(this, pos) }
+                },
+                onScrollChanged = { percentage -> currentScrollPercentage = percentage },
+              )
               ReaderWebView.loadCapturedHtml(this, html, readerColorScheme, readerPreferences)
             }
           },
           modifier = Modifier.fillMaxSize().padding(padding),
         )
+        androidx.compose.runtime.DisposableEffect(article.id) {
+          onDispose { onSaveReadingPosition(currentScrollPercentage) }
+        }
       }
     } else {
       LazyColumn(
