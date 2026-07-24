@@ -5,6 +5,7 @@ import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.library.ArticleListResponse
 import com.idickies.storing.library.ArticleSource
 import com.idickies.storing.library.PublicArticleResponse
+import com.idickies.storing.library.PublicationResponse
 import com.idickies.storing.library.ToggleFavoriteResponse
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -51,6 +52,12 @@ interface ArticleApi {
 
   @POST("articles/{id}/unarchive")
   suspend fun unarchive(@Path("id") id: Int): ArchiveResponse
+
+  @POST("articles/{id}/publish")
+  suspend fun publish(@Path("id") id: Int): PublicationResponse
+
+  @POST("articles/{id}/unpublish")
+  suspend fun unpublish(@Path("id") id: Int): PublicationResponse
 
   @DELETE("articles/{id}")
   suspend fun delete(@Path("id") id: Int)

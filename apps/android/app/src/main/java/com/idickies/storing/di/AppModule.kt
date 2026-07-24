@@ -13,6 +13,7 @@ import com.idickies.storing.network.ArticleApi
 import com.idickies.storing.network.MobileAuthApi
 import com.idickies.storing.network.MobileCollectApi
 import com.idickies.storing.network.MobileReleaseApi
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -91,4 +92,13 @@ object AppModule {
   @Provides
   @Singleton
   fun provideMobileCollectApi(retrofit: Retrofit): MobileCollectApi = retrofit.create(MobileCollectApi::class.java)
+}
+
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class AuthBindingsModule {
+  @Binds
+  @Singleton
+  abstract fun bindMobileSessionAuthenticator(authRepository: com.idickies.storing.auth.AuthRepository): com.idickies.storing.auth.MobileSessionAuthenticator
 }

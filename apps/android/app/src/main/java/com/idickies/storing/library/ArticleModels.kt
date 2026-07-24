@@ -54,6 +54,7 @@ data class ArticleDetail(
   @SerialName("aiTags") val aiTags: List<String> = emptyList(),
   @SerialName("isFavorited") val isFavorited: Boolean = false,
   @SerialName("isArchived") val isArchived: Boolean = false,
+  @SerialName("isPublished") val isPublished: Boolean = false,
   @SerialName("contentHtml") val contentHtml: String? = null,
   @SerialName("contentMd") val contentMd: String? = null,
 ) {
@@ -76,4 +77,11 @@ data class ArchiveResponse(
 @Serializable
 data class PublicArticleResponse(
   val article: ArticleDetail,
+)
+
+
+@Serializable
+data class PublicationResponse(
+  val article: ArticleDetail,
+  @SerialName("publicUrl") val publicUrl: String? = null,
 )
