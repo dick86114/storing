@@ -81,6 +81,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -120,6 +121,8 @@ import com.idickies.storing.library.canManageArticle
 import com.idickies.storing.library.publicationAction
 import com.idickies.storing.library.archiveSourceFilters
 import com.idickies.storing.reader.ReaderWebView
+import com.idickies.storing.reader.ReaderPreferences
+import com.idickies.storing.reader.ReaderPreferencesViewModel
 import com.idickies.storing.reader.ReaderColorScheme
 import com.idickies.storing.settings.BatteryOptimizationGuidance
 import com.idickies.storing.ui.components.QiankunjieArticleCard
@@ -146,14 +149,17 @@ fun LibraryScreen(
   libraryViewModel: LibraryViewModel = hiltViewModel(),
   collectViewModel: ShareCollectViewModel = hiltViewModel(),
   jobsViewModel: CollectJobsViewModel = hiltViewModel(),
+  readerPreferencesViewModel: ReaderPreferencesViewModel = hiltViewModel(),
 ) {
   val state by libraryViewModel.state.collectAsState()
+  val readerPreferences by readerPreferencesViewModel.preferences.collectAsState()
   val collectState by collectViewModel.state.collectAsState()
   val jobsState by jobsViewModel.state.collectAsState()
   val lifecycleOwner = LocalLifecycleOwner.current
   var showTasks by remember { mutableStateOf(false) }
   var showManualCollect by remember { mutableStateOf(false) }
   var showBatteryGuidance by remember { mutableStateOf(false) }
+  var showReaderSettings by remember { mutableStateOf(false) }
   var showDeviceSessions by remember { mutableStateOf(false) }
   var showSettings by remember { mutableStateOf(false) }
   var presentationMode by rememberSaveable { mutableStateOf(ArticleListPresentationMode.default) }
@@ -192,8 +198,9 @@ fun LibraryScreen(
     }
   }
 
-  BackHandler(enabled = showSettings || showDeviceSessions || showTasks || showManualCollect || showBatteryGuidance) {
+  BackHandler(enabled = showSettings || showReaderSettings || showDeviceSessions || showTasks || showManualCollect || showBatteryGuidance) {
     when {
+      showReaderSettings -> showReaderSettings = false
       showDeviceSessions -> showDeviceSessions = false
       showSettings -> showSettings = false
       showTasks -> showTasks = false
@@ -205,12 +212,14 @@ fun LibraryScreen(
   val detail = state.detail
   val detailError = state.detailError
   when {
+    showReaderSettings -> ReaderSettingsScreen(onBack = { showReaderSettings = false })
     showDeviceSessions -> DeviceSessionsScreen(onBack = { showDeviceSessions = false })
     showSettings -> QiankunjieSettingsScreen(
       checkingUpdate = updateChecking,
       themeMode = themeMode,
       onThemeModeChange = onThemeModeChange,
       onCheckUpdate = onManualUpdateCheck,
+      onOpenReaderSettings = { showSettings = false; showReaderSettings = true },
       onOpenDeviceSessions = { showSettings = false; showDeviceSessions = true },
       onOpenBatteryGuidance = { showSettings = false; showBatteryGuidance = true },
       onLogout = onLogout,
@@ -221,6 +230,7 @@ fun LibraryScreen(
       onBack = libraryViewModel::closeDetail,
       canManage = canManageArticle(isAuthenticated, state.view),
       readerColorScheme = readerColorScheme,
+      readerPreferences = readerPreferences,
       processingAction = state.processingAction,
       onFavorite = { libraryViewModel.toggleFavorite(detail) },
       onArchive = { libraryViewModel.toggleArchive(detail) },
@@ -701,7 +711,7 @@ private fun LibraryList(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, processingAction: ArticleProcessingAction?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDelete: () -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDelete: () -> Unit) {
   val context = LocalContext.current
   var confirmDelete by remember { mutableStateOf(false) }
   var confirmPublication by remember { mutableStateOf<PublicationAction?>(null) }
@@ -795,15 +805,17 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
   ) { padding ->
     val html = article.contentHtml
     if (!html.isNullOrBlank()) {
-      AndroidView(
-        factory = { webContext ->
-          android.webkit.WebView(webContext).apply {
-            ReaderWebView.configure(this) { uri -> webContext.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
-            ReaderWebView.loadCapturedHtml(this, html, readerColorScheme)
-          }
-        },
-        modifier = Modifier.fillMaxSize().padding(padding),
-      )
+      key(readerColorScheme, readerPreferences) {
+        AndroidView(
+          factory = { webContext ->
+            android.webkit.WebView(webContext).apply {
+              ReaderWebView.configure(this, readerPreferences) { uri -> webContext.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+              ReaderWebView.loadCapturedHtml(this, html, readerColorScheme, readerPreferences)
+            }
+          },
+          modifier = Modifier.fillMaxSize().padding(padding),
+        )
+      }
     } else {
       LazyColumn(
         modifier = Modifier.fillMaxSize().padding(padding),

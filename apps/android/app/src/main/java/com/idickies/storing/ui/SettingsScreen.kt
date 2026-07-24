@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.Brightness4
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Devices
+import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -54,6 +55,7 @@ fun QiankunjieSettingsScreen(
   themeMode: ThemeMode,
   onThemeModeChange: (ThemeMode) -> Unit,
   onCheckUpdate: () -> Unit,
+  onOpenReaderSettings: () -> Unit,
   onOpenDeviceSessions: () -> Unit,
   onOpenBatteryGuidance: () -> Unit,
   onLogout: () -> Unit,
@@ -111,6 +113,15 @@ fun QiankunjieSettingsScreen(
             }
           }
         }
+      }
+      item { SettingsSectionTitle("阅读") }
+      item {
+        SettingsRow(
+          icon = Icons.Outlined.TextFields,
+          title = "阅读设置",
+          detail = "字号、行距和正文页面边距",
+          onClick = onOpenReaderSettings,
+        )
       }
       item { SettingsSectionTitle("版本与更新") }
       item {

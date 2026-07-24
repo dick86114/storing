@@ -208,6 +208,7 @@ private fun UiLabSettings() {
     themeMode = ThemeMode.System,
     onThemeModeChange = {},
     onCheckUpdate = {},
+    onOpenReaderSettings = {},
     onOpenDeviceSessions = {},
     onOpenBatteryGuidance = {},
     onLogout = {},
