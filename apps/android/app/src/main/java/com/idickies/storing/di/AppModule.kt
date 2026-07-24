@@ -8,6 +8,7 @@ import com.idickies.storing.auth.KeystoreSessionStore
 import com.idickies.storing.auth.SessionStore
 import com.idickies.storing.database.ArticleCacheDatabase
 import com.idickies.storing.database.ReadingPositionDao
+import com.idickies.storing.offline.OfflineArticleDao
 import com.idickies.storing.network.AccessTokenInterceptor
 import com.idickies.storing.network.ClientHeadersInterceptor
 import com.idickies.storing.network.ArticleApi
@@ -51,6 +52,9 @@ object AppModule {
 
   @Provides
   fun provideReadingPositionDao(database: ArticleCacheDatabase) = database.readingPositionDao()
+
+  @Provides
+  fun provideOfflineArticleDao(database: ArticleCacheDatabase) = database.offlineArticleDao()
 
   @Provides
   @Singleton

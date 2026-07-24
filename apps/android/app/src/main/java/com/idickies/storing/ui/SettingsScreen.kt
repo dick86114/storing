@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.CleaningServices
+import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -62,6 +63,7 @@ fun QiankunjieSettingsScreen(
   onCheckUpdate: () -> Unit,
   onOpenReaderSettings: () -> Unit,
   onOpenChangePassword: () -> Unit,
+  onOpenOfflineContent: () -> Unit,
   onOpenDeviceSessions: () -> Unit,
   onOpenBatteryGuidance: () -> Unit,
   onLogout: () -> Unit,
@@ -157,6 +159,14 @@ fun QiankunjieSettingsScreen(
         )
       }
       item { SettingsSectionTitle("存储与缓存") }
+      item {
+        SettingsRow(
+          icon = Icons.Outlined.CloudDone,
+          title = "离线内容管理",
+          detail = "查看和管理已下载的离线文章",
+          onClick = onOpenOfflineContent,
+        )
+      }
       item {
         val context = LocalContext.current
         var cacheSize by remember { mutableStateOf<Long?>(null) }

@@ -13,6 +13,8 @@ import androidx.room.Transaction
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.idickies.storing.library.ArticleCard
+import com.idickies.storing.offline.OfflineArticle
+import com.idickies.storing.offline.OfflineArticleDao
 
 @Entity(tableName = "article_card_cache", primaryKeys = ["userId", "view", "id"])
 data class CachedArticleCard(
@@ -115,11 +117,12 @@ interface PendingCollectSubmissionDao {
   suspend fun delete(id: Long)
 }
 
-@Database(entities = [CachedArticleCard::class, PendingCollectSubmission::class, ReadingPosition::class], version = 3, exportSchema = false)
+@Database(entities = [CachedArticleCard::class, PendingCollectSubmission::class, ReadingPosition::class, OfflineArticle::class], version = 4, exportSchema = false)
 abstract class ArticleCacheDatabase : RoomDatabase() {
   abstract fun articleCacheDao(): ArticleCacheDao
   abstract fun pendingCollectSubmissionDao(): PendingCollectSubmissionDao
   abstract fun readingPositionDao(): ReadingPositionDao
+  abstract fun offlineArticleDao(): OfflineArticleDao
 
   companion object {
     val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -145,9 +148,15 @@ abstract class ArticleCacheDatabase : RoomDatabase() {
       }
     }
 
+    val MIGRATION_3_4 = object : Migration(3, 4) {
+      override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("CREATE TABLE IF NOT EXISTS offline_articles (articleId INTEGER PRIMARY KEY NOT NULL, title TEXT NOT NULL, source TEXT, author TEXT, localHtmlPath TEXT NOT NULL, localCoverPath TEXT, imageCount INTEGER NOT NULL, totalSizeBytes INTEGER NOT NULL, status TEXT NOT NULL, errorMessage TEXT, downloadedAtEpochMs INTEGER NOT NULL)")
+      }
+    }
+
     fun create(context: Context): ArticleCacheDatabase =
       Room.databaseBuilder(context.applicationContext, ArticleCacheDatabase::class.java, "qiankunjie_article_cache")
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
         .build()
   }
 }
