@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.BatterySaver
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.LockReset
 import androidx.compose.material.icons.outlined.Brightness4
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -55,6 +56,7 @@ import com.idickies.storing.BuildConfig
 import com.idickies.storing.ui.components.QiankunjieGlassPanel
 import com.idickies.storing.ui.theme.ThemeMode
 import com.idickies.storing.cache.CacheManager
+import com.idickies.storing.diagnostics.DiagnosticsExporter
 import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 import com.idickies.storing.update.settingsUpdatePresentation
 
@@ -245,6 +247,15 @@ fun QiankunjieSettingsScreen(
         )
       }
       item { SettingsSectionTitle("关于") }
+      item {
+        val diagContext = LocalContext.current
+        SettingsRow(
+          icon = Icons.Outlined.BugReport,
+          title = "导出诊断信息",
+          detail = "生成设备与应用诊断报告（不含敏感凭据）",
+          onClick = { DiagnosticsExporter.export(diagContext) },
+        )
+      }
       item {
         SettingsRow(
           icon = Icons.Outlined.Info,
