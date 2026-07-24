@@ -209,6 +209,7 @@ private fun UiLabSettings() {
     onThemeModeChange = {},
     onCheckUpdate = {},
     onOpenReaderSettings = {},
+    onOpenChangePassword = {},
     onOpenDeviceSessions = {},
     onOpenBatteryGuidance = {},
     onLogout = {},

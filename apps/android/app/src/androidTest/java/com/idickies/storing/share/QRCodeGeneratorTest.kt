@@ -1,5 +1,6 @@
 package com.idickies.storing.share
 
+import android.graphics.Bitmap
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -8,7 +9,7 @@ import org.junit.Test
 class QRCodeGeneratorTest {
 
   @Test
-  fun `generate produces a square bitmap with correct size`() {
+  fun generateProducesSquareBitmapWithCorrectSize() {
     val bitmap = QRCodeGenerator.generate("https://storing.idickies.com/p/abc123", sizePx = 256)
     assertNotNull(bitmap)
     assertEquals(256, bitmap.width)
@@ -16,7 +17,7 @@ class QRCodeGeneratorTest {
   }
 
   @Test
-  fun `generate encodes content into non-trivial pattern`() {
+  fun generateEncodesContentIntoNonTrivialPattern() {
     val bitmap = QRCodeGenerator.generate("https://storing.idickies.com/p/test-article-id", sizePx = 128)
     var blackPixels = 0
     var whitePixels = 0

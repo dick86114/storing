@@ -76,6 +76,12 @@ data class MobileMeResponse(val user: MobileUser)
 data class MobileLogoutResponse(val revoked: Boolean)
 
 @Serializable
+data class ChangePasswordRequest(
+  @SerialName("currentPassword") val currentPassword: String,
+  @SerialName("newPassword") val newPassword: String,
+)
+
+@Serializable
 data class MobileSessionsResponse(val sessions: List<MobileSessionInfo>)
 
 @Serializable
@@ -108,4 +114,7 @@ interface MobileAuthApi {
 
   @DELETE("mobile/auth/sessions/{id}")
   suspend fun revokeSession(@Path("id") sessionId: String): MobileLogoutResponse
+
+  @POST("auth/change-password")
+  suspend fun changePassword(@Body request: ChangePasswordRequest): okhttp3.ResponseBody
 }
