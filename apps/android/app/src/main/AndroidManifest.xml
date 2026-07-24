@@ -28,10 +28,43 @@
     </activity>
     <activity
         android:name=".MainActivity"
-        android:exported="true">
+        android:exported="true"
+        android:launchMode="singleTop">
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
         <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+
+      <!-- App Link: public article -->
+      <intent-filter android:autoVerify="true">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="https" android:host="storing.idickies.com" android:pathPrefix="/p/" />
+      </intent-filter>
+
+      <!-- Deep link: article by ID -->
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="qiankunjie" android:host="article" />
+      </intent-filter>
+
+      <!-- Deep link: collect job -->
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="qiankunjie" android:host="collect" android:pathPrefix="/job/" />
+      </intent-filter>
+
+      <!-- Deep link: MCP settings -->
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="qiankunjie" android:host="settings" android:pathPrefix="/mcp" />
       </intent-filter>
     </activity>
   </application>

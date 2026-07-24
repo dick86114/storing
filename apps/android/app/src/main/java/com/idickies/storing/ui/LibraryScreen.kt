@@ -141,8 +141,12 @@ fun LibraryScreen(
   onSharedTextConsumed: () -> Unit,
   openArticleId: Int?,
   onArticleOpened: () -> Unit,
+  openPublicId: String? = null,
+  onPublicIdOpened: () -> Unit = {},
   openCollectJobs: Boolean,
   onCollectJobsOpened: () -> Unit,
+  openMcpSettings: Boolean = false,
+  onMcpSettingsOpened: () -> Unit = {},
   onManualUpdateCheck: () -> Unit,
   updateChecking: Boolean,
   themeMode: ThemeMode,
@@ -203,6 +207,18 @@ fun LibraryScreen(
     if (openArticleId != null) {
       libraryViewModel.open(openArticleId)
       onArticleOpened()
+    }
+  }
+  LaunchedEffect(openPublicId) {
+    if (openPublicId != null) {
+      libraryViewModel.openByPublicId(openPublicId)
+      onPublicIdOpened()
+    }
+  }
+  LaunchedEffect(openMcpSettings) {
+    if (openMcpSettings) {
+      showMcp = true
+      onMcpSettingsOpened()
     }
   }
   LaunchedEffect(openCollectJobs) {
