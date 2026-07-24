@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.idickies.storing.network.ArticleCounts
 import com.idickies.storing.reader.ReadingPositionRepository
+import com.idickies.storing.offline.OfflineDownloadManager
 import javax.inject.Inject
 
 private const val SEARCH_DEBOUNCE_MILLIS = 350L
@@ -48,6 +49,9 @@ data class LibraryUiState(
   val counts: ArticleCounts? = null,
   val permanentDeleting: Boolean = false,
   val savedReadingPosition: Float? = null,
+  val isOfflineAvailable: Boolean = false,
+  val downloadingOffline: Boolean = false,
+  val offlineError: String? = null,
 ) {
   val hasMore: Boolean get() = LibraryPaging(page = page, totalPages = totalPages).hasMore
 }
@@ -56,6 +60,7 @@ data class LibraryUiState(
 class LibraryViewModel @Inject constructor(
   private val repository: ArticleRepository,
   private val readingPositionRepository: ReadingPositionRepository,
+  private val offlineDownloadManager: OfflineDownloadManager,
 ) : ViewModel() {
   private val mutableState = MutableStateFlow(LibraryUiState())
   val state = mutableState.asStateFlow()
@@ -276,7 +281,8 @@ class LibraryViewModel @Inject constructor(
       runCatching { repository.detail(id, card?.publicId.takeIf { mutableState.value.view == LibraryView.Published }) }
         .onSuccess { article ->
           val position = runCatching { readingPositionRepository.get(id)?.scrollPercentage }.getOrNull()
-          mutableState.update { it.copy(loadingDetail = false, detail = article, savedReadingPosition = position) }
+          val offlineAvailable = runCatching { offlineDownloadManager.isAvailable(id) }.getOrDefault(false)
+          mutableState.update { it.copy(loadingDetail = false, detail = article, savedReadingPosition = position, isOfflineAvailable = offlineAvailable) }
         }
         .onFailure { error -> mutableState.update { it.copy(loadingDetail = false, detailError = error.message ?: "加载文章失败") } }
     }
@@ -372,6 +378,26 @@ class LibraryViewModel @Inject constructor(
   }
 
   fun clearProcessingError() = mutableState.update { it.copy(processingError = null) }
+
+  fun downloadOffline(article: ArticleDetail) {
+    if (mutableState.value.downloadingOffline) return
+    val html = article.contentHtml ?: return
+    viewModelScope.launch {
+      mutableState.update { it.copy(downloadingOffline = true, offlineError = null) }
+      runCatching { offlineDownloadManager.download(article, html, article.coverImage) }
+        .onSuccess { mutableState.update { it.copy(downloadingOffline = false, isOfflineAvailable = true) } }
+        .onFailure { error -> mutableState.update { it.copy(downloadingOffline = false, offlineError = error.message ?: "下载失败") } }
+    }
+  }
+
+  fun deleteOffline(articleId: Int) {
+    viewModelScope.launch {
+      runCatching { offlineDownloadManager.delete(articleId) }
+        .onSuccess { mutableState.update { it.copy(isOfflineAvailable = false) } }
+    }
+  }
+
+  fun clearOfflineError() = mutableState.update { it.copy(offlineError = null) }
 
   fun saveReadingPosition(articleId: Int, percentage: Float) {
     viewModelScope.launch {

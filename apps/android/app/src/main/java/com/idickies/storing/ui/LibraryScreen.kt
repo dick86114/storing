@@ -25,6 +25,9 @@ import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.BatterySaver
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Clear
+import androidx.compose.material.icons.outlined.CloudDownload
+import androidx.compose.material.icons.outlined.CloudDone
+import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -164,6 +167,7 @@ fun LibraryScreen(
   var showReaderSettings by remember { mutableStateOf(false) }
   var showSharePoster by remember { mutableStateOf(false) }
   var showChangePassword by remember { mutableStateOf(false) }
+  var showOfflineContent by remember { mutableStateOf(false) }
   var showDeviceSessions by remember { mutableStateOf(false) }
   var showSettings by remember { mutableStateOf(false) }
   var presentationMode by rememberSaveable { mutableStateOf(ArticleListPresentationMode.default) }
@@ -202,11 +206,12 @@ fun LibraryScreen(
     }
   }
 
-  BackHandler(enabled = showSettings || showReaderSettings || showSharePoster || showChangePassword || showDeviceSessions || showTasks || showManualCollect || showBatteryGuidance) {
+  BackHandler(enabled = showSettings || showReaderSettings || showSharePoster || showChangePassword || showOfflineContent || showDeviceSessions || showTasks || showManualCollect || showBatteryGuidance) {
     when {
       showReaderSettings -> showReaderSettings = false
       showSharePoster -> showSharePoster = false
       showChangePassword -> showChangePassword = false
+      showOfflineContent -> showOfflineContent = false
       showDeviceSessions -> showDeviceSessions = false
       showSettings -> showSettings = false
       showTasks -> showTasks = false
@@ -224,6 +229,7 @@ fun LibraryScreen(
       publicUrl = "https://storing.idickies.com/p/${detail.publicId}",
       onBack = { showSharePoster = false },
     )
+    showOfflineContent -> OfflineContentScreen(onBack = { showOfflineContent = false })
     showChangePassword -> ChangePasswordScreen(
       onBack = { showChangePassword = false },
       onPasswordChanged = onLogout,
@@ -236,6 +242,7 @@ fun LibraryScreen(
       onCheckUpdate = onManualUpdateCheck,
       onOpenReaderSettings = { showSettings = false; showReaderSettings = true },
       onOpenChangePassword = { showSettings = false; showChangePassword = true },
+      onOpenOfflineContent = { showSettings = false; showOfflineContent = true },
       onOpenDeviceSessions = { showSettings = false; showDeviceSessions = true },
       onOpenBatteryGuidance = { showSettings = false; showBatteryGuidance = true },
       onLogout = onLogout,
@@ -250,11 +257,15 @@ fun LibraryScreen(
       processingAction = state.processingAction,
       permanentDeleting = state.permanentDeleting,
       savedReadingPosition = state.savedReadingPosition,
+      isOfflineAvailable = state.isOfflineAvailable,
+      downloadingOffline = state.downloadingOffline,
       onFavorite = { libraryViewModel.toggleFavorite(detail) },
       onArchive = { libraryViewModel.toggleArchive(detail) },
       onPublication = { libraryViewModel.togglePublication(detail) },
       onOpenSharePoster = { showSharePoster = true },
       onProcess = { action -> libraryViewModel.processArticle(detail, action) },
+      onDownloadOffline = { libraryViewModel.downloadOffline(detail) },
+      onDeleteOffline = { libraryViewModel.deleteOffline(detail.id) },
       onDelete = { libraryViewModel.delete(detail) },
       onDeletePermanent = { libraryViewModel.deletePermanent(detail) },
       onSaveReadingPosition = { percentage -> libraryViewModel.saveReadingPosition(detail.id, percentage) },
@@ -773,7 +784,7 @@ private fun LibraryList(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, savedReadingPosition: Float?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onSaveReadingPosition: (Float) -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, savedReadingPosition: Float?, isOfflineAvailable: Boolean, downloadingOffline: Boolean, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onSaveReadingPosition: (Float) -> Unit) {
   val context = LocalContext.current
   var confirmDelete by remember { mutableStateOf(false) }
   var confirmPermanentDelete by remember { mutableStateOf(false) }
@@ -814,6 +825,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
           Column {
             Text(article.source ?: "乾坤戒阅读", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             Text(article.displayTitle, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (isOfflineAvailable) Text("离线可用", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
           }
         },
         navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回资料库") } },
@@ -873,6 +885,22 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                 onClick = { moreExpanded = false; confirmDelete = true },
                 leadingIcon = { Icon(Icons.Outlined.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
               )
+              if (canManage && !downloadingOffline) {
+                if (isOfflineAvailable) {
+                  DropdownMenuItem(
+                    text = { Text("删除离线内容") },
+                    onClick = { moreExpanded = false; onDeleteOffline() },
+                    leadingIcon = { Icon(Icons.Outlined.CloudOff, contentDescription = null) },
+                  )
+                } else {
+                  DropdownMenuItem(
+                    text = { Text("下载离线内容") },
+                    onClick = { moreExpanded = false; onDownloadOffline() },
+                    leadingIcon = { Icon(Icons.Outlined.CloudDownload, contentDescription = null) },
+                    enabled = !article.contentHtml.isNullOrBlank(),
+                  )
+                }
+              }
               if (canManage) DropdownMenuItem(
                 text = { Text("永久删除", color = MaterialTheme.colorScheme.error) },
                 onClick = { moreExpanded = false; confirmPermanentDelete = true },
@@ -901,6 +929,18 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
           ) {
             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
             Text("正在${processingAction.label}，请稍候…", style = MaterialTheme.typography.bodyMedium)
+          }
+        }
+      }
+      if (downloadingOffline) {
+        Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
+          Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            Text("正在下载离线内容…", style = MaterialTheme.typography.bodyMedium)
           }
         }
       }
