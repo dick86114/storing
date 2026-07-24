@@ -27,7 +27,11 @@ val safeReaderWebViewPolicy = ReaderWebViewPolicy(
 object ReaderWebView {
   private const val baseUrl = "https://storing.idickies.com"
 
-  fun configure(webView: WebView, onOpenExternalUrl: (Uri) -> Unit) {
+  fun configure(
+    webView: WebView,
+    preferences: ReaderPreferences = ReaderPreferences.Default,
+    onOpenExternalUrl: (Uri) -> Unit,
+  ) {
     with(webView.settings) {
       javaScriptEnabled = safeReaderWebViewPolicy.javaScriptEnabled
       allowFileAccess = safeReaderWebViewPolicy.allowFileAccess
@@ -35,6 +39,7 @@ object ReaderWebView {
       domStorageEnabled = safeReaderWebViewPolicy.domStorageEnabled
       loadWithOverviewMode = safeReaderWebViewPolicy.loadWithOverviewMode
       useWideViewPort = safeReaderWebViewPolicy.useWideViewPort
+      textZoom = preferences.textZoomPercent
     }
     webView.webViewClient = object : WebViewClient() {
       override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -49,7 +54,8 @@ object ReaderWebView {
     webView: WebView,
     capturedHtml: String,
     colorScheme: ReaderColorScheme = ReaderColorScheme.Light,
+    preferences: ReaderPreferences = ReaderPreferences.Default,
   ) {
-    webView.loadDataWithBaseURL(baseUrl, ReaderDocument.forWebView(capturedHtml, colorScheme), "text/html", "UTF-8", null)
+    webView.loadDataWithBaseURL(baseUrl, ReaderDocument.forWebView(capturedHtml, colorScheme, preferences), "text/html", "UTF-8", null)
   }
 }
