@@ -148,6 +148,7 @@ fun LibraryScreen(
   themeMode: ThemeMode,
   onThemeModeChange: (ThemeMode) -> Unit,
   isAuthenticated: Boolean,
+  isAdmin: Boolean,
   readerColorScheme: ReaderColorScheme,
   onRequestLogin: () -> Unit,
   onLogout: () -> Unit,
@@ -169,6 +170,7 @@ fun LibraryScreen(
   var showChangePassword by remember { mutableStateOf(false) }
   var showOfflineContent by remember { mutableStateOf(false) }
   var showMcp by remember { mutableStateOf(false) }
+  var showAdmin by remember { mutableStateOf(false) }
   var showDeviceSessions by remember { mutableStateOf(false) }
   var showSettings by remember { mutableStateOf(false) }
   var presentationMode by rememberSaveable { mutableStateOf(ArticleListPresentationMode.default) }
@@ -207,13 +209,14 @@ fun LibraryScreen(
     }
   }
 
-  BackHandler(enabled = showSettings || showReaderSettings || showSharePoster || showChangePassword || showOfflineContent || showMcp || showDeviceSessions || showTasks || showManualCollect || showBatteryGuidance) {
+  BackHandler(enabled = showSettings || showReaderSettings || showSharePoster || showChangePassword || showOfflineContent || showMcp || showAdmin || showDeviceSessions || showTasks || showManualCollect || showBatteryGuidance) {
     when {
       showReaderSettings -> showReaderSettings = false
       showSharePoster -> showSharePoster = false
       showChangePassword -> showChangePassword = false
       showOfflineContent -> showOfflineContent = false
       showMcp -> showMcp = false
+      showAdmin -> showAdmin = false
       showDeviceSessions -> showDeviceSessions = false
       showSettings -> showSettings = false
       showTasks -> showTasks = false
@@ -233,6 +236,7 @@ fun LibraryScreen(
     )
     showOfflineContent -> OfflineContentScreen(onBack = { showOfflineContent = false })
     showMcp -> McpScreen(onBack = { showMcp = false })
+    showAdmin -> AdminScreen(onBack = { showAdmin = false })
     showChangePassword -> ChangePasswordScreen(
       onBack = { showChangePassword = false },
       onPasswordChanged = onLogout,
@@ -247,6 +251,7 @@ fun LibraryScreen(
       onOpenChangePassword = { showSettings = false; showChangePassword = true },
       onOpenOfflineContent = { showSettings = false; showOfflineContent = true },
       onOpenMcp = { showSettings = false; showMcp = true },
+      onOpenAdmin = if (isAdmin) ({ showSettings = false; showAdmin = true }) else null,
       onOpenDeviceSessions = { showSettings = false; showDeviceSessions = true },
       onOpenBatteryGuidance = { showSettings = false; showBatteryGuidance = true },
       onLogout = onLogout,

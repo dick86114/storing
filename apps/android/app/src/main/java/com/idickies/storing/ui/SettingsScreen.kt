@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.CleaningServices
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.Hub
+import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -66,6 +67,7 @@ fun QiankunjieSettingsScreen(
   onOpenChangePassword: () -> Unit,
   onOpenOfflineContent: () -> Unit,
   onOpenMcp: () -> Unit,
+  onOpenAdmin: (() -> Unit)? = null,
   onOpenDeviceSessions: () -> Unit,
   onOpenBatteryGuidance: () -> Unit,
   onLogout: () -> Unit,
@@ -144,6 +146,14 @@ fun QiankunjieSettingsScreen(
         )
       }
       item { SettingsSectionTitle("账户与设备") }
+      if (onOpenAdmin != null) item {
+        SettingsRow(
+          icon = Icons.Outlined.AdminPanelSettings,
+          title = "管理员后台",
+          detail = "用户管理、MCP 平台管理和审计日志",
+          onClick = onOpenAdmin,
+        )
+      }
       item {
         SettingsRow(
           icon = Icons.Outlined.Hub,
