@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -62,6 +63,12 @@ import com.idickies.storing.update.UpdateViewModel
 import com.idickies.storing.reader.ReaderColorScheme
 import com.idickies.storing.ui.theme.AppearanceViewModel
 import com.idickies.storing.ui.theme.QiankunjieTheme
+import com.idickies.storing.security.BiometricLockScreen
+import com.idickies.storing.security.BiometricManager
+import com.idickies.storing.security.SecurityViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
 
 @Composable
 fun QiankunjieApp(
@@ -74,12 +81,28 @@ fun QiankunjieApp(
   authViewModel: AuthViewModel = hiltViewModel(),
   updateViewModel: UpdateViewModel = hiltViewModel(),
   appearanceViewModel: AppearanceViewModel = hiltViewModel(),
+  securityViewModel: SecurityViewModel = hiltViewModel(),
 ) {
   val state by authViewModel.state.collectAsState()
   val updateState by updateViewModel.state.collectAsState()
   val themeMode by appearanceViewModel.themeMode.collectAsState()
   val systemDark = isSystemInDarkTheme()
   val user = state.user
+  val biometricEnabled by securityViewModel.biometricEnabled.collectAsState()
+  val biometricLocked by securityViewModel.locked.collectAsState()
+  val lifecycleOwner = LocalLifecycleOwner.current
+  val context = LocalContext.current
+  DisposableEffect(lifecycleOwner) {
+    val observer = LifecycleEventObserver { _, event ->
+      when (event) {
+        Lifecycle.Event.ON_PAUSE -> securityViewModel.onAppBackgrounded()
+        Lifecycle.Event.ON_RESUME -> securityViewModel.onAppResumed()
+        else -> {}
+      }
+    }
+    lifecycleOwner.lifecycle.addObserver(observer)
+    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+  }
   var showLogin by rememberSaveable { mutableStateOf(false) }
   LaunchedEffect(user?.id) {
     if (user != null) {
@@ -88,6 +111,13 @@ fun QiankunjieApp(
     }
   }
   QiankunjieTheme(darkTheme = themeMode.resolve(systemDark)) {
+  if (biometricLocked && user != null) {
+    BiometricLockScreen(
+      onUnlocked = securityViewModel::unlock,
+      onLogout = authViewModel::logout,
+    )
+    return@QiankunjieTheme
+  }
   when {
     state.checkingSession -> LoadingScreen()
     user == null && showLogin -> {
@@ -112,6 +142,9 @@ fun QiankunjieApp(
       onThemeModeChange = appearanceViewModel::selectThemeMode,
       isAuthenticated = user != null,
       isAdmin = user?.role == "admin",
+      biometricAvailable = BiometricManager.canAuthenticate(context),
+      biometricEnabled = biometricEnabled,
+      onBiometricEnabledChange = securityViewModel::setBiometricEnabled,
       readerColorScheme = if (themeMode.resolve(systemDark)) ReaderColorScheme.Dark else ReaderColorScheme.Light,
       onRequestLogin = { showLogin = true },
       onLogout = authViewModel::logout,
@@ -273,6 +306,9 @@ private fun HomeSkeleton(
   onThemeModeChange: (com.idickies.storing.ui.theme.ThemeMode) -> Unit,
   isAuthenticated: Boolean,
   isAdmin: Boolean,
+  biometricAvailable: Boolean,
+  biometricEnabled: Boolean,
+  onBiometricEnabledChange: (Boolean) -> Unit,
   readerColorScheme: ReaderColorScheme,
   onRequestLogin: () -> Unit,
   onLogout: () -> Unit,
@@ -295,6 +331,9 @@ private fun HomeSkeleton(
     onThemeModeChange = onThemeModeChange,
     isAuthenticated = isAuthenticated,
     isAdmin = isAdmin,
+    biometricAvailable = biometricAvailable,
+    biometricEnabled = biometricEnabled,
+    onBiometricEnabledChange = onBiometricEnabledChange,
     readerColorScheme = readerColorScheme,
     onRequestLogin = onRequestLogin,
     onLogout = onLogout,
