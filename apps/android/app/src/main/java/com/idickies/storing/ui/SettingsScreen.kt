@@ -19,6 +19,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Brightness4
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -53,6 +54,7 @@ fun QiankunjieSettingsScreen(
   themeMode: ThemeMode,
   onThemeModeChange: (ThemeMode) -> Unit,
   onCheckUpdate: () -> Unit,
+  onOpenDeviceSessions: () -> Unit,
   onOpenBatteryGuidance: () -> Unit,
   onLogout: () -> Unit,
   onBack: () -> Unit,
@@ -118,6 +120,15 @@ fun QiankunjieSettingsScreen(
           detail = update.detail,
           enabled = update.enabled,
           onClick = onCheckUpdate,
+        )
+      }
+      item { SettingsSectionTitle("账户与设备") }
+      item {
+        SettingsRow(
+          icon = Icons.Outlined.Devices,
+          title = "设备会话",
+          detail = "查看当前账号已登录的手机，并撤销其他设备",
+          onClick = onOpenDeviceSessions,
         )
       }
       item { SettingsSectionTitle("采集与后台") }
