@@ -288,6 +288,15 @@ class LibraryViewModel @Inject constructor(
     }
   }
 
+  fun openByPublicId(publicId: String) {
+    viewModelScope.launch {
+      mutableState.update { it.copy(loadingDetail = true, detail = null, detailError = null, savedReadingPosition = null) }
+      runCatching { repository.detail(0, publicId) }
+        .onSuccess { article -> mutableState.update { it.copy(loadingDetail = false, detail = article) } }
+        .onFailure { error -> mutableState.update { it.copy(loadingDetail = false, detailError = error.message ?: "加载文章失败") } }
+    }
+  }
+
   fun closeDetail() = mutableState.update { it.copy(detail = null, detailError = null, loadingDetail = false, savedReadingPosition = null) }
 
   fun toggleFavorite(article: ArticleDetail) {

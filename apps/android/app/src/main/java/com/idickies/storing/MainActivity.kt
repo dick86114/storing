@@ -1,13 +1,15 @@
 package com.idickies.storing
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
+import androidx.fragment.app.FragmentActivity
 import com.idickies.storing.ui.QiankunjieApp
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -15,14 +17,16 @@ import dagger.hilt.android.AndroidEntryPoint
 class MainActivity : FragmentActivity() {
   private val sharedText = mutableStateOf<String?>(null)
   private val articleId = mutableStateOf<Int?>(null)
+  private val publicId = mutableStateOf<String?>(null)
   private val collectJobId = mutableStateOf<Int?>(null)
+  private val openMcpSettings = mutableStateOf(false)
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    sharedText.value = intent?.getStringExtra(EXTRA_SHARED_TEXT)
-    articleId.value = intent?.getIntExtra(EXTRA_ARTICLE_ID, -1)?.takeIf { it > 0 }
-    collectJobId.value = intent?.getIntExtra(EXTRA_COLLECT_JOB_ID, -1)?.takeIf { it > 0 }
-    if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+    handleIntent(intent)
+    if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+      requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+    }
     enableEdgeToEdge()
     setContent {
       QiankunjieApp(
@@ -30,17 +34,71 @@ class MainActivity : FragmentActivity() {
         onSharedTextConsumed = { sharedText.value = null },
         openArticleId = articleId.value,
         onArticleOpened = { articleId.value = null },
+        openPublicId = publicId.value,
+        onPublicIdOpened = { publicId.value = null },
         openCollectJobs = collectJobId.value != null,
         onCollectJobsOpened = { collectJobId.value = null },
+        openMcpSettings = openMcpSettings.value,
+        onMcpSettingsOpened = { openMcpSettings.value = false },
       )
     }
   }
 
-  override fun onNewIntent(intent: android.content.Intent) {
+  override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
-    sharedText.value = intent.getStringExtra(EXTRA_SHARED_TEXT)
-    articleId.value = intent.getIntExtra(EXTRA_ARTICLE_ID, -1).takeIf { it > 0 }
-    collectJobId.value = intent.getIntExtra(EXTRA_COLLECT_JOB_ID, -1).takeIf { it > 0 }
+    handleIntent(intent)
+  }
+
+  private fun handleIntent(intent: Intent?) {
+    intent ?: return
+
+    // Share text
+    intent.getStringExtra(EXTRA_SHARED_TEXT)?.let {
+      sharedText.value = it
+    }
+
+    when (intent.action) {
+      Intent.ACTION_VIEW -> {
+        val uri = intent.data ?: return
+        when (uri.scheme) {
+          "https" -> {
+            // App Link: https://storing.idickies.com/p/:publicId
+            if (uri.host == "storing.idickies.com" && uri.path?.startsWith("/p/") == true) {
+              val id = uri.path?.removePrefix("/p/")?.trim()
+              if (!id.isNullOrBlank()) publicId.value = id
+            }
+          }
+          "qiankunjie" -> {
+            when (uri.host) {
+              "article" -> {
+                // qiankunjie://article/:id
+                val id = uri.path?.trimStart('/')?.toIntOrNull()
+                if (id != null && id > 0) articleId.value = id
+              }
+              "collect" -> {
+                // qiankunjie://collect/job/:id
+                if (uri.path?.startsWith("/job/") == true) {
+                  val id = uri.path?.removePrefix("/job/")?.toIntOrNull()
+                  if (id != null && id > 0) collectJobId.value = id
+                }
+              }
+              "settings" -> {
+                // qiankunjie://settings/mcp
+                if (uri.path?.startsWith("/mcp") == true) {
+                  openMcpSettings.value = true
+                }
+              }
+            }
+          }
+        }
+      }
+      Intent.ACTION_SEND -> {
+        // Handled by ShareReceiverActivity, but handle here too for safety
+        intent.getStringExtra(Intent.EXTRA_TEXT)?.let { text ->
+          if (text.isNotBlank()) sharedText.value = text
+        }
+      }
+    }
   }
 
   companion object {
