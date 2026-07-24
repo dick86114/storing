@@ -46,6 +46,7 @@ class ArticleRepository @Inject constructor(
     publicId?.let { api.publication(it).article } ?: api.article(id)
   suspend fun toggleFavorite(id: Int) = api.toggleFavorite(id)
   suspend fun toggleArchive(id: Int, archived: Boolean) = if (archived) api.unarchive(id) else api.archive(id)
+  suspend fun togglePublication(id: Int, published: Boolean) = if (published) api.unpublish(id) else api.publish(id)
   suspend fun delete(id: Int) = api.delete(id)
 }
 

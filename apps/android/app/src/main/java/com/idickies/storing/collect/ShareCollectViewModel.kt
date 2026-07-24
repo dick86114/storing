@@ -68,7 +68,9 @@ class ShareCollectViewModel @Inject constructor(
           mutableState.update { it.copy(submitting = false, message = "已加入采集队列 #${job.id}", submittedJobId = job.id, submissionAccepted = true) }
         }
         .onFailure { error ->
-          if (PendingCollectSubmissionPolicy.shouldQueue(error) && queueForRetry(url, source)) {
+          if (error is MobileAuthenticationRequiredException) {
+            mutableState.update { it.copy(submitting = false, message = error.message) }
+          } else if (PendingCollectSubmissionPolicy.shouldQueue(error) && queueForRetry(url, source)) {
             mutableState.update { it.copy(submitting = false, message = "网络不可用，已保存，恢复连接后会自动提交", submissionAccepted = true) }
           } else {
             mutableState.update { it.copy(submitting = false, message = error.message ?: "提交采集失败") }

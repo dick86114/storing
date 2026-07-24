@@ -108,12 +108,15 @@ import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 import com.idickies.storing.library.ArticleCard
 import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.library.ArticleListPresentationMode
+import com.idickies.storing.library.PublicationAction
 import com.idickies.storing.library.ArchiveSourceFilter
 import com.idickies.storing.network.MobileCollectJob
 import com.idickies.storing.library.LibraryView
 import com.idickies.storing.library.LibrarySort
 import com.idickies.storing.library.LibraryViewModel
 import com.idickies.storing.library.shouldLoadMore
+import com.idickies.storing.library.canManageArticle
+import com.idickies.storing.library.publicationAction
 import com.idickies.storing.library.archiveSourceFilters
 import com.idickies.storing.reader.ReaderWebView
 import com.idickies.storing.reader.ReaderColorScheme
@@ -211,10 +214,11 @@ fun LibraryScreen(
     detail != null -> ArticleReader(
       article = detail,
       onBack = libraryViewModel::closeDetail,
-      canManage = isAuthenticated,
+      canManage = canManageArticle(isAuthenticated, state.view),
       readerColorScheme = readerColorScheme,
       onFavorite = { libraryViewModel.toggleFavorite(detail) },
       onArchive = { libraryViewModel.toggleArchive(detail) },
+      onPublication = { libraryViewModel.togglePublication(detail) },
       onDelete = { libraryViewModel.delete(detail) },
     )
     state.loadingDetail -> FullPageLoading("正在加载文章…")
@@ -681,9 +685,10 @@ private fun LibraryList(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onDelete: () -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onDelete: () -> Unit) {
   val context = LocalContext.current
   var confirmDelete by remember { mutableStateOf(false) }
+  var confirmPublication by remember { mutableStateOf<PublicationAction?>(null) }
   var moreExpanded by remember { mutableStateOf(false) }
   BackHandler(onBack = onBack)
   fun shareOriginalUrl() {
@@ -725,6 +730,11 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                 text = { Text(if (article.isArchived) "移回收件箱" else "归档") },
                 onClick = { moreExpanded = false; onArchive() },
                 leadingIcon = { Icon(if (article.isArchived) Icons.Outlined.MoveToInbox else Icons.Outlined.Archive, contentDescription = null) },
+              )
+              if (canManage) DropdownMenuItem(
+                text = { Text(publicationAction(article.isPublished).label) },
+                onClick = { moreExpanded = false; confirmPublication = publicationAction(article.isPublished) },
+                leadingIcon = { Icon(Icons.Outlined.Public, contentDescription = null) },
               )
               if (canManage) DropdownMenuItem(
                 text = { Text("删除", color = MaterialTheme.colorScheme.error) },
@@ -781,6 +791,21 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
         item { Text(article.contentMd?.takeIf { it.isNotBlank() } ?: "正文暂时不可用", style = MaterialTheme.typography.bodyLarge) }
       }
     }
+  }
+  confirmPublication?.let { action ->
+    AlertDialog(
+      onDismissRequest = { confirmPublication = null },
+      icon = { Icon(Icons.Outlined.Public, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+      title = { Text(action.confirmationTitle) },
+      text = {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+          Text(article.displayTitle, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+          Text(action.confirmationMessage, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+      },
+      confirmButton = { Button(onClick = { confirmPublication = null; onPublication() }) { Text(action.label) } },
+      dismissButton = { TextButton(onClick = { confirmPublication = null }) { Text("取消") } },
+    )
   }
   if (confirmDelete) AlertDialog(
     onDismissRequest = { confirmDelete = false },

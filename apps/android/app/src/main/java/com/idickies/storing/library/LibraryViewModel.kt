@@ -295,6 +295,34 @@ class LibraryViewModel @Inject constructor(
     }
   }
 
+  fun togglePublication(article: ArticleDetail) {
+    viewModelScope.launch {
+      runCatching { repository.togglePublication(article.id, article.isPublished) }.onSuccess { result ->
+        mutableState.update { state ->
+          val updated = result.article
+          val cards = when {
+            state.view == LibraryView.Inbox && updated.isArchived -> state.articles.filterNot { it.id == article.id }
+            else -> state.articles.map {
+              if (it.id == article.id) it.copy(
+                isArchived = updated.isArchived,
+                isPublished = updated.isPublished,
+                publicId = updated.publicId ?: it.publicId,
+              ) else it
+            }
+          }
+          state.copy(
+            detail = state.detail?.copy(
+              isArchived = updated.isArchived,
+              isPublished = updated.isPublished,
+              publicId = updated.publicId ?: state.detail.publicId,
+            ),
+            articles = cards,
+          )
+        }
+      }
+    }
+  }
+
   fun delete(article: ArticleDetail) {
     viewModelScope.launch {
       runCatching { repository.delete(article.id) }.onSuccess {

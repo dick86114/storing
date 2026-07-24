@@ -14,7 +14,7 @@ class AuthRepository @Inject constructor(
   private val api: MobileAuthApi,
   private val sessionStore: SessionStore,
   private val deviceIdentityProvider: DeviceIdentityProvider,
-) {
+) : MobileSessionAuthenticator {
   fun currentTokens(): SessionTokens? = sessionStore.read()
 
   suspend fun login(username: String, password: String): MobileUser {
@@ -22,6 +22,13 @@ class AuthRepository @Inject constructor(
     sessionStore.write(response.toSessionTokens())
     return response.user
   }
+
+  override suspend fun ensureValidAccessToken(): Boolean {
+    if (sessionStore.read()?.hasUsableAccessToken() == true) return true
+    return refreshAccessToken()
+  }
+
+  override suspend fun refreshAccessToken(): Boolean = refresh() != null
 
   suspend fun restoreSession(): MobileUser? {
     val tokens = sessionStore.read() ?: return null
