@@ -112,6 +112,7 @@ dependencies {
   implementation(libs.work.runtime)
   implementation(libs.coil.compose)
   implementation(libs.coil.network.okhttp)
+  implementation(libs.zxing.core)
   ksp(libs.hilt.compiler)
   ksp(libs.room.compiler)
 

@@ -37,6 +37,7 @@ import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Person
@@ -160,6 +161,7 @@ fun LibraryScreen(
   var showManualCollect by remember { mutableStateOf(false) }
   var showBatteryGuidance by remember { mutableStateOf(false) }
   var showReaderSettings by remember { mutableStateOf(false) }
+  var showSharePoster by remember { mutableStateOf(false) }
   var showDeviceSessions by remember { mutableStateOf(false) }
   var showSettings by remember { mutableStateOf(false) }
   var presentationMode by rememberSaveable { mutableStateOf(ArticleListPresentationMode.default) }
@@ -198,9 +200,10 @@ fun LibraryScreen(
     }
   }
 
-  BackHandler(enabled = showSettings || showReaderSettings || showDeviceSessions || showTasks || showManualCollect || showBatteryGuidance) {
+  BackHandler(enabled = showSettings || showReaderSettings || showSharePoster || showDeviceSessions || showTasks || showManualCollect || showBatteryGuidance) {
     when {
       showReaderSettings -> showReaderSettings = false
+      showSharePoster -> showSharePoster = false
       showDeviceSessions -> showDeviceSessions = false
       showSettings -> showSettings = false
       showTasks -> showTasks = false
@@ -213,6 +216,11 @@ fun LibraryScreen(
   val detailError = state.detailError
   when {
     showReaderSettings -> ReaderSettingsScreen(onBack = { showReaderSettings = false })
+    showSharePoster && detail != null && detail.publicId != null -> SharePosterScreen(
+      article = detail,
+      publicUrl = "https://storing.idickies.com/p/${detail.publicId}",
+      onBack = { showSharePoster = false },
+    )
     showDeviceSessions -> DeviceSessionsScreen(onBack = { showDeviceSessions = false })
     showSettings -> QiankunjieSettingsScreen(
       checkingUpdate = updateChecking,
@@ -235,6 +243,7 @@ fun LibraryScreen(
       onFavorite = { libraryViewModel.toggleFavorite(detail) },
       onArchive = { libraryViewModel.toggleArchive(detail) },
       onPublication = { libraryViewModel.togglePublication(detail) },
+      onOpenSharePoster = { showSharePoster = true },
       onProcess = { action -> libraryViewModel.processArticle(detail, action) },
       onDelete = { libraryViewModel.delete(detail) },
     )
@@ -711,16 +720,36 @@ private fun LibraryList(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDelete: () -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDelete: () -> Unit) {
   val context = LocalContext.current
   var confirmDelete by remember { mutableStateOf(false) }
   var confirmPublication by remember { mutableStateOf<PublicationAction?>(null) }
   var confirmProcessing by remember { mutableStateOf<ArticleProcessingAction?>(null) }
   var moreExpanded by remember { mutableStateOf(false) }
   BackHandler(onBack = onBack)
+  val publicUrl = article.publicId?.let { "https://storing.idickies.com/p/$it" }
+
   fun shareOriginalUrl() {
     article.originalUrl?.let { url ->
       context.startActivity(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, url))
+    }
+  }
+
+  fun copyPublicUrl() {
+    publicUrl?.let { url ->
+      val clipboard = context.getSystemService(ClipboardManager::class.java)
+      val clip = android.content.ClipData.newUri(context.contentResolver, "公开链接", Uri.parse(url))
+      clipboard?.setPrimaryClip(clip)
+      android.widget.Toast.makeText(context, "公开链接已复制", android.widget.Toast.LENGTH_SHORT).show()
+    }
+  }
+
+  fun sharePublicUrl() {
+    publicUrl?.let { url ->
+      val intent = Intent(Intent.ACTION_SEND).setType("text/plain")
+        .putExtra(Intent.EXTRA_TEXT, url)
+        .putExtra(Intent.EXTRA_SUBJECT, article.displayTitle)
+      context.startActivity(Intent.createChooser(intent, "分享公开链接"))
     }
   }
   Scaffold(
@@ -747,6 +776,21 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                 onClick = { moreExpanded = false; shareOriginalUrl() },
                 leadingIcon = { Icon(Icons.Outlined.IosShare, contentDescription = null) },
                 enabled = !article.originalUrl.isNullOrBlank(),
+              )
+              if (article.isPublished && publicUrl != null) DropdownMenuItem(
+                text = { Text("复制公开链接") },
+                onClick = { moreExpanded = false; copyPublicUrl() },
+                leadingIcon = { Icon(Icons.Outlined.Link, contentDescription = null) },
+              )
+              if (article.isPublished && publicUrl != null) DropdownMenuItem(
+                text = { Text("分享公开链接") },
+                onClick = { moreExpanded = false; sharePublicUrl() },
+                leadingIcon = { Icon(Icons.Outlined.IosShare, contentDescription = null) },
+              )
+              if (article.isPublished && publicUrl != null) DropdownMenuItem(
+                text = { Text("生成分享海报") },
+                onClick = { moreExpanded = false; onOpenSharePoster() },
+                leadingIcon = { Icon(Icons.Outlined.Image, contentDescription = null) },
               )
               if (canManage) DropdownMenuItem(
                 text = { Text(if (article.isFavorited) "取消收藏" else "收藏") },
