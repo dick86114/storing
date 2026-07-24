@@ -7,6 +7,7 @@ import com.idickies.storing.auth.DeviceIdentityProvider
 import com.idickies.storing.auth.KeystoreSessionStore
 import com.idickies.storing.auth.SessionStore
 import com.idickies.storing.database.ArticleCacheDatabase
+import com.idickies.storing.database.ReadingPositionDao
 import com.idickies.storing.network.AccessTokenInterceptor
 import com.idickies.storing.network.ClientHeadersInterceptor
 import com.idickies.storing.network.ArticleApi
@@ -47,6 +48,9 @@ object AppModule {
 
   @Provides
   fun providePendingCollectSubmissionDao(database: ArticleCacheDatabase) = database.pendingCollectSubmissionDao()
+
+  @Provides
+  fun provideReadingPositionDao(database: ArticleCacheDatabase) = database.readingPositionDao()
 
   @Provides
   @Singleton

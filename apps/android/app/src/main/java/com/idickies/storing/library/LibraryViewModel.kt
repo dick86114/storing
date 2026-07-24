@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.idickies.storing.network.ArticleCounts
+import com.idickies.storing.reader.ReadingPositionRepository
 import javax.inject.Inject
 
 private const val SEARCH_DEBOUNCE_MILLIS = 350L
@@ -46,6 +47,7 @@ data class LibraryUiState(
   val processingError: String? = null,
   val counts: ArticleCounts? = null,
   val permanentDeleting: Boolean = false,
+  val savedReadingPosition: Float? = null,
 ) {
   val hasMore: Boolean get() = LibraryPaging(page = page, totalPages = totalPages).hasMore
 }
@@ -53,6 +55,7 @@ data class LibraryUiState(
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
   private val repository: ArticleRepository,
+  private val readingPositionRepository: ReadingPositionRepository,
 ) : ViewModel() {
   private val mutableState = MutableStateFlow(LibraryUiState())
   val state = mutableState.asStateFlow()
@@ -269,14 +272,17 @@ class LibraryViewModel @Inject constructor(
   fun open(id: Int) {
     viewModelScope.launch {
       val card = mutableState.value.articles.firstOrNull { it.id == id }
-      mutableState.update { it.copy(loadingDetail = true, detail = null, detailError = null) }
+      mutableState.update { it.copy(loadingDetail = true, detail = null, detailError = null, savedReadingPosition = null) }
       runCatching { repository.detail(id, card?.publicId.takeIf { mutableState.value.view == LibraryView.Published }) }
-        .onSuccess { article -> mutableState.update { it.copy(loadingDetail = false, detail = article) } }
+        .onSuccess { article ->
+          val position = runCatching { readingPositionRepository.get(id)?.scrollPercentage }.getOrNull()
+          mutableState.update { it.copy(loadingDetail = false, detail = article, savedReadingPosition = position) }
+        }
         .onFailure { error -> mutableState.update { it.copy(loadingDetail = false, detailError = error.message ?: "加载文章失败") } }
     }
   }
 
-  fun closeDetail() = mutableState.update { it.copy(detail = null, detailError = null, loadingDetail = false) }
+  fun closeDetail() = mutableState.update { it.copy(detail = null, detailError = null, loadingDetail = false, savedReadingPosition = null) }
 
   fun toggleFavorite(article: ArticleDetail) {
     viewModelScope.launch {
@@ -366,6 +372,12 @@ class LibraryViewModel @Inject constructor(
   }
 
   fun clearProcessingError() = mutableState.update { it.copy(processingError = null) }
+
+  fun saveReadingPosition(articleId: Int, percentage: Float) {
+    viewModelScope.launch {
+      runCatching { readingPositionRepository.save(articleId, percentage) }
+    }
+  }
 
   fun delete(article: ArticleDetail) {
     viewModelScope.launch {

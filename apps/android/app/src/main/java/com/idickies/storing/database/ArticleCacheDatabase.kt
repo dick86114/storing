@@ -72,6 +72,28 @@ interface ArticleCacheDao {
   suspend fun clearUser(userId: Int)
 }
 
+@Entity(tableName = "reading_positions")
+data class ReadingPosition(
+  @androidx.room.PrimaryKey val articleId: Int,
+  val scrollPercentage: Float,
+  val savedAtEpochMs: Long = System.currentTimeMillis(),
+)
+
+@Dao
+interface ReadingPositionDao {
+  @Query("SELECT * FROM reading_positions WHERE articleId = :articleId")
+  suspend fun get(articleId: Int): ReadingPosition?
+
+  @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
+  suspend fun upsert(position: ReadingPosition)
+
+  @Query("DELETE FROM reading_positions WHERE articleId = :articleId")
+  suspend fun delete(articleId: Int)
+
+  @Query("DELETE FROM reading_positions")
+  suspend fun clearAll()
+}
+
 @Entity(tableName = "pending_collect_submissions")
 data class PendingCollectSubmission(
   @androidx.room.PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -93,10 +115,11 @@ interface PendingCollectSubmissionDao {
   suspend fun delete(id: Long)
 }
 
-@Database(entities = [CachedArticleCard::class, PendingCollectSubmission::class], version = 2, exportSchema = false)
+@Database(entities = [CachedArticleCard::class, PendingCollectSubmission::class, ReadingPosition::class], version = 3, exportSchema = false)
 abstract class ArticleCacheDatabase : RoomDatabase() {
   abstract fun articleCacheDao(): ArticleCacheDao
   abstract fun pendingCollectSubmissionDao(): PendingCollectSubmissionDao
+  abstract fun readingPositionDao(): ReadingPositionDao
 
   companion object {
     val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -116,9 +139,15 @@ abstract class ArticleCacheDatabase : RoomDatabase() {
       }
     }
 
+    val MIGRATION_2_3 = object : Migration(2, 3) {
+      override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("CREATE TABLE IF NOT EXISTS reading_positions (articleId INTEGER PRIMARY KEY NOT NULL, scrollPercentage REAL NOT NULL, savedAtEpochMs INTEGER NOT NULL)")
+      }
+    }
+
     fun create(context: Context): ArticleCacheDatabase =
       Room.databaseBuilder(context.applicationContext, ArticleCacheDatabase::class.java, "qiankunjie_article_cache")
-        .addMigrations(MIGRATION_1_2)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
         .build()
   }
 }
