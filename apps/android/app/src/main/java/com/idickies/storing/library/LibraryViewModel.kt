@@ -41,6 +41,8 @@ data class LibraryUiState(
   val detail: ArticleDetail? = null,
   val loadingDetail: Boolean = false,
   val detailError: String? = null,
+  val processingAction: ArticleProcessingAction? = null,
+  val processingError: String? = null,
 ) {
   val hasMore: Boolean get() = LibraryPaging(page = page, totalPages = totalPages).hasMore
 }
@@ -322,6 +324,41 @@ class LibraryViewModel @Inject constructor(
       }
     }
   }
+
+  fun processArticle(article: ArticleDetail, action: ArticleProcessingAction) {
+    if (mutableState.value.processingAction != null) return
+    viewModelScope.launch {
+      mutableState.update { it.copy(processingAction = action, processingError = null) }
+      runCatching {
+        when (action) {
+          ArticleProcessingAction.Refetch -> repository.refetch(article.id)
+          ArticleProcessingAction.RegenerateAi -> repository.regenerateAi(article.id)
+        }
+        repository.detail(article.id)
+      }.onSuccess { refreshed ->
+        mutableState.update { state ->
+          state.copy(
+            detail = refreshed,
+            articles = state.articles.map { card ->
+              if (card.id == article.id) card.copy(
+                coverImage = refreshed.coverImage ?: card.coverImage,
+                aiSummary = refreshed.aiSummary,
+                aiCategory = refreshed.aiCategory,
+                aiTags = refreshed.aiTags,
+                isArchived = refreshed.isArchived,
+                isPublished = refreshed.isPublished,
+              ) else card
+            },
+            processingAction = null,
+          )
+        }
+      }.onFailure { error ->
+        mutableState.update { it.copy(processingAction = null, processingError = error.message ?: "文章处理失败") }
+      }
+    }
+  }
+
+  fun clearProcessingError() = mutableState.update { it.copy(processingError = null) }
 
   fun delete(article: ArticleDetail) {
     viewModelScope.launch {

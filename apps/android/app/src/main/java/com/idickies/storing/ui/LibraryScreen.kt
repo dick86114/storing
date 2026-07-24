@@ -108,6 +108,7 @@ import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 import com.idickies.storing.library.ArticleCard
 import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.library.ArticleListPresentationMode
+import com.idickies.storing.library.ArticleProcessingAction
 import com.idickies.storing.library.PublicationAction
 import com.idickies.storing.library.ArchiveSourceFilter
 import com.idickies.storing.network.MobileCollectJob
@@ -220,9 +221,11 @@ fun LibraryScreen(
       onBack = libraryViewModel::closeDetail,
       canManage = canManageArticle(isAuthenticated, state.view),
       readerColorScheme = readerColorScheme,
+      processingAction = state.processingAction,
       onFavorite = { libraryViewModel.toggleFavorite(detail) },
       onArchive = { libraryViewModel.toggleArchive(detail) },
       onPublication = { libraryViewModel.togglePublication(detail) },
+      onProcess = { action -> libraryViewModel.processArticle(detail, action) },
       onDelete = { libraryViewModel.delete(detail) },
     )
     state.loadingDetail -> FullPageLoading("正在加载文章…")
@@ -300,6 +303,15 @@ fun LibraryScreen(
     }
   }
 
+  state.processingError?.let { message ->
+    AlertDialog(
+      onDismissRequest = libraryViewModel::clearProcessingError,
+      icon = { Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+      title = { Text("文章处理失败") },
+      text = { Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+      confirmButton = { Button(onClick = libraryViewModel::clearProcessingError) { Text("知道了") } },
+    )
+  }
   if (showTasks) CollectJobsDialog(
     onDismiss = { showTasks = false },
     onOpenArticle = { id -> showTasks = false; libraryViewModel.open(id) },
@@ -689,10 +701,11 @@ private fun LibraryList(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onDelete: () -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, processingAction: ArticleProcessingAction?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDelete: () -> Unit) {
   val context = LocalContext.current
   var confirmDelete by remember { mutableStateOf(false) }
   var confirmPublication by remember { mutableStateOf<PublicationAction?>(null) }
+  var confirmProcessing by remember { mutableStateOf<ArticleProcessingAction?>(null) }
   var moreExpanded by remember { mutableStateOf(false) }
   BackHandler(onBack = onBack)
   fun shareOriginalUrl() {
@@ -717,7 +730,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
             enabled = !article.originalUrl.isNullOrBlank(),
           ) { Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = "打开原网页") }
           Box {
-            IconButton(onClick = { moreExpanded = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "更多阅读操作") }
+            IconButton(onClick = { moreExpanded = true }, enabled = processingAction == null) { Icon(Icons.Outlined.MoreVert, contentDescription = "更多阅读操作") }
             DropdownMenu(expanded = moreExpanded, onDismissRequest = { moreExpanded = false }) {
               DropdownMenuItem(
                 text = { Text("分享原网页") },
@@ -740,6 +753,13 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                 onClick = { moreExpanded = false; confirmPublication = publicationAction(article.isPublished) },
                 leadingIcon = { Icon(Icons.Outlined.Public, contentDescription = null) },
               )
+              if (canManage) ArticleProcessingAction.entries.forEach { action ->
+                DropdownMenuItem(
+                  text = { Text(action.label) },
+                  onClick = { moreExpanded = false; confirmProcessing = action },
+                  leadingIcon = { Icon(if (action == ArticleProcessingAction.Refetch) Icons.Outlined.Replay else Icons.Outlined.Sync, contentDescription = null) },
+                )
+              }
               if (canManage) DropdownMenuItem(
                 text = { Text("删除", color = MaterialTheme.colorScheme.error) },
                 onClick = { moreExpanded = false; confirmDelete = true },
@@ -751,7 +771,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
       )
     },
     bottomBar = {
-      if (canManage) ReaderActionBar(
+      if (canManage && processingAction == null) ReaderActionBar(
         isFavorited = article.isFavorited,
         isArchived = article.isArchived,
         shareEnabled = !article.originalUrl.isNullOrBlank(),
@@ -759,6 +779,18 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
         onArchive = onArchive,
         onShare = ::shareOriginalUrl,
       )
+      if (canManage && processingAction != null) {
+        Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
+          Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            Text("正在${processingAction.label}，请稍候…", style = MaterialTheme.typography.bodyMedium)
+          }
+        }
+      }
     },
   ) { padding ->
     val html = article.contentHtml
@@ -795,6 +827,21 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
         item { Text(article.contentMd?.takeIf { it.isNotBlank() } ?: "正文暂时不可用", style = MaterialTheme.typography.bodyLarge) }
       }
     }
+  }
+  confirmProcessing?.let { action ->
+    AlertDialog(
+      onDismissRequest = { confirmProcessing = null },
+      icon = { Icon(if (action == ArticleProcessingAction.Refetch) Icons.Outlined.Replay else Icons.Outlined.Sync, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+      title = { Text(action.confirmationTitle) },
+      text = {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+          Text(article.displayTitle, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+          Text(action.confirmationMessage, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+      },
+      confirmButton = { Button(onClick = { confirmProcessing = null; onProcess(action) }) { Text(action.label) } },
+      dismissButton = { TextButton(onClick = { confirmProcessing = null }) { Text("取消") } },
+    )
   }
   confirmPublication?.let { action ->
     AlertDialog(

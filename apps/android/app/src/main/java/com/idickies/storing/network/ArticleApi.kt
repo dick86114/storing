@@ -1,6 +1,8 @@
 package com.idickies.storing.network
 
 import com.idickies.storing.library.ArchiveResponse
+import com.idickies.storing.library.ArticleRefetchResponse
+import com.idickies.storing.library.ArticleRegenerateAiResponse
 import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.library.ArticleListResponse
 import com.idickies.storing.library.ArticleSource
@@ -58,6 +60,12 @@ interface ArticleApi {
 
   @POST("articles/{id}/unpublish")
   suspend fun unpublish(@Path("id") id: Int): PublicationResponse
+
+  @POST("articles/{id}/refetch")
+  suspend fun refetch(@Path("id") id: Int): ArticleRefetchResponse
+
+  @POST("articles/{id}/regenerate-ai")
+  suspend fun regenerateAi(@Path("id") id: Int): ArticleRegenerateAiResponse
 
   @DELETE("articles/{id}")
   suspend fun delete(@Path("id") id: Int)

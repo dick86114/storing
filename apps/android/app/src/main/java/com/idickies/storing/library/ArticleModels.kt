@@ -85,3 +85,19 @@ data class PublicationResponse(
   val article: ArticleDetail,
   @SerialName("publicUrl") val publicUrl: String? = null,
 )
+
+
+@Serializable
+data class ArticleRefetchResponse(
+  @SerialName("articleId") val articleId: Int,
+  @SerialName("contentHtml") val contentHtml: Boolean = false,
+  @SerialName("contentHtmlMobile") val contentHtmlMobile: Boolean = false,
+  @SerialName("contentMd") val contentMd: Boolean = false,
+  @SerialName("coverImage") val coverImage: String? = null,
+)
+
+@Serializable
+data class ArticleRegenerateAiResponse(
+  @SerialName("articleId") val articleId: Int,
+  val ok: Boolean,
+)
