@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -181,6 +182,7 @@ fun LibraryScreen(
   var showDeviceSessions by remember { mutableStateOf(false) }
   var showSettings by remember { mutableStateOf(false) }
   var presentationMode by rememberSaveable { mutableStateOf(ArticleListPresentationMode.default) }
+  val libraryListState = rememberLazyListState()
   DisposableEffect(lifecycleOwner) {
     val observer = LifecycleEventObserver { _, event ->
       when (event) {
@@ -219,6 +221,11 @@ fun LibraryScreen(
     if (openMcpSettings) {
       showMcp = true
       onMcpSettingsOpened()
+    }
+  }
+  LaunchedEffect(isAuthenticated) {
+    if (!isAuthenticated && state.view != LibraryView.Published) {
+      libraryViewModel.select(LibraryView.Published)
     }
   }
   LaunchedEffect(openCollectJobs) {
@@ -335,29 +342,30 @@ fun LibraryScreen(
         )
       },
       bottomBar = {
-        QiankunjieCompactBottomBar {
-          val visibleViews = if (isAuthenticated) LibraryView.entries else listOf(LibraryView.Published)
-          visibleViews.forEach { item ->
-            val count = state.counts?.let { c ->
-              when (item) {
-                LibraryView.Inbox -> c.inbox
-                LibraryView.Favorites -> c.favorites
-                LibraryView.Archive -> c.archive
-                LibraryView.Published -> c.published
+        if (isAuthenticated) {
+          QiankunjieCompactBottomBar {
+            LibraryView.entries.forEach { item ->
+              val count = state.counts?.let { c ->
+                when (item) {
+                  LibraryView.Inbox -> c.inbox
+                  LibraryView.Favorites -> c.favorites
+                  LibraryView.Archive -> c.archive
+                  LibraryView.Published -> null
+                }
               }
+              CompactBottomBarItem(
+                label = item.shortLabel,
+                icon = when (item) {
+                  LibraryView.Published -> Icons.Outlined.Public
+                  LibraryView.Inbox -> Icons.Outlined.Inbox
+                  LibraryView.Favorites -> Icons.Outlined.StarBorder
+                  LibraryView.Archive -> Icons.Outlined.Inventory2
+                },
+                selected = state.view == item && state.searchQuery.isBlank(),
+                badgeCount = count,
+                onClick = { libraryViewModel.select(item) },
+              )
             }
-            CompactBottomBarItem(
-              label = item.label,
-              icon = when (item) {
-                LibraryView.Published -> Icons.Outlined.Public
-                LibraryView.Inbox -> Icons.Outlined.Inbox
-                LibraryView.Favorites -> Icons.Outlined.StarBorder
-                LibraryView.Archive -> Icons.Outlined.Inventory2
-              },
-              selected = state.view == item && state.searchQuery.isBlank(),
-              badgeCount = count,
-              onClick = { libraryViewModel.select(item) },
-            )
           }
         }
       },
@@ -380,6 +388,7 @@ fun LibraryScreen(
         onOpen = libraryViewModel::open,
         onSelectCollectUrl = collectViewModel::select,
         onSubmitCollect = collectViewModel::submit,
+        listState = libraryListState,
         modifier = Modifier.padding(padding),
       )
     }
@@ -676,13 +685,13 @@ private fun LibraryList(
   onOpen: (Int) -> Unit,
   onSelectCollectUrl: (String) -> Unit,
   onSubmitCollect: () -> Unit,
+  listState: LazyListState,
   modifier: Modifier = Modifier,
 ) {
   var query by remember(state.searchQuery) { mutableStateOf(state.searchQuery) }
-  val lazyListState = rememberLazyListState()
-  val lastVisibleItemIndex by remember { derivedStateOf { lazyListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 } }
+  val lastVisibleItemIndex by remember { derivedStateOf { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 } }
   LaunchedEffect(lastVisibleItemIndex, state.articles.size, state.hasMore, state.loadingMore, state.fromCache) {
-    if (!state.loadingMore && !state.fromCache && shouldLoadMore(lastVisibleItemIndex, lazyListState.layoutInfo.totalItemsCount, state.hasMore)) onLoadMore()
+    if (!state.loadingMore && !state.fromCache && shouldLoadMore(lastVisibleItemIndex, listState.layoutInfo.totalItemsCount, state.hasMore)) onLoadMore()
   }
   PullToRefreshBox(
     isRefreshing = state.refreshing,
@@ -691,14 +700,75 @@ private fun LibraryList(
   ) {
     LazyColumn(
       modifier = Modifier.fillMaxSize(),
-      state = lazyListState,
+      state = listState,
       contentPadding = PaddingValues(16.dp),
       verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
     item {
-      Column(modifier = Modifier.padding(top = 4.dp)) {
-        Text("把值得阅读的内容，留在自己的知识空间。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("${state.view.label} · ${state.articles.size} 篇", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 6.dp))
+      var sortExpanded by remember { mutableStateOf(false) }
+      var sourceExpanded by remember { mutableStateOf(false) }
+      val sourceOptions = archiveSourceFilters(state.archiveSources)
+      val sourceCounts = state.archiveSources.associate { it.source to it.count }
+      Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Text("${state.view.label} · ${state.articles.size} 篇", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+          if (state.view != LibraryView.Published && state.searchQuery.isBlank()) {
+            Box {
+              AssistChip(
+                onClick = { sortExpanded = true },
+                label = { Text(state.sort.label) },
+                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = "排序方式", modifier = Modifier.size(16.dp)) },
+              )
+              DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }) {
+                LibrarySort.availableFor(state.view).forEach { sort ->
+                  DropdownMenuItem(
+                    text = { Text(sort.label) },
+                    leadingIcon = { if (sort == state.sort) Icon(Icons.Outlined.CheckCircle, contentDescription = null) },
+                    onClick = { sortExpanded = false; onSort(sort) },
+                  )
+                }
+              }
+            }
+          }
+          if (ArchiveSourceFilter.isAvailableFor(state.view, state.searchQuery)) {
+            Box {
+              AssistChip(
+                onClick = { sourceExpanded = true },
+                label = { Text(if (state.archiveSourcesLoading) "来源" else state.archiveSource.label) },
+                leadingIcon = { Icon(Icons.Outlined.FilterList, contentDescription = "归档来源", modifier = Modifier.size(16.dp)) },
+              )
+              DropdownMenu(expanded = sourceExpanded, onDismissRequest = { sourceExpanded = false }) {
+                sourceOptions.forEach { filter ->
+                  val count = filter.category?.let(sourceCounts::get)
+                  DropdownMenuItem(
+                    text = { Text(if (count == null) filter.label else "${filter.label} · $count") },
+                    leadingIcon = { if (filter == state.archiveSource) Icon(Icons.Outlined.CheckCircle, contentDescription = null) },
+                    onClick = { sourceExpanded = false; onArchiveSource(filter) },
+                  )
+                }
+              }
+            }
+          }
+          AssistChip(
+            onClick = {
+              onPresentationModeChange(
+                if (presentationMode == ArticleListPresentationMode.Card) ArticleListPresentationMode.CompactList else ArticleListPresentationMode.Card,
+              )
+            },
+            label = { Text(presentationMode.label) },
+            leadingIcon = {
+              Icon(
+                if (presentationMode == ArticleListPresentationMode.Card) Icons.Outlined.ViewModule else Icons.AutoMirrored.Outlined.ViewList,
+                contentDescription = "切换文章显示方式",
+                modifier = Modifier.size(16.dp),
+              )
+            },
+          )
+        }
       }
     }
     if (state.view != LibraryView.Published) item {
@@ -714,64 +784,6 @@ private fun LibraryList(
         shape = MaterialTheme.shapes.medium,
         singleLine = true,
       )
-    }
-    if (state.searchQuery.isBlank()) item {
-      var sortExpanded by remember { mutableStateOf(false) }
-      var sourceExpanded by remember { mutableStateOf(false) }
-      val sourceOptions = archiveSourceFilters(state.archiveSources)
-      val sourceCounts = state.archiveSources.associate { it.source to it.count }
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box {
-          AssistChip(
-            onClick = { sortExpanded = true },
-            label = { Text(state.sort.label) },
-            leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = "排序方式", modifier = Modifier.size(18.dp)) },
-          )
-          DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }) {
-            LibrarySort.availableFor(state.view).forEach { sort ->
-              DropdownMenuItem(
-                text = { Text(sort.label) },
-                leadingIcon = { if (sort == state.sort) Icon(Icons.Outlined.CheckCircle, contentDescription = null) },
-                onClick = { sortExpanded = false; onSort(sort) },
-              )
-            }
-          }
-        }
-        AssistChip(
-          onClick = {
-            onPresentationModeChange(
-              if (presentationMode == ArticleListPresentationMode.Card) ArticleListPresentationMode.CompactList else ArticleListPresentationMode.Card,
-            )
-          },
-          label = { Text(presentationMode.label) },
-          leadingIcon = {
-            Icon(
-              if (presentationMode == ArticleListPresentationMode.Card) Icons.Outlined.ViewModule else Icons.AutoMirrored.Outlined.ViewList,
-              contentDescription = "切换文章显示方式",
-              modifier = Modifier.size(18.dp),
-            )
-          },
-        )
-        if (ArchiveSourceFilter.isAvailableFor(state.view, state.searchQuery)) {
-          Box {
-            AssistChip(
-              onClick = { sourceExpanded = true },
-              label = { Text(if (state.archiveSourcesLoading) "加载来源…" else state.archiveSource.label) },
-              leadingIcon = { Icon(Icons.Outlined.FilterList, contentDescription = "归档来源", modifier = Modifier.size(18.dp)) },
-            )
-            DropdownMenu(expanded = sourceExpanded, onDismissRequest = { sourceExpanded = false }) {
-              sourceOptions.forEach { filter ->
-                val count = filter.category?.let(sourceCounts::get)
-                DropdownMenuItem(
-                  text = { Text(if (count == null) filter.label else "${filter.label} · $count") },
-                  leadingIcon = { if (filter == state.archiveSource) Icon(Icons.Outlined.CheckCircle, contentDescription = null) },
-                  onClick = { sourceExpanded = false; onArchiveSource(filter) },
-                )
-              }
-            }
-          }
-        }
-      }
     }
     if (activeJobCount > 0) item {
       ActiveCollectJobsCard(
@@ -810,6 +822,39 @@ private fun LibraryList(
         }
       }
     }
+  }
+}
+
+@Composable
+private fun ArticleDetailHeader(article: ArticleDetail, isOfflineAvailable: Boolean) {
+  Column(
+    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
+    verticalArrangement = Arrangement.spacedBy(4.dp),
+  ) {
+    Text(article.displayTitle, style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
+    val metaParts = buildList {
+      article.source?.let { add(it) }
+      article.author?.takeIf { it.isNotBlank() }?.let { add(it) }
+      article.publishTime?.takeIf { it.isNotBlank() }?.let { formatPublishTime(it) }
+        ?: article.createdAt?.takeIf { it.isNotBlank() }?.let { formatPublishTime(it) }
+    }
+    if (metaParts.isNotEmpty()) {
+      Text(metaParts.joinToString(" · "), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+    if (isOfflineAvailable) Text("离线可用", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
+  }
+}
+
+private fun formatPublishTime(iso: String): String {
+  return try {
+    val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+    inputFormat.timeZone = java.util.TimeZone.getTimeZone("UTC")
+    val date = inputFormat.parse(iso.take(19))
+    val outputFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+    outputFormat.timeZone = java.util.TimeZone.getDefault()
+    outputFormat.format(date)
+  } catch (_: Exception) {
+    iso.take(10)
   }
 }
 
@@ -853,11 +898,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
       TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(containerColor = liquidGlassSurfaceColor()),
         title = {
-          Column {
-            Text(article.source ?: "乾坤戒阅读", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-            Text(article.displayTitle, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (isOfflineAvailable) Text("离线可用", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
-          }
+          Text(article.source ?: "乾坤戒阅读", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         },
         navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回资料库") } },
         actions = {
@@ -978,31 +1019,33 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
     },
   ) { padding ->
     val html = article.contentHtml
-    if (!html.isNullOrBlank()) {
-      key(readerColorScheme, readerPreferences) {
-        var currentScrollPercentage by remember { mutableStateOf(0f) }
-        AndroidView(
-          factory = { webContext ->
-            android.webkit.WebView(webContext).apply {
-              ReaderWebView.configure(
-                this,
-                readerPreferences,
-                onOpenExternalUrl = { uri -> webContext.startActivity(Intent(Intent.ACTION_VIEW, uri)) },
-                onPageFinished = {
-                  savedReadingPosition?.let { pos -> ReaderWebView.restoreScrollPosition(this, pos) }
-                },
-                onScrollChanged = { percentage -> currentScrollPercentage = percentage },
-              )
-              ReaderWebView.loadCapturedHtml(this, html, readerColorScheme, readerPreferences)
-            }
-          },
-          modifier = Modifier.fillMaxSize().padding(padding),
-        )
-        androidx.compose.runtime.DisposableEffect(article.id) {
-          onDispose { onSaveReadingPosition(currentScrollPercentage) }
+    Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+      ArticleDetailHeader(article = article, isOfflineAvailable = isOfflineAvailable)
+      if (!html.isNullOrBlank()) {
+        key(readerColorScheme, readerPreferences) {
+          var currentScrollPercentage by remember { mutableStateOf(0f) }
+          AndroidView(
+            factory = { webContext ->
+              android.webkit.WebView(webContext).apply {
+                ReaderWebView.configure(
+                  this,
+                  readerPreferences,
+                  onOpenExternalUrl = { uri -> webContext.startActivity(Intent(Intent.ACTION_VIEW, uri)) },
+                  onPageFinished = {
+                    savedReadingPosition?.let { pos -> ReaderWebView.restoreScrollPosition(this, pos) }
+                  },
+                  onScrollChanged = { percentage -> currentScrollPercentage = percentage },
+                )
+                ReaderWebView.loadCapturedHtml(this, html, readerColorScheme, readerPreferences)
+              }
+            },
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+          )
+          androidx.compose.runtime.DisposableEffect(article.id) {
+            onDispose { onSaveReadingPosition(currentScrollPercentage) }
+          }
         }
-      }
-    } else {
+      } else {
       LazyColumn(
         modifier = Modifier.fillMaxSize().padding(padding),
         contentPadding = PaddingValues(horizontal = 22.dp, vertical = 18.dp),
@@ -1023,6 +1066,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
           }
         }
         item { Text(article.contentMd?.takeIf { it.isNotBlank() } ?: "正文暂时不可用", style = MaterialTheme.typography.bodyLarge) }
+      }
       }
     }
   }

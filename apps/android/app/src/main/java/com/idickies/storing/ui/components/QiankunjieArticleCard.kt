@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -55,12 +57,12 @@ fun QiankunjieArticleCard(
         article.aiSummary?.takeIf { it.isNotBlank() }?.let { summary ->
           Text(summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        FlowRow(
-          modifier = Modifier.padding(top = 12.dp),
+        Row(
+          modifier = Modifier.padding(top = 12.dp).fillMaxWidth().horizontalScroll(rememberScrollState()),
           horizontalArrangement = Arrangement.spacedBy(6.dp),
-          verticalArrangement = Arrangement.spacedBy(6.dp),
+          verticalAlignment = Alignment.CenterVertically,
         ) {
-          article.aiTags.take(2).forEach { tag -> AssistChip(onClick = {}, label = { Text(tag) }) }
+          article.aiTags.forEach { tag -> AssistChip(onClick = {}, label = { Text(tag, maxLines = 1) }) }
           if (article.isFavorited) AssistChip(onClick = {}, label = { Text("已收藏") })
           if (article.isArchived) AssistChip(onClick = {}, label = { Text("已归档") })
         }
@@ -90,8 +92,17 @@ fun QiankunjieCompactArticleRow(
         article.aiSummary?.takeIf { it.isNotBlank() }?.let { summary ->
           Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        article.aiTags.firstOrNull()?.let { tag ->
-          Text(tag, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (article.aiTags.isNotEmpty()) {
+          Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            article.aiTags.forEach { tag ->
+              Text(tag, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+              if (tag != article.aiTags.last()) Text("·", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+          }
         }
       }
     }

@@ -56,9 +56,9 @@ class ArticleRepository @Inject constructor(
   suspend fun counts(): ArticleCounts = api.counts()
 }
 
-enum class LibraryView(val apiValue: String, val label: String) {
-  Inbox("inbox", "收件箱"),
-  Favorites("favorites", "收藏"),
-  Archive("archive", "归档"),
-  Published("published", "发布"),
+enum class LibraryView(val apiValue: String, val label: String, val shortLabel: String) {
+  Inbox("inbox", "收件箱", "收件"),
+  Favorites("favorites", "收藏", "收藏"),
+  Archive("archive", "归档", "归档"),
+  Published("published", "发布", "发布"),
 }

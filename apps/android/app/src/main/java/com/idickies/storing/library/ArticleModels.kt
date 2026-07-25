@@ -49,6 +49,8 @@ data class ArticleDetail(
   @SerialName("originalUrl") val originalUrl: String? = null,
   @SerialName("publicId") val publicId: String? = null,
   @SerialName("coverImage") val coverImage: String? = null,
+  @SerialName("publishTime") val publishTime: String? = null,
+  @SerialName("createdAt") val createdAt: String? = null,
   @SerialName("aiSummary") val aiSummary: String? = null,
   @SerialName("aiCategory") val aiCategory: String? = null,
   @SerialName("aiTags") val aiTags: List<String> = emptyList(),
