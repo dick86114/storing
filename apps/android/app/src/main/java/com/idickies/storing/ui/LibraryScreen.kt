@@ -54,6 +54,8 @@ import androidx.compose.material.icons.outlined.MoveToInbox
 import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.automirrored.outlined.Sort
+import androidx.compose.material.icons.outlined.ArrowDownward
+import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
@@ -407,6 +409,8 @@ fun LibraryScreen(
         onOpenTasks = { showTasks = true },
         onSearch = libraryViewModel::search,
         onSort = libraryViewModel::selectSort,
+        onToggleSortOrder = libraryViewModel::toggleSortOrder,
+        sortOrder = state.sortOrder,
         presentationMode = presentationMode,
         onPresentationModeChange = { presentationMode = it },
         onArchiveSource = libraryViewModel::selectArchiveSource,
@@ -451,6 +455,7 @@ fun LibraryScreen(
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun ManualCollectDialog(
   onDismiss: () -> Unit,
   viewModel: ShareCollectViewModel,
@@ -459,49 +464,61 @@ private fun ManualCollectDialog(
   val context = LocalContext.current
   var url by rememberSaveable { mutableStateOf("") }
   val messageColor = if (state.submissionAccepted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-  AlertDialog(
+  val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+  androidx.compose.material3.ModalBottomSheet(
     onDismissRequest = onDismiss,
-    icon = { Icon(Icons.Outlined.Link, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-    title = { Text("采集网页链接") },
-    text = {
-      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("粘贴公开的 HTTP 或 HTTPS 网页，乾坤戒会将它保存到收件箱。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        OutlinedTextField(
-          value = url,
-          onValueChange = { url = it },
-          label = { Text("网页链接") },
-          leadingIcon = { Icon(Icons.Outlined.Link, contentDescription = null) },
-          trailingIcon = {
-            IconButton(onClick = {
-              val clipboard = context.getSystemService(ClipboardManager::class.java)
-              url = clipboard?.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
-            }) { Icon(Icons.Outlined.ContentPaste, contentDescription = "从剪贴板粘贴") }
-          },
-          modifier = Modifier.fillMaxWidth(),
-          shape = MaterialTheme.shapes.medium,
-          singleLine = true,
-        )
-        state.message?.let { message ->
-          Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(
-              if (state.submissionAccepted) Icons.Outlined.CheckCircle else Icons.Outlined.ErrorOutline,
-              contentDescription = null,
-              tint = messageColor,
-            )
-            Text(message, color = messageColor, style = MaterialTheme.typography.bodyMedium)
-          }
+    sheetState = sheetState,
+    containerColor = MaterialTheme.colorScheme.surface,
+  ) {
+    Column(
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 36.dp),
+      verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+      Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Outlined.AddLink, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+        Text("采集网页链接", style = MaterialTheme.typography.titleMedium)
+      }
+      OutlinedTextField(
+        value = url,
+        onValueChange = { url = it },
+        label = { Text("网页链接") },
+        leadingIcon = { Icon(Icons.Outlined.Link, contentDescription = null) },
+        trailingIcon = {
+          IconButton(onClick = {
+            val clipboard = context.getSystemService(ClipboardManager::class.java)
+            url = clipboard?.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
+          }) { Icon(Icons.Outlined.ContentPaste, contentDescription = "从剪贴板粘贴") }
+        },
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        singleLine = true,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { if (url.isNotBlank() && !state.submitting) viewModel.submitManual(url) }),
+      )
+      state.message?.let { message ->
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          Icon(
+            if (state.submissionAccepted) Icons.Outlined.CheckCircle else Icons.Outlined.ErrorOutline,
+            contentDescription = null,
+            tint = messageColor,
+            modifier = Modifier.size(18.dp),
+          )
+          Text(message, color = messageColor, style = MaterialTheme.typography.bodySmall)
         }
       }
-    },
-    confirmButton = {
-      Button(onClick = { viewModel.submitManual(url) }, enabled = !state.submitting) {
+      Button(
+        onClick = { viewModel.submitManual(url) },
+        enabled = !state.submitting && url.isNotBlank(),
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 14.dp),
+        shape = MaterialTheme.shapes.medium,
+      ) {
         Icon(Icons.Outlined.AddLink, contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.size(8.dp))
         Text(if (state.submitting) "正在提交…" else "一键采集")
       }
-    },
-    dismissButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
-  )
+    }
+  }
 }
 
 @Composable
@@ -698,6 +715,8 @@ private fun LibraryList(
   onOpenTasks: () -> Unit,
   onSearch: (String) -> Unit,
   onSort: (LibrarySort) -> Unit,
+  onToggleSortOrder: () -> Unit,
+  sortOrder: String,
   presentationMode: ArticleListPresentationMode,
   onPresentationModeChange: (ArticleListPresentationMode) -> Unit,
   onArchiveSource: (ArchiveSourceFilter) -> Unit,
@@ -753,6 +772,17 @@ private fun LibraryList(
                   )
                 }
               }
+            }
+            androidx.compose.material3.IconButton(
+              onClick = onToggleSortOrder,
+              modifier = Modifier.size(36.dp),
+            ) {
+              Icon(
+                if (sortOrder == "desc") Icons.Outlined.ArrowDownward else Icons.Outlined.ArrowUpward,
+                contentDescription = if (sortOrder == "desc") "降序" else "升序",
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary,
+              )
             }
           }
           if (ArchiveSourceFilter.isAvailableFor(state.view, state.searchQuery)) {

@@ -21,6 +21,7 @@ private data class LibraryRequest(
   val view: LibraryView,
   val query: String,
   val sort: LibrarySort,
+  val sortOrder: String,
   val archiveSource: ArchiveSourceFilter,
 )
 
@@ -36,6 +37,7 @@ data class LibraryUiState(
   val fromCache: Boolean = false,
   val searchQuery: String = "",
   val sort: LibrarySort = LibrarySort.defaultFor(LibraryView.Published),
+  val sortOrder: String = "desc",
   val archiveSource: ArchiveSourceFilter = ArchiveSourceFilter.All,
   val archiveSources: List<ArticleSource> = emptyList(),
   val archiveSourcesLoading: Boolean = false,
@@ -84,6 +86,7 @@ class LibraryViewModel @Inject constructor(
         view = view,
         searchQuery = "",
         sort = LibrarySort.defaultFor(view),
+        sortOrder = "desc",
         archiveSource = ArchiveSourceFilter.All,
         archiveSourcesLoading = false,
         articles = emptyList(),
@@ -121,12 +124,28 @@ class LibraryViewModel @Inject constructor(
     loadInitial()
   }
 
+  fun toggleSortOrder() {
+    val snapshot = mutableState.value
+    mutableState.update {
+      it.copy(
+        sortOrder = if (it.sortOrder == "desc") "asc" else "desc",
+        articles = emptyList(),
+        page = 1,
+        totalPages = 0,
+        fromCache = false,
+        loadMoreError = null,
+      )
+    }
+    loadInitial()
+  }
+
   fun selectSort(sort: LibrarySort) {
     val snapshot = mutableState.value
     if (snapshot.searchQuery.isNotBlank() || sort !in LibrarySort.availableFor(snapshot.view) || sort == snapshot.sort) return
     mutableState.update {
       it.copy(
         sort = sort,
+        sortOrder = "desc",
         articles = emptyList(),
         page = 1,
         totalPages = 0,
@@ -243,7 +262,7 @@ class LibraryViewModel @Inject constructor(
   }
 
   private suspend fun loadPage(request: LibraryRequest, page: Int): ArticleListLoad =
-    if (request.query.isBlank()) repository.list(request.view, page, request.sort, request.archiveSource.category)
+    if (request.query.isBlank()) repository.list(request.view, page, request.sort, request.archiveSource.category, request.sortOrder)
     else ArticleListLoad(repository.search(request.query, page), fromCache = false)
 
   private fun matches(request: LibraryRequest): Boolean = mutableState.value.toRequest() == request
@@ -252,6 +271,7 @@ class LibraryViewModel @Inject constructor(
     view = view,
     query = searchQuery,
     sort = sort,
+    sortOrder = sortOrder,
     archiveSource = if (ArchiveSourceFilter.isAvailableFor(view, searchQuery)) archiveSource else ArchiveSourceFilter.All,
   )
 
