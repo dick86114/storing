@@ -76,7 +76,7 @@ import com.idickies.storing.security.BiometricManager
 import com.idickies.storing.security.SecurityViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 
 @Composable
 fun QiankunjieApp(
@@ -264,7 +264,7 @@ internal fun LoginScreen(
       color = Color.Transparent,
       shape = RoundedCornerShape(30.dp),
       modifier = Modifier.size(88.dp).clip(RoundedCornerShape(30.dp)).background(
-        Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)),
+        Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)),
       ),
     ) {
       androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {

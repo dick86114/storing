@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://unpkg.com" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://unpkg.com/@fortawesome/fontawesome-free@6.7.2/js/all.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * {
+      scrollbar-width: none;
+      scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen bg-[#F5F1E8] flex items-center justify-center py-10">
+<link href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style type="text/tailwindcss">
+@theme {
+  --color-primary: #B8912A;
+  --color-brand: #0D2B1E;
+  --color-page-bg: #F5F1E8;
+  --color-bar-bg: #EDE9DE;
+  --color-card-bg: #FFFFFF;
+  --color-text-1: #1A2E24;
+  --color-text-2: #5A7062;
+  --color-text-3: #8FA897;
+  --color-border: #D8D2C4;
+}
+</style>
+
+<!-- Phone Frame -->
+<div class="w-[390px] rounded-[3rem] border-[8px] border-[#C8C2B4] bg-[#E8E4DA] shadow-xl shadow-amber-900/15 p-[6px] relative">
+  <div class="rounded-[2.4rem] overflow-hidden bg-[#F5F1E8] relative" style="height: 844px;">
+    <!-- Status Bar -->
+    <div class="h-[44px] bg-[#EDE9DE] flex items-center justify-between px-6 pt-2">
+      <span class="text-[13px] font-semibold text-[#1A2E24]" style="font-family: 'Noto Sans SC'">9:41</span>
+      <div class="flex items-center gap-1.5">
+        <i data-lucide="signal" class="w-4 h-4 text-[#1A2E24]"></i>
+        <i data-lucide="wifi" class="w-4 h-4 text-[#1A2E24]"></i>
+        <i data-lucide="battery-full" class="w-4 h-4 text-[#1A2E24]"></i>
+      </div>
+    </div>
+
+    <!-- App Bar -->
+    <div class="bg-[#EDE9DE] px-5 pb-3 pt-1">
+      <div class="flex items-center justify-between">
+        <h1 class="text-[22px] font-bold text-[#1A2E24]" style="font-family: 'Noto Serif SC'">归档</h1>
+        <div class="flex items-center gap-3">
+          <i data-lucide="search" class="w-5 h-5 text-[#5A7062]"></i>
+          <i data-lucide="sliders-horizontal" class="w-5 h-5 text-[#5A7062]"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="overflow-y-auto pb-24" style="height: calc(844px - 44px - 50px - 64px); font-family: 'Noto Sans SC';">
+      <!-- Source Chip Scroll -->
+      <div class="px-4 py-3 flex gap-2 overflow-x-auto" style="scrollbar-width: none;">
+        <span class="flex-shrink-0 px-3.5 py-1.5 rounded-full text-[12px] font-medium bg-[#0D2B1E] text-white">全部</span>
+        <span class="flex-shrink-0 px-3.5 py-1.5 rounded-full text-[12px] font-medium bg-white text-[#0D2B1E] border border-[#D8D2C4]">少数派</span>
+        <span class="flex-shrink-0 px-3.5 py-1.5 rounded-full text-[12px] font-medium bg-white text-[#0D2B1E] border border-[#D8D2C4]">即刻</span>
+        <span class="flex-shrink-0 px-3.5 py-1.5 rounded-full text-[12px] font-medium bg-white text-[#0D2B1E] border border-[#D8D2C4]">微信</span>
+        <span class="flex-shrink-0 px-3.5 py-1.5 rounded-full text-[12px] font-medium bg-white text-[#0D2B1E] border border-[#D8D2C4]">Twitter</span>
+        <span class="flex-shrink-0 px-3.5 py-1.5 rounded-full text-[12px] font-medium bg-white text-[#0D2B1E] border border-[#D8D2C4]">GitHub</span>
+        <span class="flex-shrink-0 px-3.5 py-1.5 rounded-full text-[12px] font-medium bg-white text-[#0D2B1E] border border-[#D8D2C4]">播客</span>
+      </div>
+
+      <div class="px-4 space-y-3">
+        <!-- Card 1 -->
+        <div class="bg-white rounded-2xl shadow-sm shadow-stone-300/50 overflow-hidden border border-[#D8D2C4]/40">
+          <div class="flex p-3.5 gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-1.5 mb-1.5">
+                <i data-lucide="bookmark" class="w-3 h-3 text-[#B8912A]"></i>
+                <span class="text-[11px] text-[#B8912A] font-medium">已收藏</span>
+              </div>
+              <h3 class="text-[15px] font-semibold text-[#1A2E24] leading-snug line-clamp-2" style="font-family: 'Noto Serif SC'">深入理解 CSS Container Queries 的设计哲学</h3>
+              <div class="mt-2 flex items-center gap-2 flex-wrap">
+                <span class="text-[11px] bg-[#F0E8F7] text-[#6A2A8A] px-2 py-0.5 rounded-full">CSS</span>
+                <span class="text-[11px] bg-[#E8F0F7] text-[#2A5A8A] px-2 py-0.5 rounded-full">前端</span>
+              </div>
+              <div class="mt-2 flex items-center gap-2 text-[11px] text-[#8FA897]">
+                <span>CSS-Tricks</span>
+                <span>·</span>
+                <span>3月12日归档</span>
+              </div>
+            </div>
+            <img src="https://images.unsplash.com/photo-1507721999472-8ed4421c4af2?w=120&h=120&fit=crop&auto=format&q=80" alt="CSS" class="w-[72px] h-[72px] rounded-xl object-cover flex-shrink-0">
+          </div>
+        </div>
+
+        <!-- Card 2 with swipe hint -->
+        <div class="relative overflow-hidden rounded-2xl">
+          <!-- Swipe Actions Behind -->
+          <div class="absolute inset-0 flex">
+            <div class="flex-1"></div>
+            <div class="flex">
+              <div class="w-20 bg-[#E85D3A] flex flex-col items-center justify-center gap-1">
+                <i data-lucide="inbox" class="w-4 h-4 text-white"></i>
+                <span class="text-[10px] text-white font-medium">移回<br>收件箱</span>
+              </div>
+              <div class="w-20 bg-[#8B8B8B] flex flex-col items-center justify-center gap-1 rounded-r-2xl">
+                <i data-lucide="bookmark-x" class="w-4 h-4 text-white"></i>
+                <span class="text-[10px] text-white font-medium">取消<br>收藏</span>
+              </div>
+            </div>
+          </div>
+          <!-- Card (slightly shifted to show swipe) -->
+          <div class="bg-white shadow-sm shadow-stone-300/50 border border-[#D8D2C4]/40 relative" style="transform: translateX(-80px); border-radius: 16px;">
+            <div class="flex p-3.5 gap-3">
+              <div class="flex-1 min-w-0">
+                <h3 class="text-[15px] font-semibold text-[#1A2E24] leading-snug line-clamp-2" style="font-family: 'Noto Serif SC'">TypeScript 5.4 新特性详解与迁移建议</h3>
+                <div class="mt-2 flex items-center gap-2 flex-wrap">
+                  <span class="text-[11px] bg-[#E8F0F7] text-[#2A5A8A] px-2 py-0.5 rounded-full">TypeScript</span>
+                  <span class="text-[11px] bg-[#FFF0E0] text-[#8A5A1A] px-2 py-0.5 rounded-full">更新</span>
+                </div>
+                <div class="mt-2 flex items-center gap-2 text-[11px] text-[#8FA897]">
+                  <span>Microsoft Blog</span>
+                  <span>·</span>
+                  <span>3月10日归档</span>
+                </div>
+              </div>
+              <img src="https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=120&h=120&fit=crop&auto=format&q=80" alt="代码" class="w-[72px] h-[72px] rounded-xl object-cover flex-shrink-0">
+            </div>
+          </div>
+        </div>
+
+        <!-- Swipe hint text -->
+        <div class="flex items-center justify-center gap-1.5 -mt-1 mb-1">
+          <i data-lucide="arrow-left" class="w-3 h-3 text-[#8FA897]"></i>
+          <span class="text-[11px] text-[#8FA897]">左滑查看更多操作</span>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="bg-white rounded-2xl shadow-sm shadow-stone-300/50 overflow-hidden border border-[#D8D2C4]/40">
+          <div class="flex p-3.5 gap-3">
+            <div class="flex-1 min-w-0">
+              <h3 class="text-[15px] font-semibold text-[#1A2E24] leading-snug line-clamp-2" style="font-family: 'Noto Serif SC'">独立开发者的产品定价策略手册</h3>
+              <div class="mt-2 flex items-center gap-2 flex-wrap">
+                <span class="text-[11px] bg-[#FFF0E0] text-[#8A5A1A] px-2 py-0.5 rounded-full">商业</span>
+                <span class="text-[11px] bg-[#E8F4EC] text-[#1A6A3A] px-2 py-0.5 rounded-full">独立开发</span>
+              </div>
+              <div class="mt-2 flex items-center gap-2 text-[11px] text-[#8FA897]">
+                <span>IndieHackers</span>
+                <span>·</span>
+                <span>3月8日归档</span>
+              </div>
+            </div>
+            <img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=120&h=120&fit=crop&auto=format&q=80" alt="商业" class="w-[72px] h-[72px] rounded-xl object-cover flex-shrink-0">
+          </div>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="bg-white rounded-2xl shadow-sm shadow-stone-300/50 overflow-hidden border border-[#D8D2C4]/40">
+          <div class="flex p-3.5 gap-3">
+            <div class="flex-1 min-w-0">
+              <h3 class="text-[15px] font-semibold text-[#1A2E24] leading-snug line-clamp-2" style="font-family: 'Noto Serif SC'">为什么我从 Notion 迁移到了 Obsidian</h3>
+              <div class="mt-2 flex items-center gap-2 flex-wrap">
+                <span class="text-[11px] bg-[#E8F4EC] text-[#1A6A3A] px-2 py-0.5 rounded-full">效率工具</span>
+                <span class="text-[11px] bg-[#F0E8F7] text-[#6A2A8A] px-2 py-0.5 rounded-full">笔记</span>
+              </div>
+              <div class="mt-2 flex items-center gap-2 text-[11px] text-[#8FA897]">
+                <span>少数派</span>
+                <span>·</span>
+                <span>3月5日归档</span>
+              </div>
+            </div>
+            <img src="https://images.unsplash.com/photo-1517842645767-c639042777db?w=120&h=120&fit=crop&auto=format&q=80" alt="笔记" class="w-[72px] h-[72px] rounded-xl object-cover flex-shrink-0">
+          </div>
+        </div>
+
+        <!-- Card 5 -->
+        <div class="bg-white rounded-2xl shadow-sm shadow-stone-300/50 overflow-hidden border border-[#D8D2C4]/40">
+          <div class="flex p-3.5 gap-3">
+            <div class="flex-1 min-w-0">
+              <h3 class="text-[15px] font-semibold text-[#1A2E24] leading-snug line-clamp-2" style="font-family: 'Noto Serif SC'">系统设计面试完全攻略（2024 版）</h3>
+              <div class="mt-2 flex items-center gap-2 flex-wrap">
+                <span class="text-[11px] bg-[#E8F0F7] text-[#2A5A8A] px-2 py-0.5 rounded-full">面试</span>
+                <span class="text-[11px] bg-[#FFF0E0] text-[#8A5A1A] px-2 py-0.5 rounded-full">系统设计</span>
+              </div>
+              <div class="mt-2 flex items-center gap-2 text-[11px] text-[#8FA897]">
+                <span>ByteByteGo</span>
+                <span>·</span>
+                <span>3月2日归档</span>
+              </div>
+            </div>
+            <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=120&h=120&fit=crop&auto=format&q=80" alt="系统" class="w-[72px] h-[72px] rounded-xl object-cover flex-shrink-0">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <div class="absolute bottom-0 left-0 right-0 h-16 bg-[#EDE9DE] border-t border-[#D8D2C4] flex items-center justify-around px-4" style="font-family: 'Noto Sans SC';">
+      <a href="mobile-inbox-light.html" class="flex flex-col items-center gap-0.5">
+        <i data-lucide="inbox" class="w-5 h-5 text-[#8FA897]"></i>
+        <span class="text-[10px] text-[#8FA897]">收件箱</span>
+      </a>
+      <a href="mobile-archive-light.html" class="flex flex-col items-center gap-0.5">
+        <i data-lucide="archive" class="w-5 h-5 text-[#0D2B1E]"></i>
+        <span class="text-[10px] font-medium text-[#0D2B1E]">归档</span>
+        <div class="w-4 h-0.5 bg-[#0D2B1E] rounded-full mt-0.5"></div>
+      </a>
+      <a href="mobile-collect-light.html" class="flex flex-col items-center gap-0.5">
+        <i data-lucide="link" class="w-5 h-5 text-[#8FA897]"></i>
+        <span class="text-[10px] text-[#8FA897]">采集</span>
+      </a>
+      <a href="mobile-settings-light.html" class="flex flex-col items-center gap-0.5">
+        <i data-lucide="settings" class="w-5 h-5 text-[#8FA897]"></i>
+        <span class="text-[10px] text-[#8FA897]">设置</span>
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Page Navigation -->
+<div class="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/90 backdrop-blur rounded-full px-5 py-2.5 shadow-lg border border-[#D8D2C4]" style="font-family: 'Noto Sans SC';">
+  <a href="mobile-settings-light.html" class="flex items-center gap-1 text-[13px] text-[#B8912A] font-medium hover:underline">
+    <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> 上一页
+  </a>
+  <span class="text-[12px] text-[#8FA897]">6 / 6</span>
+  <a href="mobile-inbox-light.html" class="flex items-center gap-1 text-[13px] text-[#B8912A] font-medium hover:underline">
+    回到首页 <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+  </a>
+</div>
+</body>
+<script>if (window.lucide) lucide.createIcons();</script>
+</html>

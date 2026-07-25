@@ -1,30 +1,21 @@
 package com.idickies.storing.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
-import androidx.compose.material.icons.outlined.Inventory2
-import androidx.compose.material.icons.outlined.Public
-import androidx.compose.material.icons.outlined.Star
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -39,9 +30,9 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.idickies.storing.library.ArticleCard
 
-private val WechatCoverHeight = 156.dp
-private val CompactThumbnailSize = 96.dp
+private val ThumbnailSize = 80.dp
 
+/** 文章卡片：左文右图，对齐设计稿的列表布局 */
 @Composable
 fun QiankunjieArticleCard(
   article: ArticleCard,
@@ -49,35 +40,80 @@ fun QiankunjieArticleCard(
   onLongPress: (ArticleCard) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
-  Card(
-    modifier = modifier.fillMaxWidth().combinedClickable(onClick = { onOpen(article.id) }, onLongClick = { onOpen(article.id) }),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-    shape = MaterialTheme.shapes.large,
+  Row(
+    modifier = modifier
+      .fillMaxWidth()
+      .clickable { onOpen(article.id) }
+      .padding(horizontal = 16.dp, vertical = 14.dp),
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
+    verticalAlignment = Alignment.Top,
   ) {
-    Column {
-      ArticleThumbnail(article = article, modifier = Modifier.fillMaxWidth().height(WechatCoverHeight), shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-      Column(modifier = Modifier.padding(16.dp)) {
-        ArticleMetadata(article)
-        Text(article.displayTitle, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 7.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        article.aiSummary?.takeIf { it.isNotBlank() }?.let { summary ->
-          Text(summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+    Column(
+      modifier = Modifier.weight(1f),
+      verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+      // 标题
+      Text(
+        article.displayTitle,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onBackground,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+      )
+      // AI 摘要
+      article.aiSummary?.takeIf { it.isNotBlank() }?.let { summary ->
+        Text(
+          summary,
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          maxLines = 2,
+          overflow = TextOverflow.Ellipsis,
+        )
+      }
+      // Meta row: source · time
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+      ) {
+        if (!article.source.isNullOrBlank()) {
+          Text(
+            article.source!!,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+          )
+          Text(
+            "·",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
         }
+        // Time - article model doesn't have time field, just omit
+      }
+      // 标签
+      if (article.aiTags.isNotEmpty()) {
         Row(
-          modifier = Modifier.padding(top = 12.dp).fillMaxWidth().horizontalScroll(rememberScrollState()),
           horizontalArrangement = Arrangement.spacedBy(6.dp),
-          verticalAlignment = Alignment.CenterVertically,
         ) {
-          article.aiTags.forEach { tag -> AssistChip(onClick = {}, label = { Text(tag, maxLines = 1) }) }
-          if (article.isFavorited) AssistChip(onClick = {}, label = { Text("已收藏") })
-          if (article.isArchived) AssistChip(onClick = {}, label = { Text("已归档") })
+          article.aiTags.take(3).forEach { tag ->
+            TagChip(tag)
+          }
+          if (article.aiTags.size > 3) {
+            Text(
+              "+${article.aiTags.size - 3}",
+              style = MaterialTheme.typography.labelMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
         }
       }
     }
+    // 右侧缩略图
+    ArticleCoverImage(article, Modifier.size(ThumbnailSize))
   }
 }
 
-/** Dense scanning layout: square cover on the left, metadata and title on the right. */
+/** 紧凑行布局 —— 与 QiankunjieArticleCard 统一风格 */
 @Composable
 fun QiankunjieCompactArticleRow(
   article: ArticleCard,
@@ -85,65 +121,88 @@ fun QiankunjieCompactArticleRow(
   onLongPress: (ArticleCard) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
-  Card(
-    modifier = modifier.fillMaxWidth().combinedClickable(onClick = { onOpen(article.id) }, onLongClick = { onOpen(article.id) }),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-    shape = MaterialTheme.shapes.medium,
+  Row(
+    modifier = modifier
+      .fillMaxWidth()
+      .clickable { onOpen(article.id) }
+      .padding(horizontal = 16.dp, vertical = 12.dp),
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
+    verticalAlignment = Alignment.Top,
   ) {
-    Row(modifier = Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-      ArticleThumbnail(article = article, modifier = Modifier.size(CompactThumbnailSize), shape = MaterialTheme.shapes.small)
-      Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        ArticleMetadata(article)
-        Text(article.displayTitle, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        article.aiSummary?.takeIf { it.isNotBlank() }?.let { summary ->
-          Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-        if (article.aiTags.isNotEmpty()) {
-          Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-          ) {
-            article.aiTags.forEach { tag ->
-              Text(tag, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, maxLines = 1)
-              if (tag != article.aiTags.last()) Text("·", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-          }
-        }
+    Column(
+      modifier = Modifier.weight(1f),
+      verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+      Text(
+        article.displayTitle,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onBackground,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+      )
+      if (!article.source.isNullOrBlank()) {
+        Text(
+          article.source!!,
+          style = MaterialTheme.typography.labelMedium,
+          color = MaterialTheme.colorScheme.primary,
+          maxLines = 1,
+        )
       }
     }
+    ArticleCoverImage(article, Modifier.size(64.dp))
   }
 }
 
 @Composable
-private fun ArticleMetadata(article: ArticleCard) {
-  Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-    if (!article.source.isNullOrBlank()) {
-      Text(article.source!!, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-    if (article.isFavorited) Icon(Icons.Outlined.Star, contentDescription = "已收藏", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-    if (article.isArchived) Icon(Icons.Outlined.Inventory2, contentDescription = "已归档", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-    if (article.isPublished) Icon(Icons.Outlined.Public, contentDescription = "已发布", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.tertiary)
-  }
-}
-
-@Composable
-private fun ArticleThumbnail(article: ArticleCard, modifier: Modifier, shape: androidx.compose.ui.graphics.Shape) {
-  val palette = ArticleVisualPalettes.forArticle(article.id)
-  val imageUrl = article.coverImage?.trim()?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
+private fun TagChip(text: String) {
   Box(
-    modifier = modifier.clip(shape).background(Brush.linearGradient(listOf(palette.start, palette.end))),
+    modifier = Modifier
+      .clip(RoundedCornerShape(6.dp))
+      .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f))
+      .padding(horizontal = 8.dp, vertical = 3.dp),
     contentAlignment = Alignment.Center,
   ) {
-    Icon(imageVector = Icons.Outlined.AutoStories, contentDescription = "文章视觉占位", tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f), modifier = Modifier.size(34.dp))
-    imageUrl?.let { url ->
+    Text(
+      text,
+      style = MaterialTheme.typography.labelMedium,
+      color = MaterialTheme.colorScheme.secondary,
+      maxLines = 1,
+    )
+  }
+}
+
+@Composable
+private fun ArticleCoverImage(article: ArticleCard, modifier: Modifier) {
+  val imageUrl = article.coverImage?.trim()
+    ?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
+  val palette = ArticleVisualPalettes.forArticle(article.id)
+
+  Box(
+    modifier = modifier.clip(RoundedCornerShape(10.dp)),
+    contentAlignment = Alignment.Center,
+  ) {
+    if (imageUrl != null) {
       AsyncImage(
-        model = url,
+        model = imageUrl,
         contentDescription = "${article.displayTitle} 的封面图",
         contentScale = ContentScale.Crop,
         modifier = Modifier.fillMaxSize(),
       )
+    } else {
+      // 无封面时用品牌色渐变占位 + 书卷 icon
+      Box(
+        modifier = Modifier
+          .fillMaxSize()
+          .background(Brush.linearGradient(listOf(palette.start, palette.end))),
+        contentAlignment = Alignment.Center,
+      ) {
+        Icon(
+          Icons.Outlined.AutoStories,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+          modifier = Modifier.size(22.dp),
+        )
+      }
     }
   }
 }

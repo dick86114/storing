@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -124,9 +125,6 @@ import com.idickies.storing.ui.components.ActiveCollectJobsCard
 import com.idickies.storing.ui.components.ReaderActionBar
 import com.idickies.storing.ui.components.CompactBottomBarItem
 import com.idickies.storing.ui.components.QiankunjieCompactBottomBar
-import com.idickies.storing.ui.components.QiankunjieGlassPanel
-import com.idickies.storing.ui.components.liquidGlassSurfaceColor
-import com.idickies.storing.ui.components.glassBlurModifier
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 import com.idickies.storing.library.ArticleCard
@@ -329,8 +327,7 @@ fun LibraryScreen(
     else -> Scaffold(
       topBar = {
         TopAppBar(
-          colors = TopAppBarDefaults.topAppBarColors(containerColor = liquidGlassSurfaceColor()),
-          modifier = Modifier.glassBlurModifier(),
+          colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
           title = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
               Image(
@@ -368,7 +365,7 @@ fun LibraryScreen(
       },
       bottomBar = {
         if (isAuthenticated) {
-          QiankunjieCompactBottomBar(modifier = Modifier.glassBlurModifier()) {
+          QiankunjieCompactBottomBar(modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant)) {
             LibraryView.entries.forEach { item ->
               val count = state.counts?.let { c ->
                 when (item) {
@@ -451,7 +448,7 @@ fun LibraryScreen(
             modifier = Modifier
               .align(Alignment.BottomEnd)
               .padding(end = 16.dp, bottom = 16.dp),
-            shape = MaterialTheme.shapes.large,
+            shape = androidx.compose.foundation.shape.CircleShape,
           ) {
             Icon(Icons.Outlined.AddLink, contentDescription = "采集网页")
           }
@@ -916,9 +913,12 @@ private fun LibraryList(
     if (state.error != null) item { ErrorPage(state.error, onRefresh) }
     if (!state.loading && !state.searchPending && state.error == null && state.articles.isEmpty()) item { LibraryEmptyState(view = state.view, isSearchResult = state.searchQuery.isNotBlank()) }
     items(state.articles, key = { it.id }) { article ->
-      when (presentationMode) {
-        ArticleListPresentationMode.Card -> QiankunjieArticleCard(article, onOpen, onLongPress)
-        ArticleListPresentationMode.CompactList -> QiankunjieCompactArticleRow(article, onOpen, onLongPress)
+      Column {
+        when (presentationMode) {
+          ArticleListPresentationMode.Card -> QiankunjieArticleCard(article, onOpen, onLongPress)
+          ArticleListPresentationMode.CompactList -> QiankunjieCompactArticleRow(article, onOpen, onLongPress)
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), thickness = 0.5.dp)
       }
     }
       if (state.articles.isNotEmpty() && !state.fromCache) item {
@@ -1001,7 +1001,7 @@ private fun formatPublishTime(iso: String): String {
   return try {
     val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
     inputFormat.timeZone = java.util.TimeZone.getTimeZone("UTC")
-    val date = inputFormat.parse(iso.take(19))
+    val date = inputFormat.parse(iso.take(19)) ?: return iso.take(10)
     val outputFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
     outputFormat.timeZone = java.util.TimeZone.getDefault()
     outputFormat.format(date)
@@ -1049,8 +1049,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
   Scaffold(
     topBar = {
       TopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = liquidGlassSurfaceColor()),
-        modifier = Modifier.glassBlurModifier(),
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         title = {
           Text(article.source ?: "乾坤戒阅读", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         },

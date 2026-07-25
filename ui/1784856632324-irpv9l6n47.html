@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://unpkg.com" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://unpkg.com/@fortawesome/fontawesome-free@6.7.2/js/all.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * {
+      scrollbar-width: none;
+      scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    }
+  </style>
+</head>
+
+<body class="bg-[#030f09] min-h-screen flex items-center justify-center font-sans">
+<link href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style type="text/tailwindcss">
+@theme {
+  --color-primary: #0D2B1E;
+  --color-primary-light: #143D2B;
+  --color-primary-dark: #071A12;
+  --color-accent: #C9A84C;
+  --color-accent-dim: #A8893E;
+  --color-surface: #0A1F15;
+  --color-surface-elevated: #112A1F;
+  --color-surface-card: #0E2419;
+  --color-text-primary: #E8E4DC;
+  --color-text-secondary: #9CA89F;
+  --color-text-muted: #6B7A6F;
+  --color-border: #1C3A2B;
+  --color-tag-blue: #2A4A6B;
+  --color-tag-purple: #4A2D6B;
+  --color-tag-teal: #1A4A4A;
+  --color-tag-amber: #4A3A1A;
+  --color-success: #2ECC71;
+  --color-danger: #E74C3C;
+}
+</style>
+
+<!-- Phone Frame -->
+<div class="w-[390px] h-[844px] bg-primary-dark rounded-[40px] shadow-2xl shadow-black/60 border border-border overflow-hidden relative flex flex-col">
+  
+  <!-- Android Status Bar -->
+  <div class="h-6 bg-primary-dark flex items-center justify-between px-6 shrink-0">
+    <span class="text-text-secondary text-[11px] font-medium" style="font-family:'Noto Sans SC'">9:41</span>
+    <div class="flex items-center gap-1.5">
+      <i data-lucide="signal" class="w-3 h-3 text-text-secondary"></i>
+      <i data-lucide="wifi" class="w-3 h-3 text-text-secondary"></i>
+      <i data-lucide="battery" class="w-3.5 h-3.5 text-text-secondary"></i>
+    </div>
+  </div>
+
+  <!-- App Bar -->
+  <div class="h-14 bg-primary-dark/90 backdrop-blur-md flex items-center justify-between px-4 shrink-0 border-b border-border/50">
+    <div class="flex items-center gap-3">
+      <a href="mobile-inbox.html" class="w-10 h-10 flex items-center justify-center -ml-2">
+        <i data-lucide="arrow-left" class="w-5 h-5 text-text-primary"></i>
+      </a>
+      <h1 class="text-text-primary text-lg font-bold" style="font-family:'Noto Serif SC'">设置</h1>
+    </div>
+  </div>
+
+  <!-- Settings Content -->
+  <div class="flex-1 overflow-y-auto pb-8">
+    
+    <!-- Appearance Group -->
+    <div class="px-5 pt-5 pb-2">
+      <h3 class="text-text-muted text-[11px] font-semibold tracking-wider uppercase mb-3">外观</h3>
+      <div class="bg-surface-elevated rounded-xl border border-border/50 overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-3.5 border-b border-border/30">
+          <div class="flex items-center gap-3">
+            <i data-lucide="moon" class="w-4.5 h-4.5 text-text-secondary"></i>
+            <span class="text-text-primary text-[14px]" style="font-family:'Noto Sans SC'">深色模式</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-accent text-[12px]">当前</span>
+            <i data-lucide="check" class="w-4 h-4 text-accent"></i>
+          </div>
+        </div>
+        <div class="flex items-center justify-between px-4 py-3.5 border-b border-border/30">
+          <div class="flex items-center gap-3">
+            <i data-lucide="sun" class="w-4.5 h-4.5 text-text-secondary"></i>
+            <span class="text-text-primary text-[14px]" style="font-family:'Noto Sans SC'">浅色模式</span>
+          </div>
+          <i data-lucide="chevron-right" class="w-4 h-4 text-text-muted"></i>
+        </div>
+        <div class="flex items-center justify-between px-4 py-3.5">
+          <div class="flex items-center gap-3">
+            <i data-lucide="smartphone" class="w-4.5 h-4.5 text-text-secondary"></i>
+            <span class="text-text-primary text-[14px]" style="font-family:'Noto Sans SC'">跟随系统</span>
+          </div>
+          <i data-lucide="chevron-right" class="w-4 h-4 text-text-muted"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Account Group -->
+    <div class="px-5 pt-4 pb-2">
+      <h3 class="text-text-muted text-[11px] font-semibold tracking-wider uppercase mb-3">账号</h3>
+      <div class="bg-surface-elevated rounded-xl border border-border/50 overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-3.5 border-b border-border/30">
+          <div class="flex items-center gap-3">
+            <i data-lucide="key-round" class="w-4.5 h-4.5 text-text-secondary"></i>
+            <span class="text-text-primary text-[14px]" style="font-family:'Noto Sans SC'">修改密码</span>
+          </div>
+          <i data-lucide="chevron-right" class="w-4 h-4 text-text-muted"></i>
+        </div>
+        <div class="flex items-center justify-between px-4 py-3.5">
+          <div class="flex items-center gap-3">
+            <i data-lucide="log-out" class="w-4.5 h-4.5 text-danger/80"></i>
+            <span class="text-danger text-[14px]" style="font-family:'Noto Sans SC'">退出登录</span>
+          </div>
+          <i data-lucide="chevron-right" class="w-4 h-4 text-text-muted"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Collection Group -->
+    <div class="px-5 pt-4 pb-2">
+      <h3 class="text-text-muted text-[11px] font-semibold tracking-wider uppercase mb-3">采集</h3>
+      <div class="bg-surface-elevated rounded-xl border border-border/50 overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-3.5 border-b border-border/30">
+          <div class="flex items-center gap-3">
+            <i data-lucide="cpu" class="w-4.5 h-4.5 text-text-secondary"></i>
+            <div>
+              <span class="text-text-primary text-[14px] block" style="font-family:'Noto Sans SC'">后台任务</span>
+              <span class="text-text-muted text-[11px]">允许后台采集和同步</span>
+            </div>
+          </div>
+          <!-- Toggle -->
+          <div class="w-11 h-6 bg-accent/80 rounded-full relative">
+            <div class="absolute right-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow"></div>
+          </div>
+        </div>
+        <div class="flex items-center justify-between px-4 py-3.5">
+          <div class="flex items-center gap-3">
+            <i data-lucide="battery-charging" class="w-4.5 h-4.5 text-text-secondary"></i>
+            <div>
+              <span class="text-text-primary text-[14px] block" style="font-family:'Noto Sans SC'">电池优化排查</span>
+              <span class="text-text-muted text-[11px]">跳转系统设置</span>
+            </div>
+          </div>
+          <i data-lucide="external-link" class="w-4 h-4 text-text-muted"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Update Group -->
+    <div class="px-5 pt-4 pb-2">
+      <h3 class="text-text-muted text-[11px] font-semibold tracking-wider uppercase mb-3">更新</h3>
+      <div class="bg-surface-elevated rounded-xl border border-border/50 overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-3.5 border-b border-border/30">
+          <div class="flex items-center gap-3">
+            <i data-lucide="package" class="w-4.5 h-4.5 text-text-secondary"></i>
+            <div>
+              <span class="text-text-primary text-[14px] block" style="font-family:'Noto Sans SC'">当前版本</span>
+              <span class="text-text-muted text-[11px]">v1.2.3 (Build 147)</span>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center justify-between px-4 py-3.5">
+          <div class="flex items-center gap-3">
+            <i data-lucide="refresh-cw" class="w-4.5 h-4.5 text-text-secondary"></i>
+            <span class="text-text-primary text-[14px]" style="font-family:'Noto Sans SC'">检查更新</span>
+          </div>
+          <i data-lucide="chevron-right" class="w-4 h-4 text-text-muted"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- About Group -->
+    <div class="px-5 pt-4 pb-2">
+      <h3 class="text-text-muted text-[11px] font-semibold tracking-wider uppercase mb-3">关于</h3>
+      <div class="bg-surface-elevated rounded-xl border border-border/50 overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-3.5 border-b border-border/30">
+          <div class="flex items-center gap-3">
+            <i data-lucide="server" class="w-4.5 h-4.5 text-text-secondary"></i>
+            <div>
+              <span class="text-text-primary text-[14px] block" style="font-family:'Noto Sans SC'">服务地址</span>
+              <span class="text-text-muted text-[11px]">https://api.storing.app</span>
+            </div>
+          </div>
+          <i data-lucide="copy" class="w-4 h-4 text-text-muted"></i>
+        </div>
+        <div class="flex items-center justify-between px-4 py-3.5">
+          <div class="flex items-center gap-3">
+            <i data-lucide="scroll-text" class="w-4.5 h-4.5 text-text-secondary"></i>
+            <span class="text-text-primary text-[14px]" style="font-family:'Noto Sans SC'">版本说明</span>
+          </div>
+          <i data-lucide="chevron-right" class="w-4 h-4 text-text-muted"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer Branding -->
+    <div class="flex flex-col items-center pt-6 pb-4">
+      <div class="flex items-center gap-2 mb-1.5">
+        <i data-lucide="box" class="w-4 h-4 text-accent/60"></i>
+        <span class="text-accent/60 text-[12px] font-medium" style="font-family:'Noto Serif SC'">乾坤戒</span>
+      </div>
+      <span class="text-text-muted/50 text-[10px]">Storing · AI-Powered Read-It-Later</span>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- Page Navigation -->
+<div class="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-surface-elevated/90 backdrop-blur rounded-full px-5 py-2.5 border border-border/50 z-50">
+  <a href="mobile-share.html" class="text-accent text-xs font-medium hover:underline">← 上一页</a>
+  <span class="text-text-muted text-xs">5/6</span>
+  <a href="mobile-archive.html" class="text-accent text-xs font-medium hover:underline">下一页 →</a>
+</div>
+
+</body>
+<script>if (window.lucide) lucide.createIcons();</script>
+</html>

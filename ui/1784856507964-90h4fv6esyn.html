@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://unpkg.com" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://unpkg.com/@fortawesome/fontawesome-free@6.7.2/js/all.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * {
+      scrollbar-width: none;
+      scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    }
+  </style>
+</head>
+
+<body class="bg-[#030f09] min-h-screen flex items-center justify-center font-sans">
+<link href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style type="text/tailwindcss">
+@theme {
+  --color-primary: #0D2B1E;
+  --color-primary-light: #143D2B;
+  --color-primary-dark: #071A12;
+  --color-accent: #C9A84C;
+  --color-accent-dim: #A8893E;
+  --color-surface: #0A1F15;
+  --color-surface-elevated: #112A1F;
+  --color-surface-card: #0E2419;
+  --color-text-primary: #E8E4DC;
+  --color-text-secondary: #9CA89F;
+  --color-text-muted: #6B7A6F;
+  --color-border: #1C3A2B;
+  --color-tag-blue: #2A4A6B;
+  --color-tag-purple: #4A2D6B;
+  --color-tag-teal: #1A4A4A;
+  --color-tag-amber: #4A3A1A;
+  --color-success: #2ECC71;
+  --color-danger: #E74C3C;
+}
+</style>
+
+<!-- Phone Frame -->
+<div class="w-[390px] h-[844px] bg-primary-dark rounded-[40px] shadow-2xl shadow-black/60 border border-border overflow-hidden relative flex flex-col">
+  
+  <!-- Reading Progress Bar -->
+  <div class="absolute top-0 left-0 right-0 h-[2px] bg-border/30 z-30">
+    <div class="h-full w-[35%] bg-accent rounded-r-full"></div>
+  </div>
+
+  <!-- Android Status Bar -->
+  <div class="h-6 bg-primary-dark flex items-center justify-between px-6 shrink-0">
+    <span class="text-text-secondary text-[11px] font-medium" style="font-family:'Noto Sans SC'">9:41</span>
+    <div class="flex items-center gap-1.5">
+      <i data-lucide="signal" class="w-3 h-3 text-text-secondary"></i>
+      <i data-lucide="wifi" class="w-3 h-3 text-text-secondary"></i>
+      <i data-lucide="battery" class="w-3.5 h-3.5 text-text-secondary"></i>
+    </div>
+  </div>
+
+  <!-- App Bar -->
+  <div class="h-14 bg-primary-dark/90 backdrop-blur-md flex items-center justify-between px-4 shrink-0 border-b border-border/50">
+    <a href="mobile-inbox.html" class="w-10 h-10 flex items-center justify-center -ml-2">
+      <i data-lucide="arrow-left" class="w-5 h-5 text-text-primary"></i>
+    </a>
+    <div class="flex items-center gap-3">
+      <i data-lucide="heart" class="w-5 h-5 text-text-secondary"></i>
+      <i data-lucide="archive" class="w-5 h-5 text-text-secondary"></i>
+      <i data-lucide="share-2" class="w-5 h-5 text-text-secondary"></i>
+      <i data-lucide="more-vertical" class="w-5 h-5 text-text-secondary"></i>
+    </div>
+  </div>
+
+  <!-- Article Content (Scrollable) -->
+  <div class="flex-1 overflow-y-auto px-5 pt-5 pb-8">
+    
+    <!-- Source Tag -->
+    <div class="mb-3">
+      <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-tag-teal/50 text-[11px] text-emerald-300/90 font-medium">
+        <i data-lucide="globe" class="w-3 h-3 mr-1"></i>网页
+      </span>
+    </div>
+
+    <!-- Article Title -->
+    <h1 class="text-text-primary text-[22px] font-bold leading-tight mb-4" style="font-family:'Noto Serif SC'">大模型时代的个人知识管理：从信息焦虑到认知升级</h1>
+
+    <!-- Meta Info -->
+    <div class="flex items-center gap-2 mb-5 text-text-muted text-[12px]">
+      <span class="text-text-secondary font-medium">少数派</span>
+      <span>·</span>
+      <span>张明远</span>
+      <span>·</span>
+      <span>2024年12月15日</span>
+    </div>
+
+    <!-- AI Summary Card -->
+    <div class="relative bg-accent/5 border border-accent/20 rounded-xl p-4 mb-6">
+      <div class="absolute left-0 top-3 bottom-3 w-[3px] bg-accent rounded-full"></div>
+      <div class="flex items-center gap-1.5 mb-2 ml-2">
+        <i data-lucide="sparkles" class="w-3.5 h-3.5 text-accent"></i>
+        <span class="text-accent text-[11px] font-semibold tracking-wide">AI 摘要</span>
+        <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-accent/60 ml-auto"></i>
+      </div>
+      <p class="text-text-secondary text-[13px] leading-relaxed ml-2">本文从信息过载的现实困境出发，分析了传统知识管理方法的失效原因，提出了基于 AI 辅助的新型知识工作流框架：自动采集 → 智能分类 → 语义关联 → 主动回顾，并给出了具体的工具链推荐和实践建议。</p>
+    </div>
+
+    <!-- Article Body -->
+    <div class="prose prose-sm" style="font-family:'Noto Sans SC'">
+      <p class="text-text-primary text-[15px] leading-[1.8] mb-4">在过去的三年里，我每天的信息输入量从 20 篇文章暴增到 100+ 条内容。RSS 订阅源从 50 个膨胀到 200 个，Telegram 频道堆积了上千条未读，Twitter 时间线永远看不完。</p>
+      
+      <h2 class="text-text-primary text-[17px] font-bold mt-6 mb-3" style="font-family:'Noto Serif SC'">问题的本质：不是信息太多，而是处理��宽太窄</h2>
+      
+      <p class="text-text-primary text-[15px] leading-[1.8] mb-4">让我们先区分两个概念：信息（Information）和知识（Knowledge）。信息是外部的、被动的、碎片化的；知识是内化的、主动建构的、结构化的。问题不在于信息的数量，而在于我们将信息转化为知识的效率太低。</p>
+      
+      <p class="text-text-primary text-[15px] leading-[1.8] mb-4">传统的做法是：看到好文章 → 加入稍后阅读 → 永远不看。Pocket 的数据显示，超过 60% 的收藏文章从未被打开过。这不是意志力问题，而是工具和工作流的设计问题。</p>
+
+      <h2 class="text-text-primary text-[17px] font-bold mt-6 mb-3" style="font-family:'Noto Serif SC'">AI 带来的范式转变</h2>
+
+      <p class="text-text-primary text-[15px] leading-[1.8] mb-4">大语言模型的出现第一次让「自动化理解」成为可能。���前你需要亲自阅读才能判断一篇文章的价值，现在 AI 可以在几秒内给出高质量的摘要和关键概念提取。这不是要替代深度阅读，而是帮你做第一轮筛选。</p>
+
+      <blockquote class="border-l-2 border-accent/60 pl-4 my-5">
+        <p class="text-text-secondary text-[14px] leading-relaxed italic">「知识管理的核心不是存储，而是检索。不是收藏，而是连接。」—— Sönke Ahrens</p>
+      </blockquote>
+
+      <p class="text-text-primary text-[15px] leading-[1.8] mb-4">基于这个认知，我设计了一套新的工作流，核心原则是：降低输入阻力，提高处理效率，强化语义连接。</p>
+
+      <h2 class="text-text-primary text-[17px] font-bold mt-6 mb-3" style="font-family:'Noto Serif SC'">实践：我的四步知识工作流</h2>
+
+      <p class="text-text-primary text-[15px] leading-[1.8] mb-4"><strong class="text-accent/90">第一步：零��擦采集。</strong>看到任何有价值的内容，一键发送到统一收件箱。不做判断、不做分类、不花时间。支持的来源包括浏览器、微信、RSS 等。</p>
+
+      <p class="text-text-primary text-[15px] leading-[1.8] mb-4"><strong class="text-accent/90">第二步：AI 预处理。</strong>系统自动抓取正文、生成摘要、提取关键词、初步分类。等我打开收件箱时，每篇文章已经有了结构化的上下文。</p>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- Page Navigation -->
+<div class="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-surface-elevated/90 backdrop-blur rounded-full px-5 py-2.5 border border-border/50 z-50">
+  <a href="mobile-inbox.html" class="text-accent text-xs font-medium hover:underline">← 上一页</a>
+  <span class="text-text-muted text-xs">2/6</span>
+  <a href="mobile-collect.html" class="text-accent text-xs font-medium hover:underline">下一页 →</a>
+</div>
+
+</body>
+<script>if (window.lucide) lucide.createIcons();</script>
+</html>

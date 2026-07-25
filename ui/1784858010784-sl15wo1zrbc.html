@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://unpkg.com" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://unpkg.com/@fortawesome/fontawesome-free@6.7.2/js/all.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * {
+      scrollbar-width: none;
+      scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen bg-[#F5F1E8] flex items-center justify-center py-10">
+<link href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style type="text/tailwindcss">
+@theme {
+  --color-primary: #B8912A;
+  --color-brand: #0D2B1E;
+  --color-page-bg: #F5F1E8;
+  --color-bar-bg: #EDE9DE;
+  --color-card-bg: #FFFFFF;
+  --color-text-1: #1A2E24;
+  --color-text-2: #5A7062;
+  --color-text-3: #8FA897;
+  --color-border: #D8D2C4;
+  --color-ai-bg: #FFFBF0;
+  --color-success: #1E7A3A;
+  --color-error: #D93025;
+  --color-frame-bg: #E8E4DA;
+  --color-frame-border: #C8C2B4;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+</style>
+
+<!-- Phone Frame -->
+<div class="w-[390px] rounded-[3rem] border-[8px] border-[#C8C2B4] bg-[#E8E4DA] shadow-xl shadow-amber-900/15 p-[6px] relative">
+  <!-- Inner Screen -->
+  <div class="rounded-[2.4rem] overflow-hidden bg-[#F5F1E8] relative" style="height: 844px;">
+    <!-- Status Bar -->
+    <div class="h-[44px] bg-[#EDE9DE] flex items-center justify-between px-6 pt-2">
+      <span class="text-[13px] font-semibold text-[#1A2E24]" style="font-family: 'Noto Sans SC'">9:41</span>
+      <div class="flex items-center gap-1.5">
+        <i data-lucide="signal" class="w-4 h-4 text-[#1A2E24]"></i>
+        <i data-lucide="wifi" class="w-4 h-4 text-[#1A2E24]"></i>
+        <i data-lucide="battery-full" class="w-4 h-4 text-[#1A2E24]"></i>
+      </div>
+    </div>
+
+    <!-- App Bar -->
+    <div class="bg-[#EDE9DE] px-5 pb-3 pt-1">
+      <div class="flex items-center justify-between">
+        <h1 class="text-[22px] font-bold text-[#1A2E24]" style="font-family: 'Noto Serif SC'">收件箱 · <span class="text-[#B8912A]">42</span></h1>
+        <div class="flex items-center gap-3">
+          <i data-lucide="search" class="w-5 h-5 text-[#5A7062]"></i>
+          <i data-lucide="arrow-up-down" class="w-5 h-5 text-[#5A7062]"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content Area -->
+    <div class="overflow-y-auto px-4 pt-3 pb-24" style="height: calc(844px - 44px - 56px - 64px); font-family: 'Noto Sans SC';">
+      <!-- Task Progress Banner -->
+      <div class="mb-3 bg-[#FFFBF0] rounded-xl px-4 py-3 border border-[#B8912A]/20 flex items-center gap-3">
+        <div class="w-2 h-2 rounded-full bg-[#B8912A]" style="animation: pulse-dot 1.5s infinite;"></div>
+        <div class="flex-1">
+          <p class="text-[12px] text-[#5A7062]">正在采集</p>
+          <div class="mt-1 h-1.5 bg-[#EDE9DE] rounded-full overflow-hidden">
+            <div class="h-full bg-[#B8912A] rounded-full" style="width: 65%;"></div>
+          </div>
+        </div>
+        <span class="text-[11px] text-[#B8912A] font-medium">3/5</span>
+      </div>
+
+      <!-- Card 1 -->
+      <div class="bg-white rounded-2xl shadow-sm shadow-stone-300/50 mb-3 overflow-hidden border border-[#D8D2C4]/40">
+        <div class="flex p-3.5 gap-3">
+          <div class="flex-1 min-w-0">
+            <h3 class="text-[15px] font-semibold text-[#1A2E24] leading-snug line-clamp-2" style="font-family: 'Noto Serif SC'">大型语言模型在知识管理中的应用前景</h3>
+            <div class="mt-2 flex items-start gap-1.5">
+              <div class="w-0.5 h-8 bg-[#B8912A] rounded-full mt-0.5 flex-shrink-0"></div>
+              <p class="text-[12px] text-[#5A7062] leading-relaxed line-clamp-2">探讨 LLM 如何重塑个人知识库的构建方式，从自动摘要到语义搜索的演进路径…</p>
+            </div>
+            <div class="mt-2.5 flex items-center gap-2 flex-wrap">
+              <span class="text-[11px] bg-[#E8F0F7] text-[#2A5A8A] px-2 py-0.5 rounded-full">AI</span>
+              <span class="text-[11px] bg-[#F0E8F7] text-[#6A2A8A] px-2 py-0.5 rounded-full">知识管理</span>
+            </div>
+            <div class="mt-2 flex items-center gap-2 text-[11px] text-[#8FA897]">
+              <span>少数派</span>
+              <span>·</span>
+              <span>3 小时前</span>
+            </div>
+          </div>
+          <img src="https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=120&h=120&fit=crop&auto=format&q=80" alt="AI" class="w-[72px] h-[72px] rounded-xl object-cover flex-shrink-0">
+        </div>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="bg-white rounded-2xl shadow-sm shadow-stone-300/50 mb-3 overflow-hidden border border-[#D8D2C4]/40">
+        <div class="flex p-3.5 gap-3">
+          <div class="flex-1 min-w-0">
+            <h3 class="text-[15px] font-semibold text-[#1A2E24] leading-snug line-clamp-2" style="font-family: 'Noto Serif SC'">极简主义设计在移动端的实践与反思</h3>
+            <div class="mt-2 flex items-start gap-1.5">
+              <div class="w-0.5 h-8 bg-[#B8912A] rounded-full mt-0.5 flex-shrink-0"></div>
+              <p class="text-[12px] text-[#5A7062] leading-relaxed line-clamp-2">简约不等于简单，本文从交互细节出发，解析极简背后的复杂设计决策…</p>
+            </div>
+            <div class="mt-2.5 flex items-center gap-2 flex-wrap">
+              <span class="text-[11px] bg-[#FFF0E0] text-[#8A5A1A] px-2 py-0.5 rounded-full">设计</span>
+              <span class="text-[11px] bg-[#E8F4EC] text-[#1A6A3A] px-2 py-0.5 rounded-full">移动端</span>
+            </div>
+            <div class="mt-2 flex items-center gap-2 text-[11px] text-[#8FA897]">
+              <span>Design Matters</span>
+              <span>·</span>
+              <span>5 小时前</span>
+            </div>
+          </div>
+          <img src="https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=120&h=120&fit=crop&auto=format&q=80" alt="设计" class="w-[72px] h-[72px] rounded-xl object-cover flex-shrink-0">
+        </div>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="bg-white rounded-2xl shadow-sm shadow-stone-300/50 mb-3 overflow-hidden border border-[#D8D2C4]/40">
+        <div class="flex p-3.5 gap-3">
+          <div class="flex-1 min-w-0">
+            <h3 class="text-[15px] font-semibold text-[#1A2E24] leading-snug line-clamp-2" style="font-family: 'Noto Serif SC'">从零到一搭建高效的第二大脑系统</h3>
+            <div class="mt-2 flex items-start gap-1.5">
+              <div class="w-0.5 h-8 bg-[#B8912A] rounded-full mt-0.5 flex-shrink-0"></div>
+              <p class="text-[12px] text-[#5A7062] leading-relaxed line-clamp-2">结合 Zettelkasten 与 PARA 方法论，搭建可持续迭代的个人知识管理体系…</p>
+            </div>
+            <div class="mt-2.5 flex items-center gap-2 flex-wrap">
+              <span class="text-[11px] bg-[#E8F4EC] text-[#1A6A3A] px-2 py-0.5 rounded-full">效率</span>
+              <span class="text-[11px] bg-[#E8F0F7] text-[#2A5A8A] px-2 py-0.5 rounded-full">方法论</span>
+            </div>
+            <div class="mt-2 flex items-center gap-2 text-[11px] text-[#8FA897]">
+              <span>即刻</span>
+              <span>·</span>
+              <span>昨天</span>
+            </div>
+          </div>
+          <img src="https://images.unsplash.com/photo-1456324504439-367cee3b3c32?w=120&h=120&fit=crop&auto=format&q=80" alt="笔记" class="w-[72px] h-[72px] rounded-xl object-cover flex-shrink-0">
+        </div>
+      </div>
+
+      <!-- Card 4 -->
+      <div class="bg-white rounded-2xl shadow-sm shadow-stone-300/50 mb-3 overflow-hidden border border-[#D8D2C4]/40">
+        <div class="flex p-3.5 gap-3">
+          <div class="flex-1 min-w-0">
+            <h3 class="text-[15px] font-semibold text-[#1A2E24] leading-snug line-clamp-2" style="font-family: 'Noto Serif SC'">Rust 异步编程的最佳实践指南</h3>
+            <div class="mt-2 flex items-start gap-1.5">
+              <div class="w-0.5 h-8 bg-[#B8912A] rounded-full mt-0.5 flex-shrink-0"></div>
+              <p class="text-[12px] text-[#5A7062] leading-relaxed line-clamp-2">深入 tokio 运行时原理，掌握 async/await 的高级用法与性能调优技巧…</p>
+            </div>
+            <div class="mt-2.5 flex items-center gap-2 flex-wrap">
+              <span class="text-[11px] bg-[#F0E8F7] text-[#6A2A8A] px-2 py-0.5 rounded-full">Rust</span>
+              <span class="text-[11px] bg-[#FFF0E0] text-[#8A5A1A] px-2 py-0.5 rounded-full">编程</span>
+            </div>
+            <div class="mt-2 flex items-center gap-2 text-[11px] text-[#8FA897]">
+              <span>Rust 中文社区</span>
+              <span>·</span>
+              <span>昨天</span>
+            </div>
+          </div>
+          <img src="https://images.unsplash.com/photo-1515879218367-8466d910auj7?w=120&h=120&fit=crop&auto=format&q=80" alt="代码" class="w-[72px] h-[72px] rounded-xl object-cover flex-shrink-0">
+        </div>
+      </div>
+
+      <!-- Card 5 -->
+      <div class="bg-white rounded-2xl shadow-sm shadow-stone-300/50 mb-3 overflow-hidden border border-[#D8D2C4]/40">
+        <div class="flex p-3.5 gap-3">
+          <div class="flex-1 min-w-0">
+            <h3 class="text-[15px] font-semibold text-[#1A2E24] leading-snug line-clamp-2" style="font-family: 'Noto Serif SC'">播客推荐：科技与人文的交汇点</h3>
+            <div class="mt-2 flex items-start gap-1.5">
+              <div class="w-0.5 h-8 bg-[#B8912A] rounded-full mt-0.5 flex-shrink-0"></div>
+              <p class="text-[12px] text-[#5A7062] leading-relaxed line-clamp-2">精选五档中文科技播客，在通勤路上获取深度思考的养分…</p>
+            </div>
+            <div class="mt-2.5 flex items-center gap-2 flex-wrap">
+              <span class="text-[11px] bg-[#E8F0F7] text-[#2A5A8A] px-2 py-0.5 rounded-full">播客</span>
+              <span class="text-[11px] bg-[#E8F4EC] text-[#1A6A3A] px-2 py-0.5 rounded-full">推荐</span>
+            </div>
+            <div class="mt-2 flex items-center gap-2 text-[11px] text-[#8FA897]">
+              <span>小宇宙</span>
+              <span>·</span>
+              <span>2 天前</span>
+            </div>
+          </div>
+          <img src="https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=120&h=120&fit=crop&auto=format&q=80" alt="播客" class="w-[72px] h-[72px] rounded-xl object-cover flex-shrink-0">
+        </div>
+      </div>
+    </div>
+
+    <!-- FAB -->
+    <div class="absolute bottom-[80px] right-5">
+      <div class="w-14 h-14 rounded-full bg-[#B8912A] shadow-lg shadow-amber-800/30 flex items-center justify-center">
+        <i data-lucide="plus" class="w-6 h-6 text-white"></i>
+      </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <div class="absolute bottom-0 left-0 right-0 h-16 bg-[#EDE9DE] border-t border-[#D8D2C4] flex items-center justify-around px-4" style="font-family: 'Noto Sans SC';">
+      <a href="mobile-inbox-light.html" class="flex flex-col items-center gap-0.5">
+        <i data-lucide="inbox" class="w-5 h-5 text-[#0D2B1E]"></i>
+        <span class="text-[10px] font-medium text-[#0D2B1E]">收件箱</span>
+        <div class="w-4 h-0.5 bg-[#0D2B1E] rounded-full mt-0.5"></div>
+      </a>
+      <a href="mobile-archive-light.html" class="flex flex-col items-center gap-0.5">
+        <i data-lucide="archive" class="w-5 h-5 text-[#8FA897]"></i>
+        <span class="text-[10px] text-[#8FA897]">归档</span>
+      </a>
+      <a href="mobile-collect-light.html" class="flex flex-col items-center gap-0.5">
+        <i data-lucide="link" class="w-5 h-5 text-[#8FA897]"></i>
+        <span class="text-[10px] text-[#8FA897]">采集</span>
+      </a>
+      <a href="mobile-settings-light.html" class="flex flex-col items-center gap-0.5">
+        <i data-lucide="settings" class="w-5 h-5 text-[#8FA897]"></i>
+        <span class="text-[10px] text-[#8FA897]">设置</span>
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Page Navigation -->
+<div class="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/90 backdrop-blur rounded-full px-5 py-2.5 shadow-lg border border-[#D8D2C4]" style="font-family: 'Noto Sans SC';">
+  <span class="text-[12px] text-[#8FA897]">1 / 6</span>
+  <a href="mobile-article-light.html" class="flex items-center gap-1 text-[13px] text-[#B8912A] font-medium hover:underline">
+    下一页 <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+  </a>
+</div>
+</body>
+<script>if (window.lucide) lucide.createIcons();</script>
+</html>

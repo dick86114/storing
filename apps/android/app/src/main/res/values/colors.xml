@@ -1,4 +1,5 @@
 <resources>
-    <color name="qiankunjie_paper">#F7F5F0</color>
-    <color name="qiankunjie_cinnabar">#AA3E35</color>
+    <color name="qiankunjie_paper">#F5F1E8</color>
+    <color name="qiankunjie_cinnabar">#0D2B1E</color>
+    <color name="qiankunjie_gold">#C9A84C</color>
 </resources>
