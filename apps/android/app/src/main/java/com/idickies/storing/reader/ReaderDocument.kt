@@ -9,11 +9,13 @@ enum class ReaderColorScheme { Light, Dark }
 object ReaderDocument {
   private fun mobileHead(colorScheme: ReaderColorScheme, preferences: ReaderPreferences): String {
     val darkTheme = if (colorScheme == ReaderColorScheme.Dark) """
-  html { color-scheme:dark; background:#2E3440; }
+  html { color-scheme:dark; background:#2E3440 !important; }
   body { background:#2E3440 !important; color:#ECEFF4 !important; }
   body :where(h1,h2,h3,h4,h5,h6,p,li,blockquote,figcaption,td,th,span,strong,em,small,a,code,pre) { color:#ECEFF4 !important; }
-  body :where(section,article,main,header,footer,div,blockquote,pre,table,thead,tbody,tr,td,th) { background-color:transparent !important; border-color:#4C566A !important; }
+  body *:not(img):not(video):not(picture):not(source):not(canvas):not(svg) { background-color:transparent !important; background-image:none !important; }
+  body :where(section,article,main,header,footer,div,blockquote,pre,table,thead,tbody,tr,td,th,ul,ol,li,figure,figcaption,aside,nav) { background-color:transparent !important; border-color:#4C566A !important; }
   body a { color:#88C0D0 !important; }
+  body :where(pre,code) { background:#3B4252 !important; color:#ECEFF4 !important; }
 """.trimIndent() else """
   html { color-scheme:light; background:#FFFCF8; }
   body { background:#FFFCF8; color:#1D1B19; }

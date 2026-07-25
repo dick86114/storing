@@ -18,12 +18,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddLink
 import androidx.compose.material.icons.outlined.Archive
-import androidx.compose.material.icons.outlined.BatterySaver
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.CloudDownload
@@ -66,6 +67,7 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -112,6 +114,8 @@ import com.idickies.storing.ui.components.CompactBottomBarItem
 import com.idickies.storing.ui.components.QiankunjieCompactBottomBar
 import com.idickies.storing.ui.components.QiankunjieGlassPanel
 import com.idickies.storing.ui.components.liquidGlassSurfaceColor
+import kotlin.math.abs
+import kotlinx.coroutines.launch
 import com.idickies.storing.library.ArticleCard
 import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.library.ArticleListPresentationMode
@@ -130,7 +134,6 @@ import com.idickies.storing.reader.ReaderWebView
 import com.idickies.storing.reader.ReaderPreferences
 import com.idickies.storing.reader.ReaderPreferencesViewModel
 import com.idickies.storing.reader.ReaderColorScheme
-import com.idickies.storing.settings.BatteryOptimizationGuidance
 import com.idickies.storing.ui.components.QiankunjieArticleCard
 import com.idickies.storing.ui.components.QiankunjieCompactArticleRow
 import com.idickies.storing.ui.theme.ThemeMode
@@ -172,7 +175,6 @@ fun LibraryScreen(
   val lifecycleOwner = LocalLifecycleOwner.current
   var showTasks by remember { mutableStateOf(false) }
   var showManualCollect by remember { mutableStateOf(false) }
-  var showBatteryGuidance by remember { mutableStateOf(false) }
   var showReaderSettings by remember { mutableStateOf(false) }
   var showSharePoster by remember { mutableStateOf(false) }
   var showChangePassword by remember { mutableStateOf(false) }
@@ -183,6 +185,7 @@ fun LibraryScreen(
   var showSettings by remember { mutableStateOf(false) }
   var presentationMode by rememberSaveable { mutableStateOf(ArticleListPresentationMode.default) }
   val libraryListState = rememberLazyListState()
+  val scope = androidx.compose.runtime.rememberCoroutineScope()
   DisposableEffect(lifecycleOwner) {
     val observer = LifecycleEventObserver { _, event ->
       when (event) {
@@ -235,7 +238,7 @@ fun LibraryScreen(
     }
   }
 
-  BackHandler(enabled = showSettings || showReaderSettings || showSharePoster || showChangePassword || showOfflineContent || showMcp || showAdmin || showDeviceSessions || showTasks || showManualCollect || showBatteryGuidance) {
+  BackHandler(enabled = showSettings || showReaderSettings || showSharePoster || showChangePassword || showOfflineContent || showMcp || showAdmin || showDeviceSessions || showTasks || showManualCollect) {
     when {
       showReaderSettings -> showReaderSettings = false
       showSharePoster -> showSharePoster = false
@@ -247,7 +250,6 @@ fun LibraryScreen(
       showSettings -> showSettings = false
       showTasks -> showTasks = false
       showManualCollect -> showManualCollect = false
-      showBatteryGuidance -> showBatteryGuidance = false
     }
   }
 
@@ -282,7 +284,6 @@ fun LibraryScreen(
       biometricEnabled = biometricEnabled,
       onBiometricEnabledChange = onBiometricEnabledChange,
       onOpenDeviceSessions = { showSettings = false; showDeviceSessions = true },
-      onOpenBatteryGuidance = { showSettings = false; showBatteryGuidance = true },
       onLogout = { showSettings = false; onLogout() },
       onBack = { showSettings = false },
     )
@@ -350,7 +351,7 @@ fun LibraryScreen(
                   LibraryView.Inbox -> c.inbox
                   LibraryView.Favorites -> c.favorites
                   LibraryView.Archive -> c.archive
-                  LibraryView.Published -> null
+                  LibraryView.Published -> c.published
                 }
               }
               CompactBottomBarItem(
@@ -363,14 +364,40 @@ fun LibraryScreen(
                 },
                 selected = state.view == item && state.searchQuery.isBlank(),
                 badgeCount = count,
-                onClick = { libraryViewModel.select(item) },
+                onClick = {
+                if (state.view == item && state.searchQuery.isBlank()) {
+                  scope.launch { libraryListState.animateScrollToItem(0) }
+                } else {
+                  libraryViewModel.select(item)
+                }
+              },
               )
             }
           }
         }
       },
     ) { padding ->
-      LibraryList(
+      var swipeStartX by remember { mutableStateOf(0f) }
+      Box(
+        modifier = Modifier.fillMaxSize().pointerInput(isAuthenticated) {
+          if (!isAuthenticated) return@pointerInput
+          detectHorizontalDragGestures(
+            onDragStart = { offset -> swipeStartX = offset.x },
+            onDragEnd = {},
+            onHorizontalDrag = { _, dragAmount ->
+              val totalDrag = swipeStartX
+              if (abs(totalDrag) > 0f && abs(dragAmount) > 60f) {
+                val direction = if (dragAmount < 0) 1 else -1
+                val current = LibraryView.entries.indexOf(state.view)
+                val next = (current + direction).coerceIn(0, LibraryView.entries.lastIndex)
+                if (next != current) libraryViewModel.select(LibraryView.entries[next])
+                swipeStartX = 0f
+              }
+            },
+          )
+        },
+      ) {
+        LibraryList(
         state = state,
         collectUrls = collectState.urls,
         collectSelectedUrl = collectState.selectedUrl,
@@ -390,7 +417,19 @@ fun LibraryScreen(
         onSubmitCollect = collectViewModel::submit,
         listState = libraryListState,
         modifier = Modifier.padding(padding),
-      )
+        )
+        if (isAuthenticated) {
+          FloatingActionButton(
+            onClick = { showManualCollect = true },
+            modifier = Modifier
+              .align(Alignment.BottomEnd)
+              .padding(end = 16.dp, bottom = 16.dp),
+            shape = MaterialTheme.shapes.large,
+          ) {
+            Icon(Icons.Outlined.AddLink, contentDescription = "采集网页")
+          }
+        }
+      }
     }
   }
 
@@ -406,10 +445,8 @@ fun LibraryScreen(
   if (showTasks) CollectJobsDialog(
     onDismiss = { showTasks = false },
     onOpenArticle = { id -> showTasks = false; libraryViewModel.open(id) },
-    onOpenBatteryGuidance = { showTasks = false; showBatteryGuidance = true },
     viewModel = jobsViewModel,
   )
-  if (showBatteryGuidance) BatteryOptimizationDialog(onDismiss = { showBatteryGuidance = false })
   if (showManualCollect) ManualCollectDialog(onDismiss = { showManualCollect = false }, viewModel = collectViewModel)
 }
 
@@ -471,7 +508,6 @@ private fun ManualCollectDialog(
 private fun CollectJobsDialog(
   onDismiss: () -> Unit,
   onOpenArticle: (Int) -> Unit,
-  onOpenBatteryGuidance: () -> Unit,
   viewModel: CollectJobsViewModel,
 ) {
   val state by viewModel.state.collectAsState()
@@ -504,10 +540,7 @@ private fun CollectJobsDialog(
       }
     },
     dismissButton = {
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(onClick = onOpenBatteryGuidance) { Text("后台说明") }
-        Button(onClick = onDismiss) { Text("关闭") }
-      }
+      Button(onClick = onDismiss) { Text("关闭") }
     },
   )
 }
@@ -651,18 +684,6 @@ private fun collectStageLabel(stage: String): String = when (stage.lowercase()) 
   "summarizing", "summary" -> "正在生成摘要"
   "completed", "done" -> "已完成"
   else -> stage.ifBlank { "等待处理" }
-}
-
-@Composable
-private fun BatteryOptimizationDialog(onDismiss: () -> Unit) {
-  val guidance = BatteryOptimizationGuidance.forManufacturer(android.os.Build.MANUFACTURER)
-  AlertDialog(
-    onDismissRequest = onDismiss,
-    icon = { Icon(Icons.Outlined.BatterySaver, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-    title = { Text(guidance.title) },
-    text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { Text("为了让采集结果在锁屏或切后台后继续同步，请按下面步骤检查系统设置。", color = MaterialTheme.colorScheme.onSurfaceVariant); guidance.steps.forEachIndexed { index, step -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) { Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = androidx.compose.foundation.shape.CircleShape, modifier = Modifier.size(24.dp)) { Box(contentAlignment = Alignment.Center) { Text((index + 1).toString(), color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.labelMedium) } }; Text(step, modifier = Modifier.weight(1f)) } } } },
-    confirmButton = { Button(onClick = onDismiss) { Text("知道了") } },
-  )
 }
 
 @Composable
@@ -1112,6 +1133,20 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
     },
     confirmButton = { Button(onClick = { confirmDelete = false; onDelete() }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError)) { Text("确认删除") } },
     dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("保留文章") } },
+  )
+  if (confirmPermanentDelete) AlertDialog(
+    onDismissRequest = { confirmPermanentDelete = false },
+    icon = { Icon(Icons.Outlined.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+    title = { Text("永久删除这篇文章？") },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(article.displayTitle, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text("永久删除会彻底清除文章正文和元数据，无法恢复。", color = MaterialTheme.colorScheme.error)
+        Text("普通删除只是从你的资料库移除，服务器上的原始文章仍会保留。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+    },
+    confirmButton = { Button(onClick = { confirmPermanentDelete = false; onDeletePermanent() }, enabled = !permanentDeleting, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError)) { Text(if (permanentDeleting) "正在删除…" else "永久删除") } },
+    dismissButton = { TextButton(onClick = { confirmPermanentDelete = false }) { Text("取消") } },
   )
 }
 

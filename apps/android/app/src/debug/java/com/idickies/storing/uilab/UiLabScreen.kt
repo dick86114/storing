@@ -217,7 +217,6 @@ private fun UiLabSettings() {
     biometricEnabled = false,
     onBiometricEnabledChange = {},
     onOpenDeviceSessions = {},
-    onOpenBatteryGuidance = {},
     onLogout = {},
     onBack = {},
   )

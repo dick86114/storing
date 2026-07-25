@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Logout
-import androidx.compose.material.icons.outlined.BatterySaver
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.LockReset
@@ -76,7 +75,6 @@ fun QiankunjieSettingsScreen(
   biometricEnabled: Boolean = false,
   onBiometricEnabledChange: (Boolean) -> Unit = {},
   onOpenDeviceSessions: () -> Unit,
-  onOpenBatteryGuidance: () -> Unit,
   onLogout: () -> Unit,
   onBack: () -> Unit,
 ) {
@@ -236,15 +234,6 @@ fun QiankunjieSettingsScreen(
             clearing = false
           }
         }
-      }
-      item { SettingsSectionTitle("采集与后台") }
-      item {
-        SettingsRow(
-          icon = Icons.Outlined.BatterySaver,
-          title = "后台采集说明",
-          detail = "查看小米 / 澎湃 OS 的电池优化排查步骤",
-          onClick = onOpenBatteryGuidance,
-        )
       }
       item { SettingsSectionTitle("关于") }
       item {
