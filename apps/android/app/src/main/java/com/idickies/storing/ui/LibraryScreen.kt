@@ -105,7 +105,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Modifier
@@ -145,6 +144,7 @@ import com.idickies.storing.reader.ReaderWebView
 import com.idickies.storing.reader.ReaderPreferences
 import com.idickies.storing.reader.ReaderPreferencesViewModel
 import com.idickies.storing.reader.ReaderColorScheme
+import com.idickies.storing.reader.ReaderDocument
 import com.idickies.storing.ui.components.QiankunjieArticleCard
 import com.idickies.storing.ui.components.QiankunjieCompactArticleRow
 import com.idickies.storing.ui.theme.ThemeMode
@@ -331,10 +331,9 @@ fun LibraryScreen(
           title = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
               Image(
-                painter = painterResource(R.drawable.ic_qiankunjie_mark),
+                painter = painterResource(R.drawable.brand_logo),
                 contentDescription = null,
                 modifier = Modifier.size(26.dp),
-                colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
               )
               Column {
                 Text("乾坤戒", style = MaterialTheme.typography.titleLarge)
@@ -365,7 +364,7 @@ fun LibraryScreen(
       },
       bottomBar = {
         if (isAuthenticated) {
-          QiankunjieCompactBottomBar(modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant)) {
+          QiankunjieCompactBottomBar() {
             LibraryView.entries.forEach { item ->
               val count = state.counts?.let { c ->
                 when (item) {
@@ -956,60 +955,6 @@ private fun ArticleDetailSkeleton() {
   }
 }
 
-@Composable
-private fun ArticleDetailHeader(article: ArticleDetail, isOfflineAvailable: Boolean) {
-  Column(
-    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
-    verticalArrangement = Arrangement.spacedBy(6.dp),
-  ) {
-    Text(article.displayTitle, style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
-    val metaParts = buildList {
-      article.source?.let { add(it) }
-      article.author?.takeIf { it.isNotBlank() }?.let { add(it) }
-      article.publishTime?.takeIf { it.isNotBlank() }?.let { formatPublishTime(it) }
-        ?: article.createdAt?.takeIf { it.isNotBlank() }?.let { formatPublishTime(it) }
-    }
-    if (metaParts.isNotEmpty()) {
-      Text(metaParts.joinToString(" · "), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-    article.aiSummary?.takeIf { it.isNotBlank() }?.let { summary ->
-      Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-          Text("AI 摘要", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
-          Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
-        }
-      }
-    }
-    if (article.aiTags.isNotEmpty()) {
-      Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        article.aiTags.forEach { tag ->
-          Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small) {
-            Text(tag, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
-          }
-        }
-      }
-    }
-    if (isOfflineAvailable) Text("离线可用", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
-  }
-}
-
-private fun formatPublishTime(iso: String): String {
-  return try {
-    val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
-    inputFormat.timeZone = java.util.TimeZone.getTimeZone("UTC")
-    val date = inputFormat.parse(iso.take(19)) ?: return iso.take(10)
-    val outputFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-    outputFormat.timeZone = java.util.TimeZone.getDefault()
-    outputFormat.format(date)
-  } catch (_: Exception) {
-    iso.take(10)
-  }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, savedReadingPosition: Float?, isOfflineAvailable: Boolean, downloadingOffline: Boolean, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onSaveReadingPosition: (Float) -> Unit) {
@@ -1178,10 +1123,10 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
   ) { padding ->
     val html = article.contentHtml
     Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-      ArticleDetailHeader(article = article, isOfflineAvailable = isOfflineAvailable)
       if (!html.isNullOrBlank()) {
         key(readerColorScheme, readerPreferences) {
           var currentScrollPercentage by remember { mutableStateOf(0f) }
+          val headerHtml = ReaderDocument.buildArticleHeader(article, readerColorScheme, isOfflineAvailable)
           AndroidView(
             factory = { webContext ->
               android.webkit.WebView(webContext).apply {
@@ -1194,7 +1139,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                   },
                   onScrollChanged = { percentage -> currentScrollPercentage = percentage; currentScrollPercentageForBookmark = percentage },
                 )
-                ReaderWebView.loadCapturedHtml(this, html, readerColorScheme, readerPreferences)
+                ReaderWebView.loadCapturedHtml(this, html, readerColorScheme, readerPreferences, headerHtml)
               }
             },
             modifier = Modifier.weight(1f).fillMaxWidth(),
