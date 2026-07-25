@@ -180,11 +180,11 @@ private fun UiLabReader() {
     },
     bottomBar = {
       ReaderActionBar(
+        originalUrl = "https://example.com/article",
         isFavorited = false,
         isArchived = false,
-        isBookmarked = false,
-        onBookmark = {},
         shareEnabled = true,
+        onOpenOriginal = {},
         onFavorite = {},
         onArchive = {},
         onShare = {},
