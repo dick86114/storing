@@ -53,14 +53,14 @@ $darkTheme
   .qj-meta-sep { opacity:0.8; }
   details.qj-ai-card { background:#FFFBF0; border-radius:12px; padding:16px; margin-bottom:24px; border:1px solid rgba(184,145,42,0.15); position:relative; overflow:hidden; }
   details.qj-ai-card::before { content:''; position:absolute; left:0; top:12px; bottom:12px; width:3px; background:#B8912A; border-radius:0 2px 2px 0; }
-  details.qj-ai-card > summary { list-style:none; cursor:pointer; }
+  details.qj-ai-card > summary { list-style:none; cursor:pointer; -webkit-tap-highlight-color:transparent; outline:none; }
   details.qj-ai-card > summary::-webkit-details-marker { display:none; }
   .qj-ai-header { display:flex; align-items:center; gap:6px; margin-bottom:8px; padding-left:8px; }
   .qj-ai-icon { width:14px; height:14px; flex-shrink:0; }
   .qj-ai-label { font-size:12px; font-weight:600; color:#B8912A; }
-  .qj-ai-toggle { margin-left:auto; font-size:11px; color:#8FA897; }
-  .qj-ai-toggle::before { content:'▾'; }
-  details.qj-ai-card:not([open]) .qj-ai-toggle::before { content:'▸'; }
+  .qj-ai-toggle { margin-left:auto; display:flex; align-items:center; padding:4px; color:#8FA897; }
+  .qj-ai-toggle svg { width:16px; height:16px; transition:transform 0.2s ease; }
+  details.qj-ai-card:not([open]) .qj-ai-toggle svg { transform:rotate(-90deg); }
   details.qj-ai-card:not([open]) .qj-ai-header { margin-bottom:0; }
   .qj-ai-body { font-size:13px; line-height:1.6; color:#5A7062; padding-left:8px; }
   .qj-tags { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
@@ -78,7 +78,7 @@ $darkTheme
   details.qj-ai-card { background:rgba(201,168,76,0.05) !important; border-color:rgba(201,168,76,0.2) !important; }
   details.qj-ai-card::before { background:#C9A84C !important; }
   .qj-ai-label { color:#C9A84C !important; }
-  .qj-ai-toggle { color:#6B7A6F !important; }
+  .qj-ai-toggle { color:rgba(201,168,76,0.6) !important; }
   .qj-ai-body { color:#9CA89F !important; }
   .qj-tag { background:#1C3A2B !important; color:#8BAA94 !important; }
   .qj-offline { color:rgba(110,231,183,0.9) !important; }
@@ -113,7 +113,7 @@ $darkTheme
         <summary class="qj-ai-header">
           <svg class="qj-ai-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8a1 1 0 0 0 .3.3L20 11l-5.8 1.9a1 1 0 0 0-.3.3L12 19l-1.9-5.8a1 1 0 0 0-.3-.3L4 11l5.8-1.9a1 1 0 0 0 .3-.3z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
           <span class="qj-ai-label">AI 摘要</span>
-          <span class="qj-ai-toggle"></span>
+          <span class="qj-ai-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
         </summary>
         <div class="qj-ai-body">${escapeHtml(summary)}</div>
       </details>

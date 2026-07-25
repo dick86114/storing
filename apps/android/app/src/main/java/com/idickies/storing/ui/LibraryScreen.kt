@@ -76,7 +76,6 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -337,7 +336,23 @@ fun LibraryScreen(
               )
               Column {
                 Text("乾坤戒", style = MaterialTheme.typography.titleLarge)
-                Text(if (state.searchQuery.isBlank()) state.view.label else "搜索结果", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                  Text(if (state.searchQuery.isBlank()) state.view.label else "搜索结果", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                  if (state.searchQuery.isBlank()) {
+                    val total = state.counts?.let { c ->
+                      when (state.view) {
+                        LibraryView.Inbox -> c.inbox
+                        LibraryView.Favorites -> c.favorites
+                        LibraryView.Archive -> c.archive
+                        LibraryView.Published -> c.published
+                      }
+                    } ?: 0
+                    if (total > 0) {
+                      Text("·", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                      Text("$total", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    }
+                  }
+                }
               }
             }
           },
@@ -435,17 +450,6 @@ fun LibraryScreen(
         listState = libraryListState,
         modifier = Modifier.padding(padding),
         )
-        if (isAuthenticated) {
-          FloatingActionButton(
-            onClick = { showManualCollect = true },
-            modifier = Modifier
-              .align(Alignment.BottomEnd)
-              .padding(end = 16.dp, bottom = 16.dp),
-            shape = androidx.compose.foundation.shape.CircleShape,
-          ) {
-            Icon(Icons.Outlined.AddLink, contentDescription = "采集网页")
-          }
-        }
       }
     }
   }
@@ -800,10 +804,9 @@ private fun LibraryList(
       val sourceCounts = state.archiveSources.associate { it.source to it.count }
       Row(
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically,
       ) {
-        Text("${state.view.label} · ${state.articles.size} 篇", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
           if (state.view != LibraryView.Published && state.searchQuery.isBlank()) {
             Box {
@@ -902,7 +905,9 @@ private fun LibraryList(
       }
     }
     if (state.fromCache) item { Text("当前显示离线缓存，联网后可点刷新获取最新内容。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-    if (state.loading || state.refreshing || state.searchPending) item { FullPageLoading(if (state.searchPending) "正在准备搜索…" else "正在加载${state.view.label}…") }
+    if (state.loading && state.articles.isEmpty()) {
+      items(4) { LibrarySkeletonCard() }
+    }
     if (state.error != null) item { ErrorPage(state.error, onRefresh) }
     if (!state.loading && !state.searchPending && state.error == null && state.articles.isEmpty()) item { LibraryEmptyState(view = state.view, isSearchResult = state.searchQuery.isNotBlank()) }
     items(state.articles, key = { it.id }) { article ->
@@ -929,22 +934,53 @@ private fun LibraryList(
 }
 
 @Composable
+private fun LibrarySkeletonCard() {
+  val skeletonColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+  Card(
+    modifier = Modifier.fillMaxWidth(),
+    colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    shape = MaterialTheme.shapes.large,
+  ) {
+    Column {
+      Surface(color = skeletonColor, modifier = Modifier.fillMaxWidth().height(156.dp)) {}
+      Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.5f).height(14.dp)) {}
+        Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth().height(20.dp)) {}
+        Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.9f).height(20.dp)) {}
+        Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.7f).height(14.dp)) {}
+      }
+    }
+  }
+}
+
+@Composable
 private fun ArticleDetailSkeleton() {
-  val skeletonColor = MaterialTheme.colorScheme.surfaceVariant
+  val skeletonColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
   Column(
     modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 16.dp),
     verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
-    Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.7f).height(28.dp)) {}
+    // 封面图占位
+    Surface(color = skeletonColor, shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth().height(180.dp)) {}
+    // 标题
+    Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.8f).height(24.dp)) {}
+    Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.5f).height(24.dp)) {}
+    // Meta
     Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.4f).height(14.dp)) {}
     Spacer(Modifier.height(8.dp))
-    repeat(6) { i ->
-      Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(if (i == 2) 0.85f else 1f).height(14.dp)) {}
+    // AI 摘要卡片占位
+    Surface(color = skeletonColor, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth().height(80.dp)) {}
+    Spacer(Modifier.height(8.dp))
+    // 正文
+    repeat(8) { i ->
+      Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(if (i == 3 || i == 7) 0.7f else 1f).height(14.dp)) {}
     }
     Spacer(Modifier.height(8.dp))
-    Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.6f).height(14.dp)) {}
-    repeat(4) { i ->
-      Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(if (i % 2 == 0) 0.9f else 1f).height(14.dp)) {}
+    // 小标题
+    Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.6f).height(18.dp)) {}
+    // 更多正文
+    repeat(6) { i ->
+      Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(if (i == 5) 0.5f else 1f).height(14.dp)) {}
     }
   }
 }
@@ -1250,18 +1286,6 @@ private fun LibraryEmptyState(view: LibraryView, isSearchResult: Boolean) {
     Text(title, style = MaterialTheme.typography.titleMedium)
     Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.fillMaxWidth())
   }
-}
-
-@Composable
-private fun FullPageLoading(message: String) = Column(
-  Modifier.fillMaxWidth().padding(vertical = 32.dp, horizontal = 24.dp),
-  horizontalAlignment = Alignment.CenterHorizontally,
-  verticalArrangement = Arrangement.spacedBy(12.dp),
-) {
-  Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = androidx.compose.foundation.shape.CircleShape, modifier = Modifier.size(58.dp)) {
-    Box(contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(26.dp), strokeWidth = 2.5.dp, color = MaterialTheme.colorScheme.primary) }
-  }
-  Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
 }
 
 @Composable
