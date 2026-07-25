@@ -32,6 +32,7 @@ object ReaderWebView {
     preferences: ReaderPreferences = ReaderPreferences.Default,
     onOpenExternalUrl: (Uri) -> Unit,
     onPageFinished: (() -> Unit)? = null,
+    onPageCommitVisible: (() -> Unit)? = null,
     onScrollChanged: ((Float) -> Unit)? = null,
   ) {
     with(webView.settings) {
@@ -52,6 +53,10 @@ object ReaderWebView {
 
       override fun onPageFinished(view: WebView?, url: String?) {
         onPageFinished?.invoke()
+      }
+
+      override fun onPageCommitVisible(view: WebView?, url: String?) {
+        onPageCommitVisible?.invoke()
       }
     }
     if (onScrollChanged != null) {

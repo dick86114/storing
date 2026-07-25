@@ -41,9 +41,7 @@ import androidx.compose.material.icons.outlined.Brightness4
 import androidx.compose.material.icons.outlined.BrightnessAuto
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.LightMode
-import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.CloudDownload
@@ -95,7 +93,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -210,6 +207,8 @@ fun LibraryScreen(
   var showAdmin by remember { mutableStateOf(false) }
   var showDeviceSessions by remember { mutableStateOf(false) }
   var showSettings by remember { mutableStateOf(false) }
+  var showAbout by remember { mutableStateOf(false) }
+  var moreExpanded by remember { mutableStateOf(false) }
   var presentationMode by rememberSaveable { mutableStateOf(ArticleListPresentationMode.default) }
   val libraryListState = rememberLazyListState()
   var longPressedArticle by remember { mutableStateOf<com.idickies.storing.library.ArticleCard?>(null) }
@@ -337,11 +336,6 @@ fun LibraryScreen(
       onDelete = { libraryViewModel.delete(detail) },
       onDeletePermanent = { libraryViewModel.deletePermanent(detail) },
       onSaveReadingPosition = { percentage -> libraryViewModel.saveReadingPosition(detail.id, percentage) },
-      themeMode = themeMode,
-      onThemeModeChange = onThemeModeChange,
-      onShowCollectJobs = { showTasks = true },
-      onCheckUpdate = onManualUpdateCheck,
-      onShowSettings = { showSettings = true },
     )
     state.loadingDetail -> ArticleDetailSkeleton()
     detailError != null -> ErrorPage(detailError, libraryViewModel::closeDetail)
@@ -383,13 +377,67 @@ fun LibraryScreen(
               IconButton(onClick = { showManualCollect = true }) {
                 Icon(Icons.Outlined.AddLink, contentDescription = "手动采集链接")
               }
-              IconButton(onClick = { showTasks = true }) {
-                BadgedBox(badge = { if (jobsState.activeJobCount > 0) Badge { Text(jobsState.activeJobCount.toString()) } }) {
-                  Icon(Icons.Outlined.TaskAlt, contentDescription = "采集任务")
+              Box {
+                IconButton(onClick = { moreExpanded = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "更多") }
+                DropdownMenu(expanded = moreExpanded, onDismissRequest = { moreExpanded = false }, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.medium) {
+                  DropdownMenuItem(
+                    text = { Text("采集任务") },
+                    onClick = { moreExpanded = false; showTasks = true },
+                    leadingIcon = {
+                      BadgedBox(badge = { if (jobsState.activeJobCount > 0) Badge { Text(jobsState.activeJobCount.toString()) } }) {
+                        Icon(Icons.Outlined.TaskAlt, contentDescription = null)
+                      }
+                    },
+                  )
+                  Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                  ) {
+                    Row(
+                      horizontalArrangement = Arrangement.spacedBy(8.dp),
+                      verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                      Icon(Icons.Outlined.Brightness4, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                      Text("显示模式", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                      ThemeMode.entries.forEach { mode ->
+                        IconButton(
+                          onClick = { onThemeModeChange(mode) },
+                          modifier = Modifier.size(32.dp),
+                        ) {
+                          Icon(
+                            when (mode) {
+                              ThemeMode.System -> Icons.Outlined.BrightnessAuto
+                              ThemeMode.Light -> Icons.Outlined.LightMode
+                              ThemeMode.Dark -> Icons.Outlined.DarkMode
+                            },
+                            contentDescription = mode.label,
+                            tint = if (mode == themeMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp),
+                          )
+                        }
+                      }
+                    }
+                  }
+                  HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), thickness = 0.5.dp)
+                  DropdownMenuItem(
+                    text = { Text("设置") },
+                    onClick = { moreExpanded = false; showSettings = true },
+                    leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
+                  )
+                  DropdownMenuItem(
+                    text = { Text("检查更新") },
+                    onClick = { moreExpanded = false; onManualUpdateCheck() },
+                    leadingIcon = { Icon(Icons.Outlined.Sync, contentDescription = null) },
+                  )
+                  DropdownMenuItem(
+                    text = { Text("关于") },
+                    onClick = { moreExpanded = false; showAbout = true },
+                    leadingIcon = { Icon(Icons.Outlined.Info, contentDescription = null) },
+                  )
                 }
-              }
-              IconButton(onClick = { showSettings = true }) {
-                Icon(Icons.Outlined.Settings, contentDescription = "设置与更新")
               }
             } else {
               IconButton(onClick = onRequestLogin) {
@@ -500,6 +548,19 @@ fun LibraryScreen(
     )
   }
   if (showManualCollect) ManualCollectDialog(onDismiss = { showManualCollect = false }, viewModel = collectViewModel)
+  if (showAbout) AlertDialog(
+    onDismissRequest = { showAbout = false },
+    icon = { Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+    title = { Text("关于乾坤戒") },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("乾坤戒 Storing", style = MaterialTheme.typography.titleSmall)
+        Text("版本 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        Text("AI 驱动的个人稍后阅读平台，支持智能摘要、自动分类和标签。", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+      }
+    },
+    confirmButton = { TextButton(onClick = { showAbout = false }) { Text("知道了") } },
+  )
 }
 
 @Composable
@@ -1027,14 +1088,13 @@ private fun ArticleDetailSkeleton() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, savedReadingPosition: Float?, isOfflineAvailable: Boolean, downloadingOffline: Boolean, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onSaveReadingPosition: (Float) -> Unit, themeMode: ThemeMode, onThemeModeChange: (ThemeMode) -> Unit, onShowCollectJobs: () -> Unit, onCheckUpdate: () -> Unit, onShowSettings: () -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, savedReadingPosition: Float?, isOfflineAvailable: Boolean, downloadingOffline: Boolean, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onSaveReadingPosition: (Float) -> Unit) {
   val context = LocalContext.current
   var confirmDelete by remember { mutableStateOf(false) }
   var confirmPermanentDelete by remember { mutableStateOf(false) }
   var confirmPublication by remember { mutableStateOf<PublicationAction?>(null) }
   var confirmProcessing by remember { mutableStateOf<ArticleProcessingAction?>(null) }
   var moreExpanded by remember { mutableStateOf(false) }
-  var showAbout by remember { mutableStateOf(false) }
   BackHandler(onBack = onBack)
   val publicUrl = article.publicId?.let { "https://storing.idickies.com/p/$it" }
 
@@ -1070,68 +1130,13 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
         },
         navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回资料库") } },
         actions = {
+          IconButton(
+            onClick = { article.originalUrl?.let { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) } },
+            enabled = !article.originalUrl.isNullOrBlank(),
+          ) { Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = "打开原网页") }
           Box {
             IconButton(onClick = { moreExpanded = true }, enabled = processingAction == null) { Icon(Icons.Outlined.MoreVert, contentDescription = "更多阅读操作") }
             DropdownMenu(expanded = moreExpanded, onDismissRequest = { moreExpanded = false }, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.medium) {
-              // 采集任务
-              DropdownMenuItem(
-                text = { Text("采集任务") },
-                onClick = { moreExpanded = false; onShowCollectJobs() },
-                leadingIcon = { Icon(Icons.Outlined.TaskAlt, contentDescription = null) },
-              )
-              // 显示模式切换 -- 三个图标直接展示
-              Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-              ) {
-                Row(
-                  horizontalArrangement = Arrangement.spacedBy(8.dp),
-                  verticalAlignment = Alignment.CenterVertically,
-                ) {
-                  Icon(Icons.Outlined.Brightness4, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                  Text("显示模式", style = MaterialTheme.typography.bodyMedium)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                  ThemeMode.entries.forEach { mode ->
-                    IconButton(
-                      onClick = { onThemeModeChange(mode) },
-                      modifier = Modifier.size(32.dp),
-                    ) {
-                      Icon(
-                        when (mode) {
-                          ThemeMode.System -> Icons.Outlined.BrightnessAuto
-                          ThemeMode.Light -> Icons.Outlined.LightMode
-                          ThemeMode.Dark -> Icons.Outlined.DarkMode
-                        },
-                        contentDescription = mode.label,
-                        tint = if (mode == themeMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp),
-                      )
-                    }
-                  }
-                }
-              }
-              HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), thickness = 0.5.dp)
-              // 设置
-              DropdownMenuItem(
-                text = { Text("设置") },
-                onClick = { moreExpanded = false; onShowSettings() },
-                leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
-              )
-              // 检查更新
-              DropdownMenuItem(
-                text = { Text("检查更新") },
-                onClick = { moreExpanded = false; onCheckUpdate() },
-                leadingIcon = { Icon(Icons.Outlined.Sync, contentDescription = null) },
-              )
-              // 关于
-              DropdownMenuItem(
-                text = { Text("关于") },
-                onClick = { moreExpanded = false; showAbout = true },
-                leadingIcon = { Icon(Icons.Outlined.Info, contentDescription = null) },
-              )
-              HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), thickness = 0.5.dp)
               DropdownMenuItem(
                 text = { Text("分享原网页") },
                 onClick = { moreExpanded = false; shareOriginalUrl() },
@@ -1250,6 +1255,11 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
           var currentScrollPercentage by remember { mutableStateOf(0f) }
           var webLoaded by remember { mutableStateOf(false) }
           val headerHtml = ReaderDocument.buildArticleHeader(article, readerColorScheme, isOfflineAvailable)
+          // Fallback: ensure skeleton disappears even if onPageCommitVisible doesn't fire
+          LaunchedEffect(article.id) {
+            kotlinx.coroutines.delay(3000)
+            webLoaded = true
+          }
           Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             AndroidView(
               factory = { webContext ->
@@ -1260,8 +1270,8 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                     onOpenExternalUrl = { uri -> webContext.startActivity(Intent(Intent.ACTION_VIEW, uri)) },
                     onPageFinished = {
                       savedReadingPosition?.let { pos -> ReaderWebView.restoreScrollPosition(this, pos) }
-                      webLoaded = true
                     },
+                    onPageCommitVisible = { webLoaded = true },
                     onScrollChanged = { percentage -> currentScrollPercentage = percentage },
                   )
                   ReaderWebView.loadCapturedHtml(this, html, readerColorScheme, readerPreferences, headerHtml)
@@ -1360,19 +1370,6 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
     },
     confirmButton = { Button(onClick = { confirmPermanentDelete = false; onDeletePermanent() }, enabled = !permanentDeleting, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError)) { Text(if (permanentDeleting) "正在删除…" else "永久删除") } },
     dismissButton = { TextButton(onClick = { confirmPermanentDelete = false }) { Text("取消") } },
-  )
-  if (showAbout) AlertDialog(
-    onDismissRequest = { showAbout = false },
-    icon = { Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-    title = { Text("关于乾坤戒") },
-    text = {
-      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("乾坤戒 Storing", style = MaterialTheme.typography.titleSmall)
-        Text("版本 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-        Text("AI 驱动的个人稍后阅读平台，支持智能摘要、自动分类和标签。", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-      }
-    },
-    confirmButton = { TextButton(onClick = { showAbout = false }) { Text("知道了") } },
   )
 }
 
