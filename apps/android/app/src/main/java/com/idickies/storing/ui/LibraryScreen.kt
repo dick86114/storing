@@ -366,14 +366,7 @@ fun LibraryScreen(
         if (isAuthenticated) {
           QiankunjieCompactBottomBar() {
             LibraryView.entries.forEach { item ->
-              val count = state.counts?.let { c ->
-                when (item) {
-                  LibraryView.Inbox -> c.inbox
-                  LibraryView.Favorites -> c.favorites
-                  LibraryView.Archive -> c.archive
-                  LibraryView.Published -> c.published
-                }
-              }
+              val count = state.badgeCounts[item] ?: 0
               CompactBottomBarItem(
                 label = item.shortLabel,
                 icon = when (item) {
@@ -386,6 +379,7 @@ fun LibraryScreen(
                 badgeCount = count,
                 onClick = {
                 if (state.view == item && state.searchQuery.isBlank()) {
+                  libraryViewModel.markViewSeen(item)
                   scope.launch { libraryListState.animateScrollToItem(0) }
                 } else {
                   libraryViewModel.select(item)

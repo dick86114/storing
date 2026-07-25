@@ -50,6 +50,7 @@ data class LibraryUiState(
   val processingAction: ArticleProcessingAction? = null,
   val processingError: String? = null,
   val counts: ArticleCounts? = null,
+  val badgeCounts: Map<LibraryView, Int> = emptyMap(),
   val permanentDeleting: Boolean = false,
   val savedReadingPosition: Float? = null,
   val isOfflineAvailable: Boolean = false,
@@ -72,6 +73,7 @@ class LibraryViewModel @Inject constructor(
   private var searchDebounceJob: Job? = null
   private var loadMoreJob: Job? = null
   private var sourceLoadJob: Job? = null
+  private val lastSeenCounts = mutableMapOf<LibraryView, Int>()
 
   init {
     loadInitial()
@@ -98,8 +100,24 @@ class LibraryViewModel @Inject constructor(
         loadMoreError = null,
       )
     }
+    markViewSeen(view)
     loadInitial()
     if (view == LibraryView.Archive) loadArchiveSources()
+  }
+
+  /** 标记某个视图已查看，清除该视图的新增 badge */
+  fun markViewSeen(view: LibraryView) {
+    val counts = mutableState.value.counts ?: return
+    val current = when (view) {
+      LibraryView.Inbox -> counts.inbox
+      LibraryView.Favorites -> counts.favorites
+      LibraryView.Archive -> counts.archive
+      LibraryView.Published -> counts.published
+    }
+    if (lastSeenCounts[view] != current) {
+      lastSeenCounts[view] = current
+      mutableState.update { it.copy(badgeCounts = computeBadgeCounts(counts)) }
+    }
   }
 
   fun refresh() {
@@ -492,8 +510,21 @@ class LibraryViewModel @Inject constructor(
   private fun loadCounts() {
     viewModelScope.launch {
       runCatching { repository.counts() }.onSuccess { counts ->
-        mutableState.update { it.copy(counts = counts) }
+        val badges = computeBadgeCounts(counts)
+        mutableState.update { it.copy(counts = counts, badgeCounts = badges) }
       }
     }
+  }
+
+  /** 计算各视图的新增 badge 数量 = max(0, 当前数 - 上次查看数) */
+  private fun computeBadgeCounts(counts: ArticleCounts): Map<LibraryView, Int> {
+    val current = mapOf(
+      LibraryView.Inbox to counts.inbox,
+      LibraryView.Favorites to counts.favorites,
+      LibraryView.Archive to counts.archive,
+      LibraryView.Published to counts.published,
+    )
+    if (lastSeenCounts.isEmpty()) lastSeenCounts.putAll(current)
+    return current.mapValues { (view, count) -> maxOf(0, count - (lastSeenCounts[view] ?: count)) }
   }
 }

@@ -131,7 +131,7 @@ fun CompactBottomBarItem(
           label = "badgePulse",
         )
         Surface(
-          color = selectedColor,
+          color = MaterialTheme.colorScheme.primary,
           contentColor = MaterialTheme.colorScheme.onPrimary,
           shape = CircleShape,
           modifier = Modifier
@@ -155,16 +155,15 @@ fun CompactBottomBarItem(
       fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.Medium else androidx.compose.ui.text.font.FontWeight.Normal,
       color = contentColor,
     )
-    // 指示器横条：16dp × 2dp
-    Spacer(Modifier.height(1.dp))
-    Box(
-      modifier = Modifier
-        .width(if (selected) 16.dp else 0.dp)
-        .height(2.dp)
-        .background(
-          if (selected) selectedColor else Color.Transparent,
-          CircleShape,
-        ),
-    )
+    // 指示器横条：仅亮色模式显示（暗色靠颜色区分）
+    if (!isSystemInDarkTheme() && selected) {
+      Spacer(Modifier.height(1.dp))
+      Box(
+        modifier = Modifier
+          .width(16.dp)
+          .height(2.dp)
+          .background(selectedColor, CircleShape),
+      )
+    }
   }
 }
