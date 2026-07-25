@@ -8,6 +8,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Icon
@@ -20,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
@@ -45,6 +51,7 @@ fun QiankunjieCompactBottomBar(
   Row(
     modifier = modifier
       .fillMaxWidth()
+      .windowInsetsPadding(WindowInsets.navigationBars)
       .padding(horizontal = 12.dp, vertical = compactBottomBarMetrics.verticalInset)
       .height(compactBottomBarMetrics.actionHeight),
     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -76,26 +83,32 @@ fun CompactBottomBarItem(
     contentColor = if (enabled) contentColor else contentColor.copy(alpha = 0.38f),
     shape = MaterialTheme.shapes.medium,
   ) {
-    Column(
-      horizontalAlignment = Alignment.CenterHorizontally,
-      verticalArrangement = Arrangement.Center,
+    Row(
+      modifier = Modifier.padding(horizontal = 6.dp),
+      horizontalArrangement = Arrangement.Center,
+      verticalAlignment = Alignment.CenterVertically,
     ) {
-      Box {
+      Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+      ) {
         Icon(imageVector = icon, contentDescription = label, modifier = Modifier.height(22.dp))
-        if (badgeCount != null && badgeCount > 0) {
-          Badge(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.align(Alignment.TopEnd),
-          ) {
-            Text(
-              if (badgeCount > 99) "99+" else badgeCount.toString(),
-              style = MaterialTheme.typography.labelSmall,
-            )
-          }
+        Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 2.dp))
+      }
+      if (badgeCount != null && badgeCount > 0) {
+        Surface(
+          color = MaterialTheme.colorScheme.primary,
+          contentColor = MaterialTheme.colorScheme.onPrimary,
+          shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+          modifier = Modifier.padding(start = 4.dp).size(width = 20.dp, height = 16.dp),
+        ) {
+          Text(
+            if (badgeCount > 99) "99+" else badgeCount.toString(),
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.wrapContentSize(Alignment.Center),
+          )
         }
       }
-      Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 2.dp))
     }
   }
 }

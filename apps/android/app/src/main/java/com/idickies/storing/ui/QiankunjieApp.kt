@@ -55,7 +55,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -299,6 +302,8 @@ internal fun LoginScreen(
         }
       },
       visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+      keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+      keyboardActions = KeyboardActions(onDone = { if (credentials.isSubmittable && !submitting) onLogin(credentials) }),
       shape = MaterialTheme.shapes.medium,
       singleLine = true,
     )
@@ -316,7 +321,6 @@ internal fun LoginScreen(
       }
       Text(if (submitting) "正在登录…" else "进入乾坤戒")
     }
-    Text("使用你的乾坤戒账号登录。服务地址由应用固定管理。", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 16.dp))
   }
   }
 }

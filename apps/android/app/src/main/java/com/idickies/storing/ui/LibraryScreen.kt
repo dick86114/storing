@@ -283,7 +283,7 @@ fun LibraryScreen(
       onBiometricEnabledChange = onBiometricEnabledChange,
       onOpenDeviceSessions = { showSettings = false; showDeviceSessions = true },
       onOpenBatteryGuidance = { showSettings = false; showBatteryGuidance = true },
-      onLogout = onLogout,
+      onLogout = { showSettings = false; onLogout() },
       onBack = { showSettings = false },
     )
     detail != null -> ArticleReader(
