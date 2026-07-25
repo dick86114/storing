@@ -85,7 +85,8 @@ object ReaderWebView {
     capturedHtml: String,
     colorScheme: ReaderColorScheme = ReaderColorScheme.Light,
     preferences: ReaderPreferences = ReaderPreferences.Default,
+    headerHtml: String = "",
   ) {
-    webView.loadDataWithBaseURL(baseUrl, ReaderDocument.forWebView(capturedHtml, colorScheme, preferences), "text/html", "UTF-8", null)
+    webView.loadDataWithBaseURL(baseUrl, ReaderDocument.forWebView(capturedHtml, colorScheme, preferences, headerHtml), "text/html", "UTF-8", null)
   }
 }

@@ -268,7 +268,7 @@ internal fun LoginScreen(
       ),
     ) {
       androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
-        Image(painter = painterResource(R.drawable.ic_qiankunjie_mark), contentDescription = "乾坤戒产品标志", modifier = Modifier.size(46.dp))
+        Image(painter = painterResource(R.drawable.brand_logo), contentDescription = "乾坤戒产品标志", modifier = Modifier.size(46.dp))
       }
     }
     Spacer(Modifier.height(24.dp))
