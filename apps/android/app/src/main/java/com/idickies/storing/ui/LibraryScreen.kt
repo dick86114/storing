@@ -752,7 +752,7 @@ private fun LibraryList(
                 label = { Text(state.sort.label) },
                 leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = "排序方式", modifier = Modifier.size(16.dp)) },
               )
-              DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }) {
+              DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.medium) {
                 LibrarySort.availableFor(state.view).forEach { sort ->
                   DropdownMenuItem(
                     text = { Text(sort.label) },
@@ -781,7 +781,7 @@ private fun LibraryList(
                 label = { Text(if (state.archiveSourcesLoading) "来源" else state.archiveSource.label) },
                 leadingIcon = { Icon(Icons.Outlined.FilterList, contentDescription = "归档来源", modifier = Modifier.size(16.dp)) },
               )
-              DropdownMenu(expanded = sourceExpanded, onDismissRequest = { sourceExpanded = false }) {
+              DropdownMenu(expanded = sourceExpanded, onDismissRequest = { sourceExpanded = false }, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.medium) {
                 sourceOptions.forEach { filter ->
                   val count = filter.category?.let(sourceCounts::get)
                   DropdownMenuItem(
@@ -949,7 +949,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
           ) { Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = "打开原网页") }
           Box {
             IconButton(onClick = { moreExpanded = true }, enabled = processingAction == null) { Icon(Icons.Outlined.MoreVert, contentDescription = "更多阅读操作") }
-            DropdownMenu(expanded = moreExpanded, onDismissRequest = { moreExpanded = false }) {
+            DropdownMenu(expanded = moreExpanded, onDismissRequest = { moreExpanded = false }, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.medium) {
               DropdownMenuItem(
                 text = { Text("分享原网页") },
                 onClick = { moreExpanded = false; shareOriginalUrl() },
