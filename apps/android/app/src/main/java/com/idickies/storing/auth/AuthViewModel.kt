@@ -37,7 +37,20 @@ class AuthViewModel @Inject constructor(
       mutableState.update { it.copy(submitting = true, errorMessage = null) }
       runCatching { authRepository.login(credentials.normalizedUsername, credentials.password) }
         .onSuccess { user -> mutableState.update { it.copy(submitting = false, user = user) } }
-        .onFailure { error -> mutableState.update { it.copy(submitting = false, errorMessage = error.message ?: "登录失败，请稍后重试") } }
+        .onFailure { error -> mutableState.update { it.copy(submitting = false, errorMessage = friendlyLoginError(error.message)) } }
+    }
+  }
+
+  private fun friendlyLoginError(raw: String?): String {
+    val msg = raw.orEmpty()
+    return when {
+      msg.contains("401", ignoreCase = true) || msg.contains("UNAUTHORIZED", ignoreCase = true) -> "用户名或密码不正确"
+      msg.contains("403", ignoreCase = true) || msg.contains("FORBIDDEN", ignoreCase = true) -> "账号已被禁用，请联系管理员"
+      msg.contains("429", ignoreCase = true) || msg.contains("RATE", ignoreCase = true) -> "尝试过于频繁，请稍后再试"
+      msg.contains("Unable to resolve host", ignoreCase = true) || msg.contains("network", ignoreCase = true) -> "网络连接失败，请检查网络后重试"
+      msg.contains("timeout", ignoreCase = true) || msg.contains("timed out", ignoreCase = true) -> "连接超时，请稍后重试"
+      msg.contains("500", ignoreCase = true) || msg.contains("502", ignoreCase = true) || msg.contains("503", ignoreCase = true) -> "服务器暂时不可用，请稍后重试"
+      else -> "登录失败，请稍后重试"
     }
   }
 

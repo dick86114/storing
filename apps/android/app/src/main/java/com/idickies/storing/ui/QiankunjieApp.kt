@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -24,6 +25,10 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -130,6 +135,7 @@ fun QiankunjieApp(
         submitting = state.submitting,
         errorMessage = state.errorMessage,
         onLogin = authViewModel::login,
+        onBack = { showLogin = false },
       )
     }
     else -> HomeSkeleton(
@@ -222,18 +228,33 @@ private fun LoadingScreen() {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 internal fun LoginScreen(
   submitting: Boolean,
   errorMessage: String?,
   onLogin: (LoginCredentials) -> Unit,
+  onBack: () -> Unit = {},
 ) {
   var username by rememberSaveable { mutableStateOf("") }
   var password by rememberSaveable { mutableStateOf("") }
   var passwordVisible by rememberSaveable { mutableStateOf(false) }
   val credentials = LoginCredentials(username, password)
 
+  Scaffold(
+    topBar = {
+      TopAppBar(
+        title = { Text("登录") },
+        navigationIcon = {
+          androidx.compose.material3.IconButton(onClick = onBack) {
+            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回")
+          }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+      )
+    },
+  ) { padding ->
   Column(
-    modifier = Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 32.dp),
+    modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 28.dp, vertical = 16.dp),
     verticalArrangement = Arrangement.Center,
   ) {
     Surface(
@@ -296,6 +317,7 @@ internal fun LoginScreen(
       Text(if (submitting) "正在登录…" else "进入乾坤戒")
     }
     Text("使用你的乾坤戒账号登录。服务地址由应用固定管理。", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 16.dp))
+  }
   }
 }
 
