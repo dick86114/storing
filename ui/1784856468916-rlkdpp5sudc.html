@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://unpkg.com" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://unpkg.com/@fortawesome/fontawesome-free@6.7.2/js/all.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * {
+      scrollbar-width: none;
+      scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    }
+  </style>
+</head>
+
+<body class="bg-[#030f09] min-h-screen flex items-center justify-center font-sans">
+<link href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style type="text/tailwindcss">
+@theme {
+  --color-primary: #0D2B1E;
+  --color-primary-light: #143D2B;
+  --color-primary-dark: #071A12;
+  --color-accent: #C9A84C;
+  --color-accent-dim: #A8893E;
+  --color-surface: #0A1F15;
+  --color-surface-elevated: #112A1F;
+  --color-surface-card: #0E2419;
+  --color-text-primary: #E8E4DC;
+  --color-text-secondary: #9CA89F;
+  --color-text-muted: #6B7A6F;
+  --color-border: #1C3A2B;
+  --color-tag-blue: #2A4A6B;
+  --color-tag-purple: #4A2D6B;
+  --color-tag-teal: #1A4A4A;
+  --color-tag-amber: #4A3A1A;
+  --color-success: #2ECC71;
+  --color-danger: #E74C3C;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.badge-pulse {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+</style>
+
+<!-- Phone Frame -->
+<div class="w-[390px] h-[844px] bg-primary-dark rounded-[40px] shadow-2xl shadow-black/60 border border-border overflow-hidden relative flex flex-col">
+  
+  <!-- Android Status Bar -->
+  <div class="h-6 bg-primary-dark flex items-center justify-between px-6 shrink-0">
+    <span class="text-text-secondary text-[11px] font-medium" style="font-family:'Noto Sans SC'">9:41</span>
+    <div class="flex items-center gap-1.5">
+      <i data-lucide="signal" class="w-3 h-3 text-text-secondary"></i>
+      <i data-lucide="wifi" class="w-3 h-3 text-text-secondary"></i>
+      <i data-lucide="battery" class="w-3.5 h-3.5 text-text-secondary"></i>
+    </div>
+  </div>
+
+  <!-- App Bar -->
+  <div class="h-14 bg-primary-dark/90 backdrop-blur-md flex items-center justify-between px-4 shrink-0 border-b border-border/50">
+    <div class="flex items-center gap-2">
+      <h1 class="text-text-primary text-lg font-bold" style="font-family:'Noto Serif SC'">收件箱</h1>
+      <span class="text-accent text-sm font-medium">· 42</span>
+    </div>
+    <div class="flex items-center gap-4">
+      <i data-lucide="search" class="w-5 h-5 text-text-secondary"></i>
+      <i data-lucide="arrow-up-down" class="w-5 h-5 text-text-secondary"></i>
+    </div>
+  </div>
+
+  <!-- Article List (Scrollable) -->
+  <div class="flex-1 overflow-y-auto px-4 pt-3 pb-4">
+    
+    <!-- Article Card 1 -->
+    <div class="flex gap-3 py-3.5 border-b border-border/40">
+      <div class="flex-1 min-w-0">
+        <h3 class="text-text-primary text-[15px] font-semibold leading-snug line-clamp-2 mb-1.5" style="font-family:'Noto Sans SC'">大模型时代的个人知识管理：从信息焦虑到认知升级</h3>
+        <p class="text-text-muted text-[13px] leading-relaxed line-clamp-2 mb-2">本文探讨了在 AI 大模型快速迭代的背景下，知识工作者如何重新构建个人信息处理流程，避免被海量信息淹没…</p>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-text-secondary text-[11px]">少数派</span>
+          <span class="text-text-muted text-[11px]">·</span>
+          <span class="text-text-muted text-[11px]">2 小时前</span>
+          <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-tag-teal/60 text-[10px] text-emerald-300/90">知识管理</span>
+          <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-tag-purple/60 text-[10px] text-purple-300/90">AI</span>
+        </div>
+      </div>
+      <div class="w-20 h-20 rounded-lg overflow-hidden shrink-0 bg-surface-elevated">
+        <img src="https://images.unsplash.com/photo-1456324504439-367cee3b3c32?w=160&h=160&fit=crop&auto=format&q=80" alt="知识管理" class="w-full h-full object-cover">
+      </div>
+    </div>
+
+    <!-- Article Card 2 -->
+    <div class="flex gap-3 py-3.5 border-b border-border/40">
+      <div class="flex-1 min-w-0">
+        <h3 class="text-text-primary text-[15px] font-semibold leading-snug line-clamp-2 mb-1.5" style="font-family:'Noto Sans SC'">为什么说 RAG 是当前企业 AI 应用的最佳实践路径</h3>
+        <p class="text-text-muted text-[13px] leading-relaxed line-clamp-2 mb-2">检索增强生成（RAG）技术通过结合外部知识库，显著提升了大语言模型在垂直领域的准确性和可靠性…</p>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-text-secondary text-[11px]">机器之心</span>
+          <span class="text-text-muted text-[11px]">·</span>
+          <span class="text-text-muted text-[11px]">5 小时前</span>
+          <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-tag-blue/60 text-[10px] text-blue-300/90">RAG</span>
+          <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-tag-amber/60 text-[10px] text-amber-300/90">企业AI</span>
+        </div>
+      </div>
+      <div class="w-20 h-20 rounded-lg overflow-hidden shrink-0 bg-surface-elevated">
+        <img src="https://images.unsplash.com/photo-1677442136019-21780ecad995?w=160&h=160&fit=crop&auto=format&q=80" alt="AI技术" class="w-full h-full object-cover">
+      </div>
+    </div>
+
+    <!-- Article Card 3 -->
+    <div class="flex gap-3 py-3.5 border-b border-border/40">
+      <div class="flex-1 min-w-0">
+        <h3 class="text-text-primary text-[15px] font-semibold leading-snug line-clamp-2 mb-1.5" style="font-family:'Noto Sans SC'">独立开发者出海手册：从 0 到 $1000 MRR 的完整路径</h3>
+        <p class="text-text-muted text-[13px] leading-relaxed line-clamp-2 mb-2">系统梳理了独立开发者进入海外市场的关键步骤，包括产品定位、支付集成、SEO 策略和用户获取渠道…</p>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-text-secondary text-[11px]">即刻</span>
+          <span class="text-text-muted text-[11px]">·</span>
+          <span class="text-text-muted text-[11px]">昨天</span>
+          <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-tag-amber/60 text-[10px] text-amber-300/90">独立开发</span>
+          <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-tag-teal/60 text-[10px] text-emerald-300/90">出海</span>
+        </div>
+      </div>
+      <div class="w-20 h-20 rounded-lg overflow-hidden shrink-0 bg-surface-elevated">
+        <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=160&h=160&fit=crop&auto=format&q=80" alt="开发" class="w-full h-full object-cover">
+      </div>
+    </div>
+
+    <!-- Article Card 4 -->
+    <div class="flex gap-3 py-3.5 border-b border-border/40">
+      <div class="flex-1 min-w-0">
+        <h3 class="text-text-primary text-[15px] font-semibold leading-snug line-clamp-2 mb-1.5" style="font-family:'Noto Sans SC'">重新理解「第二大脑」：Tiago Forte 方法论的本土化实践</h3>
+        <p class="text-text-muted text-[13px] leading-relaxed line-clamp-2 mb-2">PARA 方法在中文语境下的适配与改造，结合 Notion、Obsidian 等工具的实际工作流分享…</p>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-text-secondary text-[11px]">微信公众号</span>
+          <span class="text-text-muted text-[11px]">·</span>
+          <span class="text-text-muted text-[11px]">昨天</span>
+          <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-tag-purple/60 text-[10px] text-purple-300/90">方法论</span>
+          <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-tag-blue/60 text-[10px] text-blue-300/90">笔记工具</span>
+        </div>
+      </div>
+      <div class="w-20 h-20 rounded-lg overflow-hidden shrink-0 bg-surface-elevated">
+        <img src="https://images.unsplash.com/photo-1512314889357-e157c22f938d?w=160&h=160&fit=crop&auto=format&q=80" alt="笔记" class="w-full h-full object-cover">
+      </div>
+    </div>
+
+    <!-- Article Card 5 -->
+    <div class="flex gap-3 py-3.5 border-b border-border/40">
+      <div class="flex-1 min-w-0">
+        <h3 class="text-text-primary text-[15px] font-semibold leading-snug line-clamp-2 mb-1.5" style="font-family:'Noto Sans SC'">Claude 3.5 深度测评：多模态推理能力全面超越 GPT-4o</h3>
+        <p class="text-text-muted text-[13px] leading-relaxed line-clamp-2 mb-2">对 Anthropic 最新发布的 Claude 3.5 Sonnet 进行了全方位的基准测试和实际任务评估…</p>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-text-secondary text-[11px]">36氪</span>
+          <span class="text-text-muted text-[11px]">·</span>
+          <span class="text-text-muted text-[11px]">2天前</span>
+          <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-tag-blue/60 text-[10px] text-blue-300/90">LLM</span>
+          <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-tag-teal/60 text-[10px] text-emerald-300/90">测评</span>
+        </div>
+      </div>
+      <div class="w-20 h-20 rounded-lg overflow-hidden shrink-0 bg-surface-elevated">
+        <img src="https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=160&h=160&fit=crop&auto=format&q=80" alt="AI模型" class="w-full h-full object-cover">
+      </div>
+    </div>
+
+    <!-- Article Card 6 -->
+    <div class="flex gap-3 py-3.5">
+      <div class="flex-1 min-w-0">
+        <h3 class="text-text-primary text-[15px] font-semibold leading-snug line-clamp-2 mb-1.5" style="font-family:'Noto Sans SC'">设计系统的黄昏：为何 Figma Token 正在被重新定义</h3>
+        <p class="text-text-muted text-[13px] leading-relaxed line-clamp-2 mb-2">当设计工具从静态资产走向动态系统，Token 架构和设计变量的管理方式正在经历根本性变革…</p>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-text-secondary text-[11px]">Design Lobster</span>
+          <span class="text-text-muted text-[11px]">·</span>
+          <span class="text-text-muted text-[11px]">3天前</span>
+          <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-tag-purple/60 text-[10px] text-purple-300/90">设计系统</span>
+        </div>
+      </div>
+      <div class="w-20 h-20 rounded-lg overflow-hidden shrink-0 bg-surface-elevated">
+        <img src="https://images.unsplash.com/photo-1558655146-9f40138edfeb?w=160&h=160&fit=crop&auto=format&q=80" alt="设计" class="w-full h-full object-cover">
+      </div>
+    </div>
+
+  </div>
+
+  <!-- FAB -->
+  <div class="absolute bottom-24 right-5 w-14 h-14 rounded-full bg-accent shadow-lg shadow-accent/30 flex items-center justify-center z-20">
+    <i data-lucide="plus" class="w-6 h-6 text-primary-dark"></i>
+  </div>
+
+  <!-- Bottom Navigation -->
+  <div class="h-16 bg-primary-dark/95 backdrop-blur-md border-t border-border/60 flex items-center justify-around shrink-0 px-2">
+    <div class="flex flex-col items-center gap-0.5 relative">
+      <div class="relative">
+        <i data-lucide="inbox" class="w-5 h-5 text-accent"></i>
+        <span class="absolute -top-1.5 -right-2.5 bg-accent text-primary-dark text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center badge-pulse">2</span>
+      </div>
+      <span class="text-accent text-[10px] font-medium">收件箱</span>
+    </div>
+    <a href="mobile-archive.html" class="flex flex-col items-center gap-0.5">
+      <i data-lucide="bookmark" class="w-5 h-5 text-text-muted"></i>
+      <span class="text-text-muted text-[10px]">收藏</span>
+    </a>
+    <a href="mobile-archive.html" class="flex flex-col items-center gap-0.5">
+      <i data-lucide="archive" class="w-5 h-5 text-text-muted"></i>
+      <span class="text-text-muted text-[10px]">归档</span>
+    </a>
+    <div class="flex flex-col items-center gap-0.5">
+      <i data-lucide="send" class="w-5 h-5 text-text-muted"></i>
+      <span class="text-text-muted text-[10px]">发布</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- Page Navigation -->
+<div class="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-surface-elevated/90 backdrop-blur rounded-full px-5 py-2.5 border border-border/50 z-50">
+  <span class="text-text-muted text-xs">1/6</span>
+  <a href="mobile-article.html" class="text-accent text-xs font-medium hover:underline">下一页 →</a>
+</div>
+
+</body>
+<script>if (window.lucide) lucide.createIcons();</script>
+</html>

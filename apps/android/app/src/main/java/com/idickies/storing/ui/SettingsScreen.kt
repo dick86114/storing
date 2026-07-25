@@ -53,11 +53,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.idickies.storing.BuildConfig
-import com.idickies.storing.ui.components.QiankunjieGlassPanel
 import com.idickies.storing.ui.theme.ThemeMode
 import com.idickies.storing.cache.CacheManager
 import com.idickies.storing.diagnostics.DiagnosticsExporter
-import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 import com.idickies.storing.update.settingsUpdatePresentation
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,7 +82,7 @@ fun QiankunjieSettingsScreen(
   Scaffold(
     topBar = {
       TopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = liquidGlassSurfaceColor()),
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         title = { Text("设置与更新") },
         navigationIcon = {
           androidx.compose.material3.IconButton(onClick = onBack) {
@@ -100,7 +98,7 @@ fun QiankunjieSettingsScreen(
       verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
       item {
-        QiankunjieGlassPanel(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large) {
+        Surface(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface) {
           Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text("乾坤戒", style = MaterialTheme.typography.titleLarge)
             Text("当前设备上的应用与采集运行设置。", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)

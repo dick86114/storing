@@ -8,7 +8,7 @@
         android:endX="108"
         android:endY="108"
         android:angle="135"
-        android:startColor="#C14A3F"
-        android:centerColor="#AA3E35"
-        android:endColor="#7C251E" />
+        android:startColor="#0D2B1E"
+        android:centerColor="#071A12"
+        android:endColor="#040D08" />
 </shape>

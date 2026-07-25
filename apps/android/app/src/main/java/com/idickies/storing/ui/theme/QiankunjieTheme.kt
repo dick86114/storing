@@ -14,45 +14,60 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/* 乾坤戒「古卷书斋」双色方案 —— 暗夜竹简 × 宣纸绢纹 */
+
+// ── 浅色：绢纸金 ──────────────────────────────
 private val LightColors = lightColorScheme(
-  primary = Color(0xFFAA3E35),
+  primary = Color(0xFFB8912A),
   onPrimary = Color(0xFFFFFFFF),
-  primaryContainer = Color(0xFFFFDAD4),
-  onPrimaryContainer = Color(0xFF3E0503),
-  error = Color(0xFFBA1A1A),
+  primaryContainer = Color(0xFFFFF3D0),
+  onPrimaryContainer = Color(0xFF3D2A00),
+  secondary = Color(0xFF0D2B1E),
+  onSecondary = Color(0xFFFFFFFF),
+  secondaryContainer = Color(0xFFD0E8D8),
+  onSecondaryContainer = Color(0xFF001A10),
+  tertiary = Color(0xFF5A7062),
+  tertiaryContainer = Color(0xFFE0EBE4),
+  onTertiaryContainer = Color(0xFF17261C),
+  error = Color(0xFFD93025),
   onError = Color(0xFFFFFFFF),
   errorContainer = Color(0xFFFFDAD6),
   onErrorContainer = Color(0xFF410002),
-  secondary = Color(0xFF856327),
-  secondaryContainer = Color(0xFFFFDEA1),
-  background = Color(0xFFF7F5F0),
-  onBackground = Color(0xFF1D1B19),
-  surface = Color(0xFFFFFCF8),
-  onSurface = Color(0xFF1D1B19),
-  surfaceVariant = Color(0xFFECE5DD),
-  onSurfaceVariant = Color(0xFF554B47),
-  outline = Color(0xFFD2C5BC),
+  background = Color(0xFFF5F1E8),
+  onBackground = Color(0xFF1A2E24),
+  surface = Color(0xFFFFFFFF),
+  onSurface = Color(0xFF1A2E24),
+  surfaceVariant = Color(0xFFEDE9DE),
+  onSurfaceVariant = Color(0xFF5A7062),
+  outline = Color(0xFFD8D2C4),
+  outlineVariant = Color(0xFFE5E0D6),
 )
 
+// ── 深色：墨绿金 ──────────────────────────────
 private val DarkColors = darkColorScheme(
-  primary = Color(0xFF88C0D0),
-  onPrimary = Color(0xFF2E3440),
-  primaryContainer = Color(0xFF455F72),
-  onPrimaryContainer = Color(0xFFE5E9F0),
-  secondary = Color(0xFFA3BE8C),
-  secondaryContainer = Color(0xFF46554A),
-  tertiary = Color(0xFFB48EAD),
-  error = Color(0xFFBF616A),
-  onError = Color(0xFF2E3440),
-  errorContainer = Color(0xFF593842),
-  onErrorContainer = Color(0xFFF5E6E8),
-  background = Color(0xFF2E3440),
-  onBackground = Color(0xFFECEFF4),
-  surface = Color(0xFF3B4252),
-  onSurface = Color(0xFFECEFF4),
-  surfaceVariant = Color(0xFF434C5E),
-  onSurfaceVariant = Color(0xFFD8DEE9),
-  outline = Color(0xFF81A1C1),
+  primary = Color(0xFFC9A84C),
+  onPrimary = Color(0xFF071A12),
+  primaryContainer = Color(0xFF463A20),
+  onPrimaryContainer = Color(0xFFFFE9A0),
+  secondary = Color(0xFF8BAA94),
+  onSecondary = Color(0xFF071A12),
+  secondaryContainer = Color(0xFF1C3A2B),
+  onSecondaryContainer = Color(0xFFC8E6D0),
+  tertiary = Color(0xFF9CA89F),
+  tertiaryContainer = Color(0xFF2A3A30),
+  onTertiaryContainer = Color(0xFFB8CCBD),
+  error = Color(0xFFE74C3C),
+  onError = Color(0xFF071A12),
+  errorContainer = Color(0xFF4A2A28),
+  onErrorContainer = Color(0xFFFFDAD6),
+  background = Color(0xFF071A12),
+  onBackground = Color(0xFFE8E4DC),
+  surface = Color(0xFF0E2419),
+  onSurface = Color(0xFFE8E4DC),
+  surfaceVariant = Color(0xFF0D2B1E),
+  onSurfaceVariant = Color(0xFF9CA89F),
+  outline = Color(0xFF1C3A2B),
+  outlineVariant = Color(0xFF243D30),
 )
 
 private val QiankunjieTypography = Typography(
@@ -66,10 +81,11 @@ private val QiankunjieTypography = Typography(
   labelMedium = TextStyle(fontSize = 11.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium),
 )
 
+/* 圆角对齐设计稿：标签 pill → small，卡片 → medium，设置分组 → large */
 private val QiankunjieShapes = Shapes(
-  small = RoundedCornerShape(10.dp),
-  medium = RoundedCornerShape(18.dp),
-  large = RoundedCornerShape(24.dp),
+  small = RoundedCornerShape(8.dp),
+  medium = RoundedCornerShape(12.dp),
+  large = RoundedCornerShape(16.dp),
 )
 
 @Composable

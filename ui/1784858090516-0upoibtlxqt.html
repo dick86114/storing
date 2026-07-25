@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://unpkg.com" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://unpkg.com/@fortawesome/fontawesome-free@6.7.2/js/all.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * {
+      scrollbar-width: none;
+      scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen bg-[#F5F1E8] flex items-center justify-center py-10">
+<link href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style type="text/tailwindcss">
+@theme {
+  --color-primary: #B8912A;
+  --color-brand: #0D2B1E;
+  --color-page-bg: #F5F1E8;
+  --color-bar-bg: #EDE9DE;
+  --color-card-bg: #FFFFFF;
+  --color-text-1: #1A2E24;
+  --color-text-2: #5A7062;
+  --color-text-3: #8FA897;
+  --color-border: #D8D2C4;
+  --color-success: #1E7A3A;
+  --color-error: #D93025;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+</style>
+
+<!-- Phone Frame -->
+<div class="w-[390px] rounded-[3rem] border-[8px] border-[#C8C2B4] bg-[#E8E4DA] shadow-xl shadow-amber-900/15 p-[6px] relative">
+  <div class="rounded-[2.4rem] overflow-hidden bg-[#F5F1E8] relative" style="height: 844px;">
+    <!-- Status Bar -->
+    <div class="h-[44px] bg-[#EDE9DE] flex items-center justify-between px-6 pt-2">
+      <span class="text-[13px] font-semibold text-[#1A2E24]" style="font-family: 'Noto Sans SC'">9:41</span>
+      <div class="flex items-center gap-1.5">
+        <i data-lucide="signal" class="w-4 h-4 text-[#1A2E24]"></i>
+        <i data-lucide="wifi" class="w-4 h-4 text-[#1A2E24]"></i>
+        <i data-lucide="battery-full" class="w-4 h-4 text-[#1A2E24]"></i>
+      </div>
+    </div>
+
+    <!-- App Bar -->
+    <div class="bg-[#EDE9DE] px-5 pb-3 pt-1">
+      <h1 class="text-[22px] font-bold text-[#1A2E24]" style="font-family: 'Noto Serif SC'">采集</h1>
+    </div>
+
+    <!-- Content -->
+    <div class="overflow-y-auto px-4 pt-4 pb-24" style="height: calc(844px - 44px - 50px - 64px); font-family: 'Noto Sans SC';">
+      <!-- Input Area -->
+      <div class="mb-4">
+        <label class="text-[13px] font-medium text-[#5A7062] mb-2 block">粘贴链接或输入网址</label>
+        <div class="bg-white rounded-xl border-2 border-[#D8D2C4] focus-within:border-[#0D2B1E] transition-colors px-4 py-3">
+          <textarea class="w-full text-[14px] text-[#1A2E24] placeholder-[#8FA897] resize-none outline-none bg-transparent" rows="3" placeholder="https://example.com/article...&#10;&#10;支持批量粘贴，每行一个链接"></textarea>
+        </div>
+      </div>
+
+      <!-- Clipboard Detection -->
+      <div class="mb-4 bg-[#FFFBF0] rounded-xl px-4 py-3 border border-[#B8912A]/20 flex items-center gap-3">
+        <i data-lucide="clipboard-check" class="w-5 h-5 text-[#B8912A] flex-shrink-0"></i>
+        <div class="flex-1 min-w-0">
+          <p class="text-[12px] text-[#5A7062]">检测到剪贴板链接</p>
+          <p class="text-[12px] text-[#1A2E24] font-medium truncate mt-0.5">https://sspai.com/post/78234</p>
+        </div>
+        <button class="text-[12px] text-[#B8912A] font-semibold bg-[#B8912A]/10 px-3 py-1.5 rounded-lg">粘贴</button>
+      </div>
+
+      <!-- Collect Button -->
+      <button class="w-full bg-[#B8912A] text-white font-semibold text-[15px] py-3.5 rounded-xl shadow-md shadow-amber-800/20 mb-6 flex items-center justify-center gap-2">
+        <i data-lucide="download" class="w-5 h-5"></i>
+        开始采集
+      </button>
+
+      <!-- Task History -->
+      <div class="mb-3 flex items-center justify-between">
+        <h2 class="text-[15px] font-semibold text-[#1A2E24]" style="font-family: 'Noto Serif SC'">采集任务</h2>
+        <span class="text-[12px] text-[#8FA897]">今日 5 条</span>
+      </div>
+
+      <!-- Task: In Progress -->
+      <div class="bg-white rounded-xl border border-[#D8D2C4]/40 shadow-sm shadow-stone-300/30 p-3.5 mb-3">
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 rounded-full bg-[#FFFBF0] flex items-center justify-center flex-shrink-0">
+            <i data-lucide="loader-2" class="w-4 h-4 text-[#B8912A]" style="animation: spin-slow 2s linear infinite;"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-[13px] font-medium text-[#1A2E24] truncate">36氪 - 2024 年 AI 创业公司融资报告</p>
+            <p class="text-[11px] text-[#8FA897] mt-0.5">正在解析内容...</p>
+            <div class="mt-2 h-1.5 bg-[#EDE9DE] rounded-full overflow-hidden">
+              <div class="h-full bg-[#B8912A] rounded-full transition-all" style="width: 45%;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Task: In Progress 2 -->
+      <div class="bg-white rounded-xl border border-[#D8D2C4]/40 shadow-sm shadow-stone-300/30 p-3.5 mb-3">
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 rounded-full bg-[#FFFBF0] flex items-center justify-center flex-shrink-0">
+            <i data-lucide="loader-2" class="w-4 h-4 text-[#B8912A]" style="animation: spin-slow 2s linear infinite;"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-[13px] font-medium text-[#1A2E24] truncate">GitHub Blog - Copilot Workspace 发布</p>
+            <p class="text-[11px] text-[#8FA897] mt-0.5">正在生成摘要...</p>
+            <div class="mt-2 h-1.5 bg-[#EDE9DE] rounded-full overflow-hidden">
+              <div class="h-full bg-[#B8912A] rounded-full transition-all" style="width: 78%;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Task: Completed -->
+      <div class="bg-white rounded-xl border border-[#D8D2C4]/40 shadow-sm shadow-stone-300/30 p-3.5 mb-3">
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 rounded-full bg-[#E8F4EC] flex items-center justify-center flex-shrink-0">
+            <i data-lucide="check" class="w-4 h-4 text-[#1E7A3A]"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-[13px] font-medium text-[#1A2E24] truncate">少数派 - 我的 2024 数字工具箱</p>
+            <p class="text-[11px] text-[#1E7A3A] mt-0.5">采集完成 · 已归入收件箱</p>
+          </div>
+          <span class="text-[10px] text-[#8FA897] flex-shrink-0">2 分钟前</span>
+        </div>
+      </div>
+
+      <!-- Task: Completed 2 -->
+      <div class="bg-white rounded-xl border border-[#D8D2C4]/40 shadow-sm shadow-stone-300/30 p-3.5 mb-3">
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 rounded-full bg-[#E8F4EC] flex items-center justify-center flex-shrink-0">
+            <i data-lucide="check" class="w-4 h-4 text-[#1E7A3A]"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-[13px] font-medium text-[#1A2E24] truncate">即刻 - Notion AI 深度使用体验</p>
+            <p class="text-[11px] text-[#1E7A3A] mt-0.5">采集完成 · 已归入收件箱</p>
+          </div>
+          <span class="text-[10px] text-[#8FA897] flex-shrink-0">15 分钟前</span>
+        </div>
+      </div>
+
+      <!-- Task: Failed -->
+      <div class="bg-white rounded-xl border border-[#D93025]/20 shadow-sm shadow-stone-300/30 p-3.5 mb-3">
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 rounded-full bg-[#FDECEB] flex items-center justify-center flex-shrink-0">
+            <i data-lucide="x" class="w-4 h-4 text-[#D93025]"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-[13px] font-medium text-[#1A2E24] truncate">微信公众号 - 付费墙内容（无法访问）</p>
+            <p class="text-[11px] text-[#D93025] mt-0.5">采集失败 · 需要登录访问</p>
+          </div>
+          <button class="text-[11px] text-[#B8912A] font-medium flex-shrink-0">重试</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <div class="absolute bottom-0 left-0 right-0 h-16 bg-[#EDE9DE] border-t border-[#D8D2C4] flex items-center justify-around px-4" style="font-family: 'Noto Sans SC';">
+      <a href="mobile-inbox-light.html" class="flex flex-col items-center gap-0.5">
+        <i data-lucide="inbox" class="w-5 h-5 text-[#8FA897]"></i>
+        <span class="text-[10px] text-[#8FA897]">收件箱</span>
+      </a>
+      <a href="mobile-archive-light.html" class="flex flex-col items-center gap-0.5">
+        <i data-lucide="archive" class="w-5 h-5 text-[#8FA897]"></i>
+        <span class="text-[10px] text-[#8FA897]">归档</span>
+      </a>
+      <a href="mobile-collect-light.html" class="flex flex-col items-center gap-0.5">
+        <i data-lucide="link" class="w-5 h-5 text-[#0D2B1E]"></i>
+        <span class="text-[10px] font-medium text-[#0D2B1E]">采集</span>
+        <div class="w-4 h-0.5 bg-[#0D2B1E] rounded-full mt-0.5"></div>
+      </a>
+      <a href="mobile-settings-light.html" class="flex flex-col items-center gap-0.5">
+        <i data-lucide="settings" class="w-5 h-5 text-[#8FA897]"></i>
+        <span class="text-[10px] text-[#8FA897]">设置</span>
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Page Navigation -->
+<div class="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/90 backdrop-blur rounded-full px-5 py-2.5 shadow-lg border border-[#D8D2C4]" style="font-family: 'Noto Sans SC';">
+  <a href="mobile-article-light.html" class="flex items-center gap-1 text-[13px] text-[#B8912A] font-medium hover:underline">
+    <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> 上一页
+  </a>
+  <span class="text-[12px] text-[#8FA897]">3 / 6</span>
+  <a href="mobile-share-light.html" class="flex items-center gap-1 text-[13px] text-[#B8912A] font-medium hover:underline">
+    下一页 <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+  </a>
+</div>
+</body>
+<script>if (window.lucide) lucide.createIcons();</script>
+</html>

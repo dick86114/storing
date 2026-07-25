@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://unpkg.com" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://unpkg.com/@fortawesome/fontawesome-free@6.7.2/js/all.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * {
+      scrollbar-width: none;
+      scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen bg-[#F5F1E8] flex items-center justify-center py-10">
+<link href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style type="text/tailwindcss">
+@theme {
+  --color-primary: #B8912A;
+  --color-brand: #0D2B1E;
+  --color-page-bg: #F5F1E8;
+  --color-bar-bg: #EDE9DE;
+  --color-card-bg: #FFFFFF;
+  --color-text-1: #1A2E24;
+  --color-text-2: #5A7062;
+  --color-text-3: #8FA897;
+  --color-border: #D8D2C4;
+  --color-error: #D93025;
+}
+</style>
+
+<!-- Phone Frame -->
+<div class="w-[390px] rounded-[3rem] border-[8px] border-[#C8C2B4] bg-[#E8E4DA] shadow-xl shadow-amber-900/15 p-[6px] relative">
+  <div class="rounded-[2.4rem] overflow-hidden bg-[#F5F1E8] relative" style="height: 844px;">
+    <!-- Status Bar -->
+    <div class="h-[44px] bg-[#EDE9DE] flex items-center justify-between px-6 pt-2">
+      <span class="text-[13px] font-semibold text-[#1A2E24]" style="font-family: 'Noto Sans SC'">9:41</span>
+      <div class="flex items-center gap-1.5">
+        <i data-lucide="signal" class="w-4 h-4 text-[#1A2E24]"></i>
+        <i data-lucide="wifi" class="w-4 h-4 text-[#1A2E24]"></i>
+        <i data-lucide="battery-full" class="w-4 h-4 text-[#1A2E24]"></i>
+      </div>
+    </div>
+
+    <!-- Blurred Background (simulating the share intent foreground) -->
+    <div class="relative" style="height: calc(844px - 44px);">
+      <!-- Blurred content behind -->
+      <div class="absolute inset-0 overflow-hidden" style="filter: blur(6px); opacity: 0.5;">
+        <div class="bg-[#EDE9DE] p-4 pt-6">
+          <div class="bg-white rounded-2xl p-4 mb-3 h-24"></div>
+          <div class="bg-white rounded-2xl p-4 mb-3 h-20"></div>
+          <div class="bg-white rounded-2xl p-4 mb-3 h-24"></div>
+        </div>
+      </div>
+
+      <!-- Dark overlay -->
+      <div class="absolute inset-0 bg-[#1A2E24]/30"></div>
+
+      <!-- Bottom Sheet -->
+      <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-[28px] shadow-2xl shadow-black/20" style="font-family: 'Noto Sans SC';">
+        <!-- Handle -->
+        <div class="flex justify-center pt-3 pb-2">
+          <div class="w-10 h-1 bg-[#D8D2C4] rounded-full"></div>
+        </div>
+
+        <!-- Header -->
+        <div class="px-5 pb-4 pt-1 flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-[#0D2B1E] flex items-center justify-center">
+            <i data-lucide="box" class="w-5 h-5 text-[#B8912A]"></i>
+          </div>
+          <div>
+            <h2 class="text-[16px] font-bold text-[#1A2E24]" style="font-family: 'Noto Serif SC'">保存到乾坤戒</h2>
+            <p class="text-[12px] text-[#8FA897]">从分享菜单快速收藏</p>
+          </div>
+        </div>
+
+        <!-- Detected Link Card -->
+        <div class="mx-5 bg-[#F5F1E8] rounded-xl p-4 border border-[#D8D2C4] mb-4">
+          <div class="flex items-start gap-3">
+            <img src="https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=80&h=80&fit=crop&auto=format&q=80" alt="预览" class="w-12 h-12 rounded-lg object-cover flex-shrink-0">
+            <div class="flex-1 min-w-0">
+              <p class="text-[13px] font-medium text-[#1A2E24] line-clamp-2">React Server Components 完全指南：从原理到实践</p>
+              <div class="flex items-center gap-1.5 mt-1.5">
+                <i data-lucide="link-2" class="w-3 h-3 text-[#8FA897]"></i>
+                <p class="text-[11px] text-[#8FA897] truncate">https://overreacted.io/react-server-components-guide</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Save Destination -->
+        <div class="mx-5 mb-4">
+          <p class="text-[12px] text-[#5A7062] mb-2">保存位置</p>
+          <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 bg-[#F5F1E8] border border-[#D8D2C4] rounded-lg px-3 py-2 flex-1">
+              <i data-lucide="inbox" class="w-4 h-4 text-[#5A7062]"></i>
+              <span class="text-[13px] text-[#1A2E24]">收件箱</span>
+              <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-[#8FA897] ml-auto"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="px-5 pb-6 flex gap-3">
+          <button class="flex-1 bg-[#F5F1E8] border border-[#D8D2C4] text-[#5A7062] font-medium text-[14px] py-3 rounded-xl">取消</button>
+          <button class="flex-[2] bg-[#B8912A] text-white font-semibold text-[14px] py-3 rounded-xl shadow-md shadow-amber-800/20 flex items-center justify-center gap-2">
+            <i data-lucide="box" class="w-4 h-4"></i>
+            保存到乾坤戒
+          </button>
+        </div>
+
+        <!-- Separator -->
+        <div class="border-t border-[#D8D2C4]/60 mx-5"></div>
+
+        <!-- Error State (alternative state display) -->
+        <div class="px-5 py-5">
+          <p class="text-[11px] text-[#8FA897] mb-3 uppercase tracking-wider font-medium">无效链接示例</p>
+          <div class="bg-[#FDECEB] rounded-xl p-4 border border-[#D93025]/15">
+            <div class="flex items-start gap-3">
+              <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                <i data-lucide="alert-circle" class="w-4 h-4 text-[#D93025]"></i>
+              </div>
+              <div>
+                <p class="text-[13px] font-medium text-[#D93025]">未检测到有效链接</p>
+                <p class="text-[12px] text-[#5A7062] mt-1">分享内容中未找到可识别的网页链接，请尝试直接分享文章页面。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Safe area padding -->
+        <div class="h-6"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Page Navigation -->
+<div class="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/90 backdrop-blur rounded-full px-5 py-2.5 shadow-lg border border-[#D8D2C4]" style="font-family: 'Noto Sans SC';">
+  <a href="mobile-collect-light.html" class="flex items-center gap-1 text-[13px] text-[#B8912A] font-medium hover:underline">
+    <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> 上一页
+  </a>
+  <span class="text-[12px] text-[#8FA897]">4 / 6</span>
+  <a href="mobile-settings-light.html" class="flex items-center gap-1 text-[13px] text-[#B8912A] font-medium hover:underline">
+    下一页 <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+  </a>
+</div>
+</body>
+<script>if (window.lucide) lucide.createIcons();</script>
+</html>

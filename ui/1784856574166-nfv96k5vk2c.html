@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://unpkg.com" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://unpkg.com/@fortawesome/fontawesome-free@6.7.2/js/all.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * {
+      scrollbar-width: none;
+      scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    }
+  </style>
+</head>
+
+<body class="bg-[#030f09] min-h-screen flex items-center justify-center font-sans">
+<link href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style type="text/tailwindcss">
+@theme {
+  --color-primary: #0D2B1E;
+  --color-primary-light: #143D2B;
+  --color-primary-dark: #071A12;
+  --color-accent: #C9A84C;
+  --color-accent-dim: #A8893E;
+  --color-surface: #0A1F15;
+  --color-surface-elevated: #112A1F;
+  --color-surface-card: #0E2419;
+  --color-text-primary: #E8E4DC;
+  --color-text-secondary: #9CA89F;
+  --color-text-muted: #6B7A6F;
+  --color-border: #1C3A2B;
+  --color-tag-blue: #2A4A6B;
+  --color-tag-purple: #4A2D6B;
+  --color-tag-teal: #1A4A4A;
+  --color-tag-amber: #4A3A1A;
+  --color-success: #2ECC71;
+  --color-danger: #E74C3C;
+}
+</style>
+
+<!-- Phone Frame -->
+<div class="w-[390px] h-[844px] bg-black/40 rounded-[40px] shadow-2xl shadow-black/60 border border-border overflow-hidden relative flex flex-col">
+  
+  <!-- Background dim overlay (simulating share sheet over another app) -->
+  <div class="absolute inset-0 bg-black/60"></div>
+
+  <!-- Android Status Bar -->
+  <div class="h-6 flex items-center justify-between px-6 shrink-0 relative z-10">
+    <span class="text-text-secondary text-[11px] font-medium" style="font-family:'Noto Sans SC'">9:41</span>
+    <div class="flex items-center gap-1.5">
+      <i data-lucide="signal" class="w-3 h-3 text-text-secondary"></i>
+      <i data-lucide="wifi" class="w-3 h-3 text-text-secondary"></i>
+      <i data-lucide="battery" class="w-3.5 h-3.5 text-text-secondary"></i>
+    </div>
+  </div>
+
+  <!-- Spacer to push bottom sheet down -->
+  <div class="flex-1"></div>
+
+  <!-- Bottom Sheet -->
+  <div class="relative z-10 bg-primary-dark rounded-t-3xl border-t border-border/80 px-5 pt-3 pb-8 shadow-[0_-8px_40px_rgba(0,0,0,0.5)]">
+    
+    <!-- Sheet Handle -->
+    <div class="w-10 h-1 bg-text-muted/40 rounded-full mx-auto mb-5"></div>
+
+    <!-- App Header -->
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-10 h-10 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center">
+        <i data-lucide="box" class="w-5 h-5 text-accent"></i>
+      </div>
+      <div>
+        <h2 class="text-text-primary text-[16px] font-bold" style="font-family:'Noto Serif SC'">保存到乾坤戒</h2>
+        <p class="text-text-muted text-[11px]">自动采集并生成 AI 摘要</p>
+      </div>
+    </div>
+
+    <!-- Detected Link Card -->
+    <div class="bg-surface-elevated border border-border rounded-xl p-4 mb-4">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-surface flex items-center justify-center shrink-0">
+          <i data-lucide="file-text" class="w-4.5 h-4.5 text-text-secondary"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-text-primary text-[13px] font-medium line-clamp-1 mb-0.5" style="font-family:'Noto Sans SC'">https://sspai.com/post/85432</p>
+          <div class="flex items-center gap-1.5">
+            <div class="w-3 h-3 rounded-sm bg-blue-500/20 flex items-center justify-center">
+              <i data-lucide="globe" class="w-2 h-2 text-blue-400"></i>
+            </div>
+            <span class="text-text-muted text-[11px]">sspai.com</span>
+          </div>
+        </div>
+        <div class="w-6 h-6 rounded-full bg-accent/15 flex items-center justify-center">
+          <i data-lucide="check" class="w-3.5 h-3.5 text-accent"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Multi-link indicator (horizontal dots) -->
+    <div class="flex items-center justify-center gap-1.5 mb-5">
+      <div class="w-2 h-2 rounded-full bg-accent"></div>
+      <div class="w-1.5 h-1.5 rounded-full bg-text-muted/40"></div>
+      <div class="w-1.5 h-1.5 rounded-full bg-text-muted/40"></div>
+    </div>
+
+    <!-- Action Buttons -->
+    <button class="w-full h-12 bg-accent rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-accent/20 mb-3">
+      <i data-lucide="download" class="w-5 h-5 text-primary-dark"></i>
+      <span class="text-primary-dark text-[15px] font-bold" style="font-family:'Noto Sans SC'">保存到乾坤戒</span>
+    </button>
+
+    <button class="w-full h-11 bg-transparent border border-border rounded-xl flex items-center justify-center">
+      <span class="text-text-secondary text-[14px]" style="font-family:'Noto Sans SC'">取消</span>
+    </button>
+
+    <!-- Footer Note -->
+    <p class="text-text-muted text-[11px] text-center mt-4 leading-relaxed">采集将在后台进行，完成后发送通知</p>
+
+  </div>
+
+</div>
+
+<!-- Separator: Error State Example -->
+<div class="absolute top-4 right-4 bg-surface-elevated/80 backdrop-blur border border-border/50 rounded-lg px-3 py-1.5 z-50">
+  <span class="text-text-muted text-[10px]">↓ 正常状态 · 识别到链接</span>
+</div>
+
+<!-- Page Navigation -->
+<div class="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-surface-elevated/90 backdrop-blur rounded-full px-5 py-2.5 border border-border/50 z-50">
+  <a href="mobile-collect.html" class="text-accent text-xs font-medium hover:underline">← 上一页</a>
+  <span class="text-text-muted text-xs">4/6</span>
+  <a href="mobile-settings.html" class="text-accent text-xs font-medium hover:underline">下一页 →</a>
+</div>
+
+</body>
+<script>if (window.lucide) lucide.createIcons();</script>
+</html>
