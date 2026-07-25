@@ -182,6 +182,8 @@ private fun UiLabReader() {
       ReaderActionBar(
         isFavorited = false,
         isArchived = false,
+        isBookmarked = false,
+        onBookmark = {},
         shareEnabled = true,
         onFavorite = {},
         onArchive = {},

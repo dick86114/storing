@@ -918,6 +918,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
   var confirmPublication by remember { mutableStateOf<PublicationAction?>(null) }
   var confirmProcessing by remember { mutableStateOf<ArticleProcessingAction?>(null) }
   var moreExpanded by remember { mutableStateOf(false) }
+  var currentScrollPercentageForBookmark by remember { mutableStateOf(0f) }
   BackHandler(onBack = onBack)
   val publicUrl = article.publicId?.let { "https://storing.idickies.com/p/$it" }
 
@@ -1038,7 +1039,12 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
       if (canManage && processingAction == null) ReaderActionBar(
         isFavorited = article.isFavorited,
         isArchived = article.isArchived,
+        isBookmarked = savedReadingPosition != null,
         shareEnabled = !article.originalUrl.isNullOrBlank(),
+        onBookmark = {
+          onSaveReadingPosition(currentScrollPercentageForBookmark)
+          android.widget.Toast.makeText(context, "已添加书签", android.widget.Toast.LENGTH_SHORT).show()
+        },
         onFavorite = onFavorite,
         onArchive = onArchive,
         onShare = ::shareOriginalUrl,
@@ -1085,7 +1091,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                   onPageFinished = {
                     savedReadingPosition?.let { pos -> ReaderWebView.restoreScrollPosition(this, pos) }
                   },
-                  onScrollChanged = { percentage -> currentScrollPercentage = percentage },
+                  onScrollChanged = { percentage -> currentScrollPercentage = percentage; currentScrollPercentageForBookmark = percentage },
                 )
                 ReaderWebView.loadCapturedHtml(this, html, readerColorScheme, readerPreferences)
               }

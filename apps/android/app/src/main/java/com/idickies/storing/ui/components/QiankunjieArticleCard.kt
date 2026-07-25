@@ -1,7 +1,9 @@
 package com.idickies.storing.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +19,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -44,7 +49,7 @@ fun QiankunjieArticleCard(
   modifier: Modifier = Modifier,
 ) {
   Card(
-    modifier = modifier.fillMaxWidth().clickable { onOpen(article.id) },
+    modifier = modifier.fillMaxWidth().combinedClickable(onClick = { onOpen(article.id) }, onLongClick = { onOpen(article.id) }),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     shape = MaterialTheme.shapes.large,
@@ -79,7 +84,7 @@ fun QiankunjieCompactArticleRow(
   modifier: Modifier = Modifier,
 ) {
   Card(
-    modifier = modifier.fillMaxWidth().clickable { onOpen(article.id) },
+    modifier = modifier.fillMaxWidth().combinedClickable(onClick = { onOpen(article.id) }, onLongClick = { onOpen(article.id) }),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     shape = MaterialTheme.shapes.medium,
@@ -111,8 +116,13 @@ fun QiankunjieCompactArticleRow(
 
 @Composable
 private fun ArticleMetadata(article: ArticleCard) {
-  listOfNotNull(article.source, article.author).takeIf { it.isNotEmpty() }?.let { metadata ->
-    Text(metadata.joinToString(" · "), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+  Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    if (!article.source.isNullOrBlank()) {
+      Text(article.source!!, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+    if (article.isFavorited) Icon(Icons.Outlined.Star, contentDescription = "已收藏", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+    if (article.isArchived) Icon(Icons.Outlined.Inventory2, contentDescription = "已归档", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    if (article.isPublished) Icon(Icons.Outlined.Public, contentDescription = "已发布", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.tertiary)
   }
 }
 
