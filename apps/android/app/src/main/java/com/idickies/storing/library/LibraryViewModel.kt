@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.idickies.storing.library.ArticleCard
 import com.idickies.storing.network.ArticleCounts
 import com.idickies.storing.reader.ReadingPositionRepository
 import com.idickies.storing.offline.OfflineDownloadManager
@@ -318,6 +319,38 @@ class LibraryViewModel @Inject constructor(
   }
 
   fun closeDetail() = mutableState.update { it.copy(detail = null, detailError = null, loadingDetail = false, savedReadingPosition = null) }
+
+  fun toggleFavoriteCard(article: ArticleCard) {
+    viewModelScope.launch {
+      runCatching { repository.toggleFavorite(article.id) }.onSuccess { result ->
+        mutableState.update { state ->
+          state.copy(articles = state.articles.map { if (it.id == article.id) it.copy(isFavorited = result.isFavorited) else it })
+        }
+      }
+    }
+  }
+
+  fun toggleArchiveCard(article: ArticleCard) {
+    viewModelScope.launch {
+      runCatching { repository.toggleArchive(article.id, article.isArchived) }.onSuccess { result ->
+        mutableState.update { state ->
+          val cards = if (state.view == LibraryView.Inbox && result.isArchived) state.articles.filterNot { it.id == article.id }
+          else state.articles.map { if (it.id == article.id) it.copy(isArchived = result.isArchived) else it }
+          state.copy(articles = cards)
+        }
+        loadCounts()
+      }
+    }
+  }
+
+  fun deleteCard(article: ArticleCard) {
+    viewModelScope.launch {
+      runCatching { repository.delete(article.id) }.onSuccess {
+        mutableState.update { state -> state.copy(articles = state.articles.filterNot { it.id == article.id }) }
+        loadCounts()
+      }
+    }
+  }
 
   fun toggleFavorite(article: ArticleDetail) {
     viewModelScope.launch {

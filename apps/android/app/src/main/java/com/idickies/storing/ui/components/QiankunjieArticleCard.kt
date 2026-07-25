@@ -46,6 +46,7 @@ private val CompactThumbnailSize = 96.dp
 fun QiankunjieArticleCard(
   article: ArticleCard,
   onOpen: (Int) -> Unit,
+  onLongPress: (ArticleCard) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   Card(
@@ -81,12 +82,13 @@ fun QiankunjieArticleCard(
 fun QiankunjieCompactArticleRow(
   article: ArticleCard,
   onOpen: (Int) -> Unit,
+  onLongPress: (ArticleCard) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   Card(
     modifier = modifier.fillMaxWidth().combinedClickable(onClick = { onOpen(article.id) }, onLongClick = { onOpen(article.id) }),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     shape = MaterialTheme.shapes.medium,
   ) {
     Row(modifier = Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {

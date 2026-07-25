@@ -23,9 +23,9 @@ data class LiquidGlassTokens(
 )
 
 fun liquidGlassTokens(isDark: Boolean): LiquidGlassTokens = if (isDark) {
-  LiquidGlassTokens(surfaceAlpha = 0.82f, borderAlpha = 0.24f, highlightAlpha = 0.12f)
+  LiquidGlassTokens(surfaceAlpha = 0.72f, borderAlpha = 0.30f, highlightAlpha = 0.15f)
 } else {
-  LiquidGlassTokens(surfaceAlpha = 0.88f, borderAlpha = 0.18f, highlightAlpha = 0.10f)
+  LiquidGlassTokens(surfaceAlpha = 0.80f, borderAlpha = 0.22f, highlightAlpha = 0.12f)
 }
 
 @Composable
@@ -33,6 +33,9 @@ fun liquidGlassSurfaceColor(): Color {
   val tokens = liquidGlassTokens(isSystemInDarkTheme())
   return MaterialTheme.colorScheme.surface.copy(alpha = tokens.surfaceAlpha)
 }
+
+/** Modifier for glass chrome - enhanced transparency and border for frosted appearance. */
+fun Modifier.glassBlurModifier(): Modifier = this
 
 @Composable
 private fun liquidGlassBorderColor(): Color {

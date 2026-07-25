@@ -8,9 +8,9 @@ class LiquidGlassTokensTest {
   fun `light glass is mostly opaque with a clear hairline border`() {
     assertEquals(
       LiquidGlassTokens(
-        surfaceAlpha = 0.88f,
-        borderAlpha = 0.18f,
-        highlightAlpha = 0.10f,
+        surfaceAlpha = 0.80f,
+        borderAlpha = 0.22f,
+        highlightAlpha = 0.12f,
       ),
       liquidGlassTokens(isDark = false),
     )
@@ -20,9 +20,9 @@ class LiquidGlassTokensTest {
   fun `nord dark glass remains cool and sufficiently solid for readable controls`() {
     assertEquals(
       LiquidGlassTokens(
-        surfaceAlpha = 0.82f,
-        borderAlpha = 0.24f,
-        highlightAlpha = 0.12f,
+        surfaceAlpha = 0.72f,
+        borderAlpha = 0.30f,
+        highlightAlpha = 0.15f,
       ),
       liquidGlassTokens(isDark = true),
     )

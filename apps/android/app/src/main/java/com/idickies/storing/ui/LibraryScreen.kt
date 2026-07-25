@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
@@ -50,6 +52,7 @@ import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.ViewModule
+import androidx.compose.material.icons.outlined.VerticalAlignTop
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.MoveToInbox
 import androidx.compose.material.icons.outlined.Replay
@@ -117,6 +120,7 @@ import com.idickies.storing.ui.components.CompactBottomBarItem
 import com.idickies.storing.ui.components.QiankunjieCompactBottomBar
 import com.idickies.storing.ui.components.QiankunjieGlassPanel
 import com.idickies.storing.ui.components.liquidGlassSurfaceColor
+import com.idickies.storing.ui.components.glassBlurModifier
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 import com.idickies.storing.library.ArticleCard
@@ -188,6 +192,8 @@ fun LibraryScreen(
   var showSettings by remember { mutableStateOf(false) }
   var presentationMode by rememberSaveable { mutableStateOf(ArticleListPresentationMode.default) }
   val libraryListState = rememberLazyListState()
+  var longPressedArticle by remember { mutableStateOf<com.idickies.storing.library.ArticleCard?>(null) }
+  val isScrolledDown by remember { derivedStateOf { libraryListState.firstVisibleItemIndex > 0 || libraryListState.firstVisibleItemScrollOffset > 200 } }
   val scope = androidx.compose.runtime.rememberCoroutineScope()
   DisposableEffect(lifecycleOwner) {
     val observer = LifecycleEventObserver { _, event ->
@@ -312,12 +318,13 @@ fun LibraryScreen(
       onDeletePermanent = { libraryViewModel.deletePermanent(detail) },
       onSaveReadingPosition = { percentage -> libraryViewModel.saveReadingPosition(detail.id, percentage) },
     )
-    state.loadingDetail -> FullPageLoading("正在加载文章…")
+    state.loadingDetail -> ArticleDetailSkeleton()
     detailError != null -> ErrorPage(detailError, libraryViewModel::closeDetail)
     else -> Scaffold(
       topBar = {
         TopAppBar(
           colors = TopAppBarDefaults.topAppBarColors(containerColor = liquidGlassSurfaceColor()),
+          modifier = Modifier.glassBlurModifier(),
           title = {
             Column {
               Text("乾坤戒", style = MaterialTheme.typography.titleLarge)
@@ -347,7 +354,7 @@ fun LibraryScreen(
       },
       bottomBar = {
         if (isAuthenticated) {
-          QiankunjieCompactBottomBar {
+          QiankunjieCompactBottomBar(modifier = Modifier.glassBlurModifier()) {
             LibraryView.entries.forEach { item ->
               val count = state.counts?.let { c ->
                 when (item) {
@@ -418,6 +425,7 @@ fun LibraryScreen(
         onRefresh = libraryViewModel::refresh,
         onLoadMore = libraryViewModel::loadMore,
         onOpen = libraryViewModel::open,
+        onLongPress = { longPressedArticle = it },
         onSelectCollectUrl = collectViewModel::select,
         onSubmitCollect = collectViewModel::submit,
         listState = libraryListState,
@@ -452,6 +460,15 @@ fun LibraryScreen(
     onOpenArticle = { id -> showTasks = false; libraryViewModel.open(id) },
     viewModel = jobsViewModel,
   )
+  longPressedArticle?.let { article ->
+    ArticleLongPressSheet(
+      article = article,
+      onDismiss = { longPressedArticle = null },
+      onFavorite = { libraryViewModel.toggleFavoriteCard(article); longPressedArticle = null },
+      onArchive = { libraryViewModel.toggleArchiveCard(article); longPressedArticle = null },
+      onDelete = { libraryViewModel.deleteCard(article); longPressedArticle = null },
+    )
+  }
   if (showManualCollect) ManualCollectDialog(onDismiss = { showManualCollect = false }, viewModel = collectViewModel)
 }
 
@@ -676,6 +693,44 @@ private fun collectMethodLabel(method: String): String = when (method) {
   else -> method
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ArticleLongPressSheet(
+  article: com.idickies.storing.library.ArticleCard,
+  onDismiss: () -> Unit,
+  onFavorite: () -> Unit,
+  onArchive: () -> Unit,
+  onDelete: () -> Unit,
+) {
+  val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+  androidx.compose.material3.ModalBottomSheet(
+    onDismissRequest = onDismiss,
+    sheetState = sheetState,
+    containerColor = MaterialTheme.colorScheme.surface,
+  ) {
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+      Text(article.displayTitle, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+      androidx.compose.material3.HorizontalDivider()
+      Spacer(Modifier.height(4.dp))
+      LongPressActionRow(icon = if (article.isFavorited) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, label = if (article.isFavorited) "取消收藏" else "收藏", tint = MaterialTheme.colorScheme.primary, onClick = onFavorite)
+      LongPressActionRow(icon = if (article.isArchived) Icons.Outlined.MoveToInbox else Icons.Outlined.Archive, label = if (article.isArchived) "移回收件箱" else "归档", tint = MaterialTheme.colorScheme.primary, onClick = onArchive)
+      LongPressActionRow(icon = Icons.Outlined.DeleteOutline, label = "删除", tint = MaterialTheme.colorScheme.error, onClick = onDelete)
+    }
+  }
+}
+
+@Composable
+private fun LongPressActionRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
+  Row(
+    modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 24.dp, vertical = 14.dp),
+    horizontalArrangement = Arrangement.spacedBy(16.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(22.dp))
+    Text(label, style = MaterialTheme.typography.bodyLarge, color = tint)
+  }
+}
+
 private fun collectStrategyLabel(strategy: String): String = when (strategy) {
   "full_page" -> "完整页面"
   "article_only" -> "仅正文"
@@ -712,6 +767,7 @@ private fun LibraryList(
   onRefresh: () -> Unit,
   onLoadMore: () -> Unit,
   onOpen: (Int) -> Unit,
+  onLongPress: (com.idickies.storing.library.ArticleCard) -> Unit,
   onSelectCollectUrl: (String) -> Unit,
   onSubmitCollect: () -> Unit,
   listState: LazyListState,
@@ -847,8 +903,8 @@ private fun LibraryList(
     if (!state.loading && !state.searchPending && state.error == null && state.articles.isEmpty()) item { LibraryEmptyState(view = state.view, isSearchResult = state.searchQuery.isNotBlank()) }
     items(state.articles, key = { it.id }) { article ->
       when (presentationMode) {
-        ArticleListPresentationMode.Card -> QiankunjieArticleCard(article, onOpen)
-        ArticleListPresentationMode.CompactList -> QiankunjieCompactArticleRow(article, onOpen)
+        ArticleListPresentationMode.Card -> QiankunjieArticleCard(article, onOpen, onLongPress)
+        ArticleListPresentationMode.CompactList -> QiankunjieCompactArticleRow(article, onOpen, onLongPress)
       }
     }
       if (state.articles.isNotEmpty() && !state.fromCache) item {
@@ -866,10 +922,31 @@ private fun LibraryList(
 }
 
 @Composable
+private fun ArticleDetailSkeleton() {
+  val skeletonColor = MaterialTheme.colorScheme.surfaceVariant
+  Column(
+    modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 16.dp),
+    verticalArrangement = Arrangement.spacedBy(12.dp),
+  ) {
+    Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.7f).height(28.dp)) {}
+    Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.4f).height(14.dp)) {}
+    Spacer(Modifier.height(8.dp))
+    repeat(6) { i ->
+      Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(if (i == 2) 0.85f else 1f).height(14.dp)) {}
+    }
+    Spacer(Modifier.height(8.dp))
+    Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.6f).height(14.dp)) {}
+    repeat(4) { i ->
+      Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(if (i % 2 == 0) 0.9f else 1f).height(14.dp)) {}
+    }
+  }
+}
+
+@Composable
 private fun ArticleDetailHeader(article: ArticleDetail, isOfflineAvailable: Boolean) {
   Column(
     modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
-    verticalArrangement = Arrangement.spacedBy(4.dp),
+    verticalArrangement = Arrangement.spacedBy(6.dp),
   ) {
     Text(article.displayTitle, style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
     val metaParts = buildList {
@@ -880,6 +957,27 @@ private fun ArticleDetailHeader(article: ArticleDetail, isOfflineAvailable: Bool
     }
     if (metaParts.isNotEmpty()) {
       Text(metaParts.joinToString(" · "), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+    article.aiSummary?.takeIf { it.isNotBlank() }?.let { summary ->
+      Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+          Text("AI 摘要", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+          Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+        }
+      }
+    }
+    if (article.aiTags.isNotEmpty()) {
+      Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        article.aiTags.forEach { tag ->
+          Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small) {
+            Text(tag, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+          }
+        }
+      }
     }
     if (isOfflineAvailable) Text("离线可用", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
   }
@@ -938,6 +1036,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
     topBar = {
       TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(containerColor = liquidGlassSurfaceColor()),
+        modifier = Modifier.glassBlurModifier(),
         title = {
           Text(article.source ?: "乾坤戒阅读", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         },
