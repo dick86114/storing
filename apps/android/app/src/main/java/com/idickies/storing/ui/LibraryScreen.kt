@@ -4,9 +4,11 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -102,16 +104,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.idickies.storing.R
 import com.idickies.storing.collect.CollectJobsViewModel
 import com.idickies.storing.collect.ShareCollectViewModel
 import com.idickies.storing.ui.components.ActiveCollectJobsCard
@@ -326,9 +332,17 @@ fun LibraryScreen(
           colors = TopAppBarDefaults.topAppBarColors(containerColor = liquidGlassSurfaceColor()),
           modifier = Modifier.glassBlurModifier(),
           title = {
-            Column {
-              Text("乾坤戒", style = MaterialTheme.typography.titleLarge)
-              Text(if (state.searchQuery.isBlank()) state.view.label else "搜索结果", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+              Image(
+                painter = painterResource(R.drawable.ic_qiankunjie_mark),
+                contentDescription = null,
+                modifier = Modifier.size(26.dp),
+                colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
+              )
+              Column {
+                Text("乾坤戒", style = MaterialTheme.typography.titleLarge)
+                Text(if (state.searchQuery.isBlank()) state.view.label else "搜索结果", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+              }
             }
           },
           actions = {
@@ -1276,7 +1290,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
 
 @Composable
 private fun LibraryEmptyState(view: LibraryView, isSearchResult: Boolean) {
-  val (icon, title, message) = if (isSearchResult) {
+  val (_, title, message) = if (isSearchResult) {
     Triple(Icons.Outlined.ErrorOutline, "没有匹配的文章", "试试更短的关键词，或切换到其他资料库。")
   } else when (view) {
     LibraryView.Inbox -> Triple(Icons.Outlined.Inbox, "收件箱还是空的", "从浏览器、微信或其他应用分享网页到乾坤戒，内容会出现在这里。")
@@ -1289,9 +1303,12 @@ private fun LibraryEmptyState(view: LibraryView, isSearchResult: Boolean) {
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
-    Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = androidx.compose.foundation.shape.CircleShape, modifier = Modifier.size(68.dp)) {
-      Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(32.dp)) }
-    }
+    val darkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    Image(
+      painter = painterResource(if (darkTheme) R.drawable.empty_library_dark else R.drawable.empty_library_light),
+      contentDescription = null,
+      modifier = Modifier.fillMaxWidth(0.6f).aspectRatio(1f),
+    )
     Text(title, style = MaterialTheme.typography.titleMedium)
     Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.fillMaxWidth())
   }
