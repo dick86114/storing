@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -521,6 +522,7 @@ private fun ManualCollectDialog(
   }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CollectJobsDialog(
   onDismiss: () -> Unit,
@@ -528,38 +530,51 @@ private fun CollectJobsDialog(
   viewModel: CollectJobsViewModel,
 ) {
   val state by viewModel.state.collectAsState()
-  AlertDialog(
+  val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+  androidx.compose.material3.ModalBottomSheet(
     onDismissRequest = onDismiss,
-    icon = { Icon(Icons.Outlined.Sync, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-    title = {
-      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("采集任务")
-        if (state.activeJobCount > 0) AssistChip(onClick = {}, label = { Text("${state.activeJobCount} 进行中") })
-      }
-    },
-    text = {
-      when {
-        state.loading -> FullPageLoading("正在加载任务…")
-        state.error != null && state.jobs.isEmpty() -> state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        state.jobs.isEmpty() -> EmptyCollectJobs()
-        else -> LazyColumn(modifier = Modifier.height(340.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-          items(state.jobs, key = { it.id }) { job ->
-            CollectJobCard(job = job, onRetry = { viewModel.retry(job.id) }, onOpenArticle = { job.articleId?.let(onOpenArticle) })
+    sheetState = sheetState,
+    containerColor = MaterialTheme.colorScheme.surface,
+  ) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+      Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+          Text("采集任务", style = MaterialTheme.typography.titleMedium)
+          if (state.activeJobCount > 0) {
+            Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.small) {
+              Text("${state.activeJobCount} 进行中", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+            }
+          }
+        }
+        if (state.jobs.any { it.isTerminal }) {
+          TextButton(onClick = { viewModel.clearFinished() }) {
+            Icon(Icons.Outlined.DeleteSweep, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.size(4.dp))
+            Text("清理已完成", style = MaterialTheme.typography.labelMedium)
           }
         }
       }
-    },
-    confirmButton = {
-      TextButton(onClick = { viewModel.clearFinished() }, enabled = state.jobs.any { it.isTerminal }) {
-        Icon(Icons.Outlined.DeleteSweep, contentDescription = null, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.size(6.dp))
-        Text("清理已完成")
+      when {
+        state.loading -> Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(24.dp)) }
+        state.error != null && state.jobs.isEmpty() -> Text(state.error ?: "加载失败", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(20.dp))
+        state.jobs.isEmpty() -> EmptyCollectJobs()
+        else -> LazyColumn(
+          modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+          contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+          verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+          items(state.jobs, key = { it.id }) { job ->
+            CompactCollectJobRow(job = job, onRetry = { viewModel.retry(job.id) }, onOpenArticle = { job.articleId?.let(onOpenArticle) })
+          }
+        }
       }
-    },
-    dismissButton = {
-      Button(onClick = onDismiss) { Text("关闭") }
-    },
-  )
+      Spacer(Modifier.height(24.dp))
+    }
+  }
 }
 
 @Composable
@@ -576,72 +591,46 @@ private fun EmptyCollectJobs() {
 }
 
 @Composable
-private fun CollectJobCard(
+private fun CompactCollectJobRow(
   job: MobileCollectJob,
   onRetry: () -> Unit,
   onOpenArticle: () -> Unit,
 ) {
   val status = collectJobStatusPresentation(job.status)
-  Card(
+  Surface(
     modifier = Modifier.fillMaxWidth(),
-    colors = CardDefaults.cardColors(containerColor = status.containerColor()),
+    color = MaterialTheme.colorScheme.surfaceVariant,
+    shape = MaterialTheme.shapes.small,
   ) {
-    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-      Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-        Surface(color = status.iconContainerColor(), shape = androidx.compose.foundation.shape.CircleShape, modifier = Modifier.size(42.dp)) {
-          Box(contentAlignment = Alignment.Center) {
-            Icon(status.icon, contentDescription = null, tint = status.iconColor(), modifier = Modifier.size(22.dp))
-          }
-        }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-          Text(job.title ?: job.normalizedUrl, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-          Text(job.normalizedUrl, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-      }
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        AssistChip(onClick = {}, label = { Text(status.label) }, leadingIcon = { Icon(status.icon, contentDescription = null, modifier = Modifier.size(16.dp)) })
-        Text(collectStageLabel(job.stage), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-      }
-      val detailChips = buildList {
-        job.method?.let { add(collectMethodLabel(it)) }
-        job.captureStrategy?.let { add(collectStrategyLabel(it)) }
-      }
-      if (detailChips.isNotEmpty()) {
+    Row(
+      modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+      horizontalArrangement = Arrangement.spacedBy(10.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Icon(
+        status.icon,
+        contentDescription = null,
+        tint = status.iconColor(),
+        modifier = Modifier.size(20.dp),
+      )
+      Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(job.title ?: job.normalizedUrl, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-          detailChips.forEach { label ->
-            Surface(color = MaterialTheme.colorScheme.surfaceContainerHighest, shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)) {
-              Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
-            }
-          }
+          Text(status.label, style = MaterialTheme.typography.labelSmall, color = status.iconColor())
+          Text(collectStageLabel(job.stage), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        job.errorSummary?.let { error ->
+          Text(error, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
       }
-      job.errorSummary?.let { error ->
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Top) {
-          Icon(Icons.Outlined.ErrorOutline, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
-          Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-            job.errorHint?.let { hint ->
-              Text(hint, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
-            }
-          }
+      if (job.status == "failed") {
+        androidx.compose.material3.IconButton(onClick = onRetry, modifier = Modifier.size(32.dp)) {
+          Icon(Icons.Outlined.Replay, contentDescription = "重新采集", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
         }
       }
-      if (job.status == "failed" || job.articleId != null) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-          if (job.status == "failed") {
-            TextButton(onClick = onRetry) {
-              Icon(Icons.Outlined.Replay, contentDescription = null, modifier = Modifier.size(18.dp))
-              Spacer(Modifier.size(5.dp))
-              Text("重新采集")
-            }
-          }
-          if (job.articleId != null) {
-            TextButton(onClick = onOpenArticle) {
-              Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
-              Spacer(Modifier.size(5.dp))
-              Text("打开文章")
-            }
-          }
+      if (job.articleId != null) {
+        androidx.compose.material3.IconButton(onClick = onOpenArticle, modifier = Modifier.size(32.dp)) {
+          Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = "打开文章", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
         }
       }
     }
