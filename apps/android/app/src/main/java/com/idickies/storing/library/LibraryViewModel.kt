@@ -27,7 +27,7 @@ private data class LibraryRequest(
 )
 
 data class LibraryUiState(
-  val view: LibraryView = LibraryView.Published,
+  val view: LibraryView = LibraryView.Inbox,
   val articles: List<ArticleCard> = emptyList(),
   val loading: Boolean = true,
   val refreshing: Boolean = false,
@@ -37,7 +37,7 @@ data class LibraryUiState(
   val loadMoreError: String? = null,
   val fromCache: Boolean = false,
   val searchQuery: String = "",
-  val sort: LibrarySort = LibrarySort.defaultFor(LibraryView.Published),
+  val sort: LibrarySort = LibrarySort.defaultFor(LibraryView.Inbox),
   val sortOrder: String = "desc",
   val archiveSource: ArchiveSourceFilter = ArchiveSourceFilter.All,
   val archiveSources: List<ArticleSource> = emptyList(),

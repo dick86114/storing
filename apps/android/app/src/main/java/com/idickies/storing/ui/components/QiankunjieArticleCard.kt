@@ -1,6 +1,7 @@
 package com.idickies.storing.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -53,6 +54,7 @@ fun QiankunjieArticleCard(
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     shape = MaterialTheme.shapes.large,
+    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
   ) {
     Column {
       ArticleThumbnail(
@@ -117,6 +119,7 @@ fun QiankunjieCompactArticleRow(
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     shape = MaterialTheme.shapes.medium,
+    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
   ) {
     Row(
       modifier = Modifier.padding(10.dp),

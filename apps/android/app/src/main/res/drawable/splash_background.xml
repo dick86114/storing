@@ -1,9 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/qiankunjie_paper" />
-    <item
-        android:drawable="@drawable/brand_logo"
-        android:width="88dp"
-        android:height="88dp"
-        android:gravity="center" />
 </layer-list>
