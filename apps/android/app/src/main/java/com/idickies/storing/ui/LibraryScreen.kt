@@ -4,6 +4,12 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -31,6 +37,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddLink
 import androidx.compose.material.icons.outlined.Archive
+import androidx.compose.material.icons.outlined.Brightness4
+import androidx.compose.material.icons.outlined.BrightnessAuto
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.CloudDownload
@@ -82,6 +95,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -103,6 +117,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -117,6 +133,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.idickies.storing.R
+import com.idickies.storing.BuildConfig
 import com.idickies.storing.collect.CollectJobsViewModel
 import com.idickies.storing.collect.ShareCollectViewModel
 import com.idickies.storing.ui.components.ActiveCollectJobsCard
@@ -320,6 +337,11 @@ fun LibraryScreen(
       onDelete = { libraryViewModel.delete(detail) },
       onDeletePermanent = { libraryViewModel.deletePermanent(detail) },
       onSaveReadingPosition = { percentage -> libraryViewModel.saveReadingPosition(detail.id, percentage) },
+      themeMode = themeMode,
+      onThemeModeChange = onThemeModeChange,
+      onShowCollectJobs = { showTasks = true },
+      onCheckUpdate = onManualUpdateCheck,
+      onShowSettings = { showSettings = true },
     )
     state.loadingDetail -> ArticleDetailSkeleton()
     detailError != null -> ErrorPage(detailError, libraryViewModel::closeDetail)
@@ -934,20 +956,38 @@ private fun LibraryList(
 }
 
 @Composable
+private fun shimmerBrush(): Brush {
+  val transition = rememberInfiniteTransition(label = "shimmer")
+  val progress by transition.animateFloat(
+    initialValue = 0f,
+    targetValue = 1f,
+    animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing), RepeatMode.Restart),
+    label = "shimmerProgress",
+  )
+  val base = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+  val highlight = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f)
+  return Brush.linearGradient(
+    colors = listOf(base, highlight, base),
+    start = Offset(progress * 800 - 400, 0f),
+    end = Offset(progress * 800, 0f),
+  )
+}
+
+@Composable
 private fun LibrarySkeletonCard() {
-  val skeletonColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+  val brush = shimmerBrush()
   Card(
     modifier = Modifier.fillMaxWidth(),
     colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     shape = MaterialTheme.shapes.large,
   ) {
     Column {
-      Surface(color = skeletonColor, modifier = Modifier.fillMaxWidth().height(156.dp)) {}
+      Box(modifier = Modifier.fillMaxWidth().height(156.dp).background(brush))
       Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.5f).height(14.dp)) {}
-        Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth().height(20.dp)) {}
-        Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.9f).height(20.dp)) {}
-        Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.7f).height(14.dp)) {}
+        Box(modifier = Modifier.fillMaxWidth(0.5f).height(14.dp).background(brush, MaterialTheme.shapes.small))
+        Box(modifier = Modifier.fillMaxWidth().height(20.dp).background(brush, MaterialTheme.shapes.small))
+        Box(modifier = Modifier.fillMaxWidth(0.9f).height(20.dp).background(brush, MaterialTheme.shapes.small))
+        Box(modifier = Modifier.fillMaxWidth(0.7f).height(14.dp).background(brush, MaterialTheme.shapes.small))
       }
     }
   }
@@ -955,46 +995,46 @@ private fun LibrarySkeletonCard() {
 
 @Composable
 private fun ArticleDetailSkeleton() {
-  val skeletonColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+  val brush = shimmerBrush()
   Column(
     modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 16.dp),
     verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
     // 封面图占位
-    Surface(color = skeletonColor, shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth().height(180.dp)) {}
+    Box(modifier = Modifier.fillMaxWidth().height(180.dp).background(brush, MaterialTheme.shapes.large))
     // 标题
-    Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.8f).height(24.dp)) {}
-    Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.5f).height(24.dp)) {}
+    Box(modifier = Modifier.fillMaxWidth(0.8f).height(24.dp).background(brush, MaterialTheme.shapes.small))
+    Box(modifier = Modifier.fillMaxWidth(0.5f).height(24.dp).background(brush, MaterialTheme.shapes.small))
     // Meta
-    Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.4f).height(14.dp)) {}
+    Box(modifier = Modifier.fillMaxWidth(0.4f).height(14.dp).background(brush, MaterialTheme.shapes.small))
     Spacer(Modifier.height(8.dp))
     // AI 摘要卡片占位
-    Surface(color = skeletonColor, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth().height(80.dp)) {}
+    Box(modifier = Modifier.fillMaxWidth().height(80.dp).background(brush, MaterialTheme.shapes.medium))
     Spacer(Modifier.height(8.dp))
     // 正文
     repeat(8) { i ->
-      Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(if (i == 3 || i == 7) 0.7f else 1f).height(14.dp)) {}
+      Box(modifier = Modifier.fillMaxWidth(if (i == 3 || i == 7) 0.7f else 1f).height(14.dp).background(brush, MaterialTheme.shapes.small))
     }
     Spacer(Modifier.height(8.dp))
     // 小标题
-    Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(0.6f).height(18.dp)) {}
+    Box(modifier = Modifier.fillMaxWidth(0.6f).height(18.dp).background(brush, MaterialTheme.shapes.small))
     // 更多正文
     repeat(6) { i ->
-      Surface(color = skeletonColor, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth(if (i == 5) 0.5f else 1f).height(14.dp)) {}
+      Box(modifier = Modifier.fillMaxWidth(if (i == 5) 0.5f else 1f).height(14.dp).background(brush, MaterialTheme.shapes.small))
     }
   }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, savedReadingPosition: Float?, isOfflineAvailable: Boolean, downloadingOffline: Boolean, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onSaveReadingPosition: (Float) -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, savedReadingPosition: Float?, isOfflineAvailable: Boolean, downloadingOffline: Boolean, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onSaveReadingPosition: (Float) -> Unit, themeMode: ThemeMode, onThemeModeChange: (ThemeMode) -> Unit, onShowCollectJobs: () -> Unit, onCheckUpdate: () -> Unit, onShowSettings: () -> Unit) {
   val context = LocalContext.current
   var confirmDelete by remember { mutableStateOf(false) }
   var confirmPermanentDelete by remember { mutableStateOf(false) }
   var confirmPublication by remember { mutableStateOf<PublicationAction?>(null) }
   var confirmProcessing by remember { mutableStateOf<ArticleProcessingAction?>(null) }
   var moreExpanded by remember { mutableStateOf(false) }
-  var currentScrollPercentageForBookmark by remember { mutableStateOf(0f) }
+  var showAbout by remember { mutableStateOf(false) }
   BackHandler(onBack = onBack)
   val publicUrl = article.publicId?.let { "https://storing.idickies.com/p/$it" }
 
@@ -1030,13 +1070,68 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
         },
         navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回资料库") } },
         actions = {
-          IconButton(
-            onClick = { article.originalUrl?.let { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) } },
-            enabled = !article.originalUrl.isNullOrBlank(),
-          ) { Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = "打开原网页") }
           Box {
             IconButton(onClick = { moreExpanded = true }, enabled = processingAction == null) { Icon(Icons.Outlined.MoreVert, contentDescription = "更多阅读操作") }
             DropdownMenu(expanded = moreExpanded, onDismissRequest = { moreExpanded = false }, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.medium) {
+              // 采集任务
+              DropdownMenuItem(
+                text = { Text("采集任务") },
+                onClick = { moreExpanded = false; onShowCollectJobs() },
+                leadingIcon = { Icon(Icons.Outlined.TaskAlt, contentDescription = null) },
+              )
+              // 显示模式切换 -- 三个图标直接展示
+              Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Row(
+                  horizontalArrangement = Arrangement.spacedBy(8.dp),
+                  verticalAlignment = Alignment.CenterVertically,
+                ) {
+                  Icon(Icons.Outlined.Brightness4, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                  Text("显示模式", style = MaterialTheme.typography.bodyMedium)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                  ThemeMode.entries.forEach { mode ->
+                    IconButton(
+                      onClick = { onThemeModeChange(mode) },
+                      modifier = Modifier.size(32.dp),
+                    ) {
+                      Icon(
+                        when (mode) {
+                          ThemeMode.System -> Icons.Outlined.BrightnessAuto
+                          ThemeMode.Light -> Icons.Outlined.LightMode
+                          ThemeMode.Dark -> Icons.Outlined.DarkMode
+                        },
+                        contentDescription = mode.label,
+                        tint = if (mode == themeMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                      )
+                    }
+                  }
+                }
+              }
+              HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), thickness = 0.5.dp)
+              // 设置
+              DropdownMenuItem(
+                text = { Text("设置") },
+                onClick = { moreExpanded = false; onShowSettings() },
+                leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
+              )
+              // 检查更新
+              DropdownMenuItem(
+                text = { Text("检查更新") },
+                onClick = { moreExpanded = false; onCheckUpdate() },
+                leadingIcon = { Icon(Icons.Outlined.Sync, contentDescription = null) },
+              )
+              // 关于
+              DropdownMenuItem(
+                text = { Text("关于") },
+                onClick = { moreExpanded = false; showAbout = true },
+                leadingIcon = { Icon(Icons.Outlined.Info, contentDescription = null) },
+              )
+              HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), thickness = 0.5.dp)
               DropdownMenuItem(
                 text = { Text("分享原网页") },
                 onClick = { moreExpanded = false; shareOriginalUrl() },
@@ -1113,14 +1208,11 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
     },
     bottomBar = {
       if (canManage && processingAction == null) ReaderActionBar(
+        originalUrl = article.originalUrl,
         isFavorited = article.isFavorited,
         isArchived = article.isArchived,
-        isBookmarked = savedReadingPosition != null,
         shareEnabled = !article.originalUrl.isNullOrBlank(),
-        onBookmark = {
-          onSaveReadingPosition(currentScrollPercentageForBookmark)
-          android.widget.Toast.makeText(context, "已添加书签", android.widget.Toast.LENGTH_SHORT).show()
-        },
+        onOpenOriginal = { article.originalUrl?.let { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) } },
         onFavorite = onFavorite,
         onArchive = onArchive,
         onShare = ::shareOriginalUrl,
@@ -1156,24 +1248,33 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
       if (!html.isNullOrBlank()) {
         key(readerColorScheme, readerPreferences) {
           var currentScrollPercentage by remember { mutableStateOf(0f) }
+          var webLoaded by remember { mutableStateOf(false) }
           val headerHtml = ReaderDocument.buildArticleHeader(article, readerColorScheme, isOfflineAvailable)
-          AndroidView(
-            factory = { webContext ->
-              android.webkit.WebView(webContext).apply {
-                ReaderWebView.configure(
-                  this,
-                  readerPreferences,
-                  onOpenExternalUrl = { uri -> webContext.startActivity(Intent(Intent.ACTION_VIEW, uri)) },
-                  onPageFinished = {
-                    savedReadingPosition?.let { pos -> ReaderWebView.restoreScrollPosition(this, pos) }
-                  },
-                  onScrollChanged = { percentage -> currentScrollPercentage = percentage; currentScrollPercentageForBookmark = percentage },
-                )
-                ReaderWebView.loadCapturedHtml(this, html, readerColorScheme, readerPreferences, headerHtml)
+          Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            AndroidView(
+              factory = { webContext ->
+                android.webkit.WebView(webContext).apply {
+                  ReaderWebView.configure(
+                    this,
+                    readerPreferences,
+                    onOpenExternalUrl = { uri -> webContext.startActivity(Intent(Intent.ACTION_VIEW, uri)) },
+                    onPageFinished = {
+                      savedReadingPosition?.let { pos -> ReaderWebView.restoreScrollPosition(this, pos) }
+                      webLoaded = true
+                    },
+                    onScrollChanged = { percentage -> currentScrollPercentage = percentage },
+                  )
+                  ReaderWebView.loadCapturedHtml(this, html, readerColorScheme, readerPreferences, headerHtml)
+                }
+              },
+              modifier = Modifier.fillMaxSize(),
+            )
+            if (!webLoaded) {
+              Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+                ArticleDetailSkeleton()
               }
-            },
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-          )
+            }
+          }
           androidx.compose.runtime.DisposableEffect(article.id) {
             onDispose { onSaveReadingPosition(currentScrollPercentage) }
           }
@@ -1259,6 +1360,19 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
     },
     confirmButton = { Button(onClick = { confirmPermanentDelete = false; onDeletePermanent() }, enabled = !permanentDeleting, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError)) { Text(if (permanentDeleting) "正在删除…" else "永久删除") } },
     dismissButton = { TextButton(onClick = { confirmPermanentDelete = false }) { Text("取消") } },
+  )
+  if (showAbout) AlertDialog(
+    onDismissRequest = { showAbout = false },
+    icon = { Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+    title = { Text("关于乾坤戒") },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("乾坤戒 Storing", style = MaterialTheme.typography.titleSmall)
+        Text("版本 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        Text("AI 驱动的个人稍后阅读平台，支持智能摘要、自动分类和标签。", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+      }
+    },
+    confirmButton = { TextButton(onClick = { showAbout = false }) { Text("知道了") } },
   )
 }
 
