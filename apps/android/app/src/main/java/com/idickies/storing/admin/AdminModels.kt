@@ -2,6 +2,8 @@ package com.idickies.storing.admin
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 
 @Serializable
 data class AdminUser(
@@ -53,7 +55,10 @@ data class AdminAuditLog(
   @SerialName("article_id") val articleId: Int? = null,
   @SerialName("article_title") val articleTitle: String? = null,
   val action: String,
-  val detail: String? = null,
+  val detail: JsonElement? = null,
+  @kotlinx.serialization.Transient val detailText: String? = detail?.let { value ->
+    if (value is JsonPrimitive && value.isString) value.content else value.toString()
+  },
   @SerialName("created_at") val createdAt: String? = null,
 )
 

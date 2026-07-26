@@ -14,14 +14,15 @@ class LibraryControlPresentationTest {
 
   @Test
   fun `library menus use compact bordered widths`() {
-    assertEquals(272.dp, libraryMenuMetrics.moreMenuWidth)
-    assertEquals(280.dp, libraryMenuMetrics.sortMenuWidth)
-    assertEquals(320.dp, libraryMenuMetrics.sourceMenuWidth)
+    assertEquals(216.dp, libraryMenuMetrics.moreMenuWidth)
+    assertEquals(216.dp, libraryMenuMetrics.sortMenuWidth)
+    assertEquals(280.dp, libraryMenuMetrics.sourceMenuWidth)
   }
 
   @Test
   fun `dark detail shimmer has more contrast than light detail shimmer`() {
     assertTrue(shimmerColors(isDark = true).baseAlpha > shimmerColors(isDark = false).baseAlpha)
     assertTrue(shimmerColors(isDark = true).highlightAlpha > shimmerColors(isDark = false).highlightAlpha)
+    assertTrue(shimmerColors(isDark = true).usesDarkSurfaceBase)
   }
 }

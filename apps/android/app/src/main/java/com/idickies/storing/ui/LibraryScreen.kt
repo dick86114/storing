@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -32,7 +31,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -90,7 +88,6 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.TaskAlt
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Badge
@@ -100,7 +97,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -212,6 +208,7 @@ internal data class LibraryMenuMetrics(
 internal data class ShimmerColors(
   val baseAlpha: Float,
   val highlightAlpha: Float,
+  val usesDarkSurfaceBase: Boolean,
 )
 
 internal val libraryControlMetrics = LibraryControlMetrics(
@@ -220,15 +217,15 @@ internal val libraryControlMetrics = LibraryControlMetrics(
 )
 
 internal val libraryMenuMetrics = LibraryMenuMetrics(
-  moreMenuWidth = 272.dp,
-  sortMenuWidth = 280.dp,
-  sourceMenuWidth = 320.dp,
+  moreMenuWidth = 216.dp,
+  sortMenuWidth = 216.dp,
+  sourceMenuWidth = 280.dp,
 )
 
 internal fun shimmerColors(isDark: Boolean): ShimmerColors = if (isDark) {
-  ShimmerColors(baseAlpha = 0.14f, highlightAlpha = 0.28f)
+  ShimmerColors(baseAlpha = 0.14f, highlightAlpha = 0.28f, usesDarkSurfaceBase = true)
 } else {
-  ShimmerColors(baseAlpha = 0.06f, highlightAlpha = 0.14f)
+  ShimmerColors(baseAlpha = 0.06f, highlightAlpha = 0.14f, usesDarkSurfaceBase = false)
 }
 
 @Composable
@@ -374,7 +371,6 @@ internal fun LibraryPresentationModeSelector(
   }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun LibrarySourceMenu(
   expanded: Boolean,
@@ -384,7 +380,7 @@ internal fun LibrarySourceMenu(
   sourceCounts: Map<String, Int>,
   onSelect: (ArchiveSourceFilter) -> Unit,
 ) {
-  val shape = RoundedCornerShape(20.dp)
+  val shape = RoundedCornerShape(18.dp)
   DropdownMenu(
     expanded = expanded,
     onDismissRequest = onDismissRequest,
@@ -396,35 +392,45 @@ internal fun LibrarySourceMenu(
     shape = shape,
   ) {
     Text(
-      "文章来源",
+      "选择来源",
       color = MaterialTheme.colorScheme.onSurfaceVariant,
       style = MaterialTheme.typography.labelLarge,
-      modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+      modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
     )
-    FlowRow(
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .horizontalScroll(rememberScrollState())
+        .padding(horizontal = 12.dp, vertical = 2.dp)
+        .padding(bottom = 10.dp),
       horizontalArrangement = Arrangement.spacedBy(8.dp),
-      verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
       options.forEach { filter ->
         val isSelected = filter == selected
-        val count = filter.category?.let(sourceCounts::get)
-        FilterChip(
-          selected = isSelected,
-          onClick = { onSelect(filter); onDismissRequest() },
-          label = {
-            Text(
-              if (count == null) filter.label else "${filter.label} · $count",
-              maxLines = 1,
-            )
-          },
-          leadingIcon = if (isSelected) {
-            { Icon(Icons.Outlined.Check, contentDescription = "当前来源筛选", modifier = Modifier.size(16.dp)) }
-          } else null,
-        )
+        val count = filter.category?.let(sourceCounts::get) ?: sourceCounts.values.sum()
+        val label = if (filter.category == null) "全部" else filter.label
+        Surface(
+          modifier = Modifier.clickable { onSelect(filter); onDismissRequest() },
+          color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+          contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+          shape = RoundedCornerShape(99.dp),
+          border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.72f) else MaterialTheme.colorScheme.outline,
+          ),
+        ) {
+          Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            if (isSelected) Icon(Icons.Outlined.Check, contentDescription = "当前来源筛选", modifier = Modifier.size(15.dp))
+            Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+            Text("($count)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f))
+          }
+        }
       }
     }
-    Spacer(Modifier.height(8.dp))
   }
 }
 
@@ -502,7 +508,7 @@ internal fun LibraryMoreMenu(
       text = { Text("检查更新", style = MaterialTheme.typography.bodyLarge) },
       onClick = { onDismissRequest(); onCheckUpdate() },
       leadingIcon = { Icon(Icons.Outlined.Sync, contentDescription = null) },
-      trailingIcon = { Text("v${BuildConfig.VERSION_NAME}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium) },
+      trailingIcon = { Text("v${BuildConfig.VERSION_NAME.substringBefore("-")}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium) },
     )
     DropdownMenuItem(
       text = { Text("关于", style = MaterialTheme.typography.bodyLarge) },
@@ -657,17 +663,17 @@ fun LibraryScreen(
       themeMode = themeMode,
       onThemeModeChange = onThemeModeChange,
       onCheckUpdate = onManualUpdateCheck,
-      onOpenReaderSettings = { showSettings = false; showReaderSettings = true },
-      onOpenChangePassword = { showSettings = false; showChangePassword = true },
-      onOpenOfflineContent = { showSettings = false; showOfflineContent = true },
-      onOpenMcp = { showSettings = false; showMcp = true },
-      onOpenAdmin = if (isAdmin) ({ showSettings = false; showAdmin = true }) else null,
+      onOpenReaderSettings = { showReaderSettings = true },
+      onOpenChangePassword = { showChangePassword = true },
+      onOpenOfflineContent = { showOfflineContent = true },
+      onOpenMcp = { showMcp = true },
+      onOpenAdmin = if (isAdmin) ({ showAdmin = true }) else null,
       biometricAvailable = biometricAvailable,
       biometricEnabled = biometricEnabled,
       onBiometricEnabledChange = onBiometricEnabledChange,
       floatingCollectEnabled = floatingCollectEnabled,
       onFloatingCollectEnabledChange = onFloatingCollectEnabledChange,
-      onOpenDeviceSessions = { showSettings = false; showDeviceSessions = true },
+      onOpenDeviceSessions = { showDeviceSessions = true },
       onLogout = { showSettings = false; onLogout() },
       onBack = { showSettings = false },
     )
@@ -880,7 +886,7 @@ fun LibraryScreen(
   }
 
   state.processingError?.let { message ->
-    AlertDialog(
+    QiankunjieAlertDialog(
       onDismissRequest = libraryViewModel::clearProcessingError,
       icon = { Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
       title = { Text("文章处理失败") },
@@ -903,7 +909,7 @@ fun LibraryScreen(
     )
   }
   if (showManualCollect) ManualCollectDialog(onDismiss = { showManualCollect = false }, viewModel = collectViewModel)
-  if (showAbout) AlertDialog(
+  if (showAbout) QiankunjieAlertDialog(
     onDismissRequest = { showAbout = false },
     icon = { Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
     title = { Text("关于乾坤戒") },
@@ -1364,8 +1370,16 @@ private fun shimmerBrush(): Brush {
     label = "shimmerProgress",
   )
   val palette = shimmerColors(isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f)
-  val base = MaterialTheme.colorScheme.onSurface.copy(alpha = palette.baseAlpha)
-  val highlight = MaterialTheme.colorScheme.onSurface.copy(alpha = palette.highlightAlpha)
+  val base = if (palette.usesDarkSurfaceBase) {
+    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.96f)
+  } else {
+    MaterialTheme.colorScheme.onSurface.copy(alpha = palette.baseAlpha)
+  }
+  val highlight = if (palette.usesDarkSurfaceBase) {
+    MaterialTheme.colorScheme.outline.copy(alpha = 0.92f)
+  } else {
+    MaterialTheme.colorScheme.onSurface.copy(alpha = palette.highlightAlpha)
+  }
   return Brush.linearGradient(
     colors = listOf(base, highlight, base),
     start = Offset(progress * 800 - 400, 0f),
@@ -1397,7 +1411,7 @@ private fun LibrarySkeletonCard() {
 internal fun ArticleDetailSkeleton() {
   val brush = shimmerBrush()
   Column(
-    modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 16.dp),
+    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).padding(horizontal = 18.dp, vertical = 16.dp),
     verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
     // 封面图占位
@@ -1483,7 +1497,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
               modifier = Modifier
                 .width(libraryMenuMetrics.sortMenuWidth)
                 .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.76f), RoundedCornerShape(20.dp)),
-              containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+              containerColor = MaterialTheme.colorScheme.surfaceVariant,
               shape = RoundedCornerShape(20.dp),
             ) {
               DropdownMenuItem(
@@ -1665,7 +1679,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
     }
   }
   confirmProcessing?.let { action ->
-    AlertDialog(
+    QiankunjieAlertDialog(
       onDismissRequest = { confirmProcessing = null },
       icon = { Icon(if (action == ArticleProcessingAction.Refetch) Icons.Outlined.Replay else Icons.Outlined.Sync, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
       title = { Text(action.confirmationTitle) },
@@ -1680,7 +1694,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
     )
   }
   confirmPublication?.let { action ->
-    AlertDialog(
+    QiankunjieAlertDialog(
       onDismissRequest = { confirmPublication = null },
       icon = { Icon(Icons.Outlined.Public, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
       title = { Text(action.confirmationTitle) },
@@ -1694,7 +1708,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
       dismissButton = { TextButton(onClick = { confirmPublication = null }) { Text("取消") } },
     )
   }
-  if (confirmDelete) AlertDialog(
+  if (confirmDelete) QiankunjieAlertDialog(
     onDismissRequest = { confirmDelete = false },
     icon = { Icon(Icons.Outlined.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
     title = { Text("从资料库删除？") },
@@ -1707,7 +1721,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
     confirmButton = { Button(onClick = { confirmDelete = false; onDelete() }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError)) { Text("确认删除") } },
     dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("保留文章") } },
   )
-  if (confirmPermanentDelete) AlertDialog(
+  if (confirmPermanentDelete) QiankunjieAlertDialog(
     onDismissRequest = { confirmPermanentDelete = false },
     icon = { Icon(Icons.Outlined.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
     title = { Text("永久删除这篇文章？") },

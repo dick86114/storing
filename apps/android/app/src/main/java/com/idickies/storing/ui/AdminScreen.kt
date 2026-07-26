@@ -29,7 +29,6 @@ import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.WarningAmber
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -267,7 +266,7 @@ private fun AdminMcpTab(
     var perMin by remember { mutableStateOf(limits.rateLimitPerMinute.toString()) }
     var perDay by remember { mutableStateOf(limits.rateLimitPerDay.toString()) }
     var concurrent by remember { mutableStateOf(limits.concurrentCollectLimit.toString()) }
-    AlertDialog(
+    QiankunjieAlertDialog(
       onDismissRequest = { showEditLimits = false },
       icon = { Icon(Icons.Outlined.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
       title = { Text("修改平台默认配额") },
@@ -301,7 +300,7 @@ private fun AdminAuditTab(logs: List<AdminAuditLog>) {
               log.targetUsername?.let { Text("目标：$it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
             log.articleTitle?.let { Text("文章：$it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            log.detail?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            log.detailText?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             Text(log.createdAt?.take(19) ?: "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
           }
         }
@@ -315,7 +314,7 @@ private fun CreateUserDialog(submitting: Boolean, onDismiss: () -> Unit, onCreat
   var username by remember { mutableStateOf("") }
   var password by remember { mutableStateOf("") }
   var role by remember { mutableStateOf("user") }
-  AlertDialog(
+  QiankunjieAlertDialog(
     onDismissRequest = { if (!submitting) onDismiss() },
     icon = { Icon(Icons.Outlined.PersonAdd, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
     title = { Text("创建用户") },
@@ -347,7 +346,7 @@ private fun EditUserDialog(user: AdminUser, submitting: Boolean, onDismiss: () -
 
   val action = confirmAction
   if (action != null) {
-    AlertDialog(
+    QiankunjieAlertDialog(
       onDismissRequest = { confirmAction = null },
       icon = { Icon(Icons.Outlined.WarningAmber, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
       title = { Text(action) },
@@ -363,7 +362,7 @@ private fun EditUserDialog(user: AdminUser, submitting: Boolean, onDismiss: () -
       dismissButton = { TextButton(onClick = { confirmAction = null }) { Text("取消") } },
     )
   } else {
-    AlertDialog(
+    QiankunjieAlertDialog(
       onDismissRequest = { if (!submitting) onDismiss() },
       icon = { Icon(Icons.Outlined.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
       title = { Text("编辑用户「${user.username}」") },

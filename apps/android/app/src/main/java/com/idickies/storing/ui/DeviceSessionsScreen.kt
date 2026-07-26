@@ -17,7 +17,6 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -105,7 +104,7 @@ fun DeviceSessionsScreen(
     }
   }
   confirmRevocation?.let { session ->
-    AlertDialog(
+    QiankunjieAlertDialog(
       onDismissRequest = { confirmRevocation = null },
       icon = { Icon(Icons.Outlined.Devices, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
       title = { Text("撤销这台设备？") },
