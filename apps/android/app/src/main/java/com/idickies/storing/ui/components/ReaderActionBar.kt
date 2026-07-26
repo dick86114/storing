@@ -10,31 +10,37 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.OpenInNew
-import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.IosShare
-import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.MoveToInbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
+/** Reader actions deliberately use the same 68 dp target as the library bottom navigation. */
+data class ReaderActionBarMetrics(val actionHeight: Dp)
+
+val readerActionBarMetrics = ReaderActionBarMetrics(
+  actionHeight = compactBottomBarMetrics.actionHeight,
+)
+
 /**
- * Reader bottom bar: left "阅读原文" with source icon, right favorite/archive/share.
+ * Reader bottom bar: left "阅读原文" shows the original source identity;
+ * the right side provides favorite, archive and share actions.
  */
 @Composable
 fun ReaderActionBar(
+  source: String?,
   originalUrl: String?,
   isFavorited: Boolean,
   isArchived: Boolean,
@@ -45,40 +51,36 @@ fun ReaderActionBar(
   onShare: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  val isWeChat = originalUrl?.contains("mp.weixin.qq.com") == true ||
-    originalUrl?.contains("weixin.qq.com") == true
-  val sourceIcon = if (isWeChat) Icons.AutoMirrored.Outlined.Chat else Icons.Outlined.Language
-  Surface(
-    modifier = modifier.fillMaxWidth(),
-    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
-    shadowElevation = 3.dp,
-  ) {
+  val originalEnabled = !originalUrl.isNullOrBlank()
+  val originalTint = if (originalEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+  QiankunjieCompactBottomBar(modifier = modifier) {
     Row(
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+      modifier = Modifier.fillMaxWidth(),
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      // Left: 阅读原文 with source icon
       Row(
-        modifier = Modifier.clickable(enabled = !originalUrl.isNullOrBlank(), onClick = onOpenOriginal).padding(vertical = 4.dp),
+        modifier = Modifier
+          .weight(1f, fill = false)
+          .clickable(enabled = originalEnabled, onClick = onOpenOriginal)
+          .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
-        Icon(
-          sourceIcon,
-          contentDescription = null,
-          tint = if (originalUrl.isNullOrBlank()) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f) else MaterialTheme.colorScheme.primary,
-          modifier = Modifier.size(18.dp),
+        ArticleSourceIdentityIcon(
+          source = source,
+          originalUrl = originalUrl,
+          tint = originalTint,
+          size = 18.dp,
         )
         Spacer(Modifier.width(6.dp))
         Text(
           "阅读原文",
           style = MaterialTheme.typography.bodyMedium,
-          color = if (originalUrl.isNullOrBlank()) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f) else MaterialTheme.colorScheme.primary,
+          color = originalTint,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
         )
       }
-      // Right: favorite, archive, share
       Row(
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically,

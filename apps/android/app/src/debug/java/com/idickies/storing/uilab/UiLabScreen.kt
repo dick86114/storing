@@ -76,7 +76,9 @@ import com.idickies.storing.ui.components.ReaderActionBar
 import com.idickies.storing.reader.ReaderWebView
 import com.idickies.storing.ui.QiankunjieSettingsScreen
 import com.idickies.storing.ui.LoginScreen
+import com.idickies.storing.ui.ArticleDetailSkeleton
 import com.idickies.storing.ui.LibraryMoreMenu
+import com.idickies.storing.ui.libraryControlMetrics
 import com.idickies.storing.ui.LibrarySortMenu
 import com.idickies.storing.ui.LibrarySourceMenu
 import com.idickies.storing.ui.LibraryPresentationModeSelector
@@ -202,6 +204,7 @@ private fun UiLabLibrary() {
         Box {
           AssistChip(
             onClick = { sortExpanded = true },
+            modifier = Modifier.height(libraryControlMetrics.triggerHeight),
             label = { Text(selectedSort.label) },
             leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = null, modifier = Modifier.size(18.dp)) },
           )
@@ -219,6 +222,7 @@ private fun UiLabLibrary() {
         Box {
           AssistChip(
             onClick = { sourceExpanded = true },
+            modifier = Modifier.height(libraryControlMetrics.triggerHeight),
             label = { Text(selectedSource.category?.let { "$it · ${sourceCounts[it] ?: 0}" } ?: "全部来源") },
             leadingIcon = { Icon(Icons.Outlined.FilterList, contentDescription = null, modifier = Modifier.size(18.dp)) },
           )
@@ -280,7 +284,8 @@ private fun UiLabReader() {
     },
     bottomBar = {
       ReaderActionBar(
-        originalUrl = "https://example.com/article",
+        source = "微信公众号",
+        originalUrl = "https://mp.weixin.qq.com/s/example",
         isFavorited = false,
         isArchived = false,
         shareEnabled = true,
@@ -391,6 +396,18 @@ private fun UiLabStates() {
     contentPadding = PaddingValues(horizontal = 22.dp, vertical = 20.dp),
     verticalArrangement = Arrangement.spacedBy(16.dp),
   ) {
+    item {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("正文加载骨架", style = MaterialTheme.typography.titleMedium)
+        Surface(
+          color = MaterialTheme.colorScheme.surface,
+          shape = RoundedCornerShape(20.dp),
+          modifier = Modifier.fillMaxWidth().height(440.dp),
+        ) {
+          ArticleDetailSkeleton()
+        }
+      }
+    }
     item {
       Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("状态反馈", style = MaterialTheme.typography.headlineSmall)

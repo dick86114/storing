@@ -3,8 +3,10 @@ package com.idickies.storing.ui
 import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,8 +14,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -37,6 +46,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Surface
@@ -60,8 +70,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.idickies.storing.BuildConfig
 import com.idickies.storing.R
 import com.idickies.storing.auth.AuthViewModel
 import com.idickies.storing.auth.LoginCredentials
@@ -234,6 +248,26 @@ private fun LoadingScreen() {
   }
 }
 
+internal data class LoginPresentation(
+  val brandMarkSize: androidx.compose.ui.unit.Dp,
+  val inputHeight: androidx.compose.ui.unit.Dp,
+  val submitHeight: androidx.compose.ui.unit.Dp,
+  val cardRadius: androidx.compose.ui.unit.Dp,
+  val englishName: String,
+  val tagline: String,
+  val helpText: String,
+)
+
+internal val loginPresentation = LoginPresentation(
+  brandMarkSize = 56.dp,
+  inputHeight = 56.dp,
+  submitHeight = 52.dp,
+  cardRadius = 16.dp,
+  englishName = "Storing",
+  tagline = "你的个人知识收藏空间",
+  helpText = "账号由管理员创建，如需帮助请联系管理员",
+)
+
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 internal fun LoginScreen(
@@ -246,86 +280,179 @@ internal fun LoginScreen(
   var password by rememberSaveable { mutableStateOf("") }
   var passwordVisible by rememberSaveable { mutableStateOf(false) }
   val credentials = LoginCredentials(username, password)
+  val colors = MaterialTheme.colorScheme
+  val fieldColors = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = colors.primary.copy(alpha = 0.68f),
+    unfocusedBorderColor = colors.outline,
+    disabledBorderColor = colors.outline.copy(alpha = 0.45f),
+    focusedLeadingIconColor = colors.primary,
+    unfocusedLeadingIconColor = colors.onSurfaceVariant,
+    focusedTrailingIconColor = colors.primary,
+    unfocusedTrailingIconColor = colors.onSurfaceVariant,
+    cursorColor = colors.primary,
+  )
 
-  Scaffold(
-    topBar = {
-      TopAppBar(
-        title = { Text("登录") },
-        navigationIcon = {
-          androidx.compose.material3.IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回")
-          }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-      )
-    },
-  ) { padding ->
-  Column(
-    modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 28.dp, vertical = 16.dp),
-    verticalArrangement = Arrangement.Center,
+  BackHandler(onBack = onBack)
+  Box(
+    modifier = Modifier
+      .fillMaxSize()
+      .background(colors.background)
+      .windowInsetsPadding(WindowInsets.statusBars)
+      .imePadding(),
   ) {
-    Surface(
-      color = Color.Transparent,
-      shape = RoundedCornerShape(30.dp),
-      modifier = Modifier.size(88.dp).clip(RoundedCornerShape(30.dp)).background(
-        Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)),
-      ),
+    Column(
+      modifier = Modifier
+        .fillMaxSize()
+        .verticalScroll(rememberScrollState())
+        .padding(horizontal = 20.dp)
+        .padding(top = 56.dp, bottom = 76.dp),
+      horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-      androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
-        Image(painter = painterResource(R.drawable.brand_logo), contentDescription = "乾坤戒产品标志", modifier = Modifier.size(46.dp))
-      }
-    }
-    Spacer(Modifier.height(24.dp))
-    Text("乾坤戒", style = MaterialTheme.typography.displaySmall)
-    Text("把值得阅读的内容，藏进你的知识空间。", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 8.dp))
-    Spacer(Modifier.height(36.dp))
-    OutlinedTextField(
-      value = username,
-      onValueChange = { username = it },
-      modifier = Modifier.fillMaxWidth(),
-      enabled = !submitting,
-      label = { Text("用户名") },
-      leadingIcon = { Icon(Icons.Outlined.Person, contentDescription = null) },
-      shape = MaterialTheme.shapes.medium,
-      singleLine = true,
-    )
-    Spacer(Modifier.height(12.dp))
-    OutlinedTextField(
-      value = password,
-      onValueChange = { password = it },
-      modifier = Modifier.fillMaxWidth(),
-      enabled = !submitting,
-      label = { Text("密码") },
-      leadingIcon = { Icon(Icons.Outlined.Lock, contentDescription = null) },
-      trailingIcon = {
-        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-          Icon(
-            if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-            contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
+      Surface(
+        color = colors.primary.copy(alpha = 0.15f),
+        contentColor = colors.primary,
+        shape = RoundedCornerShape(loginPresentation.cardRadius),
+        border = androidx.compose.foundation.BorderStroke(1.dp, colors.primary.copy(alpha = 0.30f)),
+        modifier = Modifier.size(loginPresentation.brandMarkSize),
+      ) {
+        Box(contentAlignment = Alignment.Center) {
+          Image(
+            painter = painterResource(R.drawable.brand_logo),
+            contentDescription = "乾坤戒产品标志",
+            modifier = Modifier.size(38.dp),
           )
         }
-      },
-      visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-      keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-      keyboardActions = KeyboardActions(onDone = { if (credentials.isSubmittable && !submitting) onLogin(credentials) }),
-      shape = MaterialTheme.shapes.medium,
-      singleLine = true,
+      }
+      Text(
+        "乾坤戒",
+        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+        color = colors.onBackground,
+        modifier = Modifier.padding(top = 16.dp),
+      )
+      Text(
+        loginPresentation.englishName,
+        style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 2.sp),
+        color = colors.onSurfaceVariant,
+        modifier = Modifier.padding(top = 2.dp),
+      )
+      Text(
+        loginPresentation.tagline,
+        style = MaterialTheme.typography.bodyMedium,
+        color = colors.onSurfaceVariant,
+        modifier = Modifier.padding(top = 8.dp),
+      )
+
+      Surface(
+        color = colors.surface,
+        contentColor = colors.onSurface,
+        shape = RoundedCornerShape(loginPresentation.cardRadius),
+        border = androidx.compose.foundation.BorderStroke(1.dp, colors.outlineVariant),
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(top = 32.dp),
+      ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+          Text("登录账号", style = MaterialTheme.typography.titleMedium, color = colors.onSurface)
+          Text(
+            "用户名",
+            style = MaterialTheme.typography.labelMedium,
+            color = colors.onSurfaceVariant,
+            modifier = Modifier.padding(top = 18.dp, bottom = 6.dp),
+          )
+          OutlinedTextField(
+            value = username,
+            onValueChange = { username = it },
+            modifier = Modifier.fillMaxWidth().height(loginPresentation.inputHeight),
+            enabled = !submitting,
+            placeholder = { Text("请输入用户名", style = MaterialTheme.typography.bodyMedium) },
+            leadingIcon = { Icon(Icons.Outlined.Person, contentDescription = null, modifier = Modifier.size(18.dp)) },
+            colors = fieldColors,
+            shape = RoundedCornerShape(12.dp),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+          )
+
+          Text(
+            "密码",
+            style = MaterialTheme.typography.labelMedium,
+            color = colors.onSurfaceVariant,
+            modifier = Modifier.padding(top = 16.dp, bottom = 6.dp),
+          )
+          OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            modifier = Modifier.fillMaxWidth().height(loginPresentation.inputHeight),
+            enabled = !submitting,
+            placeholder = { Text("请输入密码", style = MaterialTheme.typography.bodyMedium) },
+            leadingIcon = { Icon(Icons.Outlined.Lock, contentDescription = null, modifier = Modifier.size(18.dp)) },
+            trailingIcon = {
+              IconButton(onClick = { passwordVisible = !passwordVisible }, enabled = !submitting) {
+                Icon(
+                  if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                  contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
+                  modifier = Modifier.size(18.dp),
+                )
+              }
+            },
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { if (credentials.isSubmittable && !submitting) onLogin(credentials) }),
+            colors = fieldColors,
+            shape = RoundedCornerShape(12.dp),
+            singleLine = true,
+          )
+
+          errorMessage?.let { message ->
+            Row(
+              modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(colors.error.copy(alpha = 0.10f))
+                .border(1.dp, colors.error.copy(alpha = 0.30f), RoundedCornerShape(10.dp))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = colors.error, modifier = Modifier.size(15.dp))
+              Text(text = message, color = colors.error, style = MaterialTheme.typography.labelMedium)
+            }
+          }
+
+          Button(
+            onClick = { onLogin(credentials) },
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(top = 24.dp)
+              .height(loginPresentation.submitHeight),
+            enabled = credentials.isSubmittable && !submitting,
+            shape = RoundedCornerShape(12.dp),
+          ) {
+            if (submitting) {
+              CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = colors.onPrimary)
+              Spacer(Modifier.size(10.dp))
+            }
+            Text(if (submitting) "正在登录…" else "登录", style = MaterialTheme.typography.titleMedium)
+          }
+          Text(
+            loginPresentation.helpText,
+            style = MaterialTheme.typography.labelMedium,
+            color = colors.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+          )
+        }
+      }
+    }
+    Text(
+      "v${BuildConfig.VERSION_NAME}",
+      style = MaterialTheme.typography.labelMedium,
+      color = colors.onSurfaceVariant,
+      modifier = Modifier
+        .align(Alignment.BottomCenter)
+        .windowInsetsPadding(WindowInsets.navigationBars)
+        .padding(bottom = 20.dp),
     )
-    errorMessage?.let { message ->
-      Row(modifier = Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Outlined.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
-        Text(text = message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-      }
-    }
-    Spacer(Modifier.height(22.dp))
-    Button(onClick = { onLogin(credentials) }, modifier = Modifier.fillMaxWidth(), enabled = credentials.isSubmittable && !submitting, shape = MaterialTheme.shapes.medium) {
-      if (submitting) {
-        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-        Spacer(Modifier.size(10.dp))
-      }
-      Text(if (submitting) "正在登录…" else "进入乾坤戒")
-    }
-  }
   }
 }
 

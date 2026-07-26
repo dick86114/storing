@@ -12,12 +12,14 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -30,6 +32,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -97,6 +100,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -131,6 +135,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -193,6 +198,39 @@ internal fun libraryTopSearchPresentation(searchOpen: Boolean) = LibraryTopSearc
   showsSearchField = searchOpen,
 )
 
+internal data class LibraryControlMetrics(
+  val triggerHeight: androidx.compose.ui.unit.Dp,
+  val presentationCellSize: androidx.compose.ui.unit.Dp,
+)
+
+internal data class LibraryMenuMetrics(
+  val moreMenuWidth: androidx.compose.ui.unit.Dp,
+  val sortMenuWidth: androidx.compose.ui.unit.Dp,
+  val sourceMenuWidth: androidx.compose.ui.unit.Dp,
+)
+
+internal data class ShimmerColors(
+  val baseAlpha: Float,
+  val highlightAlpha: Float,
+)
+
+internal val libraryControlMetrics = LibraryControlMetrics(
+  triggerHeight = 40.dp,
+  presentationCellSize = 36.dp,
+)
+
+internal val libraryMenuMetrics = LibraryMenuMetrics(
+  moreMenuWidth = 272.dp,
+  sortMenuWidth = 280.dp,
+  sourceMenuWidth = 320.dp,
+)
+
+internal fun shimmerColors(isDark: Boolean): ShimmerColors = if (isDark) {
+  ShimmerColors(baseAlpha = 0.14f, highlightAlpha = 0.28f)
+} else {
+  ShimmerColors(baseAlpha = 0.06f, highlightAlpha = 0.14f)
+}
+
 @Composable
 internal fun LibrarySortMenu(
   expanded: Boolean,
@@ -209,7 +247,9 @@ internal fun LibrarySortMenu(
   DropdownMenu(
     expanded = expanded,
     onDismissRequest = onDismissRequest,
-    modifier = Modifier.width(320.dp),
+    modifier = Modifier
+      .width(libraryMenuMetrics.sortMenuWidth)
+      .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.76f), RoundedCornerShape(20.dp)),
     containerColor = MaterialTheme.colorScheme.surfaceVariant,
     shape = RoundedCornerShape(20.dp),
   ) {
@@ -221,7 +261,7 @@ internal fun LibrarySortMenu(
     )
     LibrarySort.availableFor(view).forEach { sort ->
       DropdownMenuItem(
-        text = { Text(sort.label, color = if (sort == selectedSort) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface) },
+        text = { Text(sort.label, style = MaterialTheme.typography.bodyLarge, color = if (sort == selectedSort) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface) },
         onClick = { onSelectSort(sort) },
         leadingIcon = {
           Icon(
@@ -264,7 +304,8 @@ internal fun LibrarySortMenu(
           val selected = option.value == sortOrder
           TextButton(
             onClick = { onSelectSortOrder(option.value) },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).height(34.dp),
+            contentPadding = PaddingValues(0.dp),
             colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
               containerColor = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
               contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -272,10 +313,9 @@ internal fun LibrarySortMenu(
           ) {
             Icon(
               if (option.value == "desc") Icons.Outlined.ArrowDownward else Icons.Outlined.ArrowUpward,
-              contentDescription = null,
-              modifier = Modifier.size(16.dp),
+              contentDescription = option.label,
+              modifier = Modifier.size(18.dp),
             )
-            Text(option.label, maxLines = 1, modifier = Modifier.padding(start = 4.dp))
           }
         }
       }
@@ -301,8 +341,9 @@ internal fun LibraryPresentationModeSelector(
   onSelect: (ArticleListPresentationMode) -> Unit,
 ) {
   Surface(
+    modifier = Modifier.height(libraryControlMetrics.triggerHeight),
     color = Color.Transparent,
-    shape = RoundedCornerShape(16.dp),
+    shape = RoundedCornerShape(14.dp),
     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.72f)),
   ) {
     Row(modifier = Modifier.padding(2.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -314,8 +355,8 @@ internal fun LibraryPresentationModeSelector(
         val isSelected = mode == selected
         Box(
           modifier = Modifier
-            .size(42.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .size(libraryControlMetrics.presentationCellSize)
+            .clip(RoundedCornerShape(10.dp))
             .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent),
           contentAlignment = Alignment.Center,
         ) {
@@ -333,6 +374,7 @@ internal fun LibraryPresentationModeSelector(
   }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun LibrarySourceMenu(
   expanded: Boolean,
@@ -342,12 +384,16 @@ internal fun LibrarySourceMenu(
   sourceCounts: Map<String, Int>,
   onSelect: (ArchiveSourceFilter) -> Unit,
 ) {
+  val shape = RoundedCornerShape(20.dp)
   DropdownMenu(
     expanded = expanded,
     onDismissRequest = onDismissRequest,
-    modifier = Modifier.width(320.dp),
+    offset = DpOffset(0.dp, 4.dp),
+    modifier = Modifier
+      .width(libraryMenuMetrics.sourceMenuWidth)
+      .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.76f), shape),
     containerColor = MaterialTheme.colorScheme.surfaceVariant,
-    shape = RoundedCornerShape(20.dp),
+    shape = shape,
   ) {
     Text(
       "文章来源",
@@ -355,43 +401,30 @@ internal fun LibrarySourceMenu(
       style = MaterialTheme.typography.labelLarge,
       modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
     )
-    options.forEach { filter ->
-      val selectedFilter = filter == selected
-      val count = filter.category?.let(sourceCounts::get)
-      DropdownMenuItem(
-        text = {
-          Text(
-            if (count == null) filter.label else "${filter.label} · $count",
-            color = if (selectedFilter) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-          )
-        },
-        onClick = { onSelect(filter); onDismissRequest() },
-        leadingIcon = {
-          Icon(
-            Icons.Outlined.FilterList,
-            contentDescription = null,
-            tint = if (selectedFilter) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        },
-        trailingIcon = {
-          if (selectedFilter) {
-            Icon(Icons.Outlined.Check, contentDescription = "当前来源筛选", tint = MaterialTheme.colorScheme.primary)
-          }
-        },
-      )
-    }
-    HorizontalDivider(
-      modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-      color = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
-      thickness = 0.5.dp,
-    )
-    TextButton(
-      onClick = { onSelect(ArchiveSourceFilter.All); onDismissRequest() },
-      enabled = selected != ArchiveSourceFilter.All,
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+    FlowRow(
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-      Text("重置默认")
+      options.forEach { filter ->
+        val isSelected = filter == selected
+        val count = filter.category?.let(sourceCounts::get)
+        FilterChip(
+          selected = isSelected,
+          onClick = { onSelect(filter); onDismissRequest() },
+          label = {
+            Text(
+              if (count == null) filter.label else "${filter.label} · $count",
+              maxLines = 1,
+            )
+          },
+          leadingIcon = if (isSelected) {
+            { Icon(Icons.Outlined.Check, contentDescription = "当前来源筛选", modifier = Modifier.size(16.dp)) }
+          } else null,
+        )
+      }
     }
+    Spacer(Modifier.height(8.dp))
   }
 }
 
@@ -410,12 +443,14 @@ internal fun LibraryMoreMenu(
   DropdownMenu(
     expanded = expanded,
     onDismissRequest = onDismissRequest,
-    modifier = Modifier.width(320.dp),
+    modifier = Modifier
+      .width(libraryMenuMetrics.moreMenuWidth)
+      .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.76f), RoundedCornerShape(20.dp)),
     containerColor = MaterialTheme.colorScheme.surfaceVariant,
     shape = RoundedCornerShape(20.dp),
   ) {
     DropdownMenuItem(
-      text = { Text("采集任务", style = MaterialTheme.typography.titleMedium) },
+      text = { Text("采集任务", style = MaterialTheme.typography.bodyLarge) },
       onClick = { onDismissRequest(); onOpenTasks() },
       leadingIcon = { Icon(Icons.Outlined.TaskAlt, contentDescription = null) },
       trailingIcon = { if (activeJobCount > 0) Badge { Text(activeJobCount.toString()) } },
@@ -459,18 +494,18 @@ internal fun LibraryMoreMenu(
       thickness = 0.5.dp,
     )
     DropdownMenuItem(
-      text = { Text("系统设置") },
+      text = { Text("系统设置", style = MaterialTheme.typography.bodyLarge) },
       onClick = { onDismissRequest(); onOpenSettings() },
       leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
     )
     DropdownMenuItem(
-      text = { Text("检查更新") },
+      text = { Text("检查更新", style = MaterialTheme.typography.bodyLarge) },
       onClick = { onDismissRequest(); onCheckUpdate() },
       leadingIcon = { Icon(Icons.Outlined.Sync, contentDescription = null) },
       trailingIcon = { Text("v${BuildConfig.VERSION_NAME}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium) },
     )
     DropdownMenuItem(
-      text = { Text("关于") },
+      text = { Text("关于", style = MaterialTheme.typography.bodyLarge) },
       onClick = { onDismissRequest(); onOpenAbout() },
       leadingIcon = { Icon(Icons.Outlined.Info, contentDescription = null) },
     )
@@ -1214,6 +1249,7 @@ private fun LibraryList(
             Box {
               AssistChip(
                 onClick = { sortExpanded = true },
+                modifier = Modifier.height(libraryControlMetrics.triggerHeight),
                 label = {
                   Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(state.sort.label)
@@ -1238,6 +1274,7 @@ private fun LibraryList(
             Box {
               AssistChip(
                 onClick = { sourceExpanded = true },
+                modifier = Modifier.height(libraryControlMetrics.triggerHeight),
                 label = { Text(if (state.archiveSourcesLoading) "来源" else state.archiveSource.label) },
                 leadingIcon = { Icon(Icons.Outlined.FilterList, contentDescription = "归档来源", modifier = Modifier.size(16.dp)) },
               )
@@ -1326,8 +1363,9 @@ private fun shimmerBrush(): Brush {
     animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing), RepeatMode.Restart),
     label = "shimmerProgress",
   )
-  val base = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
-  val highlight = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f)
+  val palette = shimmerColors(isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f)
+  val base = MaterialTheme.colorScheme.onSurface.copy(alpha = palette.baseAlpha)
+  val highlight = MaterialTheme.colorScheme.onSurface.copy(alpha = palette.highlightAlpha)
   return Brush.linearGradient(
     colors = listOf(base, highlight, base),
     start = Offset(progress * 800 - 400, 0f),
@@ -1356,7 +1394,7 @@ private fun LibrarySkeletonCard() {
 }
 
 @Composable
-private fun ArticleDetailSkeleton() {
+internal fun ArticleDetailSkeleton() {
   val brush = shimmerBrush()
   Column(
     modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 16.dp),
@@ -1439,65 +1477,73 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
           ) { Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = "打开原网页") }
           Box {
             IconButton(onClick = { moreExpanded = true }, enabled = processingAction == null) { Icon(Icons.Outlined.MoreVert, contentDescription = "更多阅读操作") }
-            DropdownMenu(expanded = moreExpanded, onDismissRequest = { moreExpanded = false }, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.medium) {
+            DropdownMenu(
+              expanded = moreExpanded,
+              onDismissRequest = { moreExpanded = false },
+              modifier = Modifier
+                .width(libraryMenuMetrics.sortMenuWidth)
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.76f), RoundedCornerShape(20.dp)),
+              containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+              shape = RoundedCornerShape(20.dp),
+            ) {
               DropdownMenuItem(
-                text = { Text("分享原网页") },
+                text = { Text("分享原网页", style = MaterialTheme.typography.bodyLarge) },
                 onClick = { moreExpanded = false; shareOriginalUrl() },
                 leadingIcon = { Icon(Icons.Outlined.IosShare, contentDescription = null) },
                 enabled = !article.originalUrl.isNullOrBlank(),
               )
               if (article.isPublished && publicUrl != null) DropdownMenuItem(
-                text = { Text("复制公开链接") },
+                text = { Text("复制公开链接", style = MaterialTheme.typography.bodyLarge) },
                 onClick = { moreExpanded = false; copyPublicUrl() },
                 leadingIcon = { Icon(Icons.Outlined.Link, contentDescription = null) },
               )
               if (article.isPublished && publicUrl != null) DropdownMenuItem(
-                text = { Text("分享公开链接") },
+                text = { Text("分享公开链接", style = MaterialTheme.typography.bodyLarge) },
                 onClick = { moreExpanded = false; sharePublicUrl() },
                 leadingIcon = { Icon(Icons.Outlined.IosShare, contentDescription = null) },
               )
               if (article.isPublished && publicUrl != null) DropdownMenuItem(
-                text = { Text("生成分享海报") },
+                text = { Text("生成分享海报", style = MaterialTheme.typography.bodyLarge) },
                 onClick = { moreExpanded = false; onOpenSharePoster() },
                 leadingIcon = { Icon(Icons.Outlined.Image, contentDescription = null) },
               )
               if (canManage) DropdownMenuItem(
-                text = { Text(if (article.isFavorited) "取消收藏" else "收藏") },
+                text = { Text(if (article.isFavorited) "取消收藏" else "收藏", style = MaterialTheme.typography.bodyLarge) },
                 onClick = { moreExpanded = false; onFavorite() },
                 leadingIcon = { Icon(if (article.isFavorited) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, contentDescription = null) },
               )
               if (canManage) DropdownMenuItem(
-                text = { Text(if (article.isArchived) "移回收件箱" else "归档") },
+                text = { Text(if (article.isArchived) "移回收件箱" else "归档", style = MaterialTheme.typography.bodyLarge) },
                 onClick = { moreExpanded = false; onArchive() },
                 leadingIcon = { Icon(if (article.isArchived) Icons.Outlined.MoveToInbox else Icons.Outlined.Archive, contentDescription = null) },
               )
               if (canManage) DropdownMenuItem(
-                text = { Text(publicationAction(article.isPublished).label) },
+                text = { Text(publicationAction(article.isPublished).label, style = MaterialTheme.typography.bodyLarge) },
                 onClick = { moreExpanded = false; confirmPublication = publicationAction(article.isPublished) },
                 leadingIcon = { Icon(Icons.Outlined.Public, contentDescription = null) },
               )
               if (canManage) ArticleProcessingAction.entries.forEach { action ->
                 DropdownMenuItem(
-                  text = { Text(action.label) },
+                  text = { Text(action.label, style = MaterialTheme.typography.bodyLarge) },
                   onClick = { moreExpanded = false; confirmProcessing = action },
                   leadingIcon = { Icon(if (action == ArticleProcessingAction.Refetch) Icons.Outlined.Replay else Icons.Outlined.Sync, contentDescription = null) },
                 )
               }
               if (canManage) DropdownMenuItem(
-                text = { Text("删除", color = MaterialTheme.colorScheme.error) },
+                text = { Text("删除", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error) },
                 onClick = { moreExpanded = false; confirmDelete = true },
                 leadingIcon = { Icon(Icons.Outlined.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
               )
               if (canManage && !downloadingOffline) {
                 if (isOfflineAvailable) {
                   DropdownMenuItem(
-                    text = { Text("删除离线内容") },
+                    text = { Text("删除离线内容", style = MaterialTheme.typography.bodyLarge) },
                     onClick = { moreExpanded = false; onDeleteOffline() },
                     leadingIcon = { Icon(Icons.Outlined.CloudOff, contentDescription = null) },
                   )
                 } else {
                   DropdownMenuItem(
-                    text = { Text("下载离线内容") },
+                    text = { Text("下载离线内容", style = MaterialTheme.typography.bodyLarge) },
                     onClick = { moreExpanded = false; onDownloadOffline() },
                     leadingIcon = { Icon(Icons.Outlined.CloudDownload, contentDescription = null) },
                     enabled = !article.contentHtml.isNullOrBlank(),
@@ -1505,7 +1551,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                 }
               }
               if (canManage) DropdownMenuItem(
-                text = { Text("永久删除", color = MaterialTheme.colorScheme.error) },
+                text = { Text("永久删除", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error) },
                 onClick = { moreExpanded = false; confirmPermanentDelete = true },
                 leadingIcon = { Icon(Icons.Outlined.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
               )
@@ -1516,6 +1562,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
     },
     bottomBar = {
       if (canManage && processingAction == null) ReaderActionBar(
+        source = article.source,
         originalUrl = article.originalUrl,
         isFavorited = article.isFavorited,
         isArchived = article.isArchived,

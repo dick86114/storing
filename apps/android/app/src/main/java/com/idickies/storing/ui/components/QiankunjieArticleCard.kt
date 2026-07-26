@@ -1,6 +1,5 @@
 package com.idickies.storing.ui.components
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,13 +32,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import coil3.compose.SubcomposeAsyncImage
-import coil3.compose.SubcomposeAsyncImageContent
-import com.idickies.storing.R
 import com.idickies.storing.library.ArticleCard
 
 data class ArticleCardLayout(
@@ -243,7 +238,7 @@ private fun ArticleMetadata(article: ArticleCard, color: androidx.compose.ui.gra
     horizontalArrangement = Arrangement.spacedBy(6.dp),
   ) {
     if (!article.source.isNullOrBlank()) {
-      ArticleSourceIdentityIcon(article = article, tint = color)
+      ArticleSourceIdentityIcon(source = article.source, originalUrl = article.originalUrl, tint = color)
       Text(
         article.source!!,
         style = MaterialTheme.typography.labelMedium,
@@ -255,36 +250,6 @@ private fun ArticleMetadata(article: ArticleCard, color: androidx.compose.ui.gra
     if (article.isFavorited) Icon(Icons.Outlined.Star, contentDescription = "已收藏", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
     if (article.isArchived) Icon(Icons.Outlined.Inventory2, contentDescription = "已归档", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
     if (article.isPublished) Icon(Icons.Outlined.Public, contentDescription = "已发布", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.tertiary)
-  }
-}
-
-@Composable
-private fun ArticleSourceIdentityIcon(article: ArticleCard, tint: androidx.compose.ui.graphics.Color) {
-  val identity = remember(article.source, article.originalUrl) { articleSourceIcon(article.source, article.originalUrl) }
-  when (identity.type) {
-    ArticleSourceIconType.Wechat -> Image(
-      painter = painterResource(R.drawable.ic_source_wechat),
-      contentDescription = "微信公众号来源",
-      modifier = Modifier.size(16.dp),
-    )
-    ArticleSourceIconType.Website -> SubcomposeAsyncImage(
-      model = identity.faviconUrl,
-      contentDescription = "网站来源",
-      modifier = Modifier.size(16.dp),
-      loading = {
-        Icon(Icons.Outlined.Public, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
-      },
-      error = {
-        Icon(Icons.Outlined.Public, contentDescription = "网页来源", tint = tint, modifier = Modifier.size(16.dp))
-      },
-      success = { SubcomposeAsyncImageContent() },
-    )
-    ArticleSourceIconType.Globe -> Icon(
-      imageVector = Icons.Outlined.Public,
-      contentDescription = "网页来源",
-      modifier = Modifier.size(16.dp),
-      tint = tint,
-    )
   }
 }
 
