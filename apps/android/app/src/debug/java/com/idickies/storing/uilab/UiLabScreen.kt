@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.AddLink
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Archive
@@ -25,11 +27,14 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AssistChip
@@ -38,6 +43,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -50,6 +56,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -69,10 +76,21 @@ import com.idickies.storing.ui.components.ReaderActionBar
 import com.idickies.storing.reader.ReaderWebView
 import com.idickies.storing.ui.QiankunjieSettingsScreen
 import com.idickies.storing.ui.LoginScreen
+import com.idickies.storing.ui.LibraryMoreMenu
+import com.idickies.storing.ui.LibrarySortMenu
+import com.idickies.storing.ui.LibrarySourceMenu
+import com.idickies.storing.ui.LibraryPresentationModeSelector
 import com.idickies.storing.ui.theme.ThemeMode
+import com.idickies.storing.library.ArchiveSourceFilter
+import com.idickies.storing.library.ArticleListPresentationMode
+import com.idickies.storing.library.LibrarySort
+import com.idickies.storing.library.LibraryView
 import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 import com.idickies.storing.ui.components.QiankunjieArticleCard
+import com.idickies.storing.ui.components.QiankunjieGridArticleCard
 import com.idickies.storing.ui.components.QiankunjieCompactArticleRow
+import com.idickies.storing.ui.components.QiankunjieCompactBottomBar
+import com.idickies.storing.ui.components.CompactBottomBarItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,14 +99,57 @@ internal fun UiLabScreen(
   onClose: () -> Unit,
 ) {
   var scenarioRoute by rememberSaveable { mutableStateOf(initialScenario.route) }
+  var previewMoreExpanded by rememberSaveable { mutableStateOf(false) }
+  var previewThemeMode by rememberSaveable { mutableStateOf(ThemeMode.System) }
   val scenario = UiLabScenario.fromRoute(scenarioRoute)
   Scaffold(
+    floatingActionButton = {
+      if (scenario == UiLabScenario.Library) {
+        FloatingActionButton(
+          onClick = {},
+          containerColor = MaterialTheme.colorScheme.primary,
+          contentColor = MaterialTheme.colorScheme.onPrimary,
+          shape = CircleShape,
+        ) { Icon(Icons.Outlined.Add, contentDescription = "采集", modifier = Modifier.size(32.dp)) }
+      }
+    },
+    bottomBar = {
+      if (scenario == UiLabScenario.Library) {
+        QiankunjieCompactBottomBar {
+          CompactBottomBarItem(label = "收件箱", icon = Icons.Outlined.Inbox, selected = true, badgeCount = 2, onClick = {})
+          CompactBottomBarItem(label = "收藏", icon = Icons.Outlined.FavoriteBorder, selected = false, onClick = {})
+          CompactBottomBarItem(label = "归档", icon = Icons.Outlined.Archive, selected = false, onClick = {})
+          CompactBottomBarItem(label = "发布", icon = Icons.Outlined.Public, selected = false, onClick = {})
+        }
+      }
+    },
     topBar = {
       TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(containerColor = liquidGlassSurfaceColor()),
         title = { Text("乾坤戒 UI Lab") },
         navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Outlined.Close, contentDescription = "关闭 UI Lab") } },
-        actions = { Text(scenario.route, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(end = 16.dp)) },
+        actions = {
+          if (scenario == UiLabScenario.Library) {
+            IconButton(onClick = {}) { Icon(Icons.Outlined.Add, contentDescription = "采集") }
+            IconButton(onClick = {}) { Icon(Icons.Outlined.Search, contentDescription = "搜索") }
+            Box {
+              IconButton(onClick = { previewMoreExpanded = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "更多") }
+              LibraryMoreMenu(
+                expanded = previewMoreExpanded,
+                onDismissRequest = { previewMoreExpanded = false },
+                activeJobCount = 2,
+                themeMode = previewThemeMode,
+                onThemeModeChange = { previewThemeMode = it },
+                onOpenTasks = {},
+                onOpenSettings = {},
+                onCheckUpdate = {},
+                onOpenAbout = {},
+              )
+            }
+          } else {
+            Text(scenario.route, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(end = 16.dp))
+          }
+        },
       )
     },
   ) { padding ->
@@ -120,6 +181,14 @@ internal fun UiLabScreen(
 
 @Composable
 private fun UiLabLibrary() {
+  var sortExpanded by remember { mutableStateOf(false) }
+  var selectedSort by remember { mutableStateOf(LibrarySort.Collected) }
+  var sortOrder by remember { mutableStateOf("desc") }
+  var presentationMode by remember { mutableStateOf(ArticleListPresentationMode.Grid) }
+  var sourceExpanded by remember { mutableStateOf(false) }
+  var selectedSource by remember { mutableStateOf(ArchiveSourceFilter.All) }
+  val sourceOptions = listOf(ArchiveSourceFilter.All, ArchiveSourceFilter.source("少数派"), ArchiveSourceFilter.source("微信公众号"))
+  val sourceCounts = mapOf("少数派" to 8, "微信公众号" to 12)
   LazyColumn(
     modifier = Modifier.fillMaxSize(),
     contentPadding = PaddingValues(16.dp),
@@ -130,16 +199,38 @@ private fun UiLabLibrary() {
     }
     item {
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        AssistChip(
-          onClick = {},
-          label = { Text("最近归档") },
-          leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = null, modifier = Modifier.size(18.dp)) },
-        )
-        AssistChip(
-          onClick = {},
-          label = { Text("微信公众号 · 12") },
-          leadingIcon = { Icon(Icons.Outlined.FilterList, contentDescription = null, modifier = Modifier.size(18.dp)) },
-        )
+        Box {
+          AssistChip(
+            onClick = { sortExpanded = true },
+            label = { Text(selectedSort.label) },
+            leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = null, modifier = Modifier.size(18.dp)) },
+          )
+          LibrarySortMenu(
+            expanded = sortExpanded,
+            onDismissRequest = { sortExpanded = false },
+            view = LibraryView.Inbox,
+            selectedSort = selectedSort,
+            sortOrder = sortOrder,
+            onSelectSort = { selectedSort = it },
+            onSelectSortOrder = { sortOrder = it },
+            onReset = { selectedSort = LibrarySort.Collected; sortOrder = "desc" },
+          )
+        }
+        Box {
+          AssistChip(
+            onClick = { sourceExpanded = true },
+            label = { Text(selectedSource.category?.let { "$it · ${sourceCounts[it] ?: 0}" } ?: "全部来源") },
+            leadingIcon = { Icon(Icons.Outlined.FilterList, contentDescription = null, modifier = Modifier.size(18.dp)) },
+          )
+          LibrarySourceMenu(
+            expanded = sourceExpanded,
+            onDismissRequest = { sourceExpanded = false },
+            options = sourceOptions,
+            selected = selectedSource,
+            sourceCounts = sourceCounts,
+            onSelect = { selectedSource = it },
+          )
+        }
       }
     }
     item {
@@ -148,14 +239,23 @@ private fun UiLabLibrary() {
         Text("来源筛选只在归档的非搜索状态显示。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
       }
     }
+    item {
+      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        LibraryPresentationModeSelector(selected = presentationMode, onSelect = { presentationMode = it })
+      }
+    }
     items(UiLabFixtures.library.take(1)) { article -> QiankunjieArticleCard(article = article, onOpen = {}) }
     item {
       Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("紧凑列表显示", style = MaterialTheme.typography.titleMedium)
-        Text("封面左置，便于快速查找更多文章。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("双列视图", style = MaterialTheme.typography.titleMedium)
+        Text("两列封面卡片，便于快速浏览更多文章。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
       }
     }
-    items(UiLabFixtures.library.drop(1)) { article -> QiankunjieCompactArticleRow(article = article, onOpen = {}) }
+    items((UiLabFixtures.library + UiLabFixtures.library.take(1)).chunked(2)) { row ->
+      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        row.forEach { article -> QiankunjieGridArticleCard(article = article, onOpen = {}, modifier = Modifier.weight(1f)) }
+      }
+    }
   }
 }
 

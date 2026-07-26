@@ -23,7 +23,7 @@ data class AdminUiState(
 
 @HiltViewModel
 class AdminViewModel @Inject constructor(
-  private val api: AdminApi,
+  private val repository: AdminRepository,
 ) : ViewModel() {
   private val mutableState = MutableStateFlow(AdminUiState())
   val state = mutableState.asStateFlow()
@@ -34,11 +34,11 @@ class AdminViewModel @Inject constructor(
     viewModelScope.launch {
       mutableState.update { it.copy(loading = true, error = null, forbidden = false) }
       runCatching {
-        val users = api.users().users
-        val logs = api.auditLogs().logs
-        val mcpClients = api.mcpClients().clients
-        val mcpLogs = api.mcpRequestLogs().logs
-        val mcpLimits = api.mcpDefaultLimits()
+        val users = repository.users()
+        val logs = repository.auditLogs()
+        val mcpClients = repository.mcpClients()
+        val mcpLogs = repository.mcpRequestLogs()
+        val mcpLimits = repository.mcpDefaultLimits()
         mutableState.update { it.copy(loading = false, users = users, auditLogs = logs, mcpClients = mcpClients, mcpLogs = mcpLogs, mcpLimits = mcpLimits) }
       }.onFailure { error ->
         val message = error.message ?: "加载失败"
@@ -52,9 +52,9 @@ class AdminViewModel @Inject constructor(
     if (mutableState.value.submitting) return
     viewModelScope.launch {
       mutableState.update { it.copy(submitting = true, error = null) }
-      runCatching { api.createUser(AdminCreateUserRequest(username = username, password = password, role = role)) }
+      runCatching { repository.createUser(AdminCreateUserRequest(username = username, password = password, role = role)) }
         .onSuccess { response ->
-          mutableState.update { it.copy(submitting = false, users = listOf(response.user) + it.users) }
+          mutableState.update { it.copy(submitting = false, users = listOf(response) + it.users) }
         }
         .onFailure { error -> mutableState.update { it.copy(submitting = false, error = error.message ?: "创建失败") } }
     }
@@ -64,10 +64,10 @@ class AdminViewModel @Inject constructor(
     if (mutableState.value.submitting) return
     viewModelScope.launch {
       mutableState.update { it.copy(submitting = true, error = null) }
-      runCatching { api.updateUser(id, AdminUpdateUserRequest(username = username, role = role, status = status, password = password)) }
+      runCatching { repository.updateUser(id, AdminUpdateUserRequest(username = username, role = role, status = status, password = password)) }
         .onSuccess { response ->
           mutableState.update { state ->
-            state.copy(submitting = false, users = state.users.map { if (it.id == id) response.user else it })
+            state.copy(submitting = false, users = state.users.map { if (it.id == id) response else it })
           }
           load()
         }
@@ -79,7 +79,7 @@ class AdminViewModel @Inject constructor(
     if (mutableState.value.submitting) return
     viewModelScope.launch {
       mutableState.update { it.copy(submitting = true, error = null) }
-      runCatching { api.updateMcpDefaultLimits(AdminMcpUpdateLimitsRequest(perMinute, perDay, concurrent)) }
+      runCatching { repository.updateMcpDefaultLimits(AdminMcpUpdateLimitsRequest(perMinute, perDay, concurrent)) }
         .onSuccess { limits -> mutableState.update { it.copy(submitting = false, mcpLimits = limits) } }
         .onFailure { error -> mutableState.update { it.copy(submitting = false, error = error.message ?: "更新失败") } }
     }

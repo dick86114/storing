@@ -13,6 +13,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -24,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,6 +39,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AddLink
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Brightness4
@@ -42,8 +47,10 @@ import androidx.compose.material.icons.outlined.BrightnessAuto
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Clear
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.CloudOff
@@ -65,6 +72,7 @@ import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material.icons.outlined.ViewModule
 import androidx.compose.material.icons.outlined.VerticalAlignTop
 import androidx.compose.material.icons.outlined.MoreVert
@@ -90,6 +98,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -148,6 +157,7 @@ import com.idickies.storing.library.ArchiveSourceFilter
 import com.idickies.storing.network.MobileCollectJob
 import com.idickies.storing.library.LibraryView
 import com.idickies.storing.library.LibrarySort
+import com.idickies.storing.library.librarySortOrderOptions
 import com.idickies.storing.library.LibraryViewModel
 import com.idickies.storing.library.shouldLoadMore
 import com.idickies.storing.library.canManageArticle
@@ -159,8 +169,313 @@ import com.idickies.storing.reader.ReaderPreferencesViewModel
 import com.idickies.storing.reader.ReaderColorScheme
 import com.idickies.storing.reader.ReaderDocument
 import com.idickies.storing.ui.components.QiankunjieArticleCard
+import com.idickies.storing.ui.components.QiankunjieGridArticleCard
 import com.idickies.storing.ui.components.QiankunjieCompactArticleRow
 import com.idickies.storing.ui.theme.ThemeMode
+
+internal enum class LibraryTopAction { Collect, Search, More }
+
+internal data class LibraryTopBarPresentation(
+  val actions: List<LibraryTopAction>,
+  val themeModes: List<ThemeMode>,
+)
+
+internal data class LibraryTopSearchPresentation(
+  val showsSearchField: Boolean,
+)
+
+internal val libraryTopBarPresentation = LibraryTopBarPresentation(
+  actions = listOf(LibraryTopAction.Collect, LibraryTopAction.Search, LibraryTopAction.More),
+  themeModes = listOf(ThemeMode.System, ThemeMode.Dark, ThemeMode.Light),
+)
+
+internal fun libraryTopSearchPresentation(searchOpen: Boolean) = LibraryTopSearchPresentation(
+  showsSearchField = searchOpen,
+)
+
+@Composable
+internal fun LibrarySortMenu(
+  expanded: Boolean,
+  onDismissRequest: () -> Unit,
+  view: LibraryView,
+  selectedSort: LibrarySort,
+  sortOrder: String,
+  onSelectSort: (LibrarySort) -> Unit,
+  onSelectSortOrder: (String) -> Unit,
+  onReset: () -> Unit,
+) {
+  val defaultSort = LibrarySort.defaultFor(view)
+  val isDefault = selectedSort == defaultSort && sortOrder == "desc"
+  DropdownMenu(
+    expanded = expanded,
+    onDismissRequest = onDismissRequest,
+    modifier = Modifier.width(320.dp),
+    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+    shape = RoundedCornerShape(20.dp),
+  ) {
+    Text(
+      "排序方式",
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.labelLarge,
+      modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+    )
+    LibrarySort.availableFor(view).forEach { sort ->
+      DropdownMenuItem(
+        text = { Text(sort.label, color = if (sort == selectedSort) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface) },
+        onClick = { onSelectSort(sort) },
+        leadingIcon = {
+          Icon(
+            when (sort) {
+              LibrarySort.Collected -> Icons.Outlined.MoveToInbox
+              LibrarySort.Favorited -> Icons.Outlined.FavoriteBorder
+              LibrarySort.Archived -> Icons.Outlined.Archive
+              LibrarySort.Published -> Icons.Outlined.Public
+            },
+            contentDescription = null,
+            tint = if (sort == selectedSort) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        },
+        trailingIcon = {
+          if (sort == selectedSort) {
+            Icon(Icons.Outlined.Check, contentDescription = "当前排序方式", tint = MaterialTheme.colorScheme.primary)
+          }
+        },
+      )
+    }
+    HorizontalDivider(
+      modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+      color = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
+      thickness = 0.5.dp,
+    )
+    Text(
+      "排序顺序",
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.labelLarge,
+      modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+    )
+    Surface(
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+      color = MaterialTheme.colorScheme.surface.copy(alpha = 0.38f),
+      shape = RoundedCornerShape(14.dp),
+      border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)),
+    ) {
+      Row(modifier = Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        librarySortOrderOptions.forEach { option ->
+          val selected = option.value == sortOrder
+          TextButton(
+            onClick = { onSelectSortOrder(option.value) },
+            modifier = Modifier.weight(1f),
+            colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+              containerColor = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+              contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
+          ) {
+            Icon(
+              if (option.value == "desc") Icons.Outlined.ArrowDownward else Icons.Outlined.ArrowUpward,
+              contentDescription = null,
+              modifier = Modifier.size(16.dp),
+            )
+            Text(option.label, maxLines = 1, modifier = Modifier.padding(start = 4.dp))
+          }
+        }
+      }
+    }
+    HorizontalDivider(
+      modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+      color = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
+      thickness = 0.5.dp,
+    )
+    TextButton(
+      onClick = onReset,
+      enabled = !isDefault,
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+    ) {
+      Text("重置默认")
+    }
+  }
+}
+
+@Composable
+internal fun LibraryPresentationModeSelector(
+  selected: ArticleListPresentationMode,
+  onSelect: (ArticleListPresentationMode) -> Unit,
+) {
+  Surface(
+    color = Color.Transparent,
+    shape = RoundedCornerShape(16.dp),
+    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.72f)),
+  ) {
+    Row(modifier = Modifier.padding(2.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+      listOf(
+        ArticleListPresentationMode.CompactList to Icons.AutoMirrored.Outlined.ViewList,
+        ArticleListPresentationMode.Grid to Icons.Outlined.ViewModule,
+        ArticleListPresentationMode.Card to Icons.Outlined.ViewAgenda,
+      ).forEach { (mode, icon) ->
+        val isSelected = mode == selected
+        Box(
+          modifier = Modifier
+            .size(42.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent),
+          contentAlignment = Alignment.Center,
+        ) {
+          IconButton(onClick = { onSelect(mode) }) {
+            Icon(
+              icon,
+              contentDescription = mode.label,
+              tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+              modifier = Modifier.size(22.dp),
+            )
+          }
+        }
+      }
+    }
+  }
+}
+
+@Composable
+internal fun LibrarySourceMenu(
+  expanded: Boolean,
+  onDismissRequest: () -> Unit,
+  options: List<ArchiveSourceFilter>,
+  selected: ArchiveSourceFilter,
+  sourceCounts: Map<String, Int>,
+  onSelect: (ArchiveSourceFilter) -> Unit,
+) {
+  DropdownMenu(
+    expanded = expanded,
+    onDismissRequest = onDismissRequest,
+    modifier = Modifier.width(320.dp),
+    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+    shape = RoundedCornerShape(20.dp),
+  ) {
+    Text(
+      "文章来源",
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.labelLarge,
+      modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+    )
+    options.forEach { filter ->
+      val selectedFilter = filter == selected
+      val count = filter.category?.let(sourceCounts::get)
+      DropdownMenuItem(
+        text = {
+          Text(
+            if (count == null) filter.label else "${filter.label} · $count",
+            color = if (selectedFilter) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+          )
+        },
+        onClick = { onSelect(filter); onDismissRequest() },
+        leadingIcon = {
+          Icon(
+            Icons.Outlined.FilterList,
+            contentDescription = null,
+            tint = if (selectedFilter) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        },
+        trailingIcon = {
+          if (selectedFilter) {
+            Icon(Icons.Outlined.Check, contentDescription = "当前来源筛选", tint = MaterialTheme.colorScheme.primary)
+          }
+        },
+      )
+    }
+    HorizontalDivider(
+      modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+      color = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
+      thickness = 0.5.dp,
+    )
+    TextButton(
+      onClick = { onSelect(ArchiveSourceFilter.All); onDismissRequest() },
+      enabled = selected != ArchiveSourceFilter.All,
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+    ) {
+      Text("重置默认")
+    }
+  }
+}
+
+@Composable
+internal fun LibraryMoreMenu(
+  expanded: Boolean,
+  onDismissRequest: () -> Unit,
+  activeJobCount: Int,
+  themeMode: ThemeMode,
+  onThemeModeChange: (ThemeMode) -> Unit,
+  onOpenTasks: () -> Unit,
+  onOpenSettings: () -> Unit,
+  onCheckUpdate: () -> Unit,
+  onOpenAbout: () -> Unit,
+) {
+  DropdownMenu(
+    expanded = expanded,
+    onDismissRequest = onDismissRequest,
+    modifier = Modifier.width(320.dp),
+    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+    shape = RoundedCornerShape(20.dp),
+  ) {
+    DropdownMenuItem(
+      text = { Text("采集任务", style = MaterialTheme.typography.titleMedium) },
+      onClick = { onDismissRequest(); onOpenTasks() },
+      leadingIcon = { Icon(Icons.Outlined.TaskAlt, contentDescription = null) },
+      trailingIcon = { if (activeJobCount > 0) Badge { Text(activeJobCount.toString()) } },
+    )
+    HorizontalDivider(
+      modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+      color = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
+      thickness = 0.5.dp,
+    )
+    Row(
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      libraryTopBarPresentation.themeModes.forEach { mode ->
+        val selected = mode == themeMode
+        Box(
+          modifier = Modifier
+            .size(48.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent),
+          contentAlignment = Alignment.Center,
+        ) {
+          IconButton(onClick = { onThemeModeChange(mode); onDismissRequest() }) {
+            Icon(
+              when (mode) {
+                ThemeMode.System -> Icons.Outlined.BrightnessAuto
+                ThemeMode.Dark -> Icons.Outlined.DarkMode
+                ThemeMode.Light -> Icons.Outlined.LightMode
+              },
+              contentDescription = mode.label,
+              tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
+        }
+      }
+    }
+    HorizontalDivider(
+      modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+      color = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
+      thickness = 0.5.dp,
+    )
+    DropdownMenuItem(
+      text = { Text("系统设置") },
+      onClick = { onDismissRequest(); onOpenSettings() },
+      leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
+    )
+    DropdownMenuItem(
+      text = { Text("检查更新") },
+      onClick = { onDismissRequest(); onCheckUpdate() },
+      leadingIcon = { Icon(Icons.Outlined.Sync, contentDescription = null) },
+      trailingIcon = { Text("v${BuildConfig.VERSION_NAME}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium) },
+    )
+    DropdownMenuItem(
+      text = { Text("关于") },
+      onClick = { onDismissRequest(); onOpenAbout() },
+      leadingIcon = { Icon(Icons.Outlined.Info, contentDescription = null) },
+    )
+  }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -184,6 +499,8 @@ fun LibraryScreen(
   biometricAvailable: Boolean,
   biometricEnabled: Boolean,
   onBiometricEnabledChange: (Boolean) -> Unit,
+  floatingCollectEnabled: Boolean = true,
+  onFloatingCollectEnabledChange: (Boolean) -> Unit = {},
   readerColorScheme: ReaderColorScheme,
   onRequestLogin: () -> Unit,
   onLogout: () -> Unit,
@@ -209,6 +526,8 @@ fun LibraryScreen(
   var showSettings by remember { mutableStateOf(false) }
   var showAbout by remember { mutableStateOf(false) }
   var moreExpanded by remember { mutableStateOf(false) }
+  var topSearchOpen by rememberSaveable { mutableStateOf(false) }
+  var topSearchQuery by rememberSaveable { mutableStateOf("") }
   var presentationMode by rememberSaveable { mutableStateOf(ArticleListPresentationMode.default) }
   val libraryListState = rememberLazyListState()
   var longPressedArticle by remember { mutableStateOf<com.idickies.storing.library.ArticleCard?>(null) }
@@ -311,6 +630,8 @@ fun LibraryScreen(
       biometricAvailable = biometricAvailable,
       biometricEnabled = biometricEnabled,
       onBiometricEnabledChange = onBiometricEnabledChange,
+      floatingCollectEnabled = floatingCollectEnabled,
+      onFloatingCollectEnabledChange = onFloatingCollectEnabledChange,
       onOpenDeviceSessions = { showSettings = false; showDeviceSessions = true },
       onLogout = { showSettings = false; onLogout() },
       onBack = { showSettings = false },
@@ -344,28 +665,51 @@ fun LibraryScreen(
         TopAppBar(
           colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
           title = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-              Image(
-                painter = painterResource(R.drawable.brand_logo),
-                contentDescription = null,
-                modifier = Modifier.size(26.dp),
+            if (libraryTopSearchPresentation(topSearchOpen).showsSearchField) {
+              OutlinedTextField(
+                value = topSearchQuery,
+                onValueChange = { value ->
+                  topSearchQuery = value
+                  libraryViewModel.search(value)
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                placeholder = { Text("搜索标题、来源、摘要或标签") },
+                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                trailingIcon = {
+                  IconButton(onClick = {
+                    topSearchQuery = ""
+                    topSearchOpen = false
+                    libraryViewModel.search("")
+                  }) {
+                    Icon(Icons.Outlined.Close, contentDescription = "关闭搜索")
+                  }
+                },
+                singleLine = true,
               )
-              Column {
-                Text("乾坤戒", style = MaterialTheme.typography.titleLarge)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                  Text(if (state.searchQuery.isBlank()) state.view.label else "搜索结果", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                  if (state.searchQuery.isBlank()) {
-                    val total = state.counts?.let { c ->
-                      when (state.view) {
-                        LibraryView.Inbox -> c.inbox
-                        LibraryView.Favorites -> c.favorites
-                        LibraryView.Archive -> c.archive
-                        LibraryView.Published -> c.published
+            } else {
+              Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Image(
+                  painter = painterResource(R.drawable.brand_logo),
+                  contentDescription = null,
+                  modifier = Modifier.size(26.dp),
+                )
+                Column {
+                  Text("乾坤戒", style = MaterialTheme.typography.titleLarge)
+                  Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(if (state.searchQuery.isBlank()) state.view.label else "搜索结果", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (state.searchQuery.isBlank()) {
+                      val total = state.counts?.let { c ->
+                        when (state.view) {
+                          LibraryView.Inbox -> c.inbox
+                          LibraryView.Favorites -> c.favorites
+                          LibraryView.Archive -> c.archive
+                          LibraryView.Published -> c.published
+                        }
+                      } ?: 0
+                      if (total > 0) {
+                        Text("·", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("$total", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                       }
-                    } ?: 0
-                    if (total > 0) {
-                      Text("·", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                      Text("$total", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     }
                   }
                 }
@@ -373,79 +717,55 @@ fun LibraryScreen(
             }
           },
           actions = {
-            if (isAuthenticated) {
-              IconButton(onClick = { showManualCollect = true }) {
-                Icon(Icons.Outlined.AddLink, contentDescription = "手动采集链接")
-              }
-              Box {
-                IconButton(onClick = { moreExpanded = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "更多") }
-                DropdownMenu(expanded = moreExpanded, onDismissRequest = { moreExpanded = false }, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.medium) {
-                  DropdownMenuItem(
-                    text = { Text("采集任务") },
-                    onClick = { moreExpanded = false; showTasks = true },
-                    leadingIcon = {
-                      BadgedBox(badge = { if (jobsState.activeJobCount > 0) Badge { Text(jobsState.activeJobCount.toString()) } }) {
-                        Icon(Icons.Outlined.TaskAlt, contentDescription = null)
-                      }
-                    },
-                  )
-                  Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                  ) {
-                    Row(
-                      horizontalArrangement = Arrangement.spacedBy(8.dp),
-                      verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                      Icon(Icons.Outlined.Brightness4, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                      Text("显示模式", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                      ThemeMode.entries.forEach { mode ->
-                        IconButton(
-                          onClick = { onThemeModeChange(mode) },
-                          modifier = Modifier.size(32.dp),
-                        ) {
-                          Icon(
-                            when (mode) {
-                              ThemeMode.System -> Icons.Outlined.BrightnessAuto
-                              ThemeMode.Light -> Icons.Outlined.LightMode
-                              ThemeMode.Dark -> Icons.Outlined.DarkMode
-                            },
-                            contentDescription = mode.label,
-                            tint = if (mode == themeMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp),
-                          )
-                        }
-                      }
-                    }
+            if (isAuthenticated && !topSearchOpen) {
+              libraryTopBarPresentation.actions.forEach { action ->
+                when (action) {
+                  LibraryTopAction.Collect -> IconButton(onClick = { showManualCollect = true }) {
+                    Icon(Icons.Outlined.Add, contentDescription = "采集网页链接")
                   }
-                  HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), thickness = 0.5.dp)
-                  DropdownMenuItem(
-                    text = { Text("设置") },
-                    onClick = { moreExpanded = false; showSettings = true },
-                    leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
-                  )
-                  DropdownMenuItem(
-                    text = { Text("检查更新") },
-                    onClick = { moreExpanded = false; onManualUpdateCheck() },
-                    leadingIcon = { Icon(Icons.Outlined.Sync, contentDescription = null) },
-                  )
-                  DropdownMenuItem(
-                    text = { Text("关于") },
-                    onClick = { moreExpanded = false; showAbout = true },
-                    leadingIcon = { Icon(Icons.Outlined.Info, contentDescription = null) },
-                  )
+                  LibraryTopAction.Search -> IconButton(onClick = {
+                    topSearchQuery = state.searchQuery
+                    topSearchOpen = true
+                  }) {
+                    Icon(Icons.Outlined.Search, contentDescription = "搜索")
+                  }
+                  LibraryTopAction.More -> Box {
+                    IconButton(onClick = { moreExpanded = true }) {
+                      Icon(Icons.Outlined.MoreVert, contentDescription = "更多")
+                    }
+                    LibraryMoreMenu(
+                      expanded = moreExpanded,
+                      onDismissRequest = { moreExpanded = false },
+                      activeJobCount = jobsState.activeJobCount,
+                      themeMode = themeMode,
+                      onThemeModeChange = onThemeModeChange,
+                      onOpenTasks = { showTasks = true },
+                      onOpenSettings = { showSettings = true },
+                      onCheckUpdate = onManualUpdateCheck,
+                      onOpenAbout = { showAbout = true },
+                    )
+                  }
                 }
               }
-            } else {
+            } else if (!isAuthenticated) {
               IconButton(onClick = onRequestLogin) {
                 Icon(Icons.Outlined.Person, contentDescription = "登录")
               }
             }
           },
         )
+      },
+      floatingActionButton = {
+        if (shouldShowFloatingCollectButton(isAuthenticated, floatingCollectEnabled)) {
+          FloatingActionButton(
+            onClick = { showManualCollect = true },
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            shape = CircleShape,
+          ) {
+            Icon(Icons.Outlined.Add, contentDescription = "采集网页链接", modifier = Modifier.size(32.dp))
+          }
+        }
       },
       bottomBar = {
         if (isAuthenticated) {
@@ -504,9 +824,9 @@ fun LibraryScreen(
         collectMessage = collectState.message,
         activeJobCount = jobsState.activeJobCount,
         onOpenTasks = { showTasks = true },
-        onSearch = libraryViewModel::search,
         onSort = libraryViewModel::selectSort,
         onToggleSortOrder = libraryViewModel::toggleSortOrder,
+        onResetSort = libraryViewModel::resetSort,
         sortOrder = state.sortOrder,
         presentationMode = presentationMode,
         onPresentationModeChange = { presentationMode = it },
@@ -848,9 +1168,9 @@ private fun LibraryList(
   collectMessage: String?,
   activeJobCount: Int,
   onOpenTasks: () -> Unit,
-  onSearch: (String) -> Unit,
   onSort: (LibrarySort) -> Unit,
   onToggleSortOrder: () -> Unit,
+  onResetSort: () -> Unit,
   sortOrder: String,
   presentationMode: ArticleListPresentationMode,
   onPresentationModeChange: (ArticleListPresentationMode) -> Unit,
@@ -864,7 +1184,6 @@ private fun LibraryList(
   listState: LazyListState,
   modifier: Modifier = Modifier,
 ) {
-  var query by remember(state.searchQuery) { mutableStateOf(state.searchQuery) }
   val lastVisibleItemIndex by remember { derivedStateOf { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 } }
   LaunchedEffect(lastVisibleItemIndex, state.articles.size, state.hasMore, state.loadingMore, state.fromCache) {
     if (!state.loadingMore && !state.fromCache && shouldLoadMore(lastVisibleItemIndex, listState.layoutInfo.totalItemsCount, state.hasMore)) onLoadMore()
@@ -895,28 +1214,23 @@ private fun LibraryList(
             Box {
               AssistChip(
                 onClick = { sortExpanded = true },
-                label = { Text(state.sort.label) },
-                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = "排序方式", modifier = Modifier.size(16.dp)) },
+                label = {
+                  Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(state.sort.label)
+                    Icon(Icons.Outlined.ArrowDownward, contentDescription = if (sortOrder == "desc") "当前降序" else "降序", modifier = Modifier.size(14.dp))
+                    Icon(Icons.Outlined.ArrowUpward, contentDescription = if (sortOrder == "asc") "当前升序" else "升序", modifier = Modifier.size(14.dp))
+                  }
+                },
               )
-              DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.medium) {
-                LibrarySort.availableFor(state.view).forEach { sort ->
-                  DropdownMenuItem(
-                    text = { Text(sort.label) },
-                    leadingIcon = { if (sort == state.sort) Icon(Icons.Outlined.CheckCircle, contentDescription = null) },
-                    onClick = { sortExpanded = false; onSort(sort) },
-                  )
-                }
-              }
-            }
-            androidx.compose.material3.IconButton(
-              onClick = onToggleSortOrder,
-              modifier = Modifier.size(36.dp),
-            ) {
-              Icon(
-                if (sortOrder == "desc") Icons.Outlined.ArrowDownward else Icons.Outlined.ArrowUpward,
-                contentDescription = if (sortOrder == "desc") "降序" else "升序",
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.primary,
+              LibrarySortMenu(
+                expanded = sortExpanded,
+                onDismissRequest = { sortExpanded = false },
+                view = state.view,
+                selectedSort = state.sort,
+                sortOrder = sortOrder,
+                onSelectSort = onSort,
+                onSelectSortOrder = { order -> if (order != sortOrder) onToggleSortOrder() },
+                onReset = onResetSort,
               )
             }
           }
@@ -927,49 +1241,22 @@ private fun LibraryList(
                 label = { Text(if (state.archiveSourcesLoading) "来源" else state.archiveSource.label) },
                 leadingIcon = { Icon(Icons.Outlined.FilterList, contentDescription = "归档来源", modifier = Modifier.size(16.dp)) },
               )
-              DropdownMenu(expanded = sourceExpanded, onDismissRequest = { sourceExpanded = false }, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.medium) {
-                sourceOptions.forEach { filter ->
-                  val count = filter.category?.let(sourceCounts::get)
-                  DropdownMenuItem(
-                    text = { Text(if (count == null) filter.label else "${filter.label} · $count") },
-                    leadingIcon = { if (filter == state.archiveSource) Icon(Icons.Outlined.CheckCircle, contentDescription = null) },
-                    onClick = { sourceExpanded = false; onArchiveSource(filter) },
-                  )
-                }
-              }
+              LibrarySourceMenu(
+                expanded = sourceExpanded,
+                onDismissRequest = { sourceExpanded = false },
+                options = sourceOptions,
+                selected = state.archiveSource,
+                sourceCounts = sourceCounts,
+                onSelect = onArchiveSource,
+              )
             }
           }
-          AssistChip(
-            onClick = {
-              onPresentationModeChange(
-                if (presentationMode == ArticleListPresentationMode.Card) ArticleListPresentationMode.CompactList else ArticleListPresentationMode.Card,
-              )
-            },
-            label = { Text(presentationMode.label) },
-            leadingIcon = {
-              Icon(
-                if (presentationMode == ArticleListPresentationMode.Card) Icons.Outlined.ViewModule else Icons.AutoMirrored.Outlined.ViewList,
-                contentDescription = "切换文章显示方式",
-                modifier = Modifier.size(16.dp),
-              )
-            },
+          LibraryPresentationModeSelector(
+            selected = presentationMode,
+            onSelect = onPresentationModeChange,
           )
         }
       }
-    }
-    if (state.view != LibraryView.Published) item {
-      OutlinedTextField(
-        value = query,
-        onValueChange = { query = it; onSearch(it) },
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text("搜索标题、来源、摘要或标签") },
-        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = "搜索") },
-        trailingIcon = if (query.isNotBlank()) {
-          { IconButton(onClick = { query = ""; onSearch("") }) { Icon(Icons.Outlined.Clear, contentDescription = "清空搜索") } }
-        } else null,
-        shape = MaterialTheme.shapes.medium,
-        singleLine = true,
-      )
     }
     if (activeJobCount > 0) item {
       ActiveCollectJobsCard(
@@ -993,13 +1280,27 @@ private fun LibraryList(
     }
     if (state.error != null) item { ErrorPage(state.error, onRefresh) }
     if (!state.loading && !state.searchPending && state.error == null && state.articles.isEmpty()) item { LibraryEmptyState(view = state.view, isSearchResult = state.searchQuery.isNotBlank()) }
-    items(state.articles, key = { it.id }) { article ->
-      Column {
-        when (presentationMode) {
-          ArticleListPresentationMode.Card -> QiankunjieArticleCard(article, onOpen, onLongPress)
-          ArticleListPresentationMode.CompactList -> QiankunjieCompactArticleRow(article, onOpen, onLongPress)
+    when (presentationMode) {
+      ArticleListPresentationMode.Grid -> {
+        items(state.articles.chunked(2), key = { row -> row.first().id }) { row ->
+          Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            row.forEach { article ->
+              QiankunjieGridArticleCard(article, onOpen, onLongPress, modifier = Modifier.weight(1f))
+            }
+            if (row.size == 1) Spacer(Modifier.weight(1f))
+          }
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), thickness = 0.5.dp)
+      }
+      ArticleListPresentationMode.Card,
+      ArticleListPresentationMode.CompactList -> items(state.articles, key = { it.id }) { article ->
+        Column {
+          when (presentationMode) {
+            ArticleListPresentationMode.Card -> QiankunjieArticleCard(article, onOpen, onLongPress)
+            ArticleListPresentationMode.CompactList -> QiankunjieCompactArticleRow(article, onOpen, onLongPress)
+            ArticleListPresentationMode.Grid -> Unit
+          }
+          HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), thickness = 0.5.dp)
+        }
       }
     }
       if (state.articles.isNotEmpty() && !state.fromCache) item {
@@ -1095,6 +1396,8 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
   var confirmPublication by remember { mutableStateOf<PublicationAction?>(null) }
   var confirmProcessing by remember { mutableStateOf<ArticleProcessingAction?>(null) }
   var moreExpanded by remember { mutableStateOf(false) }
+  var topSearchOpen by rememberSaveable { mutableStateOf(false) }
+  var topSearchQuery by rememberSaveable { mutableStateOf("") }
   BackHandler(onBack = onBack)
   val publicUrl = article.publicId?.let { "https://storing.idickies.com/p/$it" }
 

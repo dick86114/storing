@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.LockReset
@@ -73,6 +74,8 @@ fun QiankunjieSettingsScreen(
   biometricAvailable: Boolean = false,
   biometricEnabled: Boolean = false,
   onBiometricEnabledChange: (Boolean) -> Unit = {},
+  floatingCollectEnabled: Boolean = true,
+  onFloatingCollectEnabledChange: (Boolean) -> Unit = {},
   onOpenDeviceSessions: () -> Unit,
   onLogout: () -> Unit,
   onBack: () -> Unit,
@@ -127,6 +130,22 @@ fun QiankunjieSettingsScreen(
                 )
               }
             }
+          }
+        }
+      }
+      item {
+        Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+          Row(
+            modifier = Modifier.padding(horizontal = 15.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Icon(Icons.Outlined.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+              Text("右下角采集按钮", style = MaterialTheme.typography.titleSmall)
+              Text("在资料库中显示快速采集入口", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Switch(checked = floatingCollectEnabled, onCheckedChange = onFloatingCollectEnabledChange)
           }
         }
       }

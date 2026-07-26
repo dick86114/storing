@@ -5,24 +5,24 @@ import org.junit.Test
 
 class LiquidGlassTokensTest {
   @Test
-  fun `light glass is mostly opaque with a clear hairline border`() {
+  fun `light card chrome is opaque with a restrained border token`() {
     assertEquals(
       LiquidGlassTokens(
-        surfaceAlpha = 0.80f,
-        borderAlpha = 0.22f,
-        highlightAlpha = 0.12f,
+        surfaceAlpha = 1f,
+        borderAlpha = 0.4f,
+        highlightAlpha = 0f,
       ),
       liquidGlassTokens(isDark = false),
     )
   }
 
   @Test
-  fun `nord dark glass remains cool and sufficiently solid for readable controls`() {
+  fun `dark card chrome uses the same opaque book-theme tokens`() {
     assertEquals(
       LiquidGlassTokens(
-        surfaceAlpha = 0.72f,
-        borderAlpha = 0.30f,
-        highlightAlpha = 0.15f,
+        surfaceAlpha = 1f,
+        borderAlpha = 0.4f,
+        highlightAlpha = 0f,
       ),
       liquidGlassTokens(isDark = true),
     )

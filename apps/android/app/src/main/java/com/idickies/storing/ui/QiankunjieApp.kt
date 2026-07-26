@@ -94,6 +94,7 @@ fun QiankunjieApp(
   updateViewModel: UpdateViewModel = hiltViewModel(),
   appearanceViewModel: AppearanceViewModel = hiltViewModel(),
   securityViewModel: SecurityViewModel = hiltViewModel(),
+  floatingCollectViewModel: FloatingCollectViewModel = hiltViewModel(),
 ) {
   val state by authViewModel.state.collectAsState()
   val updateState by updateViewModel.state.collectAsState()
@@ -102,6 +103,7 @@ fun QiankunjieApp(
   val user = state.user
   val biometricEnabled by securityViewModel.biometricEnabled.collectAsState()
   val biometricLocked by securityViewModel.locked.collectAsState()
+  val floatingCollectEnabled by floatingCollectViewModel.enabled.collectAsState()
   val lifecycleOwner = LocalLifecycleOwner.current
   val context = LocalContext.current
   DisposableEffect(lifecycleOwner) {
@@ -162,6 +164,8 @@ fun QiankunjieApp(
       biometricAvailable = BiometricManager.canAuthenticate(context),
       biometricEnabled = biometricEnabled,
       onBiometricEnabledChange = securityViewModel::setBiometricEnabled,
+      floatingCollectEnabled = floatingCollectEnabled,
+      onFloatingCollectEnabledChange = floatingCollectViewModel::setEnabled,
       readerColorScheme = if (themeMode.resolve(systemDark)) ReaderColorScheme.Dark else ReaderColorScheme.Light,
       onRequestLogin = { showLogin = true },
       onLogout = authViewModel::logout,
@@ -347,6 +351,8 @@ private fun HomeSkeleton(
   biometricAvailable: Boolean,
   biometricEnabled: Boolean,
   onBiometricEnabledChange: (Boolean) -> Unit,
+  floatingCollectEnabled: Boolean,
+  onFloatingCollectEnabledChange: (Boolean) -> Unit,
   readerColorScheme: ReaderColorScheme,
   onRequestLogin: () -> Unit,
   onLogout: () -> Unit,
@@ -374,6 +380,8 @@ private fun HomeSkeleton(
     biometricAvailable = biometricAvailable,
     biometricEnabled = biometricEnabled,
     onBiometricEnabledChange = onBiometricEnabledChange,
+    floatingCollectEnabled = floatingCollectEnabled,
+    onFloatingCollectEnabledChange = onFloatingCollectEnabledChange,
     readerColorScheme = readerColorScheme,
     onRequestLogin = onRequestLogin,
     onLogout = onLogout,

@@ -5,9 +5,10 @@ import org.junit.Test
 
 class ArticleListPresentationModeTest {
   @Test
-  fun `card remains the default while compact list is the dense alternative`() {
+  fun `library exposes compact list grid and full card presentations`() {
     assertEquals(ArticleListPresentationMode.Card, ArticleListPresentationMode.default)
-    assertEquals("卡片", ArticleListPresentationMode.Card.label)
     assertEquals("列表", ArticleListPresentationMode.CompactList.label)
+    assertEquals("双列", ArticleListPresentationMode.Grid.label)
+    assertEquals("卡片", ArticleListPresentationMode.Card.label)
   }
 }

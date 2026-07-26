@@ -158,6 +158,24 @@ class LibraryViewModel @Inject constructor(
     loadInitial()
   }
 
+  fun resetSort() {
+    val snapshot = mutableState.value
+    val defaultSort = LibrarySort.defaultFor(snapshot.view)
+    if (snapshot.searchQuery.isNotBlank() || (snapshot.sort == defaultSort && snapshot.sortOrder == "desc")) return
+    mutableState.update {
+      it.copy(
+        sort = defaultSort,
+        sortOrder = "desc",
+        articles = emptyList(),
+        page = 1,
+        totalPages = 0,
+        fromCache = false,
+        loadMoreError = null,
+      )
+    }
+    loadInitial()
+  }
+
   fun selectSort(sort: LibrarySort) {
     val snapshot = mutableState.value
     if (snapshot.searchQuery.isNotBlank() || sort !in LibrarySort.availableFor(snapshot.view) || sort == snapshot.sort) return

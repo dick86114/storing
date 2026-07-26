@@ -25,3 +25,13 @@ enum class LibrarySort(
     }
   }
 }
+
+data class LibrarySortOrderOption(
+  val value: String,
+  val label: String,
+)
+
+val librarySortOrderOptions = listOf(
+  LibrarySortOrderOption(value = "desc", label = "降序 最新在前"),
+  LibrarySortOrderOption(value = "asc", label = "升序 最早在前"),
+)

@@ -15,8 +15,8 @@ class LibrarySortTest {
   }
 
   @Test
-  fun `library opens on the public publication view by default`() {
-    assertEquals(LibraryView.Published, LibraryUiState().view)
+  fun `library opens on the personal inbox by default`() {
+    assertEquals(LibraryView.Inbox, LibraryUiState().view)
   }
 
   @Test
@@ -25,5 +25,18 @@ class LibrarySortTest {
     assertFalse(LibrarySort.availableFor(LibraryView.Inbox).contains(LibrarySort.Favorited))
     assertTrue(LibrarySort.availableFor(LibraryView.Favorites).contains(LibrarySort.Favorited))
     assertTrue(LibrarySort.availableFor(LibraryView.Archive).contains(LibrarySort.Archived))
+  }
+}
+
+class LibrarySortMenuPresentationTest {
+  @Test
+  fun `sort menu presents descending first and ascending second`() {
+    assertEquals(
+      listOf(
+        LibrarySortOrderOption(value = "desc", label = "降序 最新在前"),
+        LibrarySortOrderOption(value = "asc", label = "升序 最早在前"),
+      ),
+      librarySortOrderOptions,
+    )
   }
 }

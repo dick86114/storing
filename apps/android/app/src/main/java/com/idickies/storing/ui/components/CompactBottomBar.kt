@@ -8,18 +8,15 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
@@ -45,11 +42,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/* 对齐设计稿：底部导航栏
-   - 高度 64dp，纯色底 + 顶部 0.5dp 分隔线
-   - icon 20dp + label 10sp
-   - 选中态：浅色=深绿(secondary)，深色=金色(primary) + 下方横条指示器
-   - badge：金色小圆点，带脉冲动画 */
+/* 底部导航：圆角承托式导航栏，较大的图标、紧凑标签和清晰 badge。 */
 
 data class CompactBottomBarMetrics(
   val actionHeight: androidx.compose.ui.unit.Dp,
@@ -59,36 +52,40 @@ data class CompactBottomBarMetrics(
 }
 
 val compactBottomBarMetrics = CompactBottomBarMetrics(
-  actionHeight = 64.dp,
+  actionHeight = 68.dp,
   verticalInset = 0.dp,
 )
 
 @Composable
-private fun navSelectedColor(): Color =
-  if (isSystemInDarkTheme()) MaterialTheme.colorScheme.primary
-  else MaterialTheme.colorScheme.secondary
+private fun navSelectedColor(): Color = MaterialTheme.colorScheme.primary
 
 @Composable
 fun QiankunjieCompactBottomBar(
   modifier: Modifier = Modifier,
   content: @Composable () -> Unit,
 ) {
-  Column(
-    modifier = modifier
-      .fillMaxWidth()
-      .background(MaterialTheme.colorScheme.surfaceVariant),
+  Surface(
+    modifier = modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
+    color = MaterialTheme.colorScheme.surfaceVariant,
+    contentColor = MaterialTheme.colorScheme.onSurface,
+    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.56f)),
+    tonalElevation = 0.dp,
+    shadowElevation = 10.dp,
   ) {
-    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .windowInsetsPadding(WindowInsets.navigationBars)
-        .padding(horizontal = 4.dp)
-        .height(compactBottomBarMetrics.actionHeight),
-      horizontalArrangement = Arrangement.SpaceEvenly,
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      content()
+    Column {
+      HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.42f))
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .windowInsetsPadding(WindowInsets.navigationBars)
+          .padding(horizontal = 12.dp)
+          .height(compactBottomBarMetrics.actionHeight),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        content()
+      }
     }
   }
 }
@@ -118,16 +115,16 @@ fun CompactBottomBarItem(
         role = Role.Tab,
         onClick = onClick,
       )
-      .padding(horizontal = 8.dp),
+      .padding(horizontal = 10.dp, vertical = 6.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.spacedBy(2.dp),
+    verticalArrangement = Arrangement.spacedBy(4.dp),
   ) {
     // Icon + Badge
     Box(contentAlignment = Alignment.TopEnd) {
       Icon(
         imageVector = icon,
         contentDescription = label,
-        modifier = Modifier.size(20.dp),
+        modifier = Modifier.size(25.dp),
         tint = contentColor,
       )
       if (badgeCount != null && badgeCount > 0) {
@@ -143,13 +140,13 @@ fun CompactBottomBarItem(
           contentColor = MaterialTheme.colorScheme.onPrimary,
           shape = CircleShape,
           modifier = Modifier
-            .offset(x = 6.dp, y = (-4).dp)
-            .size(16.dp)
+            .offset(x = 7.dp, y = (-5).dp)
+            .size(18.dp)
             .alpha(pulseAlpha),
         ) {
           Text(
             if (badgeCount > 99) "99+" else badgeCount.toString(),
-            fontSize = 9.sp,
+            fontSize = 10.sp,
             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
             modifier = Modifier.wrapContentSize(Alignment.Center),
           )
@@ -159,19 +156,9 @@ fun CompactBottomBarItem(
     // Label
     Text(
       label,
-      fontSize = 10.sp,
-      fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.Medium else androidx.compose.ui.text.font.FontWeight.Normal,
+      fontSize = 12.sp,
+      fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Normal,
       color = contentColor,
     )
-    // 指示器横条：仅亮色模式显示（暗色靠颜色区分）
-    if (!isSystemInDarkTheme() && selected) {
-      Spacer(Modifier.height(1.dp))
-      Box(
-        modifier = Modifier
-          .width(16.dp)
-          .height(2.dp)
-          .background(selectedColor, CircleShape),
-      )
-    }
   }
 }

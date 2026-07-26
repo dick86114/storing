@@ -86,15 +86,6 @@ $darkTheme
 
   /** 根据文章详情构建头部 HTML，注入到 WebView 正文前 */
   fun buildArticleHeader(article: ArticleDetail, colorScheme: ReaderColorScheme, isOfflineAvailable: Boolean): String {
-    val isWechat = article.originalUrl?.contains("mp.weixin.qq.com") == true
-    val sourceTagClass = if (isWechat) "qj-source-wechat" else "qj-source-web"
-    val sourceTagText = if (isWechat) "微信公众号" else "网页文章"
-    val sourceTagIcon = if (isWechat) {
-      """<svg class="qj-source-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>"""
-    } else {
-      """<svg class="qj-source-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>"""
-    }
-
     val title = escapeHtml(article.displayTitle)
 
     val metaParts = buildList {
@@ -130,7 +121,6 @@ $darkTheme
 
     return """
 <div class="qj-header">
-  <span class="qj-source-tag $sourceTagClass">$sourceTagIcon$sourceTagText</span>
   <h1 class="qj-title">$title</h1>
   $metaHtml
   $summaryHtml
