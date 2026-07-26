@@ -6,9 +6,9 @@ import org.junit.Test
 
 class CompactBottomBarMetricsTest {
   @Test
-  fun `compact bottom bar stays below the old material navigation height while retaining a 56 dp action target`() {
-    assertEquals(56.dp, compactBottomBarMetrics.actionHeight)
+  fun `compact bottom bar uses the approved 68 dp action target without additional vertical inset`() {
+    assertEquals(68.dp, compactBottomBarMetrics.actionHeight)
     assertEquals(0.dp, compactBottomBarMetrics.verticalInset)
-    assertEquals(56.dp, compactBottomBarMetrics.totalHeight)
+    assertEquals(68.dp, compactBottomBarMetrics.totalHeight)
   }
 }
