@@ -58,7 +58,7 @@ class ArticleRepository @Inject constructor(
 }
 
 enum class LibraryView(val apiValue: String, val label: String, val shortLabel: String) {
-  Inbox("inbox", "收件箱", "收件"),
+  Inbox("inbox", "收件箱", "收件箱"),
   Favorites("favorites", "收藏", "收藏"),
   Archive("archive", "归档", "归档"),
   Published("published", "发布", "发布"),

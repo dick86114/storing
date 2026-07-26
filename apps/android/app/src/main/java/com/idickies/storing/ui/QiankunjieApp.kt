@@ -38,7 +38,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -186,7 +185,7 @@ fun QiankunjieApp(
     )
   }
   updateState.statusMessage?.let { message ->
-    AlertDialog(
+    QiankunjieAlertDialog(
       onDismissRequest = updateViewModel::dismiss,
       icon = { Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
       title = { Text("已检查更新") },
@@ -195,7 +194,7 @@ fun QiankunjieApp(
     )
   }
   updateState.error?.takeIf { updateState.release == null }?.let { message ->
-    AlertDialog(
+    QiankunjieAlertDialog(
       onDismissRequest = updateViewModel::dismiss,
       icon = { Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
       title = { Text("暂时无法检查更新") },
@@ -205,7 +204,7 @@ fun QiankunjieApp(
   }
   updateState.release?.let { release ->
     val mandatory = AndroidReleaseUpdatePolicy.isMandatory(com.idickies.storing.BuildConfig.VERSION_CODE, release)
-    AlertDialog(
+    QiankunjieAlertDialog(
       onDismissRequest = { if (!mandatory && !updateState.downloading) updateViewModel.dismiss() },
       icon = { Icon(Icons.Outlined.Sync, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
       title = { Text(if (mandatory) "需要更新乾坤戒" else "发现新版本") },
@@ -514,7 +513,7 @@ private fun HomeSkeleton(
     onLogout = onLogout,
   )
   if (confirmExit) {
-    AlertDialog(
+    QiankunjieAlertDialog(
       onDismissRequest = { confirmExit = false },
       icon = { Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
       title = { Text("退出乾坤戒？") },

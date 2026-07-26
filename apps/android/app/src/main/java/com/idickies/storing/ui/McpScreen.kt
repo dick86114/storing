@@ -33,7 +33,6 @@ import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.ToggleOff
 import androidx.compose.material.icons.outlined.ToggleOn
 import androidx.compose.material.icons.outlined.WarningAmber
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -173,7 +172,7 @@ fun McpScreen(
   }
 
   rotatingClientId?.let { id ->
-    AlertDialog(
+    QiankunjieAlertDialog(
       onDismissRequest = { rotatingClientId = null },
       icon = { Icon(Icons.Outlined.Key, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
       title = { Text("轮换 API Key？") },
@@ -184,7 +183,7 @@ fun McpScreen(
   }
 
   deletingClient?.let { client ->
-    AlertDialog(
+    QiankunjieAlertDialog(
       onDismissRequest = { deletingClient = null },
       icon = { Icon(Icons.Outlined.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
       title = { Text("删除 Client「${client.name}」？") },
@@ -262,7 +261,7 @@ private fun CreateClientDialog(
   var saveToInbox by remember { mutableStateOf(true) }
   val defaultScopes = remember { mutableStateOf(setOf(McpScope.SummaryCreate.value, McpScope.JobReadSelf.value)) }
 
-  AlertDialog(
+  QiankunjieAlertDialog(
     onDismissRequest = { if (!submitting) onDismiss() },
     icon = { Icon(Icons.Outlined.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
     title = { Text("创建 MCP Client") },
@@ -303,7 +302,7 @@ private fun CreateClientDialog(
 @Composable
 private fun ApiKeyRevealDialog(apiKey: String, onDismiss: () -> Unit) {
   val context = LocalContext.current
-  AlertDialog(
+  QiankunjieAlertDialog(
     onDismissRequest = onDismiss,
     icon = { Icon(Icons.Outlined.Key, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
     title = { Text("API Key（仅显示一次）") },

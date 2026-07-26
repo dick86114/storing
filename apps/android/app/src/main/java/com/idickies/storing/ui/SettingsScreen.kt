@@ -29,7 +29,6 @@ import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material.icons.outlined.Fingerprint
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -284,7 +283,7 @@ fun QiankunjieSettingsScreen(
     }
   }
   if (confirmLogout) {
-    AlertDialog(
+    QiankunjieAlertDialog(
       onDismissRequest = { confirmLogout = false },
       icon = { Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
       title = { Text("退出当前设备？") },
