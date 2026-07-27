@@ -26,7 +26,7 @@ let ensureMobileHtmlColumnPromise: Promise<void> | null = null;
 let ensureCoverVersionColumnPromise: Promise<void> | null = null;
 
 /** Bump this when the server learns a higher-quality cover selection strategy. */
-export const COVER_IMAGE_PROCESSING_VERSION = 2;
+export const COVER_IMAGE_PROCESSING_VERSION = 3;
 
 export async function ensureArticleMetadataCoverVersionColumn() {
   if (!ensureCoverVersionColumnPromise) {
@@ -206,6 +206,39 @@ function normalizeImageUrl(url: string): string {
   const trimmed = url.trim().replace(/&amp;/g, '&');
   if (trimmed.startsWith('//')) return `https:${trimmed}`;
   return trimmed;
+}
+
+/**
+ * The WeChat Reader JSON exposes the article's real public cover at `cdn_url`.
+ * It is separate from `content_noencode` and `picture_page_info_list`, so the
+ * first body image cannot reliably stand in for the official cover.
+ */
+export function extractWechatCoverImage(rawContent: unknown): string | null {
+  if (!rawContent || typeof rawContent !== 'object' || Array.isArray(rawContent)) return null;
+  const content = rawContent as Record<string, unknown>;
+  const candidates = [
+    content.cdn_url,
+    content.cdn_url_235_1,
+    content.cdn_url_16_9,
+    content.cdn_url_1_1,
+    content.cdn_url_3_4,
+    content.wechatCoverImage,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const normalized = normalizeImageUrl(candidate);
+    if (/^https?:\/\//i.test(normalized)) return normalized;
+  }
+  return null;
+}
+
+function isWechatArticleUrl(url: string | null | undefined): boolean {
+  try {
+    return new URL(url || '').hostname.endsWith('mp.weixin.qq.com');
+  } catch {
+    return false;
+  }
 }
 
 function cleanText(value: string | null | undefined): string | null {
@@ -1414,6 +1447,7 @@ export async function processCoverImage(articleId: number, userId?: number): Pro
   const [article] = await db
     .select({
       coverImage: articles.coverImage,
+      content: articles.content,
       originalUrl: articles.originalUrl,
     })
     .from(articles)
@@ -1423,14 +1457,39 @@ export async function processCoverImage(articleId: number, userId?: number): Pro
 
   let coverImageUrl: string | null = null;
 
-  // 优先从已抓取 HTML 中读取明确声明的封面（OG / article-cover 等），
-  // 再回退到源数据封面，最后才使用正文首图。
-  const html = await getArticleContent(articleId, 'html', 'desktop', userId);
+  // WeChat's Reader JSON has a dedicated cdn_url for the public article cover.
+  // It must win over the first body image in content_noencode/picture_page_info_list.
+  let wechatCover = extractWechatCoverImage(article.content);
+  const originalUrl = article.originalUrl;
+  if (!wechatCover && originalUrl && isWechatArticleUrl(originalUrl)) {
+    const wechatJson = await fetchWechatJson(originalUrl).catch((error) => {
+      console.error(`Wechat cover fetch failed for article ${articleId}:`, error instanceof Error ? error.message : error);
+      return null;
+    });
+    wechatCover = extractWechatCoverImage(wechatJson);
+    if (wechatCover) {
+      const existingContent = article.content && typeof article.content === 'object' && !Array.isArray(article.content)
+        ? article.content as Record<string, unknown>
+        : {};
+      await db.update(articles)
+        .set({
+          coverImage: wechatCover,
+          content: { ...existingContent, wechatCoverImage: wechatCover },
+          updatedAt: new Date(),
+        })
+        .where(eq(articles.id, articleId));
+    }
+  }
+
+  // For ordinary web pages, select an explicit document cover before any fallback.
+  const html = !wechatCover ? await getArticleContent(articleId, 'html', 'desktop', userId) : null;
   const explicitCover = html && article.originalUrl
     ? extractPreferredCoverImage(new JSDOM(html).window.document, article.originalUrl)
     : null;
 
-  if (explicitCover) {
+  if (wechatCover) {
+    coverImageUrl = wechatCover;
+  } else if (explicitCover) {
     coverImageUrl = explicitCover;
   } else if (article.coverImage) {
     coverImageUrl = article.coverImage;
