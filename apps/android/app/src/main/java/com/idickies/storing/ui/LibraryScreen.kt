@@ -1,6 +1,7 @@
 package com.idickies.storing.ui
 
 import android.content.ClipboardManager
+import android.view.ViewGroup
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -133,6 +134,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -140,12 +142,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.painterResource
@@ -175,6 +179,7 @@ import com.idickies.storing.library.LibraryView
 import com.idickies.storing.library.LibrarySort
 import com.idickies.storing.library.librarySortOrderOptions
 import com.idickies.storing.library.LibraryViewModel
+import com.idickies.storing.library.LibraryUiState
 import com.idickies.storing.library.shouldLoadMore
 import com.idickies.storing.library.canManageArticle
 import com.idickies.storing.library.publicationAction
@@ -206,6 +211,20 @@ internal fun adjacentLibraryView(current: LibraryView, dragDistancePx: Float, th
   val nextIndex = (LibraryView.entries.indexOf(current) + if (dragDistancePx < 0f) 1 else -1)
     .coerceIn(0, LibraryView.entries.lastIndex)
   return LibraryView.entries[nextIndex].takeUnless { it == current }
+}
+
+internal data class LibraryRefreshAnchor(
+  val itemIndex: Int,
+  val itemOffset: Int,
+)
+
+/** Keeps list refresh from unexpectedly jumping the reader back to the top. */
+internal fun restoreLibraryRefreshAnchor(anchor: LibraryRefreshAnchor, itemCount: Int): LibraryRefreshAnchor {
+  val itemIndex = anchor.itemIndex.coerceIn(0, (itemCount - 1).coerceAtLeast(0))
+  return LibraryRefreshAnchor(
+    itemIndex = itemIndex,
+    itemOffset = if (itemIndex == anchor.itemIndex) anchor.itemOffset else 0,
+  )
 }
 
 internal enum class LibraryTopAction { Collect, Search, More }
@@ -615,9 +634,40 @@ fun LibraryScreen(
     LibraryView.Published -> publishedListState
   }
   val libraryListState = listStateFor(state.view)
+  val tabContentStates = remember { mutableStateMapOf<LibraryView, LibraryUiState>() }
+  LaunchedEffect(state) {
+    val cached = tabContentStates[state.view]
+    val shouldKeepCachedContent = state.loading && state.articles.isEmpty() && !cached?.articles.isNullOrEmpty()
+    if (!shouldKeepCachedContent) tabContentStates[state.view] = state
+  }
   var longPressedArticle by remember { mutableStateOf<com.idickies.storing.library.ArticleCard?>(null) }
   val isScrolledDown by remember(libraryListState) { derivedStateOf { libraryListState.firstVisibleItemIndex > 0 || libraryListState.firstVisibleItemScrollOffset > 200 } }
   val scope = androidx.compose.runtime.rememberCoroutineScope()
+  var refreshAnchor by remember { mutableStateOf<LibraryRefreshAnchor?>(null) }
+  var refreshWasObserved by remember { mutableStateOf(false) }
+
+  fun refreshListPreservingPosition() {
+    refreshAnchor = LibraryRefreshAnchor(
+      itemIndex = libraryListState.firstVisibleItemIndex,
+      itemOffset = libraryListState.firstVisibleItemScrollOffset,
+    )
+    libraryViewModel.refresh()
+  }
+
+  LaunchedEffect(state.refreshing) {
+    if (state.refreshing) {
+      refreshWasObserved = true
+    } else if (refreshWasObserved) {
+      val anchor = refreshAnchor
+      refreshWasObserved = false
+      refreshAnchor = null
+      anchor?.let {
+        kotlinx.coroutines.yield()
+        val restored = restoreLibraryRefreshAnchor(it, libraryListState.layoutInfo.totalItemsCount)
+        libraryListState.scrollToItem(restored.itemIndex, restored.itemOffset)
+      }
+    }
+  }
   DisposableEffect(lifecycleOwner) {
     val observer = LifecycleEventObserver { _, event ->
       when (event) {
@@ -886,6 +936,7 @@ fun LibraryScreen(
                   LibraryView.Archive -> Icons.Outlined.Inventory2
                 },
                 selected = state.view == item && state.searchQuery.isBlank(),
+                refreshing = state.refreshing && state.view == item,
                 badgeCount = count,
                 onClick = {
                   when (libraryTabInteraction(state.view, item, isDoubleTap = false)) {
@@ -899,7 +950,7 @@ fun LibraryScreen(
                 },
                 onDoubleClick = {
                   when (libraryTabInteraction(state.view, item, isDoubleTap = true)) {
-                    LibraryTabInteraction.Refresh -> libraryViewModel.refresh()
+                    LibraryTabInteraction.Refresh -> refreshListPreservingPosition()
                     LibraryTabInteraction.Select -> libraryViewModel.select(item)
                     LibraryTabInteraction.ScrollToStart -> Unit
                   }
@@ -937,8 +988,17 @@ fun LibraryScreen(
               (slideOutHorizontally { fullWidth -> if (movesForward) -fullWidth / 3 else fullWidth / 3 } + fadeOut())
           },
         ) { renderedView ->
+          val renderedState = tabContentStates[renderedView]
+            ?: state.takeIf { renderedView == state.view }
+            ?: state.copy(
+              view = renderedView,
+              articles = emptyList(),
+              loading = true,
+              refreshing = false,
+              error = null,
+            )
           LibraryList(
-            state = state,
+            state = renderedState,
             collectUrls = collectState.urls,
             collectSelectedUrl = collectState.selectedUrl,
             collectSubmitting = collectState.submitting,
@@ -952,7 +1012,7 @@ fun LibraryScreen(
             presentationMode = presentationMode,
             onPresentationModeChange = { presentationMode = it },
             onArchiveSource = libraryViewModel::selectArchiveSource,
-            onRefresh = libraryViewModel::refresh,
+            onRefresh = ::refreshListPreservingPosition,
             onLoadMore = libraryViewModel::loadMore,
             onOpen = libraryViewModel::open,
             onLongPress = { longPressedArticle = it },
@@ -1694,12 +1754,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
     },
   ) { padding ->
     val html = article.contentHtml
-    PullToRefreshBox(
-      isRefreshing = detailRefreshing,
-      onRefresh = onRefresh,
-      modifier = Modifier.fillMaxSize().padding(padding),
-    ) {
-      Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().padding(padding)) {
         if (!html.isNullOrBlank()) {
           key(article.id, detailRefreshVersion, readerColorScheme, readerPreferences) {
             var currentScrollPercentage by remember { mutableStateOf(0f) }
@@ -1711,9 +1766,11 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
               webLoaded = true
             }
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+              val refreshColor = MaterialTheme.colorScheme.primary.toArgb()
+              val refreshBackground = MaterialTheme.colorScheme.surfaceVariant.toArgb()
               AndroidView(
                 factory = { webContext ->
-                  android.webkit.WebView(webContext).apply {
+                  val readerWebView = android.webkit.WebView(webContext).apply {
                     ReaderWebView.configure(
                       this,
                       readerPreferences,
@@ -1726,7 +1783,17 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                     )
                     ReaderWebView.loadCapturedHtml(this, html, readerColorScheme, readerPreferences, headerHtml)
                   }
+                  SwipeRefreshLayout(webContext).apply {
+                    setColorSchemeColors(refreshColor)
+                    setProgressBackgroundColorSchemeColor(refreshBackground)
+                    setOnRefreshListener(onRefresh)
+                    addView(
+                      readerWebView,
+                      ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+                    )
+                  }
                 },
+                update = { swipeRefresh -> swipeRefresh.isRefreshing = detailRefreshing },
                 modifier = Modifier.fillMaxSize(),
               )
               if (!webLoaded) {
@@ -1740,11 +1807,16 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
             }
           }
         } else {
-          LazyColumn(
+          PullToRefreshBox(
+            isRefreshing = detailRefreshing,
+            onRefresh = onRefresh,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 22.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
           ) {
+            LazyColumn(
+              modifier = Modifier.fillMaxSize(),
+              contentPadding = PaddingValues(horizontal = 22.dp, vertical = 18.dp),
+              verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
             item {
               Text(article.source ?: "已保存文章", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
               Text(article.displayTitle, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 8.dp))
@@ -1759,10 +1831,10 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                 }
               }
             }
-            item { Text(article.contentMd?.takeIf { it.isNotBlank() } ?: "正文暂时不可用", style = MaterialTheme.typography.bodyLarge) }
+              item { Text(article.contentMd?.takeIf { it.isNotBlank() } ?: "正文暂时不可用", style = MaterialTheme.typography.bodyLarge) }
+            }
           }
         }
-      }
     }
   }
   confirmProcessing?.let { action ->

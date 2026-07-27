@@ -70,7 +70,7 @@ private fun rememberArticleCardPressMotion(): ArticleCardPressMotion {
   val interactionSource = remember { MutableInteractionSource() }
   val pressed by interactionSource.collectIsPressedAsState()
   val scale by animateFloatAsState(
-    targetValue = if (pressed) 0.985f else 1f,
+    targetValue = if (pressed) 0.965f else 1f,
     animationSpec = spring(stiffness = 740f),
     label = "articleCardPressScale",
   )

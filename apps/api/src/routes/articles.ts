@@ -5,6 +5,7 @@ import { articles, articleMetadata, users } from '../db/schema.js';
 import { eq, and, asc, desc, count, sql, or, gt } from 'drizzle-orm';
 import { generateSummaryAndTags } from '../services/ai.service.js';
 import {
+  COVER_IMAGE_PROCESSING_VERSION,
   ensureArticleMetadataContentHtmlMobileColumn,
   getArticleContent,
   processCoverImage,
@@ -112,6 +113,7 @@ async function getArticleRecord(id: number, userId: number) {
       archivedAt: articleMetadata.archivedAt,
       articleCoverImage: articles.coverImage,
       metadataCoverImage: articleMetadata.coverImage,
+      metadataCoverVersion: articleMetadata.coverVersion,
       summary: articles.summary,
       commentary: articles.commentary,
       tags: articles.tags,
@@ -134,7 +136,7 @@ async function getArticleRecord(id: number, userId: number) {
 }
 
 function serializeArticleRecord(article: NonNullable<Awaited<ReturnType<typeof getArticleRecord>>>) {
-  const { articleCoverImage, metadataCoverImage, ...rest } = article;
+  const { articleCoverImage, metadataCoverImage, metadataCoverVersion: _metadataCoverVersion, ...rest } = article;
   const isPublished = article.isPublished ?? false;
 
   return {
@@ -225,6 +227,25 @@ async function repairMissingDisplayMeta<T extends {
   }));
 
   return repairedRows;
+}
+
+async function backfillOutdatedCoverImages(
+  rows: Array<{ id: number; coverVersion: number | null }>,
+  userId: number,
+): Promise<Map<number, string>> {
+  const candidates = rows.filter((row) => (row.coverVersion ?? 0) < COVER_IMAGE_PROCESSING_VERSION);
+  if (candidates.length === 0) return new Map();
+
+  const results = await Promise.all(candidates.map(async (row) => {
+    try {
+      return [row.id, await processCoverImage(row.id, userId)] as const;
+    } catch (error) {
+      console.error(`Cover image backfill failed for article ${row.id}:`, error instanceof Error ? error.message : error);
+      return [row.id, null] as const;
+    }
+  }));
+
+  return new Map(results.filter((entry): entry is readonly [number, string] => entry[1] !== null));
 }
 
 /**
@@ -364,6 +385,7 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
       favoritedAt: articleMetadata.favoritedAt,
       archivedAt: articleMetadata.archivedAt,
       coverImage: articleMetadata.coverImage,
+      coverVersion: articleMetadata.coverVersion,
       summary: articles.summary,
       tags: articles.tags,
       readStatus: articles.readStatus,
@@ -390,14 +412,17 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
     .orderBy(getArticleOrderBy(sort, order, hasActionTimestamps), desc(articles.id))
     .limit(perPage)
     .offset((page - 1) * perPage);
+  // 显式版本化封面策略：旧卡片会在首次列表请求中同步重算并立即返回新封面。
+  const coverOverrides = await backfillOutdatedCoverImages(data, userId);
   // 异步修复缺失的显示字段，不阻塞当前列表响应；下次请求即为修复后的数据
   repairMissingDisplayMeta(data, userId).catch((error) =>
     console.error('Background display meta repair failed:', error.message)
   );
 
   return c.json({
-    articles: data.map((article) => ({
+    articles: data.map(({ coverVersion: _coverVersion, ...article }) => ({
       ...article,
+      coverImage: coverOverrides.get(article.id) ?? article.coverImage,
       publicUrl: article.isPublished && article.publicId ? `/p/${article.publicId}` : null,
       isFavorited: article.isFavorited ?? false,
       isArchived: article.isArchived ?? false,
@@ -461,7 +486,7 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
     );
   }
 
-  if (!article.metadataCoverImage) {
+  if (!article.metadataCoverImage || (article.metadataCoverVersion ?? 0) < COVER_IMAGE_PROCESSING_VERSION) {
     processCoverImage(id, userId).catch((error) => console.error('Cover image process failed:', error.message));
   }
 

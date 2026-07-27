@@ -98,6 +98,7 @@ fun CompactBottomBarItem(
   label: String,
   icon: ImageVector,
   selected: Boolean,
+  refreshing: Boolean = false,
   enabled: Boolean = true,
   badgeCount: Int? = null,
   onClick: () -> Unit,
@@ -119,9 +120,22 @@ fun CompactBottomBarItem(
     animationSpec = spring(stiffness = 500f),
     label = "bottomNavLabelAlpha",
   )
+  val refreshTransition = rememberInfiniteTransition(label = "bottomNavRefresh")
+  val refreshRotation by refreshTransition.animateFloat(
+    initialValue = 0f,
+    targetValue = if (selected && refreshing) 360f else 0f,
+    animationSpec = infiniteRepeatable(tween(720), RepeatMode.Restart),
+    label = "bottomNavRefreshRotation",
+  )
   Column(
     modifier = Modifier
-      .semantics { stateDescription = if (selected) "$label，已选中" else label }
+      .semantics {
+        stateDescription = when {
+          selected && refreshing -> "$label，正在刷新"
+          selected -> "$label，已选中"
+          else -> label
+        }
+      }
       .combinedClickable(
         interactionSource = remember { MutableInteractionSource() },
         indication = null,
@@ -141,7 +155,7 @@ fun CompactBottomBarItem(
         contentDescription = label,
         modifier = Modifier
           .size(25.dp)
-          .graphicsLayer(scaleX = iconScale, scaleY = iconScale),
+          .graphicsLayer(scaleX = iconScale, scaleY = iconScale, rotationZ = refreshRotation),
         tint = contentColor,
       )
       if (badgeCount != null && badgeCount > 0) {
@@ -172,7 +186,7 @@ fun CompactBottomBarItem(
     }
     // Label
     Text(
-      label,
+      if (selected && refreshing) "刷新中" else label,
       fontSize = 12.sp,
       fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Normal,
       color = contentColor,
