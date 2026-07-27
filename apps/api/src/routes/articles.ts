@@ -713,19 +713,20 @@ articlesRoutes.post('/articles/:id/refetch', requireAuth, async (c) => {
     }, 422);
   }
 
-  // Image uploads can take much longer than body capture. Do not make the
-  // user-facing refetch request wait for them; the detail view will pick up
-  // the refreshed cover on its next data refresh.
-  void processCoverImage(id, userId).catch((error) => {
+  // A refetch is an explicit user request. Wait for the cover update so the
+  // very next list/detail response is authoritative instead of retaining body image #1.
+  const processedCoverImage = await processCoverImage(id, userId).catch((error) => {
     console.error('Cover image process failed after refetch:', error instanceof Error ? error.message : error);
+    return null;
   });
+  const refreshedArticle = await getArticleRecord(id, userId);
 
   return c.json({
     articleId: id,
     contentHtml: Boolean(contentHtml),
     contentHtmlMobile: Boolean(contentHtmlMobile),
     contentMd: Boolean(contentMd),
-    coverImage: ownedArticle.metadataCoverImage || ownedArticle.articleCoverImage || null,
+    coverImage: processedCoverImage || refreshedArticle?.metadataCoverImage || refreshedArticle?.articleCoverImage || null,
   });
 });
 

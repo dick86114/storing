@@ -4,7 +4,7 @@ import { db } from '../db/index.js';
 import { articleMetadata, articles, collectJobs } from '../db/schema.js';
 import { buildArticleSummaryResult, generateSummaryAndTags } from './ai.service.js';
 import { assertSafeOutboundUrl, normalizeOutboundUrl } from './outbound-url-policy.service.js';
-import { ensureArticleMetadataContentHtmlMobileColumn, fetchArticleContentFromSources, fetchWechatJson, getArticleContent, processCoverImage, uploadImage } from './reader.service.js';
+import { ensureArticleMetadataContentHtmlMobileColumn, extractWechatCoverImage, fetchArticleContentFromSources, fetchWechatJson, getArticleContent, processCoverImage, uploadImage } from './reader.service.js';
 import {
   type CollectCaptureStrategy,
   type HtmlVariant,
@@ -242,11 +242,13 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
   ]);
 }
 
-async function finishArticleSideEffects(jobId: number, articleId: number, options: { saveToInbox: boolean; userId?: number | null }) {
+async function finishArticleSideEffects(jobId: number, articleId: number, options: { saveToInbox: boolean; userId?: number | null; coverProcessed?: boolean }) {
   if (options.saveToInbox) {
     if (!options.userId) throw new Error('保存文章到收件箱需要用户归属');
     generateSummaryAndTags(articleId, options.userId).catch((e) => console.error('Collect AI summary/tags failed:', e.message));
-    processCoverImage(articleId, options.userId).catch((e) => console.error('Collect cover image failed:', e.message));
+    if (!options.coverProcessed) {
+      processCoverImage(articleId, options.userId).catch((e) => console.error('Collect cover image failed:', e.message));
+    }
     return;
   }
 
@@ -292,7 +294,8 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
   });
   let finalTitle = title;
   let finalSource = source;
-  if (wechatJson && wechatJson.content_noencode) {
+  if (wechatJson && (wechatJson.content_noencode || wechatJson.picture_page_info_list?.length)) {
+    const wechatCoverImage = extractWechatCoverImage(wechatJson);
     await db
       .update(articles)
       .set({
@@ -300,9 +303,11 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
           collectMethod: 'reader',
           collectSource: wechatJson.collect_source || 'reader_json',
           originalUrl: normalizedUrl,
-          content_noencode: wechatJson.content_noencode,
+          content_noencode: wechatJson.content_noencode || '',
           picture_page_info_list: wechatJson.picture_page_info_list ?? [],
+          ...(wechatCoverImage ? { wechatCoverImage } : {}),
         },
+        ...(wechatCoverImage ? { coverImage: wechatCoverImage } : {}),
         ...(typeof wechatJson.title === 'string' && wechatJson.title ? { title: wechatJson.title } : {}),
         ...(typeof wechatJson.nick_name === 'string' && wechatJson.nick_name ? { source: wechatJson.nick_name } : {}),
         updatedAt: new Date(),
@@ -338,6 +343,12 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
     }
   }
   if (options.saveToInbox) {
+    // The official WeChat cover is available in Reader JSON before the job finishes.
+    // Persist it synchronously so the first list response cannot show body image #1.
+    const coverImage = await processCoverImage(articleId, options.userId ?? undefined).catch((error) => {
+      console.error('Wechat cover image process failed:', error instanceof Error ? error.message : error);
+      return null;
+    });
     await updateCollectJob(jobId, {
       status: 'completed',
       stage: 'completed',
@@ -345,7 +356,11 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
       articleId,
       finishedAt: new Date(),
     });
-    await finishArticleSideEffects(jobId, articleId, { saveToInbox: true, userId: options.userId });
+    await finishArticleSideEffects(jobId, articleId, {
+      saveToInbox: true,
+      userId: options.userId,
+      coverProcessed: Boolean(coverImage),
+    });
     return;
   }
 

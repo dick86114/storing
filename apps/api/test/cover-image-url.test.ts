@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { normalizeCoverImageUrl, prepareCapturedDocument } from '../src/services/singlefile.service.ts';
+import { extractWechatCoverImage } from '../src/services/reader.service.ts';
 
 test('normalizes a malformed proxy URL that embeds an absolute image URL', () => {
   const nested = 'https://tu.wnflb2023.com/https://img03.sogoucdn.com/v2/thumb/retype_exclude_gif/ext/auto/q/100/?appid=122&url=https://tva1.sinaimg.cn/large/00984cGCgy1if7dod41waj31bz0zbdzr.jpg';
@@ -34,4 +35,19 @@ test('prefers an explicit article cover element before falling back to the first
   );
 
   assert.equal(prepared.coverImage, 'https://example.com/covers/canonical.jpg');
+});
+
+
+test('prefers the WeChat Reader API cdn_url cover over a body picture', () => {
+  const cover = 'https://mmbiz.qpic.cn/mmbiz_jpg/cover/0?wx_fmt=jpeg';
+  const bodyPicture = 'https://mmbiz.qpic.cn/mmbiz_jpg/body/640?wx_fmt=jpeg';
+
+  assert.equal(
+    extractWechatCoverImage({
+      cdn_url: cover,
+      cdn_url_235_1: cover,
+      picture_page_info_list: [{ cdn_url: bodyPicture }],
+    }),
+    cover,
+  );
 });
