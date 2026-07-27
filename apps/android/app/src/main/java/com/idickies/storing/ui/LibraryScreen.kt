@@ -4,6 +4,19 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -14,6 +27,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -128,6 +142,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -173,6 +188,25 @@ import com.idickies.storing.ui.components.QiankunjieArticleCard
 import com.idickies.storing.ui.components.QiankunjieGridArticleCard
 import com.idickies.storing.ui.components.QiankunjieCompactArticleRow
 import com.idickies.storing.ui.theme.ThemeMode
+
+internal enum class LibraryTabInteraction { Select, ScrollToStart, Refresh }
+
+internal fun libraryTabInteraction(
+  active: LibraryView,
+  tapped: LibraryView,
+  isDoubleTap: Boolean,
+): LibraryTabInteraction = when {
+  active != tapped -> LibraryTabInteraction.Select
+  isDoubleTap -> LibraryTabInteraction.Refresh
+  else -> LibraryTabInteraction.ScrollToStart
+}
+
+internal fun adjacentLibraryView(current: LibraryView, dragDistancePx: Float, thresholdPx: Float = 88f): LibraryView? {
+  if (kotlin.math.abs(dragDistancePx) < thresholdPx) return null
+  val nextIndex = (LibraryView.entries.indexOf(current) + if (dragDistancePx < 0f) 1 else -1)
+    .coerceIn(0, LibraryView.entries.lastIndex)
+  return LibraryView.entries[nextIndex].takeUnless { it == current }
+}
 
 internal enum class LibraryTopAction { Collect, Search, More }
 
@@ -570,9 +604,19 @@ fun LibraryScreen(
   var topSearchOpen by rememberSaveable { mutableStateOf(false) }
   var topSearchQuery by rememberSaveable { mutableStateOf("") }
   var presentationMode by rememberSaveable { mutableStateOf(ArticleListPresentationMode.default) }
-  val libraryListState = rememberLazyListState()
+  val inboxListState = rememberLazyListState()
+  val favoritesListState = rememberLazyListState()
+  val archiveListState = rememberLazyListState()
+  val publishedListState = rememberLazyListState()
+  fun listStateFor(view: LibraryView): LazyListState = when (view) {
+    LibraryView.Inbox -> inboxListState
+    LibraryView.Favorites -> favoritesListState
+    LibraryView.Archive -> archiveListState
+    LibraryView.Published -> publishedListState
+  }
+  val libraryListState = listStateFor(state.view)
   var longPressedArticle by remember { mutableStateOf<com.idickies.storing.library.ArticleCard?>(null) }
-  val isScrolledDown by remember { derivedStateOf { libraryListState.firstVisibleItemIndex > 0 || libraryListState.firstVisibleItemScrollOffset > 200 } }
+  val isScrolledDown by remember(libraryListState) { derivedStateOf { libraryListState.firstVisibleItemIndex > 0 || libraryListState.firstVisibleItemScrollOffset > 200 } }
   val scope = androidx.compose.runtime.rememberCoroutineScope()
   DisposableEffect(lifecycleOwner) {
     val observer = LifecycleEventObserver { _, event ->
@@ -685,6 +729,8 @@ fun LibraryScreen(
       readerPreferences = readerPreferences,
       processingAction = state.processingAction,
       permanentDeleting = state.permanentDeleting,
+      detailRefreshing = state.detailRefreshing,
+      detailRefreshVersion = state.detailRefreshVersion,
       savedReadingPosition = state.savedReadingPosition,
       isOfflineAvailable = state.isOfflineAvailable,
       downloadingOffline = state.downloadingOffline,
@@ -697,6 +743,7 @@ fun LibraryScreen(
       onDeleteOffline = { libraryViewModel.deleteOffline(detail.id) },
       onDelete = { libraryViewModel.delete(detail) },
       onDeletePermanent = { libraryViewModel.deletePermanent(detail) },
+      onRefresh = libraryViewModel::refreshDetail,
       onSaveReadingPosition = { percentage -> libraryViewModel.saveReadingPosition(detail.id, percentage) },
     )
     state.loadingDetail -> ArticleDetailSkeleton()
@@ -704,6 +751,10 @@ fun LibraryScreen(
     else -> Scaffold(
       topBar = {
         TopAppBar(
+          modifier = Modifier.combinedClickable(
+            onClick = {},
+            onDoubleClick = { scope.launch { libraryListState.animateScrollToItem(0) } },
+          ),
           colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
           title = {
             if (libraryTopSearchPresentation(topSearchOpen).showsSearchField) {
@@ -797,14 +848,27 @@ fun LibraryScreen(
         )
       },
       floatingActionButton = {
-        if (shouldShowFloatingCollectButton(isAuthenticated, floatingCollectEnabled)) {
+        AnimatedVisibility(
+          visible = shouldShowFloatingCollectButton(isAuthenticated, floatingCollectEnabled),
+          enter = fadeIn() + scaleIn(initialScale = 0.72f),
+          exit = fadeOut() + scaleOut(targetScale = 0.72f),
+        ) {
+          val iconRotation by animateFloatAsState(
+            targetValue = if (showManualCollect) 45f else 0f,
+            animationSpec = spring(stiffness = 620f),
+            label = "collectFabIconRotation",
+          )
           FloatingActionButton(
             onClick = { showManualCollect = true },
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
             shape = CircleShape,
           ) {
-            Icon(Icons.Outlined.Add, contentDescription = "采集网页链接", modifier = Modifier.size(32.dp))
+            Icon(
+              Icons.Outlined.Add,
+              contentDescription = "采集网页链接",
+              modifier = Modifier.size(32.dp).graphicsLayer { rotationZ = iconRotation },
+            )
           }
         }
       },
@@ -824,63 +888,80 @@ fun LibraryScreen(
                 selected = state.view == item && state.searchQuery.isBlank(),
                 badgeCount = count,
                 onClick = {
-                if (state.view == item && state.searchQuery.isBlank()) {
-                  libraryViewModel.markViewSeen(item)
-                  scope.launch { libraryListState.animateScrollToItem(0) }
-                } else {
-                  libraryViewModel.select(item)
-                }
-              },
+                  when (libraryTabInteraction(state.view, item, isDoubleTap = false)) {
+                    LibraryTabInteraction.Select -> libraryViewModel.select(item)
+                    LibraryTabInteraction.ScrollToStart -> {
+                      libraryViewModel.markViewSeen(item)
+                      scope.launch { libraryListState.animateScrollToItem(0) }
+                    }
+                    LibraryTabInteraction.Refresh -> Unit
+                  }
+                },
+                onDoubleClick = {
+                  when (libraryTabInteraction(state.view, item, isDoubleTap = true)) {
+                    LibraryTabInteraction.Refresh -> libraryViewModel.refresh()
+                    LibraryTabInteraction.Select -> libraryViewModel.select(item)
+                    LibraryTabInteraction.ScrollToStart -> Unit
+                  }
+                },
               )
             }
           }
         }
       },
     ) { padding ->
-      var swipeStartX by remember { mutableStateOf(0f) }
+      var swipeDistance by remember { mutableStateOf(0f) }
       Box(
-        modifier = Modifier.fillMaxSize().pointerInput(isAuthenticated) {
+        modifier = Modifier.fillMaxSize().pointerInput(isAuthenticated, state.view) {
           if (!isAuthenticated) return@pointerInput
           detectHorizontalDragGestures(
-            onDragStart = { offset -> swipeStartX = offset.x },
-            onDragEnd = {},
-            onHorizontalDrag = { _, dragAmount ->
-              val totalDrag = swipeStartX
-              if (abs(totalDrag) > 0f && abs(dragAmount) > 60f) {
-                val direction = if (dragAmount < 0) 1 else -1
-                val current = LibraryView.entries.indexOf(state.view)
-                val next = (current + direction).coerceIn(0, LibraryView.entries.lastIndex)
-                if (next != current) libraryViewModel.select(LibraryView.entries[next])
-                swipeStartX = 0f
-              }
+            onDragStart = { swipeDistance = 0f },
+            onDragCancel = { swipeDistance = 0f },
+            onHorizontalDrag = { change, dragAmount ->
+              swipeDistance += dragAmount
+              change.consume()
+            },
+            onDragEnd = {
+              adjacentLibraryView(state.view, swipeDistance)?.let(libraryViewModel::select)
+              swipeDistance = 0f
             },
           )
         },
       ) {
-        LibraryList(
-        state = state,
-        collectUrls = collectState.urls,
-        collectSelectedUrl = collectState.selectedUrl,
-        collectSubmitting = collectState.submitting,
-        collectMessage = collectState.message,
-        activeJobCount = jobsState.activeJobCount,
-        onOpenTasks = { showTasks = true },
-        onSort = libraryViewModel::selectSort,
-        onToggleSortOrder = libraryViewModel::toggleSortOrder,
-        onResetSort = libraryViewModel::resetSort,
-        sortOrder = state.sortOrder,
-        presentationMode = presentationMode,
-        onPresentationModeChange = { presentationMode = it },
-        onArchiveSource = libraryViewModel::selectArchiveSource,
-        onRefresh = libraryViewModel::refresh,
-        onLoadMore = libraryViewModel::loadMore,
-        onOpen = libraryViewModel::open,
-        onLongPress = { longPressedArticle = it },
-        onSelectCollectUrl = collectViewModel::select,
-        onSubmitCollect = collectViewModel::submit,
-        listState = libraryListState,
-        modifier = Modifier.padding(padding),
-        )
+        AnimatedContent(
+          targetState = state.view,
+          label = "libraryTabTransition",
+          transitionSpec = {
+            val movesForward = targetState.ordinal > initialState.ordinal
+            (slideInHorizontally { fullWidth -> if (movesForward) fullWidth else -fullWidth } + fadeIn()) togetherWith
+              (slideOutHorizontally { fullWidth -> if (movesForward) -fullWidth / 3 else fullWidth / 3 } + fadeOut())
+          },
+        ) { renderedView ->
+          LibraryList(
+            state = state,
+            collectUrls = collectState.urls,
+            collectSelectedUrl = collectState.selectedUrl,
+            collectSubmitting = collectState.submitting,
+            collectMessage = collectState.message,
+            activeJobCount = jobsState.activeJobCount,
+            onOpenTasks = { showTasks = true },
+            onSort = libraryViewModel::selectSort,
+            onToggleSortOrder = libraryViewModel::toggleSortOrder,
+            onResetSort = libraryViewModel::resetSort,
+            sortOrder = state.sortOrder,
+            presentationMode = presentationMode,
+            onPresentationModeChange = { presentationMode = it },
+            onArchiveSource = libraryViewModel::selectArchiveSource,
+            onRefresh = libraryViewModel::refresh,
+            onLoadMore = libraryViewModel::loadMore,
+            onOpen = libraryViewModel::open,
+            onLongPress = { longPressedArticle = it },
+            onSelectCollectUrl = collectViewModel::select,
+            onSubmitCollect = collectViewModel::submit,
+            listState = listStateFor(renderedView),
+            modifier = Modifier.padding(padding),
+          )
+        }
       }
     }
   }
@@ -1441,7 +1522,7 @@ internal fun ArticleDetailSkeleton() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, savedReadingPosition: Float?, isOfflineAvailable: Boolean, downloadingOffline: Boolean, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onSaveReadingPosition: (Float) -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, downloadingOffline: Boolean, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onSaveReadingPosition: (Float) -> Unit) {
   val context = LocalContext.current
   var confirmDelete by remember { mutableStateOf(false) }
   var confirmPermanentDelete by remember { mutableStateOf(false) }
@@ -1613,68 +1694,74 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
     },
   ) { padding ->
     val html = article.contentHtml
-    Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-      if (!html.isNullOrBlank()) {
-        key(readerColorScheme, readerPreferences) {
-          var currentScrollPercentage by remember { mutableStateOf(0f) }
-          var webLoaded by remember { mutableStateOf(false) }
-          val headerHtml = ReaderDocument.buildArticleHeader(article, readerColorScheme, isOfflineAvailable)
-          // Fallback: ensure skeleton disappears even if onPageCommitVisible doesn't fire
-          LaunchedEffect(article.id) {
-            kotlinx.coroutines.delay(3000)
-            webLoaded = true
-          }
-          Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            AndroidView(
-              factory = { webContext ->
-                android.webkit.WebView(webContext).apply {
-                  ReaderWebView.configure(
-                    this,
-                    readerPreferences,
-                    onOpenExternalUrl = { uri -> webContext.startActivity(Intent(Intent.ACTION_VIEW, uri)) },
-                    onPageFinished = {
-                      savedReadingPosition?.let { pos -> ReaderWebView.restoreScrollPosition(this, pos) }
-                    },
-                    onPageCommitVisible = { webLoaded = true },
-                    onScrollChanged = { percentage -> currentScrollPercentage = percentage },
-                  )
-                  ReaderWebView.loadCapturedHtml(this, html, readerColorScheme, readerPreferences, headerHtml)
+    PullToRefreshBox(
+      isRefreshing = detailRefreshing,
+      onRefresh = onRefresh,
+      modifier = Modifier.fillMaxSize().padding(padding),
+    ) {
+      Column(modifier = Modifier.fillMaxSize()) {
+        if (!html.isNullOrBlank()) {
+          key(article.id, detailRefreshVersion, readerColorScheme, readerPreferences) {
+            var currentScrollPercentage by remember { mutableStateOf(0f) }
+            var webLoaded by remember { mutableStateOf(false) }
+            val headerHtml = ReaderDocument.buildArticleHeader(article, readerColorScheme, isOfflineAvailable)
+            // Fallback: ensure skeleton disappears even if onPageCommitVisible doesn't fire.
+            LaunchedEffect(article.id, detailRefreshVersion) {
+              kotlinx.coroutines.delay(3000)
+              webLoaded = true
+            }
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+              AndroidView(
+                factory = { webContext ->
+                  android.webkit.WebView(webContext).apply {
+                    ReaderWebView.configure(
+                      this,
+                      readerPreferences,
+                      onOpenExternalUrl = { uri -> webContext.startActivity(Intent(Intent.ACTION_VIEW, uri)) },
+                      onPageFinished = {
+                        savedReadingPosition?.let { pos -> ReaderWebView.restoreScrollPosition(this, pos) }
+                      },
+                      onPageCommitVisible = { webLoaded = true },
+                      onScrollChanged = { percentage -> currentScrollPercentage = percentage },
+                    )
+                    ReaderWebView.loadCapturedHtml(this, html, readerColorScheme, readerPreferences, headerHtml)
+                  }
+                },
+                modifier = Modifier.fillMaxSize(),
+              )
+              if (!webLoaded) {
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+                  ArticleDetailSkeleton()
                 }
-              },
-              modifier = Modifier.fillMaxSize(),
-            )
-            if (!webLoaded) {
-              Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-                ArticleDetailSkeleton()
               }
             }
-          }
-          androidx.compose.runtime.DisposableEffect(article.id) {
-            onDispose { onSaveReadingPosition(currentScrollPercentage) }
-          }
-        }
-      } else {
-      LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(padding),
-        contentPadding = PaddingValues(horizontal = 22.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
-      ) {
-        item {
-          Text(article.source ?: "已保存文章", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-          Text(article.displayTitle, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 8.dp))
-        }
-        article.aiSummary?.takeIf { it.isNotBlank() }?.let { summary ->
-          item {
-            Card(colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-              Column(Modifier.padding(18.dp)) {
-                Text("AI 摘要", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                Text(summary, modifier = Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
-              }
+            androidx.compose.runtime.DisposableEffect(article.id, detailRefreshVersion) {
+              onDispose { onSaveReadingPosition(currentScrollPercentage) }
             }
           }
+        } else {
+          LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 22.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+          ) {
+            item {
+              Text(article.source ?: "已保存文章", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+              Text(article.displayTitle, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 8.dp))
+            }
+            article.aiSummary?.takeIf { it.isNotBlank() }?.let { summary ->
+              item {
+                Card(colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                  Column(Modifier.padding(18.dp)) {
+                    Text("AI 摘要", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text(summary, modifier = Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                  }
+                }
+              }
+            }
+            item { Text(article.contentMd?.takeIf { it.isNotBlank() } ?: "正文暂时不可用", style = MaterialTheme.typography.bodyLarge) }
+          }
         }
-        item { Text(article.contentMd?.takeIf { it.isNotBlank() } ?: "正文暂时不可用", style = MaterialTheme.typography.bodyLarge) }
-      }
       }
     }
   }

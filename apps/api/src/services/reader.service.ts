@@ -6,6 +6,7 @@ import { JSDOM } from 'jsdom';
 import { assertSafeOutboundUrl } from './outbound-url-policy.service.js';
 import {
   extractTextFromHtml,
+  extractPreferredCoverImage,
   type HtmlVariant,
   isSingleFileCaptureHtml,
   prepareCapturedDocument,
@@ -1404,15 +1405,20 @@ export async function processCoverImage(articleId: number, userId?: number): Pro
 
   let coverImageUrl: string | null = null;
 
-  // 优先使用源数据的封面图
-  if (article.coverImage) {
+  // 优先从已抓取 HTML 中读取明确声明的封面（OG / article-cover 等），
+  // 再回退到源数据封面，最后才使用正文首图。
+  const html = await getArticleContent(articleId, 'html', 'desktop', userId);
+  const explicitCover = html && article.originalUrl
+    ? extractPreferredCoverImage(new JSDOM(html).window.document, article.originalUrl)
+    : null;
+
+  if (explicitCover) {
+    coverImageUrl = explicitCover;
+  } else if (article.coverImage) {
     coverImageUrl = article.coverImage;
   } else {
-    // 没有封面图，从正文提取第一张图片
-    const content = await getArticleContent(articleId, 'markdown', 'desktop', userId);
-    if (content) {
-      coverImageUrl = extractFirstImageUrl(content);
-    }
+    const markdown = await getArticleContent(articleId, 'markdown', 'desktop', userId);
+    if (markdown) coverImageUrl = extractFirstImageUrl(markdown);
   }
 
   if (!coverImageUrl) return null;

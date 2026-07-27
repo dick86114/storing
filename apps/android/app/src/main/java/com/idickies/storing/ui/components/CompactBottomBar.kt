@@ -2,11 +2,13 @@ package com.idickies.storing.ui.components
 
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
@@ -98,6 +101,7 @@ fun CompactBottomBarItem(
   enabled: Boolean = true,
   badgeCount: Int? = null,
   onClick: () -> Unit,
+  onDoubleClick: (() -> Unit)? = null,
 ) {
   val selectedColor = navSelectedColor()
   val contentColor = when {
@@ -105,15 +109,26 @@ fun CompactBottomBarItem(
     selected -> selectedColor
     else -> MaterialTheme.colorScheme.onSurfaceVariant
   }
+  val iconScale by animateFloatAsState(
+    targetValue = if (selected) 1.10f else 1f,
+    animationSpec = spring(dampingRatio = 0.58f, stiffness = 650f),
+    label = "bottomNavIconScale",
+  )
+  val labelAlpha by animateFloatAsState(
+    targetValue = if (selected) 1f else 0.82f,
+    animationSpec = spring(stiffness = 500f),
+    label = "bottomNavLabelAlpha",
+  )
   Column(
     modifier = Modifier
       .semantics { stateDescription = if (selected) "$label，已选中" else label }
-      .clickable(
+      .combinedClickable(
         interactionSource = remember { MutableInteractionSource() },
         indication = null,
         enabled = enabled,
         role = Role.Tab,
         onClick = onClick,
+        onDoubleClick = onDoubleClick,
       )
       .padding(horizontal = 10.dp, vertical = 6.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
@@ -124,7 +139,9 @@ fun CompactBottomBarItem(
       Icon(
         imageVector = icon,
         contentDescription = label,
-        modifier = Modifier.size(25.dp),
+        modifier = Modifier
+          .size(25.dp)
+          .graphicsLayer(scaleX = iconScale, scaleY = iconScale),
         tint = contentColor,
       )
       if (badgeCount != null && badgeCount > 0) {
@@ -159,6 +176,7 @@ fun CompactBottomBarItem(
       fontSize = 12.sp,
       fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Normal,
       color = contentColor,
+      modifier = Modifier.alpha(labelAlpha),
     )
   }
 }

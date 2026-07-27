@@ -23,3 +23,15 @@ test('uses the normalized nested og:image as the prepared document cover', () =>
 
   assert.equal(prepared.coverImage, expected);
 });
+
+test('prefers an explicit article cover element before falling back to the first body image', () => {
+  const prepared = prepareCapturedDocument(
+    `<html><body>
+      <figure class="article-cover"><img src="/covers/canonical.jpg" /></figure>
+      <article><img src="/body/first.jpg" /></article>
+    </body></html>`,
+    'https://example.com/articles/cover-priority',
+  );
+
+  assert.equal(prepared.coverImage, 'https://example.com/covers/canonical.jpg');
+});

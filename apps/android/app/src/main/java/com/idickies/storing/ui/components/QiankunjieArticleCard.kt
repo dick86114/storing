@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
@@ -14,6 +16,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Inventory2
@@ -25,10 +29,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
@@ -54,6 +60,23 @@ val articleCardLayout = ArticleCardLayout(
 
 private val CompactThumbnailSize = 96.dp
 
+private data class ArticleCardPressMotion(
+  val interactionSource: MutableInteractionSource,
+  val scale: Float,
+)
+
+@Composable
+private fun rememberArticleCardPressMotion(): ArticleCardPressMotion {
+  val interactionSource = remember { MutableInteractionSource() }
+  val pressed by interactionSource.collectIsPressedAsState()
+  val scale by animateFloatAsState(
+    targetValue = if (pressed) 0.985f else 1f,
+    animationSpec = spring(stiffness = 740f),
+    label = "articleCardPressScale",
+  )
+  return ArticleCardPressMotion(interactionSource, scale)
+}
+
 
 private val gridArticleCardLayout = ArticleCardLayout(
   coverAspectRatio = 1.36f,
@@ -73,11 +96,18 @@ fun QiankunjieArticleCard(
 ) {
   val colors = MaterialTheme.colorScheme
   val cardShape = RoundedCornerShape(articleCardLayout.cardCornerRadius)
+  val pressMotion = rememberArticleCardPressMotion()
 
   Card(
     modifier = modifier
       .fillMaxWidth()
-      .combinedClickable(onClick = { onOpen(article.id) }, onLongClick = { onLongPress(article) }),
+      .scale(pressMotion.scale)
+      .combinedClickable(
+        interactionSource = pressMotion.interactionSource,
+        indication = null,
+        onClick = { onOpen(article.id) },
+        onLongClick = { onLongPress(article) },
+      ),
     colors = CardDefaults.cardColors(containerColor = colors.surfaceVariant),
     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     shape = cardShape,
@@ -146,10 +176,17 @@ fun QiankunjieGridArticleCard(
   modifier: Modifier = Modifier,
 ) {
   val colors = MaterialTheme.colorScheme
+  val pressMotion = rememberArticleCardPressMotion()
   Card(
     modifier = modifier
       .fillMaxWidth()
-      .combinedClickable(onClick = { onOpen(article.id) }, onLongClick = { onLongPress(article) }),
+      .scale(pressMotion.scale)
+      .combinedClickable(
+        interactionSource = pressMotion.interactionSource,
+        indication = null,
+        onClick = { onOpen(article.id) },
+        onLongClick = { onLongPress(article) },
+      ),
     colors = CardDefaults.cardColors(containerColor = colors.surfaceVariant),
     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     shape = RoundedCornerShape(gridArticleCardLayout.cardCornerRadius),
@@ -190,10 +227,17 @@ fun QiankunjieCompactArticleRow(
   onLongPress: (ArticleCard) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
+  val pressMotion = rememberArticleCardPressMotion()
   Card(
     modifier = modifier
       .fillMaxWidth()
-      .combinedClickable(onClick = { onOpen(article.id) }, onLongClick = { onLongPress(article) }),
+      .scale(pressMotion.scale)
+      .combinedClickable(
+        interactionSource = pressMotion.interactionSource,
+        indication = null,
+        onClick = { onOpen(article.id) },
+        onLongClick = { onLongPress(article) },
+      ),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     shape = MaterialTheme.shapes.medium,
