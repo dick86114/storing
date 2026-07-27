@@ -119,6 +119,7 @@ export const articleMetadata = pgTable('article_metadata', {
   contentHtml: text('content_html'),
   contentHtmlMobile: text('content_html_mobile'),
   coverImage: text('cover_image'),
+  coverVersion: integer('cover_version').notNull().default(0),
   favoritedAt: timestamp('favorited_at'),
   archivedAt: timestamp('archived_at'),
   isPublished: boolean('is_published').default(false),

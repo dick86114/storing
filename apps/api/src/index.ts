@@ -11,6 +11,7 @@ import { collectRoutes } from './routes/collect.js';
 import { mcpRoutes } from './routes/mcp.js';
 import { releasesRoutes } from './routes/releases.js';
 import { initCollectSchema, resumePendingCollectJobs } from './services/collect.service.js';
+import { ensureArticleMetadataCoverVersionColumn } from './services/reader.service.js';
 import { initMcpSchema, startMcpLogCleanupScheduler } from './services/mcp-auth.service.js';
 import { ensurePrivateLibraryPublicationSchema, initArticleMetadataUserScope, repairCollectedArticleMetadataOwnership, repairMissingMcpSavedArticleMetadata } from './services/metadata-scope.service.js';
 import { ensureConfiguredAdmin, initUserManagementSchema } from './services/admin-bootstrap.service.js';
@@ -50,6 +51,7 @@ async function startServer() {
   await initArticleMetadataUserScope().catch((err) => console.error('初始化用户级文章元数据失败:', err));
   await ensurePrivateLibraryPublicationSchema().catch((err) => console.error('初始化文章发布字段失败:', err));
   await initCollectSchema().catch((err) => console.error('初始化采集表失败:', err));
+  await ensureArticleMetadataCoverVersionColumn().catch((err) => console.error('初始化封面版本字段失败:', err));
   await repairCollectedArticleMetadataOwnership().catch((err) => console.error('修复采集文章归属失败:', err));
   await repairMissingMcpSavedArticleMetadata().catch((err) => console.error('修复 MCP 入库元数据失败:', err));
   await resumePendingCollectJobs().catch((err) => console.error('恢复采集队列失败:', err));

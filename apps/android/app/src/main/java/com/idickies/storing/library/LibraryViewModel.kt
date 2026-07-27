@@ -18,6 +18,21 @@ import javax.inject.Inject
 
 private const val SEARCH_DEBOUNCE_MILLIS = 350L
 
+/**
+ * Refreshes the first page without collapsing already-loaded pages, so the list can
+ * keep its visible range stable while new items arrive at the top.
+ */
+internal fun <T> mergeRefreshedFirstPage(
+  incoming: List<T>,
+  current: List<T>,
+  idOf: (T) -> Int,
+): List<T> {
+  if (current.isEmpty()) return incoming
+  val incomingIds = incoming.asSequence().map(idOf).toSet()
+  return (incoming + current.filterNot { idOf(it) in incomingIds })
+    .take(current.size.coerceAtLeast(incoming.size))
+}
+
 private data class LibraryRequest(
   val view: LibraryView,
   val query: String,
@@ -95,6 +110,8 @@ class LibraryViewModel @Inject constructor(
         archiveSource = ArchiveSourceFilter.All,
         archiveSourcesLoading = false,
         articles = emptyList(),
+        loading = true,
+        refreshing = false,
         page = 1,
         totalPages = 0,
         fromCache = false,
@@ -124,7 +141,7 @@ class LibraryViewModel @Inject constructor(
 
   fun refresh() {
     searchDebounceJob?.cancel()
-    loadInitial(refreshing = true)
+    loadInitial(refreshing = true, preserveLoadedContent = true)
     if (ArchiveSourceFilter.isAvailableFor(mutableState.value.view, mutableState.value.searchQuery)) loadArchiveSources()
     loadCounts()
   }
@@ -256,7 +273,7 @@ class LibraryViewModel @Inject constructor(
     }
   }
 
-  private fun loadInitial(refreshing: Boolean = false) {
+  private fun loadInitial(refreshing: Boolean = false, preserveLoadedContent: Boolean = false) {
     listLoadJob?.cancel()
     loadMoreJob?.cancel()
     val request = mutableState.value.toRequest()
@@ -275,9 +292,18 @@ class LibraryViewModel @Inject constructor(
         val result = loadPage(request, page = 1)
         if (!matches(request)) return@launch
         mutableState.update {
+          val keepLoadedRange = preserveLoadedContent && it.articles.isNotEmpty()
           it.copy(
-            articles = result.response.articles,
-            page = result.response.page,
+            articles = if (keepLoadedRange) {
+              mergeRefreshedFirstPage(result.response.articles, it.articles) { article -> article.id }
+            } else {
+              result.response.articles
+            },
+            page = if (keepLoadedRange) {
+              it.page.coerceAtMost(result.response.totalPages.coerceAtLeast(result.response.page))
+            } else {
+              result.response.page
+            },
             totalPages = result.response.totalPages,
             fromCache = result.fromCache,
             loading = false,

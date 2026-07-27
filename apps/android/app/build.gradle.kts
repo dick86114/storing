@@ -114,6 +114,7 @@ dependencies {
   implementation(libs.coil.network.okhttp)
   implementation(libs.zxing.core)
   implementation(libs.androidx.biometric)
+  implementation(libs.androidx.swipe.refresh.layout)
   ksp(libs.hilt.compiler)
   ksp(libs.room.compiler)
 

@@ -23,6 +23,24 @@ const IMG_HOST = process.env.IMG_HOST || 'https://img.ali.idickies.com';
 const IMG_API_KEY = process.env.IMG_API_KEY || '';
 
 let ensureMobileHtmlColumnPromise: Promise<void> | null = null;
+let ensureCoverVersionColumnPromise: Promise<void> | null = null;
+
+/** Bump this when the server learns a higher-quality cover selection strategy. */
+export const COVER_IMAGE_PROCESSING_VERSION = 2;
+
+export async function ensureArticleMetadataCoverVersionColumn() {
+  if (!ensureCoverVersionColumnPromise) {
+    ensureCoverVersionColumnPromise = db
+      .execute(sql.raw(`ALTER TABLE article_metadata ADD COLUMN IF NOT EXISTS cover_version INTEGER NOT NULL DEFAULT 0`))
+      .then(() => undefined)
+      .catch((error) => {
+        ensureCoverVersionColumnPromise = null;
+        throw error;
+      });
+  }
+
+  await ensureCoverVersionColumnPromise;
+}
 
 export async function ensureArticleMetadataContentHtmlMobileColumn() {
   if (!ensureMobileHtmlColumnPromise) {
@@ -1440,11 +1458,11 @@ export async function processCoverImage(articleId: number, userId?: number): Pro
 
   if (existingMeta) {
     await db.update(articleMetadata)
-      .set({ coverImage: uploadedUrl, updatedAt: new Date() })
+      .set({ coverImage: uploadedUrl, coverVersion: COVER_IMAGE_PROCESSING_VERSION, updatedAt: new Date() })
       .where(metadataScope);
   } else {
     await db.insert(articleMetadata)
-      .values({ articleId, userId: scopedUserId, sourceType: 'system', coverImage: uploadedUrl });
+      .values({ articleId, userId: scopedUserId, sourceType: 'system', coverImage: uploadedUrl, coverVersion: COVER_IMAGE_PROCESSING_VERSION });
   }
 
   return uploadedUrl;
