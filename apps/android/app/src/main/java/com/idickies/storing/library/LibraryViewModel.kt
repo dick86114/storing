@@ -47,6 +47,8 @@ data class LibraryUiState(
   val detail: ArticleDetail? = null,
   val loadingDetail: Boolean = false,
   val detailError: String? = null,
+  val detailRefreshing: Boolean = false,
+  val detailRefreshVersion: Int = 0,
   val processingAction: ArticleProcessingAction? = null,
   val processingError: String? = null,
   val counts: ArticleCounts? = null,
@@ -334,7 +336,7 @@ class LibraryViewModel @Inject constructor(
   fun open(id: Int) {
     viewModelScope.launch {
       val card = mutableState.value.articles.firstOrNull { it.id == id }
-      mutableState.update { it.copy(loadingDetail = true, detail = null, detailError = null, savedReadingPosition = null) }
+      mutableState.update { it.copy(loadingDetail = true, detail = null, detailError = null, detailRefreshing = false, savedReadingPosition = null) }
       runCatching { repository.detail(id, card?.publicId.takeIf { mutableState.value.view == LibraryView.Published }) }
         .onSuccess { article ->
           val position = runCatching { readingPositionRepository.get(id)?.scrollPercentage }.getOrNull()
@@ -345,16 +347,42 @@ class LibraryViewModel @Inject constructor(
     }
   }
 
+  fun refreshDetail() {
+    val snapshot = mutableState.value
+    val detail = snapshot.detail ?: return
+    if (snapshot.detailRefreshing) return
+    viewModelScope.launch {
+      mutableState.update { it.copy(detailRefreshing = true) }
+      runCatching {
+        repository.detail(detail.id, detail.publicId.takeIf { mutableState.value.view == LibraryView.Published })
+      }.onSuccess { refreshed ->
+        mutableState.update { current ->
+          if (current.detail?.id != detail.id) current
+          else current.copy(
+            detail = refreshed,
+            detailRefreshing = false,
+            detailRefreshVersion = current.detailRefreshVersion + 1,
+          )
+        }
+      }.onFailure { error ->
+        mutableState.update { current ->
+          if (current.detail?.id != detail.id) current
+          else current.copy(detailRefreshing = false, processingError = error.message ?: "刷新文章失败")
+        }
+      }
+    }
+  }
+
   fun openByPublicId(publicId: String) {
     viewModelScope.launch {
-      mutableState.update { it.copy(loadingDetail = true, detail = null, detailError = null, savedReadingPosition = null) }
+      mutableState.update { it.copy(loadingDetail = true, detail = null, detailError = null, detailRefreshing = false, savedReadingPosition = null) }
       runCatching { repository.detail(0, publicId) }
         .onSuccess { article -> mutableState.update { it.copy(loadingDetail = false, detail = article) } }
         .onFailure { error -> mutableState.update { it.copy(loadingDetail = false, detailError = error.message ?: "加载文章失败") } }
     }
   }
 
-  fun closeDetail() = mutableState.update { it.copy(detail = null, detailError = null, loadingDetail = false, savedReadingPosition = null) }
+  fun closeDetail() = mutableState.update { it.copy(detail = null, detailError = null, loadingDetail = false, detailRefreshing = false, savedReadingPosition = null) }
 
   fun toggleFavoriteCard(article: ArticleCard) {
     viewModelScope.launch {

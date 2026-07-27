@@ -303,32 +303,50 @@ export function normalizeCoverImageUrl(value: string) {
   }
 }
 
-function extractMetaImage(doc: Document, baseUrl: string) {
-  const selectors = [
+export function extractPreferredCoverImage(doc: Document, baseUrl: string): string | null {
+  const metadataSelectors = [
     'meta[property="og:image"]',
     'meta[property="og:image:secure_url"]',
     'meta[name="twitter:image"]',
     'meta[property="twitter:image"]',
+    'meta[property="article:image"]',
+    'meta[itemprop="image"]',
+    'meta[name="thumbnail"]',
+    'meta[name="thumbnailUrl"]',
+    'link[rel="image_src"]',
   ];
 
-  for (const selector of selectors) {
-    const value = doc.querySelector(selector)?.getAttribute('content')?.trim();
+  for (const selector of metadataSelectors) {
+    const element = doc.querySelector(selector);
+    const value = element?.getAttribute('content')?.trim() || element?.getAttribute('href')?.trim();
     if (value) return normalizeCoverImageUrl(absolutizeUrl(value, baseUrl));
   }
 
+  const explicitCover = doc.querySelector<HTMLImageElement>([
+    '[data-storing-cover] img',
+    '[data-cover] img',
+    'figure.article-cover img',
+    '.article-cover img',
+    '.post-cover img',
+    '.entry-cover img',
+    '.featured-image img',
+    'img.wp-post-image',
+  ].join(','));
+
+  return explicitCover ? getImageCandidate(explicitCover, baseUrl) : null;
+}
+
+function extractFirstArticleImage(doc: Document, baseUrl: string) {
   const firstArticleImage =
     doc.querySelector<HTMLImageElement>('article img[src], article img[data-src]') ||
     doc.querySelector<HTMLImageElement>('main img[src], main img[data-src]') ||
     doc.querySelector<HTMLImageElement>('img[src], img[data-src]');
 
-  if (!firstArticleImage) return null;
+  return firstArticleImage ? getImageCandidate(firstArticleImage, baseUrl) : null;
+}
 
-  for (const attr of ['data-src', 'data-original', 'data-lazy-src', 'data-url', 'src']) {
-    const value = firstArticleImage.getAttribute(attr)?.trim();
-    if (value) return absolutizeUrl(value, baseUrl);
-  }
-
-  return null;
+function extractCoverImage(doc: Document, baseUrl: string) {
+  return extractPreferredCoverImage(doc, baseUrl) ?? extractFirstArticleImage(doc, baseUrl);
 }
 
 function getImageCandidate(image: HTMLImageElement, baseUrl: string) {
@@ -429,7 +447,7 @@ export function prepareCapturedDocument(rawHtml: string, baseUrl: string) {
     if (fallbackTitle) title = fallbackTitle;
   }
   const source = extractSource(baseUrl, doc);
-  const coverImage = extractMetaImage(doc, baseUrl);
+  const coverImage = extractCoverImage(doc, baseUrl);
 
   doc.querySelectorAll('script,noscript').forEach((node) => node.remove());
   doc.querySelectorAll('a[href]').forEach((link) => {
