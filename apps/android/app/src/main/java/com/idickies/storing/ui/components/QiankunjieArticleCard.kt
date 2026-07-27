@@ -15,19 +15,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Inventory2
-import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -59,6 +61,19 @@ val articleCardLayout = ArticleCardLayout(
 )
 
 private val CompactThumbnailSize = 96.dp
+
+/** Article card state markers share one order across every list presentation. */
+internal enum class ArticleCardStatusMarker { Favorite, Archived, Published }
+
+internal fun articleCardStatusMarkers(
+  isFavorited: Boolean,
+  isArchived: Boolean,
+  isPublished: Boolean,
+): List<ArticleCardStatusMarker> = buildList {
+  if (isFavorited) add(ArticleCardStatusMarker.Favorite)
+  if (isArchived) add(ArticleCardStatusMarker.Archived)
+  if (isPublished) add(ArticleCardStatusMarker.Published)
+}
 
 private data class ArticleCardPressMotion(
   val interactionSource: MutableInteractionSource,
@@ -291,9 +306,13 @@ private fun ArticleMetadata(article: ArticleCard, color: androidx.compose.ui.gra
         overflow = TextOverflow.Ellipsis,
       )
     }
-    if (article.isFavorited) Icon(Icons.Outlined.Star, contentDescription = "已收藏", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-    if (article.isArchived) Icon(Icons.Outlined.Inventory2, contentDescription = "已归档", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-    if (article.isPublished) Icon(Icons.Outlined.Public, contentDescription = "已发布", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.tertiary)
+    articleCardStatusMarkers(article.isFavorited, article.isArchived, article.isPublished).forEach { marker ->
+      when (marker) {
+        ArticleCardStatusMarker.Favorite -> Icon(Icons.Outlined.Star, contentDescription = "已收藏", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+        ArticleCardStatusMarker.Archived -> Icon(Icons.Outlined.Inventory2, contentDescription = "已归档", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        ArticleCardStatusMarker.Published -> Icon(Icons.Outlined.IosShare, contentDescription = "已发布", modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.tertiary)
+      }
+    }
   }
 }
 
@@ -342,6 +361,19 @@ private fun ArticleThumbnail(article: ArticleCard, modifier: Modifier, shape: Sh
         contentScale = ContentScale.Crop,
         modifier = Modifier.fillMaxSize(),
       )
+    }
+    if (article.isPublished) {
+      Surface(
+        modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).size(30.dp),
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.94f),
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        shadowElevation = 2.dp,
+      ) {
+        Box(contentAlignment = Alignment.Center) {
+          Icon(Icons.Outlined.IosShare, contentDescription = "已发布", modifier = Modifier.size(16.dp))
+        }
+      }
     }
   }
 }

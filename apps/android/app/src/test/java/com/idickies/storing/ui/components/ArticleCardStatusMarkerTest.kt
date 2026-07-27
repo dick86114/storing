@@ -1,0 +1,14 @@
+package com.idickies.storing.ui.components
+
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class ArticleCardStatusMarkerTest {
+  @Test
+  fun `published cards expose a distinct publication marker alongside favorite state`() {
+    assertEquals(
+      listOf(ArticleCardStatusMarker.Favorite, ArticleCardStatusMarker.Published),
+      articleCardStatusMarkers(isFavorited = true, isArchived = false, isPublished = true),
+    )
+  }
+}

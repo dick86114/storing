@@ -1,6 +1,8 @@
 package com.idickies.storing.ui
 
 import android.app.Activity
+import android.os.SystemClock
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -484,9 +486,16 @@ private fun HomeSkeleton(
   onLogout: () -> Unit,
 ) {
   val context = LocalContext.current
-  var confirmExit by rememberSaveable { mutableStateOf(false) }
+  var lastExitAttemptAtMillis by rememberSaveable { mutableStateOf<Long?>(null) }
   BackHandler {
-    if (ExitConfirmationPolicy.requiresConfirmation(isRootScreen = true)) confirmExit = true
+    val now = SystemClock.elapsedRealtime()
+    when (ExitConfirmationPolicy.action(lastExitAttemptAtMillis, now)) {
+      ExitRequestAction.Exit -> (context as? Activity)?.finishAndRemoveTask()
+      ExitRequestAction.ShowHint -> {
+        lastExitAttemptAtMillis = now
+        Toast.makeText(context, "再返回一次退出乾坤戒", Toast.LENGTH_SHORT).show()
+      }
+    }
   }
   LibraryScreen(
     sharedText = sharedText,
@@ -512,14 +521,4 @@ private fun HomeSkeleton(
     onRequestLogin = onRequestLogin,
     onLogout = onLogout,
   )
-  if (confirmExit) {
-    QiankunjieAlertDialog(
-      onDismissRequest = { confirmExit = false },
-      icon = { Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-      title = { Text("退出乾坤戒？") },
-      text = { Text("再次确认后将退出应用。") },
-      confirmButton = { Button(onClick = { (context as? Activity)?.finish(); confirmExit = false }) { Text("确认退出") } },
-      dismissButton = { TextButton(onClick = { confirmExit = false }) { Text("继续阅读") } },
-    )
-  }
 }
