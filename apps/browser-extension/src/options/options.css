@@ -1,0 +1,22 @@
+body { min-width: 0; background: radial-gradient(circle at 84% 10%, #f7e9c5 0, transparent 28%), #f4f0e7; }
+.options-shell { width: min(760px, calc(100vw - 32px)); margin: 0 auto; padding: 52px 0 80px; }
+header { margin-bottom: 25px; }
+header .brand img { width: 42px; height: 42px; border-radius: 12px; }
+header p { margin: 12px 0 0 52px; color: #687066; }
+.settings-card, .connected { padding: 28px; }
+h1 { margin: 0 0 22px; font-size: 22px; letter-spacing: -.03em; }
+label { display: grid; gap: 8px; margin: 14px 0; color: #445046; font-size: 13px; font-weight: 700; }
+input { width: 100%; border: 1px solid #cfd4c5; border-radius: 9px; background: #fffdf7; color: #20251f; padding: 11px 12px; outline: none; }
+input:focus { border-color: #44764f; box-shadow: 0 0 0 3px rgba(47, 93, 58, .12); }
+.advanced-toggle { border: 0; padding: 5px 0; background: transparent; color: #45634b; font-size: 12px; font-weight: 700; text-align: left; }
+.api-preview { margin: 10px 0; color: #667168; font-size: 12px; overflow-wrap: anywhere; }
+.warning { grid-template-columns: 16px 1fr; align-items: start; padding: 11px; border-radius: 9px; background: #fff2d9; color: #7a5121; font-size: 12px; line-height: 1.5; }
+.warning input { width: 16px; margin-top: 2px; }
+.settings-card > .primary, .login-form .primary { width: 100%; margin-top: 10px; }
+.login-form { margin-top: 25px; padding-top: 18px; border-top: 1px solid #e1e0d7; }
+.connected { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.connected strong { display: block; margin-top: 4px; font-size: 18px; }
+.connected p { margin: 5px 0 0; color: #687066; font-size: 13px; }
+.eyebrow { color: #3a7049; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.feedback { margin: 14px 3px; }
+@media (max-width: 560px) { .options-shell { padding-top: 26px; } .connected { align-items: flex-start; flex-direction: column; } }

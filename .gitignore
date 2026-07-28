@@ -59,3 +59,6 @@ apps/android/local.properties
 
 # Local Android UI Lab screenshots and Emulator artifacts
 /artifacts/android-ui-lab/
+
+# Generated browser-extension release bundles
+/releases/browser-extension/*.zip

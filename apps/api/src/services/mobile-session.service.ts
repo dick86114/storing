@@ -13,11 +13,14 @@ export type MobileDevice = {
   appVersion: string;
 };
 
+export type ClientSessionType = 'android' | 'browser_extension';
+
 export type MobileSessionSummary = {
   id: string;
   deviceId: string;
   deviceName: string;
   appVersion: string;
+  clientType: ClientSessionType;
   createdAt: Date | null;
   lastUsedAt: Date | null;
   expiresAt: Date;
@@ -54,12 +57,14 @@ export async function initMobileSessionSchema() {
       device_name TEXT NOT NULL,
       refresh_token_hash TEXT NOT NULL UNIQUE,
       app_version TEXT NOT NULL,
+      client_type TEXT NOT NULL DEFAULT 'android',
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       last_used_at TIMESTAMP NOT NULL DEFAULT NOW(),
       expires_at TIMESTAMP NOT NULL,
       revoked_at TIMESTAMP
     )
   `));
+  await db.execute(sql.raw(`ALTER TABLE mobile_sessions ADD COLUMN IF NOT EXISTS client_type TEXT NOT NULL DEFAULT 'android'`));
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS mobile_sessions_user_active_idx ON mobile_sessions(user_id, last_used_at DESC) WHERE revoked_at IS NULL`));
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS mobile_sessions_expiry_idx ON mobile_sessions(expires_at) WHERE revoked_at IS NULL`));
 }
@@ -74,6 +79,7 @@ function asSummary(row: typeof mobileSessions.$inferSelect): MobileSessionSummar
     deviceId: row.deviceId,
     deviceName: row.deviceName,
     appVersion: row.appVersion,
+    clientType: row.clientType as ClientSessionType,
     createdAt: row.createdAt,
     lastUsedAt: row.lastUsedAt,
     expiresAt: row.expiresAt,
@@ -81,7 +87,7 @@ function asSummary(row: typeof mobileSessions.$inferSelect): MobileSessionSummar
   };
 }
 
-export async function createMobileSession(input: { userId: number; device: MobileDevice }) {
+export async function createMobileSession(input: { userId: number; device: MobileDevice; clientType?: ClientSessionType }) {
   const refreshToken = createMobileRefreshToken();
   const now = new Date();
   const expiresAt = new Date(now.getTime() + REFRESH_TOKEN_TTL_MS);
@@ -92,6 +98,7 @@ export async function createMobileSession(input: { userId: number; device: Mobil
     deviceName: input.device.deviceName,
     refreshTokenHash: hashMobileRefreshToken(refreshToken),
     appVersion: input.device.appVersion,
+    clientType: input.clientType ?? 'android',
     createdAt: now,
     lastUsedAt: now,
     expiresAt,
@@ -100,7 +107,7 @@ export async function createMobileSession(input: { userId: number; device: Mobil
   return { refreshToken, session: asSummary(session) };
 }
 
-export async function rotateMobileSession(refreshToken: string, device?: MobileDevice) {
+export async function rotateMobileSession(refreshToken: string, device?: MobileDevice, clientType?: ClientSessionType) {
   const currentHash = hashMobileRefreshToken(refreshToken);
   const now = new Date();
   const [current] = await db
@@ -113,7 +120,7 @@ export async function rotateMobileSession(refreshToken: string, device?: MobileD
     ))
     .limit(1);
 
-  if (!current) return null;
+  if (!current || (clientType && current.clientType !== clientType)) return null;
 
   const nextRefreshToken = createMobileRefreshToken();
   const expiresAt = new Date(now.getTime() + REFRESH_TOKEN_TTL_MS);
@@ -142,36 +149,52 @@ export async function rotateMobileSession(refreshToken: string, device?: MobileD
   return { refreshToken: nextRefreshToken, session: asSummary(updated), userId: updated.userId };
 }
 
-export async function revokeMobileSession(sessionId: string, userId: number) {
+export async function revokeMobileSession(sessionId: string, userId: number, clientType?: ClientSessionType) {
   const [revoked] = await db
     .update(mobileSessions)
     .set({ revokedAt: new Date() })
-    .where(and(eq(mobileSessions.id, sessionId), eq(mobileSessions.userId, userId), isNull(mobileSessions.revokedAt)))
+    .where(and(
+      eq(mobileSessions.id, sessionId),
+      eq(mobileSessions.userId, userId),
+      isNull(mobileSessions.revokedAt),
+      ...(clientType ? [eq(mobileSessions.clientType, clientType)] : []),
+    ))
     .returning({ id: mobileSessions.id });
   return Boolean(revoked);
 }
 
-export async function revokeMobileSessionByRefreshToken(refreshToken: string) {
+export async function revokeMobileSessionByRefreshToken(refreshToken: string, clientType?: ClientSessionType) {
   const [revoked] = await db
     .update(mobileSessions)
     .set({ revokedAt: new Date() })
-    .where(and(eq(mobileSessions.refreshTokenHash, hashMobileRefreshToken(refreshToken)), isNull(mobileSessions.revokedAt)))
+    .where(and(
+      eq(mobileSessions.refreshTokenHash, hashMobileRefreshToken(refreshToken)),
+      isNull(mobileSessions.revokedAt),
+      ...(clientType ? [eq(mobileSessions.clientType, clientType)] : []),
+    ))
     .returning({ id: mobileSessions.id });
   return Boolean(revoked);
 }
 
-export async function revokeMobileSessionsForUser(userId: number) {
+export async function revokeMobileSessionsForUser(userId: number, clientType?: ClientSessionType) {
   await db
     .update(mobileSessions)
     .set({ revokedAt: new Date() })
-    .where(and(eq(mobileSessions.userId, userId), isNull(mobileSessions.revokedAt)));
+    .where(and(
+      eq(mobileSessions.userId, userId),
+      isNull(mobileSessions.revokedAt),
+      ...(clientType ? [eq(mobileSessions.clientType, clientType)] : []),
+    ));
 }
 
-export async function listMobileSessions(userId: number) {
+export async function listMobileSessions(userId: number, clientType?: ClientSessionType) {
   const rows = await db
     .select()
     .from(mobileSessions)
-    .where(eq(mobileSessions.userId, userId))
+    .where(and(
+      eq(mobileSessions.userId, userId),
+      ...(clientType ? [eq(mobileSessions.clientType, clientType)] : []),
+    ))
     .orderBy(desc(mobileSessions.lastUsedAt));
   return rows.map(asSummary);
 }
