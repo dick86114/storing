@@ -133,3 +133,16 @@ test('release workflow resolves and enforces canonical client versions', async (
   }
   assert.doesNotMatch(workflow, /android_version_name:\n\s+description:/);
 });
+
+test('release runbook documents the two-stage version flow', async () => {
+  const document = await readFile('docs/Client-GitHub-Release-Automation.md', 'utf8');
+  for (const requiredText of [
+    'Prepare client release version',
+    'android-latest',
+    '上一版本 + 1',
+    '合并 PR',
+    'v2.1.0',
+  ]) {
+    assert.match(document, new RegExp(requiredText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+});
