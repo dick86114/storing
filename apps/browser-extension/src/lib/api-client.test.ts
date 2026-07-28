@@ -15,6 +15,26 @@ function createStore(session: ExtensionSession): SessionStore & { current: Exten
 }
 
 describe('ExtensionApiClient', () => {
+  it('calls a worker-native fetch with the global worker receiver', async () => {
+    const store = createStore({
+      apiBase: 'https://storing.example.com/api/v1',
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      device: { deviceId: 'ccaf5543-f11a-4c53-89b0-20ef0cfddd72', deviceName: 'Chrome 扩展', appVersion: '0.1.0' },
+      user: { id: 1, username: 'reader' },
+    });
+    let receiver: unknown;
+    const workerNativeFetch = function (this: unknown) {
+      receiver = this;
+      return Promise.resolve(response({ status: 'ok' }));
+    } as typeof fetch;
+
+    const client = new ExtensionApiClient(store, workerNativeFetch);
+    await client.testConnection('https://storing.example.com/api/v1');
+
+    expect(receiver).toBe(globalThis);
+  });
+
   it('refreshes one expired access token then submits the same collection once', async () => {
     const store = createStore({
       apiBase: 'https://storing.example.com/api/v1',

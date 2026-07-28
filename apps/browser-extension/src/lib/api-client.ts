@@ -65,13 +65,17 @@ async function errorMessage(response: Response) {
 export class ExtensionApiClient {
   constructor(private readonly store: SessionStore, private readonly fetchImpl: typeof fetch = fetch) {}
 
+  private callFetch(input: RequestInfo | URL, init?: RequestInit) {
+    return this.fetchImpl.call(globalThis, input, init);
+  }
+
   async testConnection(apiBase: string) {
-    const response = await this.fetchImpl(endpoint(apiBase, '/health'));
+    const response = await this.callFetch(endpoint(apiBase, '/health'));
     if (!response.ok) throw new ExtensionApiError(await errorMessage(response), response.status);
   }
 
   async login(apiBase: string, username: string, password: string, device: ExtensionDevice) {
-    const response = await this.fetchImpl(endpoint(apiBase, '/extension/auth/login'), {
+    const response = await this.callFetch(endpoint(apiBase, '/extension/auth/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password, device }),
@@ -91,7 +95,7 @@ export class ExtensionApiClient {
     const session = await this.store.get();
     try {
       if (session) {
-        await this.fetchImpl(endpoint(session.apiBase, '/extension/auth/logout'), {
+        await this.callFetch(endpoint(session.apiBase, '/extension/auth/logout'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token: session.refreshToken }),
@@ -114,7 +118,7 @@ export class ExtensionApiClient {
     const session = await this.store.get();
     if (!session) throw new ExtensionAuthError();
 
-    const response = await this.fetchImpl(endpoint(session.apiBase, path), {
+    const response = await this.callFetch(endpoint(session.apiBase, path), {
       ...init,
       headers: {
         'Authorization': `Bearer ${session.accessToken}`,
@@ -140,7 +144,7 @@ export class ExtensionApiClient {
   }
 
   private async refresh(session: ExtensionSession) {
-    const response = await this.fetchImpl(endpoint(session.apiBase, '/extension/auth/refresh'), {
+    const response = await this.callFetch(endpoint(session.apiBase, '/extension/auth/refresh'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: session.refreshToken, device: session.device }),
