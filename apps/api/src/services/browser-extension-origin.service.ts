@@ -14,6 +14,13 @@ export function createAllowedCorsOrigins(input: { appOrigin?: string; browserExt
   return new Set([...appOrigins, ...browserExtensionOrigins]);
 }
 
+export function isAllowedBrowserExtensionOrigin(origin: string | undefined, configuredOrigins: string | undefined) {
+  if (!origin || !EXTENSION_ORIGIN_PATTERN.test(origin)) return false;
+  return parseConfiguredOrigins(configuredOrigins)
+    .filter((candidate) => EXTENSION_ORIGIN_PATTERN.test(candidate))
+    .includes(origin);
+}
+
 export function resolveAllowedCorsOrigin(origin: string, allowedCorsOrigins: ReadonlySet<string>) {
   return allowedCorsOrigins.has(origin) ? origin : undefined;
 }
