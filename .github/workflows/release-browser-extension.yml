@@ -51,7 +51,10 @@ jobs:
           VERSION: ${{ steps.version.outputs.next }}
         run: |
           TAG="browser-extension-v${VERSION}"
-          gh release view "$TAG" >/dev/null 2>&1 && { echo "Release $TAG 已存在。" >&2; exit 1; }
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG 已存在。" >&2
+            exit 1
+          fi
       - run: pnpm install --frozen-lockfile
       - name: Test, type-check and package extension
         run: |
