@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://unpkg.com" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://unpkg.com/@fortawesome/fontawesome-free@6.7.2/js/all.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * {
+      scrollbar-width: none;
+      scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    }
+  </style>
+</head>
+
+<body class="bg-[#0A1F15] text-[#E8E4DC] min-h-screen font-['DM_Sans',sans-serif]">
+<link rel="stylesheet" href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600&family=DM+Sans:wght@300;400;500;600;700&display=swap" />
+
+<style type="text/tailwindcss">
+@theme {
+  --color-primary: #0D2B1E;
+  --color-surface: #0F1F18;
+  --color-card: #152E23;
+  --color-card-hover: #1A3B2B;
+  --color-accent: #C9A84C;
+  --color-accent-dim: #A8893E;
+  --color-text-primary: #E8E4DC;
+  --color-text-secondary: #8A9B8F;
+  --color-text-muted: #5C7066;
+  --color-border: #1E3D2E;
+  --color-border-subtle: #162E22;
+  --color-success: #4ADE80;
+  --color-error: #F87171;
+  --color-warning: #FBBF24;
+}
+</style>
+
+<div class="flex min-h-screen">
+  <!-- Sidebar with Admin submenu -->
+  <aside class="w-64 bg-surface border-r border-border fixed h-screen flex flex-col z-50">
+    <div class="p-5 border-b border-border">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center">
+          <i data-lucide="circle-dot" class="w-5 h-5 text-accent"></i>
+        </div>
+        <div>
+          <h1 class="text-base font-['Noto_Serif_SC',serif] font-semibold text-text-primary tracking-wide">乾坤戒</h1>
+          <span class="text-[10px] text-text-muted uppercase tracking-widest font-medium">Storing</span>
+        </div>
+      </div>
+    </div>
+
+    <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <a href="inbox.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all">
+        <i data-lucide="inbox" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">收件箱</span>
+        <span class="ml-auto text-[11px] text-text-muted">36</span>
+      </a>
+      <a href="inbox.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all">
+        <i data-lucide="heart" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">收藏</span>
+      </a>
+      <a href="archive.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all">
+        <i data-lucide="archive" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">归档</span>
+      </a>
+      <a href="inbox.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all">
+        <i data-lucide="globe" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">发布</span>
+      </a>
+
+      <div class="pt-4 pb-2">
+        <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-card border border-border-subtle text-text-muted">
+          <i data-lucide="search" class="w-4 h-4"></i>
+          <span class="text-xs">搜索文章...</span>
+        </div>
+      </div>
+
+      <!-- Admin Section -->
+      <div class="pt-3">
+        <div class="px-3 mb-2">
+          <span class="text-[10px] uppercase tracking-widest text-text-muted font-semibold">管理后台</span>
+        </div>
+        <a href="admin-users.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md bg-accent/10 border border-accent/20 text-accent transition-all">
+          <i data-lucide="users" class="w-[18px] h-[18px]"></i>
+          <span class="text-sm font-medium font-['Noto_Sans_SC',sans-serif]">用户管理</span>
+        </a>
+        <a href="admin-users.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all">
+          <i data-lucide="database" class="w-[18px] h-[18px]"></i>
+          <span class="text-sm font-['Noto_Sans_SC',sans-serif]">数据管理</span>
+        </a>
+        <a href="admin-users.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all">
+          <i data-lucide="settings-2" class="w-[18px] h-[18px]"></i>
+          <span class="text-sm font-['Noto_Sans_SC',sans-serif]">系统设置</span>
+        </a>
+      </div>
+    </nav>
+
+    <div class="px-3 py-4 border-t border-border">
+      <div class="flex items-center gap-3 px-3 py-2.5 rounded-md bg-card/50 border border-border-subtle">
+        <div class="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center">
+          <span class="text-xs text-accent font-semibold">林</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-xs text-text-primary truncate font-['Noto_Sans_SC',sans-serif]">林小北</p>
+          <p class="text-[10px] text-accent">管理员</p>
+        </div>
+        <i data-lucide="settings" class="w-4 h-4 text-text-muted hover:text-text-secondary cursor-pointer"></i>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="ml-64 flex-1 min-h-screen">
+    <header class="sticky top-0 z-40 bg-[#0A1F15]/90 backdrop-blur-md border-b border-border px-8 py-4">
+      <div class="flex items-center gap-4">
+        <h2 class="text-xl font-['Noto_Serif_SC',serif] font-semibold">用户管理</h2>
+        <span class="text-xs text-text-muted">查看和管理所有注册用户</span>
+      </div>
+    </header>
+
+    <div class="px-8 py-6">
+      <!-- Stats Cards -->
+      <div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="bg-card/80 border border-border rounded-lg p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs text-text-muted font-['Noto_Sans_SC',sans-serif]">用户总数</span>
+            <i data-lucide="users" class="w-4 h-4 text-text-muted"></i>
+          </div>
+          <p class="text-2xl font-semibold text-text-primary">128</p>
+          <p class="text-[10px] text-success mt-1">+12 本月新增</p>
+        </div>
+        <div class="bg-card/80 border border-border rounded-lg p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs text-text-muted font-['Noto_Sans_SC',sans-serif]">启用用户</span>
+            <i data-lucide="user-check" class="w-4 h-4 text-text-muted"></i>
+          </div>
+          <p class="text-2xl font-semibold text-text-primary">115</p>
+          <p class="text-[10px] text-text-muted mt-1">89.8% 活跃率</p>
+        </div>
+        <div class="bg-card/80 border border-border rounded-lg p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs text-text-muted font-['Noto_Sans_SC',sans-serif]">MCP 用户</span>
+            <i data-lucide="plug" class="w-4 h-4 text-text-muted"></i>
+          </div>
+          <p class="text-2xl font-semibold text-text-primary">47</p>
+          <p class="text-[10px] text-text-muted mt-1">36.7% 接入率</p>
+        </div>
+        <div class="bg-card/80 border border-border rounded-lg p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs text-text-muted font-['Noto_Sans_SC',sans-serif]">历史调用</span>
+            <i data-lucide="bar-chart-3" class="w-4 h-4 text-text-muted"></i>
+          </div>
+          <p class="text-2xl font-semibold text-text-primary">52.4K</p>
+          <p class="text-[10px] text-text-muted mt-1">累计 API 调用次数</p>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="flex items-center gap-3 mb-4">
+        <div class="flex-1 flex items-center gap-2 px-3 py-2 rounded-md bg-card border border-border-subtle text-text-muted max-w-xs">
+          <i data-lucide="search" class="w-4 h-4"></i>
+          <input type="text" placeholder="搜索用户名..." class="bg-transparent text-xs outline-none flex-1 text-text-secondary placeholder:text-text-muted" />
+        </div>
+        <select class="bg-card border border-border-subtle rounded-md px-3 py-2 text-xs text-text-secondary outline-none appearance-none cursor-pointer font-['Noto_Sans_SC',sans-serif]">
+          <option>全部角色</option>
+          <option>管理员</option>
+          <option>普通用户</option>
+        </select>
+        <select class="bg-card border border-border-subtle rounded-md px-3 py-2 text-xs text-text-secondary outline-none appearance-none cursor-pointer font-['Noto_Sans_SC',sans-serif]">
+          <option>全部状态</option>
+          <option>启用</option>
+          <option>禁用</option>
+        </select>
+        <button class="ml-auto px-4 py-2 bg-accent text-[#0A1F15] rounded-md font-semibold text-xs hover:bg-accent-dim transition-colors flex items-center gap-2">
+          <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+          <span class="font-['Noto_Sans_SC',sans-serif]">新建用户</span>
+        </button>
+      </div>
+
+      <!-- Users Table -->
+      <div class="bg-card/40 border border-border rounded-lg overflow-hidden">
+        <table class="w-full text-left">
+          <thead>
+            <tr class="border-b border-border bg-card/60">
+              <th class="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider font-['Noto_Sans_SC',sans-serif]">用户</th>
+              <th class="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider font-['Noto_Sans_SC',sans-serif]">角色</th>
+              <th class="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider font-['Noto_Sans_SC',sans-serif]">状态</th>
+              <th class="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider font-['Noto_Sans_SC',sans-serif]">注册时间</th>
+              <th class="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider font-['Noto_Sans_SC',sans-serif]">最后登录</th>
+              <th class="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider font-['Noto_Sans_SC',sans-serif]">资料库</th>
+              <th class="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider font-['Noto_Sans_SC',sans-serif]">MCP</th>
+              <th class="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider font-['Noto_Sans_SC',sans-serif]">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- User 1 -->
+            <tr class="border-b border-border-subtle hover:bg-card-hover/50 transition-colors">
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0">
+                    <span class="text-[10px] text-accent font-semibold">林</span>
+                  </div>
+                  <span class="text-xs text-text-primary font-['Noto_Sans_SC',sans-serif]">林小北</span>
+                </div>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/25">管理员</span>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-success/15 text-success border border-success/25 flex items-center gap-1 w-fit"><span class="w-1.5 h-1.5 rounded-full bg-success"></span>启用</span>
+              </td>
+              <td class="px-4 py-3 text-[11px] text-text-muted">2024-08-01</td>
+              <td class="px-4 py-3 text-[11px] text-text-muted">2 小时前</td>
+              <td class="px-4 py-3">
+                <div class="text-[10px] text-text-secondary font-['Noto_Sans_SC',sans-serif]">
+                  <span class="text-text-muted">箱</span> 36 / <span class="text-text-muted">藏</span> 12 / <span class="text-text-muted">档</span> 89
+                </div>
+              </td>
+              <td class="px-4 py-3 text-[11px] text-text-secondary">3</td>
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-1">
+                  <button class="p-1.5 rounded hover:bg-card text-text-muted hover:text-accent" title="编辑"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                  <button class="p-1.5 rounded hover:bg-card text-text-muted hover:text-text-secondary" title="进入文章库"><i data-lucide="library" class="w-3.5 h-3.5"></i></button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- User 2 -->
+            <tr class="border-b border-border-subtle hover:bg-card-hover/50 transition-colors">
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-7 h-7 rounded-full bg-[#1B3A4B] flex items-center justify-center flex-shrink-0">
+                    <span class="text-[10px] text-[#6DB3D3] font-semibold">陈</span>
+                  </div>
+                  <span class="text-xs text-text-primary font-['Noto_Sans_SC',sans-serif]">陈思远</span>
+                </div>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-card text-text-secondary border border-border-subtle">用户</span>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-success/15 text-success border border-success/25 flex items-center gap-1 w-fit"><span class="w-1.5 h-1.5 rounded-full bg-success"></span>启用</span>
+              </td>
+              <td class="px-4 py-3 text-[11px] text-text-muted">2024-09-12</td>
+              <td class="px-4 py-3 text-[11px] text-text-muted">5 小时前</td>
+              <td class="px-4 py-3">
+                <div class="text-[10px] text-text-secondary font-['Noto_Sans_SC',sans-serif]">
+                  <span class="text-text-muted">箱</span> 58 / <span class="text-text-muted">藏</span> 23 / <span class="text-text-muted">档</span> 142
+                </div>
+              </td>
+              <td class="px-4 py-3 text-[11px] text-text-secondary">2</td>
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-1">
+                  <button class="p-1.5 rounded hover:bg-card text-text-muted hover:text-accent" title="编辑"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                  <button class="p-1.5 rounded hover:bg-card text-text-muted hover:text-text-secondary" title="进入文章库"><i data-lucide="library" class="w-3.5 h-3.5"></i></button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- User 3 -->
+            <tr class="border-b border-border-subtle hover:bg-card-hover/50 transition-colors">
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-7 h-7 rounded-full bg-[#2D1B4B] flex items-center justify-center flex-shrink-0">
+                    <span class="text-[10px] text-[#B388D3] font-semibold">王</span>
+                  </div>
+                  <span class="text-xs text-text-primary font-['Noto_Sans_SC',sans-serif]">王晓蓉</span>
+                </div>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-card text-text-secondary border border-border-subtle">用户</span>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-success/15 text-success border border-success/25 flex items-center gap-1 w-fit"><span class="w-1.5 h-1.5 rounded-full bg-success"></span>启用</span>
+              </td>
+              <td class="px-4 py-3 text-[11px] text-text-muted">2024-09-28</td>
+              <td class="px-4 py-3 text-[11px] text-text-muted">1 天前</td>
+              <td class="px-4 py-3">
+                <div class="text-[10px] text-text-secondary font-['Noto_Sans_SC',sans-serif]">
+                  <span class="text-text-muted">箱</span> 21 / <span class="text-text-muted">藏</span> 45 / <span class="text-text-muted">档</span> 67
+                </div>
+              </td>
+              <td class="px-4 py-3 text-[11px] text-text-secondary">1</td>
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-1">
+                  <button class="p-1.5 rounded hover:bg-card text-text-muted hover:text-accent" title="编辑"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                  <button class="p-1.5 rounded hover:bg-card text-text-muted hover:text-text-secondary" title="进入文章库"><i data-lucide="library" class="w-3.5 h-3.5"></i></button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- User 4 -->
+            <tr class="border-b border-border-subtle hover:bg-card-hover/50 transition-colors">
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-7 h-7 rounded-full bg-[#1B4B2D] flex items-center justify-center flex-shrink-0">
+                    <span class="text-[10px] text-[#6DD394] font-semibold">张</span>
+                  </div>
+                  <span class="text-xs text-text-primary font-['Noto_Sans_SC',sans-serif]">张明远</span>
+                </div>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-card text-text-secondary border border-border-subtle">用户</span>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-success/15 text-success border border-success/25 flex items-center gap-1 w-fit"><span class="w-1.5 h-1.5 rounded-full bg-success"></span>启用</span>
+              </td>
+              <td class="px-4 py-3 text-[11px] text-text-muted">2024-10-05</td>
+              <td class="px-4 py-3 text-[11px] text-text-muted">3 天前</td>
+              <td class="px-4 py-3">
+                <div class="text-[10px] text-text-secondary font-['Noto_Sans_SC',sans-serif]">
+                  <span class="text-text-muted">箱</span> 14 / <span class="text-text-muted">藏</span> 8 / <span class="text-text-muted">档</span> 31
+                </div>
+              </td>
+              <td class="px-4 py-3 text-[11px] text-text-secondary">0</td>
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-1">
+                  <button class="p-1.5 rounded hover:bg-card text-text-muted hover:text-accent" title="编辑"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                  <button class="p-1.5 rounded hover:bg-card text-text-muted hover:text-text-secondary" title="进入文章库"><i data-lucide="library" class="w-3.5 h-3.5"></i></button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- User 5 -->
+            <tr class="border-b border-border-subtle hover:bg-card-hover/50 transition-colors">
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-7 h-7 rounded-full bg-[#4B3A1B] flex items-center justify-center flex-shrink-0">
+                    <span class="text-[10px] text-[#D3B36D] font-semibold">刘</span>
+                  </div>
+                  <span class="text-xs text-text-primary font-['Noto_Sans_SC',sans-serif]">刘佳欣</span>
+                </div>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-card text-text-secondary border border-border-subtle">用户</span>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-error/15 text-error border border-error/25 flex items-center gap-1 w-fit"><span class="w-1.5 h-1.5 rounded-full bg-error"></span>禁用</span>
+              </td>
+              <td class="px-4 py-3 text-[11px] text-text-muted">2024-10-18</td>
+              <td class="px-4 py-3 text-[11px] text-text-muted">30 天前</td>
+              <td class="px-4 py-3">
+                <div class="text-[10px] text-text-secondary font-['Noto_Sans_SC',sans-serif]">
+                  <span class="text-text-muted">箱</span> 3 / <span class="text-text-muted">藏</span> 0 / <span class="text-text-muted">档</span> 5
+                </div>
+              </td>
+              <td class="px-4 py-3 text-[11px] text-text-secondary">0</td>
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-1">
+                  <button class="p-1.5 rounded hover:bg-card text-text-muted hover:text-accent" title="编辑"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                  <button class="p-1.5 rounded hover:bg-card text-text-muted hover:text-text-secondary" title="进入文章库"><i data-lucide="library" class="w-3.5 h-3.5"></i></button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- User 6 -->
+            <tr class="border-b border-border-subtle hover:bg-card-hover/50 transition-colors">
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-7 h-7 rounded-full bg-[#1B3A4B] flex items-center justify-center flex-shrink-0">
+                    <span class="text-[10px] text-[#6DB3D3] font-semibold">赵</span>
+                  </div>
+                  <span class="text-xs text-text-primary font-['Noto_Sans_SC',sans-serif]">赵宇轩</span>
+                </div>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-card text-text-secondary border border-border-subtle">用户</span>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-success/15 text-success border border-success/25 flex items-center gap-1 w-fit"><span class="w-1.5 h-1.5 rounded-full bg-success"></span>启用</span>
+              </td>
+              <td class="px-4 py-3 text-[11px] text-text-muted">2024-11-02</td>
+              <td class="px-4 py-3 text-[11px] text-text-muted">6 小时前</td>
+              <td class="px-4 py-3">
+                <div class="text-[10px] text-text-secondary font-['Noto_Sans_SC',sans-serif]">
+                  <span class="text-text-muted">箱</span> 72 / <span class="text-text-muted">藏</span> 34 / <span class="text-text-muted">档</span> 210
+                </div>
+              </td>
+              <td class="px-4 py-3 text-[11px] text-text-secondary">2</td>
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-1">
+                  <button class="p-1.5 rounded hover:bg-card text-text-muted hover:text-accent" title="编辑"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                  <button class="p-1.5 rounded hover:bg-card text-text-muted hover:text-text-secondary" title="进入文章库"><i data-lucide="library" class="w-3.5 h-3.5"></i></button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- User 7 -->
+            <tr class="hover:bg-card-hover/50 transition-colors">
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-7 h-7 rounded-full bg-[#2D1B4B] flex items-center justify-center flex-shrink-0">
+                    <span class="text-[10px] text-[#B388D3] font-semibold">李</span>
+                  </div>
+                  <span class="text-xs text-text-primary font-['Noto_Sans_SC',sans-serif]">李文博</span>
+                </div>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-card text-text-secondary border border-border-subtle">用户</span>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-success/15 text-success border border-success/25 flex items-center gap-1 w-fit"><span class="w-1.5 h-1.5 rounded-full bg-success"></span>启用</span>
+              </td>
+              <td class="px-4 py-3 text-[11px] text-text-muted">2024-11-15</td>
+              <td class="px-4 py-3 text-[11px] text-text-muted">12 小时前</td>
+              <td class="px-4 py-3">
+                <div class="text-[10px] text-text-secondary font-['Noto_Sans_SC',sans-serif]">
+                  <span class="text-text-muted">箱</span> 45 / <span class="text-text-muted">藏</span> 19 / <span class="text-text-muted">档</span> 88
+                </div>
+              </td>
+              <td class="px-4 py-3 text-[11px] text-text-secondary">1</td>
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-1">
+                  <button class="p-1.5 rounded hover:bg-card text-text-muted hover:text-accent" title="编辑"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                  <button class="p-1.5 rounded hover:bg-card text-text-muted hover:text-text-secondary" title="进入文章库"><i data-lucide="library" class="w-3.5 h-3.5"></i></button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Pagination -->
+        <div class="px-4 py-3 border-t border-border flex items-center justify-between">
+          <span class="text-[11px] text-text-muted font-['Noto_Sans_SC',sans-serif]">显示 1-7 / 共 128 个用户</span>
+          <div class="flex items-center gap-1">
+            <button class="px-2.5 py-1 rounded text-[11px] text-text-muted hover:bg-card hover:text-text-secondary">上一页</button>
+            <button class="px-2.5 py-1 rounded text-[11px] bg-accent/15 text-accent border border-accent/20">1</button>
+            <button class="px-2.5 py-1 rounded text-[11px] text-text-muted hover:bg-card hover:text-text-secondary">2</button>
+            <button class="px-2.5 py-1 rounded text-[11px] text-text-muted hover:bg-card hover:text-text-secondary">3</button>
+            <button class="px-2.5 py-1 rounded text-[11px] text-text-muted">...</button>
+            <button class="px-2.5 py-1 rounded text-[11px] text-text-muted hover:bg-card hover:text-text-secondary">19</button>
+            <button class="px-2.5 py-1 rounded text-[11px] text-text-muted hover:bg-card hover:text-text-secondary">下一页</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+<script>if (window.lucide) lucide.createIcons();</script>
+</html>

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://unpkg.com" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://unpkg.com/@fortawesome/fontawesome-free@6.7.2/js/all.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * {
+      scrollbar-width: none;
+      scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    }
+  </style>
+</head>
+
+<body class="bg-[#F5F1E8] text-[#1A2E24] min-h-screen font-['DM_Sans',sans-serif]">
+<link rel="stylesheet" href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600&family=DM+Sans:wght@300;400;500;600;700&display=swap" />
+
+<style type="text/tailwindcss">
+@theme {
+  --color-primary: #0D2B1E;
+  --color-surface: #EDE9DE;
+  --color-surface-alt: #F0EBE0;
+  --color-card: #FFFFFF;
+  --color-card-warm: #FDFAF4;
+  --color-card-hover: #F5F1E8;
+  --color-accent: #B8912A;
+  --color-accent-dim: #9A7A24;
+  --color-text-primary: #1A2E24;
+  --color-text-secondary: #5A7062;
+  --color-text-muted: #8FA897;
+  --color-border: #D8D2C4;
+  --color-border-subtle: #E2DDD2;
+  --color-tag-blue-bg: #E8F0F7;
+  --color-tag-blue-text: #2A5A8A;
+  --color-tag-green-bg: #E8F4EC;
+  --color-tag-green-text: #1A6A3A;
+  --color-sidebar-active: #0D2B1E;
+  --color-sidebar-text: #3D5A4A;
+  --color-danger: #D93025;
+  --color-success: #1E7A3A;
+  --color-warning: #B8912A;
+}
+</style>
+
+<div class="flex min-h-screen">
+  <!-- Sidebar -->
+  <aside class="w-64 bg-surface border-r border-border fixed h-screen flex flex-col z-50">
+    <div class="p-5 border-b border-border">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+          <i data-lucide="circle-dot" class="w-5 h-5 text-primary"></i>
+        </div>
+        <div>
+          <h1 class="text-base font-['Noto_Serif_SC',serif] font-semibold text-primary tracking-wide">乾坤戒</h1>
+          <span class="text-[10px] text-text-muted uppercase tracking-widest font-medium">Storing</span>
+        </div>
+      </div>
+    </div>
+
+    <nav class="flex-1 px-3 py-4 space-y-1">
+      <a href="inbox-light.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-sidebar-text hover:bg-card-hover hover:text-text-primary transition-all">
+        <i data-lucide="inbox" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">收件箱</span>
+        <span class="ml-auto text-[11px] text-text-muted">36</span>
+      </a>
+      <a href="inbox-light.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-sidebar-text hover:bg-card-hover hover:text-text-primary transition-all">
+        <i data-lucide="heart" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">收藏</span>
+        <span class="ml-auto text-[11px] text-text-muted">12</span>
+      </a>
+      <a href="archive-light.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-sidebar-text hover:bg-card-hover hover:text-text-primary transition-all">
+        <i data-lucide="archive" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">归档</span>
+        <span class="ml-auto text-[11px] text-text-muted">89</span>
+      </a>
+      <a href="inbox-light.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-sidebar-text hover:bg-card-hover hover:text-text-primary transition-all">
+        <i data-lucide="globe" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">发布</span>
+        <span class="ml-auto text-[11px] text-text-muted">5</span>
+      </a>
+
+      <div class="pt-4 pb-2">
+        <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-card border border-border text-text-muted cursor-pointer hover:border-accent/50 transition-colors shadow-sm">
+          <i data-lucide="search" class="w-4 h-4"></i>
+          <span class="text-xs">搜索文章...</span>
+          <span class="ml-auto text-[10px] border border-border rounded px-1 py-0.5">⌘K</span>
+        </div>
+      </div>
+    </nav>
+
+    <div class="px-3 py-4 border-t border-border space-y-1">
+      <a href="collect-light.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-sidebar-text hover:bg-card-hover hover:text-text-primary transition-all">
+        <i data-lucide="plus-circle" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">采集</span>
+      </a>
+      <a href="mcp-light.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md bg-sidebar-active text-white transition-all">
+        <i data-lucide="plug" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-medium font-['Noto_Sans_SC',sans-serif]">MCP 设置</span>
+      </a>
+      <a href="admin-users-light.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-sidebar-text hover:bg-card-hover hover:text-text-primary transition-all">
+        <i data-lucide="shield" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">管理后台</span>
+      </a>
+      <div class="flex items-center gap-3 px-3 py-2.5 mt-2 rounded-md bg-card border border-border shadow-sm">
+        <div class="w-7 h-7 rounded-full bg-accent/15 flex items-center justify-center">
+          <span class="text-xs text-accent font-semibold">林</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-xs text-text-primary truncate font-['Noto_Sans_SC',sans-serif]">林小北</p>
+          <p class="text-[10px] text-text-muted">知识工作者</p>
+        </div>
+        <i data-lucide="settings" class="w-4 h-4 text-text-muted hover:text-text-secondary cursor-pointer"></i>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="ml-64 flex-1 min-h-screen">
+    <header class="sticky top-0 z-40 bg-[#F5F1E8]/90 backdrop-blur-md border-b border-border px-8 py-4">
+      <div class="flex items-center gap-4">
+        <h2 class="text-xl font-['Noto_Serif_SC',serif] font-semibold text-primary">MCP 设置</h2>
+        <span class="text-xs text-text-muted">管理 Model Context Protocol 连接与 API 密钥</span>
+      </div>
+    </header>
+
+    <div class="px-8 py-6 max-w-4xl">
+      <!-- Tabs -->
+      <div class="flex items-center gap-1 mb-6 border-b border-border">
+        <button class="px-4 py-2.5 text-sm font-['Noto_Sans_SC',sans-serif] font-medium text-primary border-b-2 border-primary -mb-px">我的连接</button>
+        <button class="px-4 py-2.5 text-sm font-['Noto_Sans_SC',sans-serif] text-text-muted hover:text-text-secondary -mb-px border-b-2 border-transparent">接入指南</button>
+        <button class="px-4 py-2.5 text-sm font-['Noto_Sans_SC',sans-serif] text-text-muted hover:text-text-secondary -mb-px border-b-2 border-transparent">调用记录</button>
+      </div>
+
+      <!-- Quota Info Bar -->
+      <div class="bg-card border border-border rounded-lg p-4 mb-6 flex items-center gap-6 shadow-sm">
+        <div class="flex items-center gap-2">
+          <i data-lucide="activity" class="w-4 h-4 text-accent"></i>
+          <span class="text-xs font-['Noto_Sans_SC',sans-serif] text-text-secondary">调用频率限制</span>
+          <span class="text-xs font-semibold text-text-primary">60 次/分钟</span>
+        </div>
+        <div class="w-px h-4 bg-border"></div>
+        <div class="flex items-center gap-2">
+          <i data-lucide="layers" class="w-4 h-4 text-accent"></i>
+          <span class="text-xs font-['Noto_Sans_SC',sans-serif] text-text-secondary">并发采集限制</span>
+          <span class="text-xs font-semibold text-text-primary">5 个任务</span>
+        </div>
+        <div class="w-px h-4 bg-border"></div>
+        <div class="flex items-center gap-2">
+          <i data-lucide="bar-chart-3" class="w-4 h-4 text-text-muted"></i>
+          <span class="text-xs font-['Noto_Sans_SC',sans-serif] text-text-secondary">本月调用</span>
+          <span class="text-xs font-semibold text-text-primary">1,247 次</span>
+        </div>
+      </div>
+
+      <!-- New Connection Button -->
+      <div class="flex justify-end mb-4">
+        <button class="px-4 py-2 bg-accent text-white rounded-md font-semibold text-sm hover:bg-accent-dim transition-colors flex items-center gap-2 shadow-sm">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          <span class="font-['Noto_Sans_SC',sans-serif]">新建连接</span>
+        </button>
+      </div>
+
+      <!-- Connection Cards -->
+      <div class="space-y-3">
+        <!-- Connection 1: Running -->
+        <div class="bg-card border border-border-subtle rounded-lg p-5 hover:border-accent/30 hover:shadow-md transition-all shadow-sm">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex-1">
+              <div class="flex items-center gap-3 mb-2">
+                <h4 class="text-sm font-['Noto_Sans_SC',sans-serif] font-medium text-text-primary">Claude Desktop 主力</h4>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20 flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-success"></span>
+                  运行中
+                </span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-tag-blue-bg text-tag-blue-text">读写</span>
+              </div>
+              <div class="flex items-center gap-2 mb-3">
+                <span class="text-xs text-text-muted font-mono bg-surface px-2 py-1 rounded border border-border">sk-mcp-****...7f3a</span>
+                <button class="text-text-muted hover:text-text-secondary"><i data-lucide="eye" class="w-3.5 h-3.5"></i></button>
+              </div>
+              <div class="flex items-center gap-4 text-[11px] text-text-muted font-['Noto_Sans_SC',sans-serif]">
+                <span>创建于 2024-11-02</span>
+                <span>最近使用 3 小时前</span>
+                <span>本月调用 892 次</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 flex-shrink-0">
+              <button class="px-2.5 py-1.5 rounded-md text-[11px] text-text-muted hover:bg-card-hover hover:text-text-secondary transition-all font-['Noto_Sans_SC',sans-serif] flex items-center gap-1">
+                <i data-lucide="copy" class="w-3 h-3"></i>
+                复制配置
+              </button>
+              <button class="px-2.5 py-1.5 rounded-md text-[11px] text-text-muted hover:bg-card-hover hover:text-warning transition-all font-['Noto_Sans_SC',sans-serif] flex items-center gap-1">
+                <i data-lucide="pause" class="w-3 h-3"></i>
+                暂停
+              </button>
+              <button class="px-2.5 py-1.5 rounded-md text-[11px] text-text-muted hover:bg-card-hover hover:text-text-secondary transition-all font-['Noto_Sans_SC',sans-serif] flex items-center gap-1">
+                <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                轮换
+              </button>
+              <button class="px-2.5 py-1.5 rounded-md text-[11px] text-text-muted hover:bg-card-hover hover:text-danger transition-all font-['Noto_Sans_SC',sans-serif] flex items-center gap-1">
+                <i data-lucide="trash-2" class="w-3 h-3"></i>
+                删除
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connection 2: Running -->
+        <div class="bg-card border border-border-subtle rounded-lg p-5 hover:border-accent/30 hover:shadow-md transition-all shadow-sm">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex-1">
+              <div class="flex items-center gap-3 mb-2">
+                <h4 class="text-sm font-['Noto_Sans_SC',sans-serif] font-medium text-text-primary">Cursor 编辑器</h4>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20 flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-success"></span>
+                  运行中
+                </span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-tag-green-bg text-tag-green-text">只读</span>
+              </div>
+              <div class="flex items-center gap-2 mb-3">
+                <span class="text-xs text-text-muted font-mono bg-surface px-2 py-1 rounded border border-border">sk-mcp-****...b2e1</span>
+                <button class="text-text-muted hover:text-text-secondary"><i data-lucide="eye" class="w-3.5 h-3.5"></i></button>
+              </div>
+              <div class="flex items-center gap-4 text-[11px] text-text-muted font-['Noto_Sans_SC',sans-serif]">
+                <span>创建于 2024-12-01</span>
+                <span>最近使用 1 天前</span>
+                <span>本月调用 355 次</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 flex-shrink-0">
+              <button class="px-2.5 py-1.5 rounded-md text-[11px] text-text-muted hover:bg-card-hover hover:text-text-secondary transition-all font-['Noto_Sans_SC',sans-serif] flex items-center gap-1">
+                <i data-lucide="copy" class="w-3 h-3"></i>
+                复制配置
+              </button>
+              <button class="px-2.5 py-1.5 rounded-md text-[11px] text-text-muted hover:bg-card-hover hover:text-warning transition-all font-['Noto_Sans_SC',sans-serif] flex items-center gap-1">
+                <i data-lucide="pause" class="w-3 h-3"></i>
+                暂停
+              </button>
+              <button class="px-2.5 py-1.5 rounded-md text-[11px] text-text-muted hover:bg-card-hover hover:text-text-secondary transition-all font-['Noto_Sans_SC',sans-serif] flex items-center gap-1">
+                <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                轮换
+              </button>
+              <button class="px-2.5 py-1.5 rounded-md text-[11px] text-text-muted hover:bg-card-hover hover:text-danger transition-all font-['Noto_Sans_SC',sans-serif] flex items-center gap-1">
+                <i data-lucide="trash-2" class="w-3 h-3"></i>
+                删除
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connection 3: Paused -->
+        <div class="bg-card border border-border-subtle rounded-lg p-5 hover:border-accent/30 hover:shadow-md transition-all shadow-sm opacity-75">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex-1">
+              <div class="flex items-center gap-3 mb-2">
+                <h4 class="text-sm font-['Noto_Sans_SC',sans-serif] font-medium text-text-primary">自动化脚本（测试）</h4>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-warning/10 text-warning border border-warning/20 flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-warning"></span>
+                  已暂停
+                </span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-tag-blue-bg text-tag-blue-text">读写</span>
+              </div>
+              <div class="flex items-center gap-2 mb-3">
+                <span class="text-xs text-text-muted font-mono bg-surface px-2 py-1 rounded border border-border">sk-mcp-****...9d4c</span>
+                <button class="text-text-muted hover:text-text-secondary"><i data-lucide="eye" class="w-3.5 h-3.5"></i></button>
+              </div>
+              <div class="flex items-center gap-4 text-[11px] text-text-muted font-['Noto_Sans_SC',sans-serif]">
+                <span>创建于 2024-10-15</span>
+                <span>暂停于 2024-12-10</span>
+                <span>累计调用 2,104 次</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 flex-shrink-0">
+              <button class="px-2.5 py-1.5 rounded-md text-[11px] text-text-muted hover:bg-card-hover hover:text-text-secondary transition-all font-['Noto_Sans_SC',sans-serif] flex items-center gap-1">
+                <i data-lucide="copy" class="w-3 h-3"></i>
+                复制配置
+              </button>
+              <button class="px-2.5 py-1.5 rounded-md text-[11px] text-text-muted hover:bg-card-hover hover:text-success transition-all font-['Noto_Sans_SC',sans-serif] flex items-center gap-1">
+                <i data-lucide="play" class="w-3 h-3"></i>
+                恢复
+              </button>
+              <button class="px-2.5 py-1.5 rounded-md text-[11px] text-text-muted hover:bg-card-hover hover:text-text-secondary transition-all font-['Noto_Sans_SC',sans-serif] flex items-center gap-1">
+                <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                轮换
+              </button>
+              <button class="px-2.5 py-1.5 rounded-md text-[11px] text-text-muted hover:bg-card-hover hover:text-danger transition-all font-['Noto_Sans_SC',sans-serif] flex items-center gap-1">
+                <i data-lucide="trash-2" class="w-3 h-3"></i>
+                删除
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <footer class="mt-8 pt-4 border-t border-border">
+        <p class="text-[11px] text-text-muted text-center font-['Noto_Sans_SC',sans-serif]">浅色模式 · <a href="../storing/mcp.html" class="text-accent hover:underline">切换到深色版本</a></p>
+      </footer>
+    </div>
+  </main>
+</div>
+</body>
+<script>if (window.lucide) lucide.createIcons();</script>
+</html>

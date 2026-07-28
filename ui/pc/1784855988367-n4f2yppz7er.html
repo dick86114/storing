@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://unpkg.com" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://unpkg.com/@fortawesome/fontawesome-free@6.7.2/js/all.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * {
+      scrollbar-width: none;
+      scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    }
+  </style>
+</head>
+
+<body class="bg-[#0A1F15] text-[#E8E4DC] min-h-screen font-['DM_Sans',sans-serif]">
+<link rel="stylesheet" href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600&family=DM+Sans:wght@300;400;500;600;700&display=swap" />
+
+<style type="text/tailwindcss">
+@theme {
+  --color-primary: #0D2B1E;
+  --color-surface: #0F1F18;
+  --color-card: #152E23;
+  --color-card-hover: #1A3B2B;
+  --color-accent: #C9A84C;
+  --color-accent-dim: #A8893E;
+  --color-text-primary: #E8E4DC;
+  --color-text-secondary: #8A9B8F;
+  --color-text-muted: #5C7066;
+  --color-border: #1E3D2E;
+  --color-border-subtle: #162E22;
+  --color-tag-blue: #1B3A4B;
+  --color-tag-purple: #2D1B4B;
+  --color-tag-green: #1B4B2D;
+  --color-tag-orange: #4B3A1B;
+}
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+</style>
+
+<div class="flex min-h-screen">
+  <!-- Sidebar -->
+  <aside class="w-64 bg-surface border-r border-border fixed h-screen flex flex-col z-50">
+    <!-- Logo -->
+    <div class="p-5 border-b border-border">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center">
+          <i data-lucide="circle-dot" class="w-5 h-5 text-accent"></i>
+        </div>
+        <div>
+          <h1 class="text-base font-['Noto_Serif_SC',serif] font-semibold text-text-primary tracking-wide">乾坤戒</h1>
+          <span class="text-[10px] text-text-muted uppercase tracking-widest font-medium">Storing</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Nav -->
+    <nav class="flex-1 px-3 py-4 space-y-1">
+      <a href="inbox.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md bg-accent/10 border border-accent/20 text-accent transition-all">
+        <i data-lucide="inbox" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-medium font-['Noto_Sans_SC',sans-serif]">收件箱</span>
+        <span class="ml-auto text-[11px] bg-accent/20 text-accent px-1.5 py-0.5 rounded-full font-semibold">36</span>
+      </a>
+      <a href="inbox.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all">
+        <i data-lucide="heart" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">收藏</span>
+        <span class="ml-auto text-[11px] text-text-muted">12</span>
+      </a>
+      <a href="archive.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all">
+        <i data-lucide="archive" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">归档</span>
+        <span class="ml-auto text-[11px] text-text-muted">89</span>
+      </a>
+      <a href="inbox.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all">
+        <i data-lucide="globe" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">发布</span>
+        <span class="ml-auto text-[11px] text-text-muted">5</span>
+      </a>
+
+      <!-- Search -->
+      <div class="pt-4 pb-2">
+        <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-card border border-border-subtle text-text-muted cursor-pointer hover:border-accent/30 transition-colors">
+          <i data-lucide="search" class="w-4 h-4"></i>
+          <span class="text-xs">搜索文章...</span>
+          <span class="ml-auto text-[10px] border border-border rounded px-1 py-0.5">⌘K</span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Bottom -->
+    <div class="px-3 py-4 border-t border-border space-y-1">
+      <a href="collect.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all">
+        <i data-lucide="plus-circle" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">采集</span>
+      </a>
+      <a href="mcp.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all">
+        <i data-lucide="plug" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">MCP 设置</span>
+      </a>
+      <a href="admin-users.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all">
+        <i data-lucide="shield" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">管理后台</span>
+      </a>
+      <div class="flex items-center gap-3 px-3 py-2.5 mt-2 rounded-md bg-card/50 border border-border-subtle">
+        <div class="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center">
+          <span class="text-xs text-accent font-semibold">林</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-xs text-text-primary truncate font-['Noto_Sans_SC',sans-serif]">林小北</p>
+          <p class="text-[10px] text-text-muted">知识工作者</p>
+        </div>
+        <i data-lucide="settings" class="w-4 h-4 text-text-muted hover:text-text-secondary cursor-pointer"></i>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="ml-64 flex-1 min-h-screen">
+    <!-- Top Toolbar -->
+    <header class="sticky top-0 z-40 bg-[#0A1F15]/90 backdrop-blur-md border-b border-border px-8 py-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <h2 class="text-xl font-['Noto_Serif_SC',serif] font-semibold">收件箱</h2>
+          <span class="text-xs text-text-muted bg-card px-2 py-0.5 rounded-full">36 篇文章</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-1 bg-card rounded-md border border-border-subtle p-0.5">
+            <button class="text-xs px-2.5 py-1.5 rounded bg-accent/15 text-accent font-medium">最近收录</button>
+            <button class="text-xs px-2.5 py-1.5 rounded text-text-muted hover:text-text-secondary">最近发布</button>
+          </div>
+          <button class="p-2 rounded-md hover:bg-card text-text-muted hover:text-text-secondary transition-colors">
+            <i data-lucide="arrow-down-up" class="w-4 h-4"></i>
+          </button>
+          <button class="p-2 rounded-md hover:bg-card text-text-muted hover:text-text-secondary transition-colors">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Article List -->
+    <div class="px-8 py-6 space-y-3">
+      <!-- Article Card 1 -->
+      <a href="article.html" class="group block bg-card/60 border border-border-subtle rounded-lg p-4 hover:bg-card-hover hover:border-accent/20 transition-all">
+        <div class="flex gap-4">
+          <img src="https://images.unsplash.com/photo-1677442136019-21780ecad995?w=160&h=120&fit=crop&auto=format&q=80" alt="AI" class="w-28 h-20 rounded-md object-cover flex-shrink-0 opacity-90 group-hover:opacity-100 transition-opacity" />
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-4">
+              <h3 class="text-sm font-['Noto_Sans_SC',sans-serif] font-medium text-text-primary group-hover:text-accent transition-colors line-clamp-1">大模型应用开发的 9 个坑：从 RAG 到 Agent 的实战经验总结</h3>
+              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                <button class="p-1.5 rounded hover:bg-accent/10 text-text-muted hover:text-accent"><i data-lucide="heart" class="w-4 h-4"></i></button>
+                <button class="p-1.5 rounded hover:bg-accent/10 text-text-muted hover:text-accent"><i data-lucide="archive" class="w-4 h-4"></i></button>
+              </div>
+            </div>
+            <p class="text-xs text-text-secondary mt-1.5 line-clamp-2 leading-relaxed font-['Noto_Sans_SC',sans-serif]">本文系统梳理了大模型应用开发过程中常见的 9 个技术陷阱，包括 RAG 检索质量退化、Agent 循环调用、Prompt 注入攻击等，并给出了对应的工程化解决方案...</p>
+            <div class="flex items-center gap-3 mt-2.5">
+              <span class="text-[11px] text-text-muted">sspai.com</span>
+              <span class="text-[11px] text-text-muted">2024-12-18</span>
+              <div class="flex items-center gap-1.5 ml-auto">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#1B3A4B]/80 text-[#6DB3D3] border border-[#1B3A4B]">AI 工程化</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#2D1B4B]/80 text-[#B388D3] border border-[#2D1B4B]">RAG</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#1B4B2D]/80 text-[#6DD394] border border-[#1B4B2D]">Agent</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </a>
+
+      <!-- Article Card 2 -->
+      <a href="article.html" class="group block bg-card/60 border border-border-subtle rounded-lg p-4 hover:bg-card-hover hover:border-accent/20 transition-all">
+        <div class="flex gap-4">
+          <img src="https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?w=160&h=120&fit=crop&auto=format&q=80" alt="Code" class="w-28 h-20 rounded-md object-cover flex-shrink-0 opacity-90 group-hover:opacity-100 transition-opacity" />
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-4">
+              <h3 class="text-sm font-['Noto_Sans_SC',sans-serif] font-medium text-text-primary group-hover:text-accent transition-colors line-clamp-1">为什么我从 Next.js 迁移到了 Remix——以及后来又迁回来了</h3>
+              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                <button class="p-1.5 rounded hover:bg-accent/10 text-text-muted hover:text-accent"><i data-lucide="heart" class="w-4 h-4"></i></button>
+                <button class="p-1.5 rounded hover:bg-accent/10 text-text-muted hover:text-accent"><i data-lucide="archive" class="w-4 h-4"></i></button>
+              </div>
+            </div>
+            <p class="text-xs text-text-secondary mt-1.5 line-clamp-2 leading-relaxed font-['Noto_Sans_SC',sans-serif]">作为一个全栈独立开发者，我在 Next.js 和 Remix 之间反复横跳的心路历程。从数据获取模式、部署便利性到社区生态，对比两个框架的实际开发体验...</p>
+            <div class="flex items-center gap-3 mt-2.5">
+              <span class="text-[11px] text-text-muted">mp.weixin.qq.com</span>
+              <span class="text-[11px] text-text-muted">2024-12-17</span>
+              <div class="flex items-center gap-1.5 ml-auto">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#4B3A1B]/80 text-[#D3B36D] border border-[#4B3A1B]">前端</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#1B3A4B]/80 text-[#6DB3D3] border border-[#1B3A4B]">框架对比</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </a>
+
+      <!-- Article Card 3 -->
+      <a href="article.html" class="group block bg-card/60 border border-border-subtle rounded-lg p-4 hover:bg-card-hover hover:border-accent/20 transition-all">
+        <div class="flex gap-4">
+          <img src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=160&h=120&fit=crop&auto=format&q=80" alt="Design" class="w-28 h-20 rounded-md object-cover flex-shrink-0 opacity-90 group-hover:opacity-100 transition-opacity" />
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-4">
+              <h3 class="text-sm font-['Noto_Sans_SC',sans-serif] font-medium text-text-primary group-hover:text-accent transition-colors line-clamp-1">设计系统 2025：从 Design Token 到 AI 驱动的自适应组件</h3>
+              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                <button class="p-1.5 rounded hover:bg-accent/10 text-text-muted hover:text-accent"><i data-lucide="heart" class="w-4 h-4"></i></button>
+                <button class="p-1.5 rounded hover:bg-accent/10 text-text-muted hover:text-accent"><i data-lucide="archive" class="w-4 h-4"></i></button>
+              </div>
+            </div>
+            <p class="text-xs text-text-secondary mt-1.5 line-clamp-2 leading-relaxed font-['Noto_Sans_SC',sans-serif]">设计系统正在经历第三次范式转移。从静态 Token 到动态生成，从固定组件到 AI 驱动的语境自适应，本文探讨了 2025 年设计系统的发展方向...</p>
+            <div class="flex items-center gap-3 mt-2.5">
+              <span class="text-[11px] text-text-muted">designsystems.io</span>
+              <span class="text-[11px] text-text-muted">2024-12-16</span>
+              <div class="flex items-center gap-1.5 ml-auto">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#2D1B4B]/80 text-[#B388D3] border border-[#2D1B4B]">设计系统</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#1B4B2D]/80 text-[#6DD394] border border-[#1B4B2D]">AI</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </a>
+
+      <!-- Article Card 4 -->
+      <a href="article.html" class="group block bg-card/60 border border-border-subtle rounded-lg p-4 hover:bg-card-hover hover:border-accent/20 transition-all">
+        <div class="flex gap-4">
+          <img src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=160&h=120&fit=crop&auto=format&q=80" alt="Data" class="w-28 h-20 rounded-md object-cover flex-shrink-0 opacity-90 group-hover:opacity-100 transition-opacity" />
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-4">
+              <h3 class="text-sm font-['Noto_Sans_SC',sans-serif] font-medium text-text-primary group-hover:text-accent transition-colors line-clamp-1">PostgreSQL 性能调优手册：从索引策略到查询计划分析</h3>
+              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                <button class="p-1.5 rounded hover:bg-accent/10 text-text-muted hover:text-accent"><i data-lucide="heart" class="w-4 h-4"></i></button>
+                <button class="p-1.5 rounded hover:bg-accent/10 text-text-muted hover:text-accent"><i data-lucide="archive" class="w-4 h-4"></i></button>
+              </div>
+            </div>
+            <p class="text-xs text-text-secondary mt-1.5 line-clamp-2 leading-relaxed font-['Noto_Sans_SC',sans-serif]">涵盖 B-Tree、GIN、BRIN 索引选型，EXPLAIN ANALYZE 深度解读，以及分区表在大数据量场景下的实战优化策略。附带完整的基准测试数据...</p>
+            <div class="flex items-center gap-3 mt-2.5">
+              <span class="text-[11px] text-text-muted">github.blog</span>
+              <span class="text-[11px] text-text-muted">2024-12-15</span>
+              <div class="flex items-center gap-1.5 ml-auto">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#1B3A4B]/80 text-[#6DB3D3] border border-[#1B3A4B]">数据库</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#4B3A1B]/80 text-[#D3B36D] border border-[#4B3A1B]">性能优化</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </a>
+
+      <!-- Article Card 5 -->
+      <a href="article.html" class="group block bg-card/60 border border-border-subtle rounded-lg p-4 hover:bg-card-hover hover:border-accent/20 transition-all">
+        <div class="flex gap-4">
+          <img src="https://images.unsplash.com/photo-1512486130939-2c4f79935e4f?w=160&h=120&fit=crop&auto=format&q=80" alt="Productivity" class="w-28 h-20 rounded-md object-cover flex-shrink-0 opacity-90 group-hover:opacity-100 transition-opacity" />
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-4">
+              <h3 class="text-sm font-['Noto_Sans_SC',sans-serif] font-medium text-text-primary group-hover:text-accent transition-colors line-clamp-1">知识管理的第一性原理：为什么你的笔记系统总是失败</h3>
+              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                <button class="p-1.5 rounded hover:bg-accent/10 text-text-muted hover:text-accent"><i data-lucide="heart" class="w-4 h-4"></i></button>
+                <button class="p-1.5 rounded hover:bg-accent/10 text-text-muted hover:text-accent"><i data-lucide="archive" class="w-4 h-4"></i></button>
+              </div>
+            </div>
+            <p class="text-xs text-text-secondary mt-1.5 line-clamp-2 leading-relaxed font-['Noto_Sans_SC',sans-serif]">从认知科学的角度重新审视个人知识管理。我们为什么总在搜集和整理之间反复纠结？真正有效的知识系统应该长什么样？</p>
+            <div class="flex items-center gap-3 mt-2.5">
+              <span class="text-[11px] text-text-muted">sspai.com</span>
+              <span class="text-[11px] text-text-muted">2024-12-14</span>
+              <div class="flex items-center gap-1.5 ml-auto">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#1B4B2D]/80 text-[#6DD394] border border-[#1B4B2D]">知识管理</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#2D1B4B]/80 text-[#B388D3] border border-[#2D1B4B]">方法论</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </a>
+
+      <!-- Article Card 6 -->
+      <a href="article.html" class="group block bg-card/60 border border-border-subtle rounded-lg p-4 hover:bg-card-hover hover:border-accent/20 transition-all">
+        <div class="flex gap-4">
+          <img src="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=160&h=120&fit=crop&auto=format&q=80" alt="Cloud" class="w-28 h-20 rounded-md object-cover flex-shrink-0 opacity-90 group-hover:opacity-100 transition-opacity" />
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-4">
+              <h3 class="text-sm font-['Noto_Sans_SC',sans-serif] font-medium text-text-primary group-hover:text-accent transition-colors line-clamp-1">Serverless 架构在 2025 年还值得投入吗？一个老架构师的反思</h3>
+              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                <button class="p-1.5 rounded hover:bg-accent/10 text-text-muted hover:text-accent"><i data-lucide="heart" class="w-4 h-4"></i></button>
+                <button class="p-1.5 rounded hover:bg-accent/10 text-text-muted hover:text-accent"><i data-lucide="archive" class="w-4 h-4"></i></button>
+              </div>
+            </div>
+            <p class="text-xs text-text-secondary mt-1.5 line-clamp-2 leading-relaxed font-['Noto_Sans_SC',sans-serif]">从 Lambda 冷启动问题到 Vendor Lock-in 困境，再到新兴的边缘计算方案。Serverless 的理想与现实之间，到底差了多少？</p>
+            <div class="flex items-center gap-3 mt-2.5">
+              <span class="text-[11px] text-text-muted">infoq.cn</span>
+              <span class="text-[11px] text-text-muted">2024-12-13</span>
+              <div class="flex items-center gap-1.5 ml-auto">
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#4B3A1B]/80 text-[#D3B36D] border border-[#4B3A1B]">架构</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#1B3A4B]/80 text-[#6DB3D3] border border-[#1B3A4B]">Serverless</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </a>
+
+      <!-- Loading Indicator -->
+      <div class="flex items-center justify-center py-8">
+        <div class="flex items-center gap-2 text-text-muted text-xs">
+          <div class="w-4 h-4 border-2 border-accent/30 border-t-accent rounded-full" style="animation: pulse-subtle 1.2s ease-in-out infinite"></div>
+          <span>加载更多...</span>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+<script>if (window.lucide) lucide.createIcons();</script>
+</html>

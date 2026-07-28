@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://unpkg.com" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://unpkg.com/@fortawesome/fontawesome-free@6.7.2/js/all.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * {
+      scrollbar-width: none;
+      scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    }
+  </style>
+</head>
+
+<body class="bg-[#0A1F15] text-[#E8E4DC] min-h-screen font-['DM_Sans',sans-serif]">
+<link rel="stylesheet" href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600&family=DM+Sans:wght@300;400;500;600;700&display=swap" />
+
+<style type="text/tailwindcss">
+@theme {
+  --color-primary: #0D2B1E;
+  --color-surface: #0F1F18;
+  --color-card: #152E23;
+  --color-card-hover: #1A3B2B;
+  --color-accent: #C9A84C;
+  --color-accent-dim: #A8893E;
+  --color-text-primary: #E8E4DC;
+  --color-text-secondary: #8A9B8F;
+  --color-text-muted: #5C7066;
+  --color-border: #1E3D2E;
+  --color-border-subtle: #162E22;
+}
+</style>
+
+<div class="flex min-h-screen">
+  <!-- Sidebar -->
+  <aside class="w-64 bg-surface border-r border-border fixed h-screen flex flex-col z-50">
+    <!-- Logo -->
+    <div class="p-5 border-b border-border">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center">
+          <i data-lucide="circle-dot" class="w-5 h-5 text-accent"></i>
+        </div>
+        <div>
+          <h1 class="text-base font-['Noto_Serif_SC',serif] font-semibold text-text-primary tracking-wide">乾坤戒</h1>
+          <span class="text-[10px] text-text-muted uppercase tracking-widest font-medium">Storing</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Nav -->
+    <nav class="flex-1 px-3 py-4 space-y-1">
+      <a href="inbox.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all">
+        <i data-lucide="inbox" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">收件箱</span>
+        <span class="ml-auto text-[11px] text-text-muted">36</span>
+      </a>
+      <a href="inbox.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all">
+        <i data-lucide="heart" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">收藏</span>
+        <span class="ml-auto text-[11px] text-text-muted">12</span>
+      </a>
+      <a href="archive.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md bg-accent/10 border border-accent/20 text-accent transition-all">
+        <i data-lucide="archive" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-medium font-['Noto_Sans_SC',sans-serif]">归档</span>
+        <span class="ml-auto text-[11px] bg-accent/20 text-accent px-1.5 py-0.5 rounded-full font-semibold">89</span>
+      </a>
+      <a href="inbox.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all">
+        <i data-lucide="globe" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">发布</span>
+        <span class="ml-auto text-[11px] text-text-muted">5</span>
+      </a>
+
+      <!-- Search -->
+      <div class="pt-4 pb-2">
+        <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-card border border-border-subtle text-text-muted cursor-pointer hover:border-accent/30 transition-colors">
+          <i data-lucide="search" class="w-4 h-4"></i>
+          <span class="text-xs">搜索文章...</span>
+          <span class="ml-auto text-[10px] border border-border rounded px-1 py-0.5">⌘K</span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Bottom -->
+    <div class="px-3 py-4 border-t border-border space-y-1">
+      <a href="collect.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all">
+        <i data-lucide="plus-circle" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">采集</span>
+      </a>
+      <a href="mcp.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all">
+        <i data-lucide="plug" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">MCP 设置</span>
+      </a>
+      <a href="admin-users.html" class="flex items-center gap-3 px-3 py-2.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all">
+        <i data-lucide="shield" class="w-[18px] h-[18px]"></i>
+        <span class="text-sm font-['Noto_Sans_SC',sans-serif]">管理后台</span>
+      </a>
+      <div class="flex items-center gap-3 px-3 py-2.5 mt-2 rounded-md bg-card/50 border border-border-subtle">
+        <div class="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center">
+          <span class="text-xs text-accent font-semibold">林</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-xs text-text-primary truncate font-['Noto_Sans_SC',sans-serif]">林小北</p>
+          <p class="text-[10px] text-text-muted">知识工作者</p>
+        </div>
+        <i data-lucide="settings" class="w-4 h-4 text-text-muted hover:text-text-secondary cursor-pointer"></i>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content with two columns -->
+  <main class="ml-64 flex-1 min-h-screen flex">
+    <!-- Source Panel (Left sub-column) -->
+    <div class="w-72 border-r border-border bg-surface/50 flex flex-col h-screen sticky top-0">
+      <div class="p-4 border-b border-border">
+        <h3 class="text-sm font-['Noto_Sans_SC',sans-serif] font-medium text-text-primary mb-3">来源筛选</h3>
+        <div class="flex items-center gap-2 px-3 py-2 rounded-md bg-card border border-border-subtle text-text-muted">
+          <i data-lucide="search" class="w-3.5 h-3.5"></i>
+          <input type="text" placeholder="搜索来源..." class="bg-transparent text-xs outline-none flex-1 text-text-secondary placeholder:text-text-muted" />
+        </div>
+        <div class="flex items-center gap-2 mt-3">
+          <button class="text-[10px] px-2 py-1 rounded bg-accent/15 text-accent border border-accent/20">按数量</button>
+          <button class="text-[10px] px-2 py-1 rounded text-text-muted hover:text-text-secondary hover:bg-card">按名称</button>
+          <button class="text-[10px] px-2 py-1 rounded text-text-muted hover:text-text-secondary hover:bg-card">最近</button>
+        </div>
+      </div>
+      <div class="flex-1 overflow-y-auto p-2 space-y-0.5">
+        <!-- Active source -->
+        <div class="flex items-center gap-3 px-3 py-2.5 rounded-md bg-accent/10 border border-accent/20 cursor-pointer">
+          <div class="w-6 h-6 rounded bg-card flex items-center justify-center flex-shrink-0">
+            <i data-lucide="rss" class="w-3.5 h-3.5 text-accent"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-accent font-medium truncate font-['Noto_Sans_SC',sans-serif]">少数派 (sspai.com)</p>
+          </div>
+          <span class="text-[10px] text-accent bg-accent/20 px-1.5 py-0.5 rounded-full">24</span>
+        </div>
+        <!-- Sources list -->
+        <div class="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-card cursor-pointer transition-colors">
+          <div class="w-6 h-6 rounded bg-card flex items-center justify-center flex-shrink-0">
+            <i data-lucide="message-circle" class="w-3.5 h-3.5 text-text-muted"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-text-secondary truncate font-['Noto_Sans_SC',sans-serif]">机器之心</p>
+          </div>
+          <span class="text-[10px] text-text-muted">18</span>
+        </div>
+        <div class="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-card cursor-pointer transition-colors">
+          <div class="w-6 h-6 rounded bg-card flex items-center justify-center flex-shrink-0">
+            <i data-lucide="code-2" class="w-3.5 h-3.5 text-text-muted"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-text-secondary truncate font-['Noto_Sans_SC',sans-serif]">GitHub Blog</p>
+          </div>
+          <span class="text-[10px] text-text-muted">14</span>
+        </div>
+        <div class="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-card cursor-pointer transition-colors">
+          <div class="w-6 h-6 rounded bg-card flex items-center justify-center flex-shrink-0">
+            <i data-lucide="zap" class="w-3.5 h-3.5 text-text-muted"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-text-secondary truncate font-['Noto_Sans_SC',sans-serif]">InfoQ 中国</p>
+          </div>
+          <span class="text-[10px] text-text-muted">11</span>
+        </div>
+        <div class="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-card cursor-pointer transition-colors">
+          <div class="w-6 h-6 rounded bg-card flex items-center justify-center flex-shrink-0">
+            <i data-lucide="cpu" class="w-3.5 h-3.5 text-text-muted"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-text-secondary truncate font-['Noto_Sans_SC',sans-serif]">量子位</p>
+          </div>
+          <span class="text-[10px] text-text-muted">9</span>
+        </div>
+        <div class="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-card cursor-pointer transition-colors">
+          <div class="w-6 h-6 rounded bg-card flex items-center justify-center flex-shrink-0">
+            <i data-lucide="pen-tool" class="w-3.5 h-3.5 text-text-muted"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-text-secondary truncate font-['Noto_Sans_SC',sans-serif]">Design Systems</p>
+          </div>
+          <span class="text-[10px] text-text-muted">7</span>
+        </div>
+        <div class="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-card cursor-pointer transition-colors">
+          <div class="w-6 h-6 rounded bg-card flex items-center justify-center flex-shrink-0">
+            <i data-lucide="layers" class="w-3.5 h-3.5 text-text-muted"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-text-secondary truncate font-['Noto_Sans_SC',sans-serif]">阮一峰的网络日志</p>
+          </div>
+          <span class="text-[10px] text-text-muted">6</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Article List (Right) -->
+    <div class="flex-1">
+      <!-- Toolbar -->
+      <header class="sticky top-0 z-40 bg-[#0A1F15]/90 backdrop-blur-md border-b border-border px-6 py-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <h2 class="text-lg font-['Noto_Serif_SC',serif] font-semibold">归档</h2>
+            <span class="text-[11px] text-accent bg-accent/10 px-2 py-0.5 rounded-full border border-accent/20">少数派</span>
+            <span class="text-xs text-text-muted">24 篇</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="p-2 rounded-md hover:bg-card text-text-muted hover:text-text-secondary transition-colors">
+              <i data-lucide="arrow-down-up" class="w-4 h-4"></i>
+            </button>
+            <button class="p-2 rounded-md hover:bg-card text-text-muted hover:text-text-secondary transition-colors">
+              <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Articles -->
+      <div class="px-6 py-5 space-y-3">
+        <!-- Article Card 1 -->
+        <a href="article.html" class="group block bg-card/60 border border-border-subtle rounded-lg p-4 hover:bg-card-hover hover:border-accent/20 transition-all">
+          <div class="flex gap-4">
+            <img src="https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=160&h=120&fit=crop&auto=format&q=80" alt="Matrix" class="w-24 h-[68px] rounded-md object-cover flex-shrink-0 opacity-90 group-hover:opacity-100 transition-opacity" />
+            <div class="flex-1 min-w-0">
+              <h3 class="text-sm font-['Noto_Sans_SC',sans-serif] font-medium text-text-primary group-hover:text-accent transition-colors line-clamp-1">用 Obsidian 搭建个人数字花园的完整指南（2024 更新版）</h3>
+              <p class="text-xs text-text-secondary mt-1 line-clamp-2 leading-relaxed font-['Noto_Sans_SC',sans-serif]">从零开始构建基于 Obsidian 的知识管理系统。覆盖插件选型、目录结构、双链笔记的最佳实践，以及如何避免过度组织的陷阱...</p>
+              <div class="flex items-center gap-3 mt-2">
+                <span class="text-[11px] text-text-muted">sspai.com</span>
+                <span class="text-[11px] text-text-muted">2024-11-20</span>
+                <div class="flex items-center gap-1.5 ml-auto">
+                  <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#1B4B2D]/80 text-[#6DD394] border border-[#1B4B2D]">知识管理</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#2D1B4B]/80 text-[#B388D3] border border-[#2D1B4B]">Obsidian</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </a>
+
+        <!-- Article Card 2 -->
+        <a href="article.html" class="group block bg-card/60 border border-border-subtle rounded-lg p-4 hover:bg-card-hover hover:border-accent/20 transition-all">
+          <div class="flex gap-4">
+            <img src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=160&h=120&fit=crop&auto=format&q=80" alt="Work" class="w-24 h-[68px] rounded-md object-cover flex-shrink-0 opacity-90 group-hover:opacity-100 transition-opacity" />
+            <div class="flex-1 min-w-0">
+              <h3 class="text-sm font-['Noto_Sans_SC',sans-serif] font-medium text-text-primary group-hover:text-accent transition-colors line-clamp-1">生产力悖论：为什么工具越多效率越低</h3>
+              <p class="text-xs text-text-secondary mt-1 line-clamp-2 leading-relaxed font-['Noto_Sans_SC',sans-serif]">通过对 200 位知识工作者的调研，揭示了工具碎片化导致上下文切换成本飙升的内在机制。简单不等于简陋，复杂不等于高效...</p>
+              <div class="flex items-center gap-3 mt-2">
+                <span class="text-[11px] text-text-muted">sspai.com</span>
+                <span class="text-[11px] text-text-muted">2024-11-12</span>
+                <div class="flex items-center gap-1.5 ml-auto">
+                  <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#4B3A1B]/80 text-[#D3B36D] border border-[#4B3A1B]">生产力</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#1B3A4B]/80 text-[#6DB3D3] border border-[#1B3A4B]">研究</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </a>
+
+        <!-- Article Card 3 -->
+        <a href="article.html" class="group block bg-card/60 border border-border-subtle rounded-lg p-4 hover:bg-card-hover hover:border-accent/20 transition-all">
+          <div class="flex gap-4">
+            <img src="https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=160&h=120&fit=crop&auto=format&q=80" alt="React" class="w-24 h-[68px] rounded-md object-cover flex-shrink-0 opacity-90 group-hover:opacity-100 transition-opacity" />
+            <div class="flex-1 min-w-0">
+              <h3 class="text-sm font-['Noto_Sans_SC',sans-serif] font-medium text-text-primary group-hover:text-accent transition-colors line-clamp-1">React Server Components 深度解析：从原理到落地的 7 个经验</h3>
+              <p class="text-xs text-text-secondary mt-1 line-clamp-2 leading-relaxed font-['Noto_Sans_SC',sans-serif]">RSC 已经不是实验性特性了。本文从实际项目出发，分享了将传统 SPA 迁移到 RSC 架构的完整经验，包括数据获取模式的重构...</p>
+              <div class="flex items-center gap-3 mt-2">
+                <span class="text-[11px] text-text-muted">sspai.com</span>
+                <span class="text-[11px] text-text-muted">2024-10-28</span>
+                <div class="flex items-center gap-1.5 ml-auto">
+                  <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#1B3A4B]/80 text-[#6DB3D3] border border-[#1B3A4B]">React</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#4B3A1B]/80 text-[#D3B36D] border border-[#4B3A1B]">前端</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </a>
+
+        <!-- Article Card 4 -->
+        <a href="article.html" class="group block bg-card/60 border border-border-subtle rounded-lg p-4 hover:bg-card-hover hover:border-accent/20 transition-all">
+          <div class="flex gap-4">
+            <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=160&h=120&fit=crop&auto=format&q=80" alt="Analytics" class="w-24 h-[68px] rounded-md object-cover flex-shrink-0 opacity-90 group-hover:opacity-100 transition-opacity" />
+            <div class="flex-1 min-w-0">
+              <h3 class="text-sm font-['Noto_Sans_SC',sans-serif] font-medium text-text-primary group-hover:text-accent transition-colors line-clamp-1">独立开发者如何做数据驱动决策：无需复杂 BI 的轻量方案</h3>
+              <p class="text-xs text-text-secondary mt-1 line-clamp-2 leading-relaxed font-['Noto_Sans_SC',sans-serif]">你不需要 Tableau 或者 Looker。用 SQLite + Metabase 或者 Evidence.dev，一个人也能建立起完整的数据洞察体系...</p>
+              <div class="flex items-center gap-3 mt-2">
+                <span class="text-[11px] text-text-muted">sspai.com</span>
+                <span class="text-[11px] text-text-muted">2024-10-15</span>
+                <div class="flex items-center gap-1.5 ml-auto">
+                  <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#1B4B2D]/80 text-[#6DD394] border border-[#1B4B2D]">独立开发</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#2D1B4B]/80 text-[#B388D3] border border-[#2D1B4B]">数据分析</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </a>
+
+        <!-- Article Card 5 -->
+        <a href="article.html" class="group block bg-card/60 border border-border-subtle rounded-lg p-4 hover:bg-card-hover hover:border-accent/20 transition-all">
+          <div class="flex gap-4">
+            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=160&h=120&fit=crop&auto=format&q=80" alt="Writing" class="w-24 h-[68px] rounded-md object-cover flex-shrink-0 opacity-90 group-hover:opacity-100 transition-opacity" />
+            <div class="flex-1 min-w-0">
+              <h3 class="text-sm font-['Noto_Sans_SC',sans-serif] font-medium text-text-primary group-hover:text-accent transition-colors line-clamp-1">技术写作的 craft：如何让复杂概念变得优雅易懂</h3>
+              <p class="text-xs text-text-secondary mt-1 line-clamp-2 leading-relaxed font-['Noto_Sans_SC',sans-serif]">好的技术文章不只是正确的——它是清晰的、有节奏的、尊重读者时间的。从结构、比喻、代码示例到可视化，系统化的技术写作方法...</p>
+              <div class="flex items-center gap-3 mt-2">
+                <span class="text-[11px] text-text-muted">sspai.com</span>
+                <span class="text-[11px] text-text-muted">2024-10-08</span>
+                <div class="flex items-center gap-1.5 ml-auto">
+                  <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#4B3A1B]/80 text-[#D3B36D] border border-[#4B3A1B]">写作</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#1B3A4B]/80 text-[#6DB3D3] border border-[#1B3A4B]">方法论</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+<script>if (window.lucide) lucide.createIcons();</script>
+</html>
