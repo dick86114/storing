@@ -117,3 +117,19 @@ test('prepare workflow keeps browser extension version changes reviewable', asyn
     assert.match(workflow, new RegExp(requiredText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
 });
+
+test('release workflow resolves and enforces canonical client versions', async () => {
+  const workflow = await readFile('.github/workflows/release-clients.yml', 'utf8');
+  for (const requiredText of [
+    'Android versionCode *',
+    '最低可继续使用 versionCode *',
+    'gh release download "android-latest" -p latest.json',
+    'client-release-version.mjs resolve',
+    'needs.validate.outputs.android_version_code',
+    'client-release-version.mjs assert-extension-version',
+    'unzip -p "$SOURCE" manifest.json',
+  ]) {
+    assert.match(workflow, new RegExp(requiredText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+  assert.doesNotMatch(workflow, /android_version_name:\n\s+description:/);
+});
