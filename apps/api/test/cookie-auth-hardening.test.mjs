@@ -50,5 +50,5 @@ test('same-origin browser writes remain valid behind a reverse proxy even when A
 
   assert.match(middleware, /const fetchSite = c\.req\.header\('Sec-Fetch-Site'\);/);
   assert.match(middleware, /fetchSite === 'same-origin'/);
-  assert.match(middleware, /originAllowed \|\| sameOriginBrowserRequest/);
+  assert.match(middleware, /originAllowed \|\| extensionOriginAllowed \|\| sameOriginBrowserRequest/);
 });

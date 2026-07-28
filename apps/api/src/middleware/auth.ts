@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
+import { isAllowedBrowserExtensionOrigin } from '../services/browser-extension-origin.service.js';
 
 export function getRequiredJwtSecret() {
   const configured = process.env.JWT_SECRET?.trim();
@@ -40,12 +41,13 @@ export async function requireCsrfProtection(c: Context, next: Next) {
   const origin = c.req.header('Origin');
   const fetchSite = c.req.header('Sec-Fetch-Site');
   const originAllowed = Boolean(origin && cookieAuthAllowedOrigins().includes(origin));
+  const extensionOriginAllowed = isAllowedBrowserExtensionOrigin(origin, process.env.BROWSER_EXTENSION_ALLOWED_ORIGINS);
   // Browsers protect Sec-Fetch-* headers from script modification. Accept an
   // explicitly same-origin navigation even when a reverse-proxy deployment did
   // not inject APP_ORIGIN into the container, while still rejecting cross-site
   // cookie-authenticated writes.
   const sameOriginBrowserRequest = fetchSite === 'same-origin';
-  if (!(originAllowed || sameOriginBrowserRequest)) {
+  if (!(originAllowed || extensionOriginAllowed || sameOriginBrowserRequest)) {
     return c.json({ error: { code: 'CSRF_FORBIDDEN', message: '请求来源无效' } }, 403);
   }
   await next();
