@@ -1,92 +1,36 @@
-# 统一客户端 GitHub 发布
+# Android 与浏览器插件 GitHub 发布
 
-客户端发布分为两个明确阶段：先准备并审核浏览器插件版本 PR，再从已合并的 `master` 构建并发布 Android APK 和浏览器插件 ZIP。统一 GitHub Release 标签是所有客户端版本的唯一来源。
+Android APK 与浏览器插件使用两套独立 GitHub Actions 工作流，互不阻塞。
 
-## 发布前准备
+## 发布 Android APK：手动版本方式
 
-1. 确认待发布代码已合入 `master`。
-2. 配置 Android 签名 Secrets：
-   - `QIANKUNJIE_RELEASE_KEYSTORE_BASE64`
-   - `QIANKUNJIE_RELEASE_STORE_PASSWORD`
-   - `QIANKUNJIE_RELEASE_KEY_ALIAS`
-   - `QIANKUNJIE_RELEASE_KEY_PASSWORD`
-3. 选择新的统一版本，例如 `v2.1.0`。标签必须以 `v` 开头，Android 与浏览器插件实际版本会使用去掉 `v` 后的 `2.1.0`。
+在 `master` 选择 **Release Android APK**，手动填写：
 
-## 第一步：准备浏览器插件版本 PR
+- `release_tag`：例如 `v2.1.0`；
+- `android_version_name`：例如 `2.1.0`；
+- `android_version_code`：必须为递增正整数；
+- `minimum_supported_version_code`：正整数且不能大于本次 versionCode；
+- 标题、更新说明和是否强制更新。
 
-在 GitHub Actions 从 `master` 选择 **Prepare client release version**，只填写：
+工作流构建并签名 APK，创建对应 GitHub Release，并将 `latest.json` 更新到 `android-latest` Release。Android 流程不会读取或修改浏览器插件版本。
 
-```text
-release_tag: v2.1.0
-```
+## 发布浏览器插件：自动递增补丁版本
 
-该工作流会：
+在 `master` 选择 **Release browser extension**，只填写更新说明。
 
-1. 校验标签格式、既有 Git Tag 和既有 GitHub Release，拒绝重复版本；
-2. 将 `apps/browser-extension/package.json` 的版本更新为 `2.1.0`；
-3. 创建或复用 `release/browser-extension-v2.1.0` 分支上的 PR；
-4. 在 Job Summary 中显示 PR 地址和后续操作。
+工作流会自动：
 
-必须先审核并**合并 PR**，再进行第二步。工作流不会直接修改 `master`，也不会在此阶段创建 Release。
+1. 读取 `apps/browser-extension/package.json` 的当前稳定版本；
+2. 自动递增补丁版本，例如 `0.1.1 → 0.1.2`、`2.1.0 → 2.1.1`；
+3. 更新版本、运行测试和 TypeScript 检查，并打包 ZIP；
+4. 验证 ZIP 内 `manifest.json` 版本；
+5. 自动提交并推送 `chore(browser-extension): release v<版本>` 到 `master`；
+6. 创建 `browser-extension-v<版本>` GitHub Release，上传 ZIP 和 SHA-256 文件。
 
-如果插件源码版本已经是目标版本，准备工作流不会创建空 PR；确认该版本已在 `master` 后可直接进入第二步。
+只支持稳定 `X.Y.Z` 插件版本自动递增。若当前版本为预发布版本（例如 `2.1.0-rc.1`），工作流会停止并要求先人工处理版本。
 
-## 第二步：构建与发布客户端
+> 浏览器插件发布工作流会直接写入 `master`。若仓库分支保护不允许 GitHub Actions 推送，工作流会在推送步骤失败，且不会创建 Release。
 
-在合并 PR 后的 `master` 上运行 **Release mobile app and browser extension**。
+## 历史统一工作流
 
-- `release_tag`：例如 `v2.1.0`，必须与浏览器插件 `package.json.version` 去掉 `v` 后完全一致。
-- `release_title` / `release_notes`：本次 Release 的标题和说明。
-- `build_browser_extension`：启用时，工作流会在打包前校验源码版本，并在打包后再次验证 ZIP 内 `manifest.json` 版本。
-- `publish_release`：关闭时只构建并保留 Actions Artifact；开启时创建 GitHub Release 并上传所选构件。
-
-版本不一致时发布会在构建前失败，并提示先运行 **Prepare client release version**、合并 PR。
-
-## Android 版本规则
-
-Android `versionName` 不再手填，由 `release_tag` 自动推导：
-
-```text
-v2.1.0 -> 2.1.0
-```
-
-以下 `*` 字段仅在勾选“构建并签名 Android APK”时适用：
-
-- **Android versionCode ***：留空时，自动使用 `android-latest` Release 中上一稳定版本的 `versionCode + 1`。
-- **Android 最低可继续使用 versionCode ***：留空时，自动继承 `android-latest` Release 中的上一最低兼容值。
-
-例如上一稳定更新清单为：
-
-```json
-{
-  "versionName": "2.0.3",
-  "versionCode": 203,
-  "minimumSupportedVersionCode": 203
-}
-```
-
-本次填写 `v2.1.0` 后，工作流建议并在留空时自动采用：
-
-```text
-Android versionName: 2.1.0
-Android versionCode: 204       # 上一版本 + 1
-最低兼容 versionCode: 203
-```
-
-如果手动填写，校验规则为：
-
-| 字段 | 规则 |
-| --- | --- |
-| Android versionCode | 必须为正整数，且严格大于上一稳定 versionCode。上一值为 `203` 时，至少填写 `204`。 |
-| 最低兼容 versionCode | 必须为正整数；不能小于上一最低兼容值，也不能大于本次最终 versionCode。 |
-
-校验 Job 会在 Summary 中显示上一稳定值、自动建议、手动输入和最终采用值。若 `android-latest` 中没有有效 `latest.json`，两个 Android 数字字段必须手动填写。
-
-GitHub Actions 的网页表单不支持根据上一 Release 在打开页面时动态预填输入框；因此 `*` 是条件业务必填标记。留空并不报错，而是由工作流在启动后读取 `android-latest/latest.json` 并解析自动默认值。只发布浏览器插件时，Android 字段可保持为空。
-
-## 产物与更新通道
-
-- Android：签名 universal APK 与 `latest.json` 附加到统一 GitHub Release；同一份 `latest.json` 会上传到 `android-latest` Release，供原生 App 查询更新。
-- 浏览器插件：上传 `storing-browser-extension-v<版本>.zip` 与 SHA-256 文件。ZIP 内 Manifest、ZIP 文件名、插件 `package.json` 和统一 Release 标签保持一致。
-
-发布失败时先查看 **Validate and resolve release inputs** Job Summary；其中会给出上一版本、可填写的最小 versionCode，以及插件版本或 Android 兼容门槛不一致的具体原因。
+旧的统一客户端发布和“准备版本 PR”工作流已归档到 `docs/history/release-workflows/`，不再出现在 GitHub Actions 的可运行工作流列表中。
