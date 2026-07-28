@@ -33,5 +33,6 @@ test('workflows and documentation describe split release flows', async () => {
   ]);
   for (const text of ['Release Android APK', 'android_version_name:', 'android_version_code:', 'minimum_supported_version_code:']) assert.match(android, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   for (const text of ['Release browser extension', 'bump-extension-version', 'git push origin HEAD:master', 'browser-extension-v${VERSION}']) assert.match(extension, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(extension, /if gh release view \"\$TAG\" >\/dev\/null 2>&1; then/);
   for (const text of ['Release Android APK', 'Release browser extension', '自动递增补丁版本']) assert.match(doc, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
