@@ -176,7 +176,12 @@ export function generateToken(userId: number) {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
 }
 
+/** Short-lived access token for a revocable client refresh session. */
+export function generateClientAccessToken(userId: number, sessionId: string, client: 'android' | 'browser_extension') {
+  return jwt.sign({ userId, sessionId, client }, JWT_SECRET, { expiresIn: '30m' });
+}
+
 /** Short-lived access token for a revocable native mobile refresh session. */
 export function generateMobileAccessToken(userId: number, sessionId: string) {
-  return jwt.sign({ userId, sessionId, client: 'android' }, JWT_SECRET, { expiresIn: '30m' });
+  return generateClientAccessToken(userId, sessionId, 'android');
 }

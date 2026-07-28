@@ -16,7 +16,7 @@ export const users = pgTable('users', {
 });
 
 
-/** Revocable device sessions used by the native Android client. */
+/** Revocable device sessions used by native and browser-extension clients. */
 export const mobileSessions = pgTable('mobile_sessions', {
   id: text('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id),
@@ -24,6 +24,7 @@ export const mobileSessions = pgTable('mobile_sessions', {
   deviceName: text('device_name').notNull(),
   refreshTokenHash: text('refresh_token_hash').notNull().unique(),
   appVersion: text('app_version').notNull(),
+  clientType: text('client_type').notNull().default('android'),
   createdAt: timestamp('created_at').defaultNow(),
   lastUsedAt: timestamp('last_used_at').defaultNow(),
   expiresAt: timestamp('expires_at').notNull(),
