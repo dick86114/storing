@@ -68,6 +68,9 @@ jobs:
       - name: Type check Shared
         run: cd packages/shared && npx tsc --noEmit
 
+      - name: Type check browser extension
+        run: pnpm --filter browser-extension lint
+
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -133,6 +136,9 @@ jobs:
             echo "No test script found, skipping tests"
           fi
         continue-on-error: true
+
+      - name: Run browser extension tests
+        run: pnpm --filter browser-extension test
 
   security-check:
     name: Security Check

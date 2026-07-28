@@ -1,8 +1,10 @@
+import packageJson from './package.json';
+
 const manifest = {
   manifest_version: 3,
   name: '乾坤戒浏览器采集',
   description: '一键将当前网页采集到乾坤戒收件箱。',
-  version: '0.1.0',
+  version: packageJson.version,
   key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAshylQvIjgqe8ji3uYfXPi+8JJKc6izs5ujShGQFO8GXKQs99RrUfIoot4te4EIs1wWzY55WxNwyRHPFsUp3y/hohob2DfF8ArYa4c8lcY8ZUs2Q8p/TXIgvSwhPjrRFVwtB7qRvYwiqBfz1widgAyeuFMevJblgk8CMcSW9c0bJpzBWNi2KE4T8rpGdN+pZwupdViVu0Vmlzu1c6IfXixfUypGWNTFv/oS0SvlZtuKjE1NlEnVWCKgNO3CCcwTz18CeXBHl/yhZRzohIPib5CblCshvANcCLnympV3eM1qRu7nyHgep3Y0iEn+6RC0G9s8jeK7pSuIM0HCTXcc0T8wIDAQAB',
   icons: {
     '16': 'icons/logo-16.png',

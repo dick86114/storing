@@ -31,7 +31,7 @@ pnpm --filter browser-extension package
 生成结果：
 
 - `apps/browser-extension/dist/`：Chrome / Edge 开发者模式“加载已解压的扩展程序”所需目录
-- `releases/browser-extension/storing-browser-extension-v0.1.0.zip`：相同内容的分发包
+- `releases/browser-extension/storing-browser-extension-v0.1.1.zip`：相同内容的分发包
 
 在 Chrome 或 Edge 的扩展管理页面开启开发者模式，选择“加载已解压的扩展程序”，并选择 `dist/`。安装后显示的扩展 ID 应为：
 
