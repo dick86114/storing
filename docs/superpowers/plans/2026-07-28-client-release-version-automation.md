@@ -67,7 +67,7 @@ Add temporary-package tests verifying `assertExtensionVersion` reports both expe
 
 - [ ] **Step 2: Run the new test file to verify RED**
 
-Run: `node --test scripts/release/client-release-version.test.mjs`  
+Run: `node --test scripts/release/client-release-version.test.mjs`
 Expected: FAIL because `scripts/release/client-release-version.mjs` does not exist.
 
 - [ ] **Step 3: Add failing Android-resolution tests**
@@ -129,7 +129,7 @@ Ensure all numeric parsing rejects empty strings, zero, negative values, decimal
 
 - [ ] **Step 5: Run the helper test suite to verify GREEN**
 
-Run: `node --test scripts/release/client-release-version.test.mjs`  
+Run: `node --test scripts/release/client-release-version.test.mjs`
 Expected: all tag, extension package, stable-manifest, auto-default, manual-floor, and browser-only tests pass.
 
 - [ ] **Step 6: Commit the helper and tests**
@@ -167,7 +167,7 @@ This prevents the workflow from silently losing its PR permission or source-of-t
 
 - [ ] **Step 2: Run the workflow assertion test and verify RED**
 
-Run: `node --test scripts/release/client-release-version.test.mjs`  
+Run: `node --test scripts/release/client-release-version.test.mjs`
 Expected: FAIL because the prepare workflow is absent.
 
 - [ ] **Step 3: Create `.github/workflows/prepare-client-release.yml`**
@@ -247,7 +247,7 @@ Assert the workflow:
 
 - [ ] **Step 2: Run the workflow assertion test and verify RED**
 
-Run: `node --test scripts/release/client-release-version.test.mjs`  
+Run: `node --test scripts/release/client-release-version.test.mjs`
 Expected: FAIL because current workflow has the old manual Android version name/input assertions.
 
 - [ ] **Step 3: Replace the validate job with explicit resolution and summary steps**
@@ -330,7 +330,7 @@ In the Node test file, read the release automation document and assert it includ
 
 - [ ] **Step 2: Run the documentation contract test and verify RED**
 
-Run: `node --test scripts/release/client-release-version.test.mjs`  
+Run: `node --test scripts/release/client-release-version.test.mjs`
 Expected: FAIL because the current document describes only the old single workflow.
 
 - [ ] **Step 3: Update the runbook with exact release instructions**
