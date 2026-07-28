@@ -19,13 +19,24 @@ import { initAdminAuditSchema } from './services/admin-audit.service.js';
 import { initMobileSessionSchema } from './services/mobile-session.service.js';
 import { ensureDatabaseIndexes } from './services/db-indexes.service.js';
 import { requireCsrfProtection } from './middleware/auth.js';
+import { createAllowedCorsOrigins, resolveAllowedCorsOrigin } from './services/browser-extension-origin.service.js';
 
 const app = new Hono();
 
 app.use('*', logger());
 app.use('*', requireCsrfProtection);
-const appOrigin = process.env.APP_ORIGIN?.trim() || 'http://localhost:1050';
-app.use('*', cors({ origin: appOrigin }));
+
+const allowedCorsOrigins = createAllowedCorsOrigins({
+  appOrigin: process.env.APP_ORIGIN,
+  browserExtensionOrigins: process.env.BROWSER_EXTENSION_ALLOWED_ORIGINS,
+});
+
+app.use('*', cors({
+  origin: (origin) => resolveAllowedCorsOrigin(origin, allowedCorsOrigins),
+  allowHeaders: ['Authorization', 'Content-Type'],
+  allowMethods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  credentials: true,
+}));
 
 app.route('/api/v1', healthRoutes);
 app.route('/api/v1', authRoutes);

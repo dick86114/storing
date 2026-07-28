@@ -169,6 +169,24 @@ collectRoutes.post('/collect', requireAuth, async (c) => {
   }
 });
 
+/** Browser extension collection deliberately keeps its own source namespace. */
+collectRoutes.post('/extension/collect', requireAuth, async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = collectSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: { code: 'BAD_REQUEST', message: parsed.error.errors[0]?.message || '参数错误' } }, 400);
+  }
+
+  try {
+    const user = getCurrentUser(c);
+    const job = await createCollectJob(parsed.data.url, { userId: user.id, requestSource: 'browser_extension', saveToInbox: true });
+    return c.json({ job: serializeJob(job) }, 202);
+  } catch (error) {
+    console.error('Create browser extension collect job failed:', error instanceof Error ? error.message : String(error));
+    return c.json({ error: { code: 'COLLECT_FAILED', message: '创建采集任务失败' } }, 400);
+  }
+});
+
 collectRoutes.get('/collect/jobs', requireAuth, async (c) => {
   const limit = Math.min(30, Math.max(1, Number(c.req.query('limit') || 12)));
   const offset = Math.max(0, Number(c.req.query('offset') || 0));
