@@ -1,6 +1,6 @@
 # Client Release Version Automation Design
 
-**Date:** 2026-07-28  
+**Date:** 2026-07-28
 **Status:** Approved design; implementation pending
 
 ## Goal
