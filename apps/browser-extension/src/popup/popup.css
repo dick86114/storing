@@ -1,0 +1,16 @@
+.popup-shell { width: 390px; padding: 16px; }
+.popup-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.settings-link { border: 0; background: transparent; color: #526050; font-size: 12px; font-weight: 700; }
+.connection-card { padding: 18px; }
+.connection-card strong { display: block; margin-bottom: 5px; }
+.page-card { display: flex; gap: 12px; padding: 14px; }
+.favicon, .favicon-placeholder { width: 30px; height: 30px; flex: 0 0 30px; border-radius: 8px; object-fit: cover; }
+.favicon-placeholder { display: grid; place-items: center; background: #e6dfcf; color: #5a503e; }
+.page-copy { min-width: 0; }
+.page-domain { color: #6a7066; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.page-title { display: -webkit-box; margin: 3px 0; overflow: hidden; color: #242b24; font-size: 14px; font-weight: 720; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.page-url { color: #858a80; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.destination { display: flex; align-items: center; justify-content: space-between; margin: 12px 0; padding: 11px 12px; border-radius: 10px; background: #e9efe7; color: #4e6151; font-size: 13px; }
+.destination strong { color: #28553a; }
+.status-line { margin: 10px 2px; }
+.collect-button { width: 100%; margin-top: 4px; }
