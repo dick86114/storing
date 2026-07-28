@@ -1,0 +1,294 @@
+name: Release mobile app and browser extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "统一 GitHub Release 标签，例如 v0.7.1"
+        required: true
+        type: string
+      release_title:
+        description: "Release 标题"
+        required: true
+        type: string
+      release_notes:
+        description: "更新说明，可输入多行"
+        required: true
+        type: string
+      publish_release:
+        description: "创建 GitHub Release 并上传构件"
+        required: true
+        default: true
+        type: boolean
+      build_android:
+        description: "构建并签名 Android APK"
+        required: true
+        default: true
+        type: boolean
+      android_version_name:
+        description: "Android versionName；仅构建 Android 时必填，例如 0.7.1"
+        required: false
+        type: string
+      android_version_code:
+        description: "Android 递增 versionCode；仅构建 Android 时必填，例如 8"
+        required: false
+        type: string
+      minimum_supported_version_code:
+        description: "Android 最低可继续使用 versionCode；仅构建 Android 时必填"
+        required: false
+        type: string
+      mandatory:
+        description: "Android 是否强制更新"
+        required: true
+        default: false
+        type: boolean
+      build_browser_extension:
+        description: "构建浏览器插件 ZIP"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: client-release-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release inputs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate requested targets and versions
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          BUILD_ANDROID: ${{ inputs.build_android }}
+          BUILD_BROWSER_EXTENSION: ${{ inputs.build_browser_extension }}
+          ANDROID_VERSION_NAME: ${{ inputs.android_version_name }}
+          ANDROID_VERSION_CODE: ${{ inputs.android_version_code }}
+          MINIMUM_SUPPORTED_VERSION_CODE: ${{ inputs.minimum_supported_version_code }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]
+          if [[ "$BUILD_ANDROID" != "true" && "$BUILD_BROWSER_EXTENSION" != "true" ]]; then
+            echo "至少选择一个发布目标" >&2
+            exit 1
+          fi
+          if [[ "$BUILD_ANDROID" == "true" ]]; then
+            [[ "$ANDROID_VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]
+            [[ "$ANDROID_VERSION_CODE" =~ ^[1-9][0-9]*$ ]]
+            [[ "$MINIMUM_SUPPORTED_VERSION_CODE" =~ ^[1-9][0-9]*$ ]]
+            if (( MINIMUM_SUPPORTED_VERSION_CODE > ANDROID_VERSION_CODE )); then
+              echo "minimum_supported_version_code 不能大于 android_version_code" >&2
+              exit 1
+            fi
+          fi
+
+  build-android:
+    name: Build signed Android APK
+    needs: validate
+    if: ${{ inputs.build_android }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android API 36 build tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore formal signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.QIANKUNJIE_RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$KEYSTORE_BASE64" || { echo "缺少 QIANKUNJIE_RELEASE_KEYSTORE_BASE64 Secret" >&2; exit 1; }
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/qiankunjie-release.jks"
+          test -s "$RUNNER_TEMP/qiankunjie-release.jks"
+
+      - name: Build signed Release APK
+        env:
+          QIANKUNJIE_RELEASE_STORE_FILE: ${{ runner.temp }}/qiankunjie-release.jks
+          QIANKUNJIE_RELEASE_STORE_PASSWORD: ${{ secrets.QIANKUNJIE_RELEASE_STORE_PASSWORD }}
+          QIANKUNJIE_RELEASE_KEY_ALIAS: ${{ secrets.QIANKUNJIE_RELEASE_KEY_ALIAS }}
+          QIANKUNJIE_RELEASE_KEY_PASSWORD: ${{ secrets.QIANKUNJIE_RELEASE_KEY_PASSWORD }}
+          QIANKUNJIE_VERSION_NAME: ${{ inputs.android_version_name }}
+          QIANKUNJIE_VERSION_CODE: ${{ inputs.android_version_code }}
+        run: |
+          test -n "$QIANKUNJIE_RELEASE_STORE_PASSWORD"
+          test -n "$QIANKUNJIE_RELEASE_KEY_ALIAS"
+          test -n "$QIANKUNJIE_RELEASE_KEY_PASSWORD"
+          pnpm android:assembleRelease
+
+      - name: Verify signing and prepare Android release assets
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          VERSION_NAME: ${{ inputs.android_version_name }}
+          VERSION_CODE: ${{ inputs.android_version_code }}
+          MINIMUM_SUPPORTED_VERSION_CODE: ${{ inputs.minimum_supported_version_code }}
+          MANDATORY: ${{ inputs.mandatory }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+        run: |
+          SOURCE_APK="apps/android/app/build/outputs/apk/release/乾坤戒-v${VERSION_NAME}-release.apk"
+          ASSET_DIR="$RUNNER_TEMP/client-release-assets"
+          RELEASE_APK="$ASSET_DIR/Qiankunjie-v${VERSION_NAME}-universal-release.apk"
+          MANIFEST="$ASSET_DIR/latest.json"
+          mkdir -p "$ASSET_DIR"
+          test -f "$SOURCE_APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$SOURCE_APK"
+          cp "$SOURCE_APK" "$RELEASE_APK"
+          APK_SHA256="$(sha256sum "$RELEASE_APK" | awk '{print $1}')"
+          APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/Qiankunjie-v${VERSION_NAME}-universal-release.apk"
+          export VERSION_NAME VERSION_CODE MINIMUM_SUPPORTED_VERSION_CODE MANDATORY RELEASE_NOTES APK_SHA256 APK_URL MANIFEST
+          python3 - <<'PYTHON'
+          import json
+          import os
+          from datetime import datetime, timezone
+
+          notes = [line.strip() for line in os.environ["RELEASE_NOTES"].splitlines() if line.strip()]
+          with open(os.environ["MANIFEST"], "w", encoding="utf-8") as file:
+              json.dump({
+                  "versionCode": int(os.environ["VERSION_CODE"]),
+                  "versionName": os.environ["VERSION_NAME"],
+                  "minimumSupportedVersionCode": int(os.environ["MINIMUM_SUPPORTED_VERSION_CODE"]),
+                  "mandatory": os.environ["MANDATORY"].lower() == "true",
+                  "releaseNotes": notes,
+                  "apkUrl": os.environ["APK_URL"],
+                  "sha256": os.environ["APK_SHA256"],
+                  "publishedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+              }, file, ensure_ascii=False, indent=2)
+          PYTHON
+
+      - name: Upload Android release artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: client-release-android
+          path: ${{ runner.temp }}/client-release-assets/
+          if-no-files-found: error
+
+  build-browser-extension:
+    name: Build browser extension ZIP
+    needs: validate
+    if: ${{ inputs.build_browser_extension }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test, type-check and package browser extension
+        run: |
+          pnpm --filter browser-extension test
+          pnpm --filter browser-extension lint
+          pnpm --filter browser-extension package
+
+      - name: Prepare browser extension release asset
+        run: |
+          VERSION="$(node -p "require('./apps/browser-extension/package.json').version")"
+          SOURCE="releases/browser-extension/storing-browser-extension-v${VERSION}.zip"
+          ASSET_DIR="$RUNNER_TEMP/client-release-assets"
+          mkdir -p "$ASSET_DIR"
+          test -f "$SOURCE"
+          cp "$SOURCE" "$ASSET_DIR/"
+          sha256sum "$ASSET_DIR/storing-browser-extension-v${VERSION}.zip" > "$ASSET_DIR/storing-browser-extension-v${VERSION}.zip.sha256"
+
+      - name: Upload browser extension release artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: client-release-browser-extension
+          path: ${{ runner.temp }}/client-release-assets/
+          if-no-files-found: error
+
+  publish:
+    name: Create unified GitHub Release
+    needs: [validate, build-android, build-browser-extension]
+    if: ${{ always() && inputs.publish_release && !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Android artifact
+        if: ${{ inputs.build_android }}
+        uses: actions/download-artifact@v5
+        with:
+          name: client-release-android
+          path: ${{ runner.temp }}/client-release-assets
+
+      - name: Download browser extension artifact
+        if: ${{ inputs.build_browser_extension }}
+        uses: actions/download-artifact@v5
+        with:
+          name: client-release-browser-extension
+          path: ${{ runner.temp }}/client-release-assets
+
+      - name: Create unified release and upload selected clients
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+          TITLE: ${{ inputs.release_title }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+          ASSET_DIR: ${{ runner.temp }}/client-release-assets
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG 已存在，拒绝覆盖既有发布" >&2
+            exit 1
+          fi
+          NOTES_FILE="$RUNNER_TEMP/release-notes.md"
+          printf '%s\n' "$RELEASE_NOTES" > "$NOTES_FILE"
+          shopt -s nullglob
+          ASSETS=("$ASSET_DIR"/*.apk "$ASSET_DIR"/*.zip "$ASSET_DIR"/*.sha256)
+          if (( ${#ASSETS[@]} == 0 )); then
+            echo "没有可发布的客户端构件" >&2
+            exit 1
+          fi
+          gh release create "$TAG" "${ASSETS[@]}" \
+            --target "$GITHUB_SHA" \
+            --title "$TITLE" \
+            --notes-file "$NOTES_FILE"
+
+      - name: Update stable Android update channel manifest
+        if: ${{ inputs.build_android }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MANIFEST: ${{ runner.temp }}/client-release-assets/latest.json
+        run: |
+          STABLE_TAG="android-latest"
+          if ! gh release view "$STABLE_TAG" >/dev/null 2>&1; then
+            gh release create "$STABLE_TAG" \
+              --target "$GITHUB_SHA" \
+              --title "乾坤戒 Android 更新通道" \
+              --notes "由统一客户端发布工作流自动维护。"
+          fi
+          gh release upload "$STABLE_TAG" "$MANIFEST#latest.json" --clobber
