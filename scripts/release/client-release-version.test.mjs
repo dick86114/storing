@@ -104,3 +104,16 @@ test('validates and synchronizes only an extension package version', async () =>
   assert.deepEqual(assertExtensionVersion({ packagePath, expectedVersion: '2.1.0' }), { version: '2.1.0' });
   assert.match(await readFile(packagePath, 'utf8'), /"version": "2\.1\.0"/);
 });
+
+test('prepare workflow keeps browser extension version changes reviewable', async () => {
+  const workflow = await readFile('.github/workflows/prepare-client-release.yml', 'utf8');
+  for (const requiredText of [
+    'Prepare client release version',
+    'pull-requests: write',
+    '--base master',
+    'client-release-version.mjs set-extension-version',
+    'gh pr create',
+  ]) {
+    assert.match(workflow, new RegExp(requiredText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+});
