@@ -1,0 +1,128 @@
+name: Prepare client release version
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "统一 GitHub Release 标签，例如 v2.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: prepare-client-release-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare browser extension version PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require master as the selected workflow branch
+        if: ${{ github.ref_name != 'master' }}
+        run: |
+          echo "请从 master 分支运行 Prepare client release version；当前分支为 ${{ github.ref_name }}。" >&2
+          exit 1
+
+      - name: Checkout master
+        uses: actions/checkout@v5
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Resolve requested release version
+        id: release
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          RESULT="$(node scripts/release/client-release-version.mjs resolve \
+            --release-tag "$RELEASE_TAG" \
+            --build-android false)"
+          RESULT="$RESULT" node - <<'NODE' >> "$GITHUB_OUTPUT"
+          const result = JSON.parse(process.env.RESULT);
+          console.log(`release_tag=${result.releaseTag}`);
+          console.log(`release_version=${result.releaseVersion}`);
+          NODE
+
+      - name: Reject an existing release tag
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.release_tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "Git 标签 ${RELEASE_TAG} 已存在，拒绝重复准备版本。" >&2
+            exit 1
+          fi
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "GitHub Release ${RELEASE_TAG} 已存在，拒绝重复准备版本。" >&2
+            exit 1
+          fi
+
+      - name: Reuse an existing open version PR when available
+        id: existing_pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.release.outputs.release_version }}
+        run: |
+          BRANCH="release/browser-extension-v${RELEASE_VERSION}"
+          URL="$(gh pr list --head "$BRANCH" --base master --state open --json url --jq '.[0].url // empty')"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          if [[ -n "$URL" ]]; then
+            {
+              echo "## 客户端版本准备"
+              echo
+              echo "发现已打开的版本 PR：$URL"
+              echo
+              echo "请审核并合并该 PR 后，再运行 Release mobile app and browser extension。"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Create browser extension version PR
+        if: ${{ steps.existing_pr.outputs.url == '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.release_tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.release_version }}
+        run: |
+          BRANCH="release/browser-extension-v${RELEASE_VERSION}"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "远程分支 ${BRANCH} 已存在但没有打开的 PR；请先人工检查或清理该分支。" >&2
+            exit 1
+          fi
+          RESULT="$(node scripts/release/client-release-version.mjs set-extension-version \
+            --package-path apps/browser-extension/package.json \
+            --release-tag "$RELEASE_TAG")"
+          CHANGED="$(RESULT="$RESULT" node -p 'JSON.parse(process.env.RESULT).changed')"
+          PREVIOUS_VERSION="$(RESULT="$RESULT" node -p 'JSON.parse(process.env.RESULT).previousVersion')"
+          if [[ "$CHANGED" != "true" ]]; then
+            {
+              echo "## 客户端版本准备"
+              echo
+              echo "浏览器插件版本已是 ${RELEASE_VERSION}；无需创建 PR。"
+              echo "可直接从包含该版本的 master 提交运行发布工作流。"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git switch -c "$BRANCH"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/browser-extension/package.json
+          git commit -m "chore(browser-extension): prepare v${RELEASE_VERSION}"
+          git push --set-upstream origin "$BRANCH"
+          PR_URL="$(gh pr create \
+            --base master \
+            --head "$BRANCH" \
+            --title "chore(browser-extension): prepare v${RELEASE_VERSION}" \
+            --body "Prepare browser extension version ${RELEASE_VERSION} for GitHub Release ${RELEASE_TAG}.")"
+          {
+            echo "## 客户端版本准备"
+            echo
+            echo "- Release 标签：\`${RELEASE_TAG}\`"
+            echo "- 浏览器插件版本：\`${PREVIOUS_VERSION}\` → \`${RELEASE_VERSION}\`"
+            echo "- 待合并 PR：${PR_URL}"
+            echo
+            echo "合并 PR 后，从 master 运行 Release mobile app and browser extension。"
+          } >> "$GITHUB_STEP_SUMMARY"
