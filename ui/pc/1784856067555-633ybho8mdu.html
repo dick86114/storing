@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://unpkg.com" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://unpkg.com/@fortawesome/fontawesome-free@6.7.2/js/all.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * {
+      scrollbar-width: none;
+      scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    }
+  </style>
+</head>
+
+<body class="bg-[#0A1F15] text-[#E8E4DC] min-h-screen font-['DM_Sans',sans-serif]">
+<link rel="stylesheet" href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600&family=DM+Sans:wght@300;400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" />
+
+<style type="text/tailwindcss">
+@theme {
+  --color-primary: #0D2B1E;
+  --color-surface: #0F1F18;
+  --color-card: #152E23;
+  --color-card-hover: #1A3B2B;
+  --color-accent: #C9A84C;
+  --color-accent-dim: #A8893E;
+  --color-text-primary: #E8E4DC;
+  --color-text-secondary: #8A9B8F;
+  --color-text-muted: #5C7066;
+  --color-border: #1E3D2E;
+  --color-border-subtle: #162E22;
+}
+</style>
+
+<div class="flex min-h-screen">
+  <!-- Narrow Sidebar -->
+  <aside class="w-16 bg-surface border-r border-border fixed h-screen flex flex-col items-center py-4 z-50">
+    <a href="inbox.html" class="w-9 h-9 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center mb-6">
+      <i data-lucide="circle-dot" class="w-5 h-5 text-accent"></i>
+    </a>
+    <nav class="flex-1 flex flex-col items-center gap-2">
+      <a href="inbox.html" class="w-10 h-10 rounded-lg flex items-center justify-center text-text-secondary hover:bg-card hover:text-text-primary transition-all" title="收件箱">
+        <i data-lucide="inbox" class="w-5 h-5"></i>
+      </a>
+      <a href="inbox.html" class="w-10 h-10 rounded-lg flex items-center justify-center text-text-secondary hover:bg-card hover:text-text-primary transition-all" title="收藏">
+        <i data-lucide="heart" class="w-5 h-5"></i>
+      </a>
+      <a href="archive.html" class="w-10 h-10 rounded-lg flex items-center justify-center text-text-secondary hover:bg-card hover:text-text-primary transition-all" title="归档">
+        <i data-lucide="archive" class="w-5 h-5"></i>
+      </a>
+      <a href="inbox.html" class="w-10 h-10 rounded-lg flex items-center justify-center text-text-secondary hover:bg-card hover:text-text-primary transition-all" title="发布">
+        <i data-lucide="globe" class="w-5 h-5"></i>
+      </a>
+    </nav>
+    <div class="flex flex-col items-center gap-2">
+      <a href="collect.html" class="w-10 h-10 rounded-lg flex items-center justify-center text-text-secondary hover:bg-card hover:text-text-primary transition-all" title="采集">
+        <i data-lucide="plus-circle" class="w-5 h-5"></i>
+      </a>
+      <a href="mcp.html" class="w-10 h-10 rounded-lg flex items-center justify-center text-text-secondary hover:bg-card hover:text-text-primary transition-all" title="设置">
+        <i data-lucide="settings" class="w-5 h-5"></i>
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="ml-16 flex-1 min-h-screen">
+    <!-- Top Action Bar -->
+    <header class="sticky top-0 z-40 bg-[#0A1F15]/90 backdrop-blur-md border-b border-border px-8 py-3">
+      <div class="flex items-center justify-between max-w-4xl mx-auto">
+        <a href="inbox.html" class="flex items-center gap-2 text-text-secondary hover:text-text-primary transition-colors">
+          <i data-lucide="arrow-left" class="w-4 h-4"></i>
+          <span class="text-sm font-['Noto_Sans_SC',sans-serif]">返回收件箱</span>
+        </a>
+        <div class="flex items-center gap-2">
+          <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-text-secondary hover:bg-card hover:text-red-400 transition-all text-sm">
+            <i data-lucide="heart" class="w-4 h-4"></i>
+            <span class="font-['Noto_Sans_SC',sans-serif] text-xs">收藏</span>
+          </button>
+          <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all text-sm">
+            <i data-lucide="archive" class="w-4 h-4"></i>
+            <span class="font-['Noto_Sans_SC',sans-serif] text-xs">归档</span>
+          </button>
+          <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent/10 text-accent hover:bg-accent/20 transition-all text-sm border border-accent/20">
+            <i data-lucide="globe" class="w-4 h-4"></i>
+            <span class="font-['Noto_Sans_SC',sans-serif] text-xs">发布</span>
+          </button>
+          <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-text-secondary hover:bg-card hover:text-text-primary transition-all text-sm">
+            <i data-lucide="share-2" class="w-4 h-4"></i>
+            <span class="font-['Noto_Sans_SC',sans-serif] text-xs">分享</span>
+          </button>
+          <button class="p-1.5 rounded-md text-text-muted hover:bg-card hover:text-text-secondary transition-all">
+            <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Article Body -->
+    <div class="max-w-4xl mx-auto px-8 py-10 relative">
+      <!-- Right floating panel -->
+      <div class="absolute right-[-200px] top-10 w-44 hidden xl:block">
+        <div class="sticky top-24 space-y-6">
+          <!-- AI Tags -->
+          <div>
+            <h4 class="text-[10px] uppercase tracking-widest text-text-muted mb-3 font-semibold">AI 标签</h4>
+            <div class="flex flex-wrap gap-1.5">
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#1B3A4B]/80 text-[#6DB3D3] border border-[#1B3A4B]">AI 工程化</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#2D1B4B]/80 text-[#B388D3] border border-[#2D1B4B]">RAG</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#1B4B2D]/80 text-[#6DD394] border border-[#1B4B2D]">Agent</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#4B3A1B]/80 text-[#D3B36D] border border-[#4B3A1B]">Prompt</span>
+            </div>
+          </div>
+          <!-- Reading Progress -->
+          <div>
+            <h4 class="text-[10px] uppercase tracking-widest text-text-muted mb-3 font-semibold">阅读进度</h4>
+            <div class="w-full bg-border rounded-full h-1.5">
+              <div class="bg-accent h-1.5 rounded-full" style="width: 35%"></div>
+            </div>
+            <p class="text-[10px] text-text-muted mt-1.5">35% · 预计 8 分钟</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Article Header -->
+      <header class="mb-8">
+        <h1 class="text-2xl lg:text-3xl font-['Noto_Serif_SC',serif] font-bold leading-tight mb-4">大模型应用开发的 9 个坑：从 RAG 到 Agent 的实战经验总结</h1>
+        <div class="flex items-center gap-4 text-sm text-text-secondary font-['Noto_Sans_SC',sans-serif]">
+          <span class="flex items-center gap-1.5">
+            <i data-lucide="user" class="w-3.5 h-3.5"></i>
+            张明远
+          </span>
+          <span class="flex items-center gap-1.5">
+            <i data-lucide="globe" class="w-3.5 h-3.5"></i>
+            sspai.com
+          </span>
+          <span class="flex items-center gap-1.5">
+            <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+            2024-12-18
+          </span>
+          <span class="px-2 py-0.5 rounded text-[11px] bg-card border border-border-subtle text-text-muted">公众号</span>
+        </div>
+      </header>
+
+      <!-- AI Summary Card -->
+      <div class="mb-10 bg-card/80 border border-accent/20 rounded-lg p-5 relative overflow-hidden">
+        <div class="absolute top-0 left-0 w-1 h-full bg-accent"></div>
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-5 h-5 rounded bg-accent/20 flex items-center justify-center">
+            <i data-lucide="sparkles" class="w-3 h-3 text-accent"></i>
+          </div>
+          <span class="text-xs font-semibold text-accent font-['DM_Sans']">AI 摘要</span>
+          <button class="ml-auto text-text-muted hover:text-text-secondary text-[11px] flex items-center gap-1">
+            <i data-lucide="chevron-up" class="w-3 h-3"></i>
+            收起
+          </button>
+        </div>
+        <p class="text-sm text-text-secondary leading-relaxed font-['Noto_Sans_SC',sans-serif]">
+          本文系统梳理了大模型应用从开发到上线过程中的 9 个关键技术陷阱。主要覆盖三大领域：<strong class="text-text-primary">RAG 检索增强生成</strong>（向量相似度陷阱、分块策略失误、上下文窗口溢出）、<strong class="text-text-primary">Agent 智能体</strong>（无限循环、工具调用幻觉、状态管理混乱）和<strong class="text-text-primary">安全防护</strong>（Prompt 注入、数据泄露、成本失控）。每个问题都附有具体的复现场景和工程化解决方案。
+        </p>
+      </div>
+
+      <!-- Article Content -->
+      <article class="prose prose-invert max-w-none">
+        <div class="space-y-6 text-[15px] leading-[1.8] font-['Source_Serif_4','Noto_Sans_SC',sans-serif] text-text-secondary">
+          <p>过去一年，我所在的团队陆续交付了 6 个大模型驱动的 B 端产品。从最初的 ChatBot 到后来的全自主 Agent，我们踩过的坑远比想象中多。这篇文章是对这些经验的一次系统整理。</p>
+
+          <h2 class="text-lg font-['Noto_Serif_SC',serif] font-semibold text-text-primary mt-10 mb-4">一、RAG 检索质量的隐形退化</h2>
+
+          <p>RAG 系统最危险的问题不是「检索不到」，而是「检索到了错误的内容，模型还自信满满地输出了」。这种情况在生产环境中尤为致命。</p>
+
+          <p>我们最初使用 cosine similarity 做向量检索，top-k 设为 5。上线初期效果很好，但随着知识库膨胀到 10 万条以上，检索准确率断崖式下降。</p>
+
+          <!-- Code Block -->
+          <div class="bg-[#0D1B14] border border-border rounded-lg p-4 my-6 overflow-x-auto">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="w-2.5 h-2.5 rounded-full bg-red-500/60"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-yellow-500/60"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-green-500/60"></span>
+              <span class="text-[10px] text-text-muted ml-2">retriever.py</span>
+            </div>
+            <pre class="text-[13px] text-[#8FBC8F] font-mono leading-relaxed"><code># 问题：简单的 cosine similarity 无法处理语义模糊
+results = vector_store.similarity_search(
+    query=user_input,
+    k=5,
+    filter={"namespace": tenant_id}
+)
+
+# 修复：引入 reranker + 动态 k 值
+raw_results = vector_store.similarity_search(query=user_input, k=20)
+reranked = cross_encoder.rerank(user_input, raw_results, top_k=5)
+filtered = [r for r in reranked if r.score > 0.7]</code></pre>
+          </div>
+
+          <h2 class="text-lg font-['Noto_Serif_SC',serif] font-semibold text-text-primary mt-10 mb-4">二、Agent 的无限循环问题</h2>
+
+          <p>当你给 Agent 工具调用能力后，它可能会陷入「工具 A 调用工具 B，工具 B 又回调工具 A」的死循环。我们线上出过一次事故：一个简单的数据查询任务，Agent 在 30 秒内调用了 847 次 API，直接触发了限流熔断。</p>
+
+          <blockquote class="border-l-2 border-accent/50 pl-4 my-6 text-text-secondary italic">
+            "在 LLM 应用的世界里，不是 AI 不够聪明，而是我们给它的约束不够清晰。每一个 Agent 都需要一个明确的终止条件。"
+          </blockquote>
+
+          <p>解决方案是引入了三层防护：调用深度限制（max_depth=5）、全局 token 预算、以及基于意图分类的路由前置检查。这三层组合起来，可以覆盖 99% 的异常循环场景。</p>
+
+          <!-- Image -->
+          <figure class="my-8">
+            <img src="https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=800&h=400&fit=crop&auto=format&q=80" alt="AI Architecture" class="w-full rounded-lg border border-border" />
+            <figcaption class="text-xs text-text-muted mt-2 text-center font-['Noto_Sans_SC',sans-serif]">图 1：Agent 调用链路的防护架构示意</figcaption>
+          </figure>
+
+          <h2 class="text-lg font-['Noto_Serif_SC',serif] font-semibold text-text-primary mt-10 mb-4">三、Prompt 注入的防护策略</h2>
+
+          <p>这是最容易被忽视的安全问题。当你的系统接受用户输入作为 Prompt 的一部分时，恶意用户可以通过精心构造的输入来覆盖系统指令，获取敏感信息或执行未授权操作。</p>
+
+          <p>我们实现了一套输入清洗管道：先用规则引擎检测明显的注入模式，再用一个轻量级分类模型判断输入意图是否与业务场景匹配，最后在输出端做内容过滤。</p>
+        </div>
+      </article>
+
+      <!-- Bottom Actions -->
+      <div class="mt-12 pt-6 border-t border-border flex items-center gap-3">
+        <button class="flex items-center gap-1.5 px-3 py-2 rounded-md text-text-muted hover:bg-card hover:text-text-secondary transition-all text-xs font-['Noto_Sans_SC',sans-serif]">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+          重新抓取
+        </button>
+        <button class="flex items-center gap-1.5 px-3 py-2 rounded-md text-text-muted hover:bg-card hover:text-text-secondary transition-all text-xs font-['Noto_Sans_SC',sans-serif]">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+          重新生成摘要
+        </button>
+        <button class="flex items-center gap-1.5 px-3 py-2 rounded-md text-text-muted hover:bg-card hover:text-red-400/70 transition-all text-xs font-['Noto_Sans_SC',sans-serif] ml-auto">
+          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          删除文章
+        </button>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+<script>if (window.lucide) lucide.createIcons();</script>
+</html>
