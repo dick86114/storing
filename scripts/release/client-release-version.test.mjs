@@ -36,3 +36,9 @@ test('workflows and documentation describe split release flows', async () => {
   assert.match(extension, /if gh release view \"\$TAG\" >\/dev\/null 2>&1; then/);
   for (const text of ['Release Android APK', 'Release browser extension', '自动递增补丁版本']) assert.match(doc, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
+
+test('Android publish works without a checked-out repository', async () => {
+  const android = await readFile('.github/workflows/release-android.yml', 'utf8');
+  assert.match(android, /GH_REPO: \$\{\{ github\.repository \}\}/);
+  assert.match(android, /if gh release view "\$TAG" >\/dev\/null 2>&1; then/);
+});
