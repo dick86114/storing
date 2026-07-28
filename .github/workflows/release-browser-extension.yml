@@ -1,0 +1,95 @@
+name: Release browser extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: "浏览器插件更新说明，可输入多行"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: browser-extension-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Bump, build and publish browser extension
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require master as selected workflow branch
+        if: ${{ github.ref_name != 'master' }}
+        run: |
+          echo "请从 master 分支运行 Release browser extension；当前分支为 ${{ github.ref_name }}。" >&2
+          exit 1
+      - uses: actions/checkout@v5
+        with:
+          ref: master
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.3
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: pnpm
+      - name: Auto-increment browser extension patch version
+        id: version
+        run: |
+          RESULT="$(node scripts/release/client-release-version.mjs bump-extension-version --package-path apps/browser-extension/package.json)"
+          RESULT="$RESULT" node - <<'NODE' >> "$GITHUB_OUTPUT"
+          const result = JSON.parse(process.env.RESULT);
+          console.log(`previous=${result.previousVersion}`);
+          console.log(`next=${result.version}`);
+          NODE
+      - name: Reject an existing browser extension release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.next }}
+        run: |
+          TAG="browser-extension-v${VERSION}"
+          gh release view "$TAG" >/dev/null 2>&1 && { echo "Release $TAG 已存在。" >&2; exit 1; }
+      - run: pnpm install --frozen-lockfile
+      - name: Test, type-check and package extension
+        run: |
+          pnpm --filter browser-extension test
+          pnpm --filter browser-extension lint
+          pnpm --filter browser-extension package
+      - name: Verify packaged manifest
+        env:
+          VERSION: ${{ steps.version.outputs.next }}
+        run: |
+          SOURCE="releases/browser-extension/storing-browser-extension-v${VERSION}.zip"
+          test -f "$SOURCE"
+          OBSERVED="$(unzip -p "$SOURCE" manifest.json | node -e 'let s=""; process.stdin.on("data", c => s += c); process.stdin.on("end", () => console.log(JSON.parse(s).version));')"
+          [[ "$OBSERVED" == "$VERSION" ]] || { echo "ZIP manifest 版本为 $OBSERVED，预期为 $VERSION。" >&2; exit 1; }
+          sha256sum "$SOURCE" > "$SOURCE.sha256"
+      - name: Commit and push the version bump
+        env:
+          VERSION: ${{ steps.version.outputs.next }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/browser-extension/package.json
+          git commit -m "chore(browser-extension): release v${VERSION}"
+          git push origin HEAD:master
+      - name: Create browser extension release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.next }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+        run: |
+          TAG="browser-extension-v${VERSION}"
+          SOURCE="releases/browser-extension/storing-browser-extension-v${VERSION}.zip"
+          printf '%s\n' "$RELEASE_NOTES" > "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" "$SOURCE" "$SOURCE.sha256" --target "$(git rev-parse HEAD)" --title "Storing Browser Extension v${VERSION}" --notes-file "$RUNNER_TEMP/notes.md"
+          {
+            echo "## 浏览器插件已发布"
+            echo ""
+            echo "- 版本：\`${VERSION}\`"
+            echo "- 标签：\`${TAG}\`"
+            echo "- 版本提交已推送至 master。"
+          } >> "$GITHUB_STEP_SUMMARY"
