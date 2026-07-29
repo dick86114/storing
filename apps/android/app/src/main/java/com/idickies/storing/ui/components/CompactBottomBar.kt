@@ -7,7 +7,6 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -50,6 +49,9 @@ import androidx.compose.ui.unit.sp
 data class CompactBottomBarMetrics(
   val actionHeight: androidx.compose.ui.unit.Dp,
   val verticalInset: androidx.compose.ui.unit.Dp,
+  val itemVerticalSpacing: androidx.compose.ui.unit.Dp,
+  val cornerRadius: androidx.compose.ui.unit.Dp,
+  val contentVerticalOffset: androidx.compose.ui.unit.Dp,
 ) {
   val totalHeight: androidx.compose.ui.unit.Dp get() = actionHeight + (verticalInset * 2)
 }
@@ -57,6 +59,9 @@ data class CompactBottomBarMetrics(
 val compactBottomBarMetrics = CompactBottomBarMetrics(
   actionHeight = 68.dp,
   verticalInset = 0.dp,
+  itemVerticalSpacing = 2.dp,
+  cornerRadius = 30.dp,
+  contentVerticalOffset = 12.dp,
 )
 
 @Composable
@@ -67,14 +72,18 @@ fun QiankunjieCompactBottomBar(
   modifier: Modifier = Modifier,
   content: @Composable () -> Unit,
 ) {
+  val shape = RoundedCornerShape(
+    topStart = compactBottomBarMetrics.cornerRadius,
+    topEnd = compactBottomBarMetrics.cornerRadius,
+  )
   Surface(
     modifier = modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
+    shape = shape,
     color = MaterialTheme.colorScheme.surfaceVariant,
     contentColor = MaterialTheme.colorScheme.onSurface,
     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.56f)),
     tonalElevation = 0.dp,
-    shadowElevation = 10.dp,
+    shadowElevation = 14.dp,
   ) {
     Column {
       HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.42f))
@@ -129,6 +138,7 @@ fun CompactBottomBarItem(
   )
   Column(
     modifier = Modifier
+      .offset(y = compactBottomBarMetrics.contentVerticalOffset)
       .semantics {
         stateDescription = when {
           selected && refreshing -> "$label，正在刷新"
@@ -146,7 +156,7 @@ fun CompactBottomBarItem(
       )
       .padding(horizontal = 10.dp, vertical = 6.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.spacedBy(4.dp),
+    verticalArrangement = Arrangement.spacedBy(compactBottomBarMetrics.itemVerticalSpacing),
   ) {
     // Icon + Badge
     Box(contentAlignment = Alignment.TopEnd) {
