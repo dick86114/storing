@@ -93,6 +93,7 @@ class OfflineContentViewModel @Inject constructor(
 @Composable
 fun OfflineContentScreen(
   onBack: () -> Unit,
+  onOpenArticle: (Int) -> Unit,
   viewModel: OfflineContentViewModel = hiltViewModel(),
 ) {
   val state by viewModel.state.collectAsState()
@@ -154,6 +155,7 @@ fun OfflineContentScreen(
           items(state.articles, key = { it.articleId }) { article ->
             OfflineArticleRow(
               article = article,
+              onOpen = { onOpenArticle(article.articleId) },
               onDelete = { viewModel.deleteArticle(article.articleId) },
             )
           }
@@ -175,12 +177,13 @@ fun OfflineContentScreen(
 }
 
 @Composable
-private fun OfflineArticleRow(article: OfflineArticle, onDelete: () -> Unit) {
+private fun OfflineArticleRow(article: OfflineArticle, onOpen: () -> Unit, onDelete: () -> Unit) {
   var confirmDelete by remember { mutableStateOf(false) }
   Surface(
     color = MaterialTheme.colorScheme.surfaceVariant,
     shape = MaterialTheme.shapes.medium,
     modifier = Modifier.fillMaxWidth(),
+    onClick = onOpen,
   ) {
     Row(
       modifier = Modifier.padding(horizontal = 15.dp, vertical = 12.dp),

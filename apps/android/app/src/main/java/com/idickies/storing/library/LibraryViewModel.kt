@@ -1,5 +1,6 @@
 package com.idickies.storing.library
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -14,6 +15,7 @@ import com.idickies.storing.library.ArticleCard
 import com.idickies.storing.network.ArticleCounts
 import com.idickies.storing.reader.ReadingPositionRepository
 import com.idickies.storing.offline.OfflineDownloadManager
+import com.idickies.storing.offline.offlineReaderDetail
 import javax.inject.Inject
 
 private const val SEARCH_DEBOUNCE_MILLIS = 350L
@@ -71,6 +73,7 @@ data class LibraryUiState(
   val permanentDeleting: Boolean = false,
   val savedReadingPosition: Float? = null,
   val isOfflineAvailable: Boolean = false,
+  val isReadingOffline: Boolean = false,
   val downloadingOffline: Boolean = false,
   val offlineError: String? = null,
 ) {
@@ -362,19 +365,84 @@ class LibraryViewModel @Inject constructor(
     }
   }
 
+  /** Opens a saved local copy first, falling back to the network only when no usable copy exists. */
   fun open(id: Int) {
     viewModelScope.launch {
       val card = mutableState.value.articles.firstOrNull { it.id == id }
-      mutableState.update { it.copy(loadingDetail = true, detail = null, detailError = null, detailRefreshing = false, savedReadingPosition = null) }
+      mutableState.update {
+        it.copy(
+          loadingDetail = true,
+          detail = null,
+          detailError = null,
+          detailRefreshing = false,
+          savedReadingPosition = null,
+          isReadingOffline = false,
+        )
+      }
+      val position = runCatching { readingPositionRepository.get(id)?.scrollPercentage }.getOrNull()
+      val offline = runCatching { offlineDownloadManager.loadOfflineContent(id) }.getOrNull()
+      if (offline != null) {
+        mutableState.update {
+          it.copy(
+            loadingDetail = false,
+            detail = offlineReaderDetail(card, offline),
+            savedReadingPosition = position,
+            isOfflineAvailable = true,
+            isReadingOffline = true,
+          )
+        }
+        return@launch
+      }
       runCatching { repository.detail(id, card?.publicId.takeIf { mutableState.value.view == LibraryView.Published }) }
         .onSuccess { article ->
-          val position = runCatching { readingPositionRepository.get(id)?.scrollPercentage }.getOrNull()
           val offlineAvailable = runCatching { offlineDownloadManager.isAvailable(id) }.getOrDefault(false)
-          mutableState.update { it.copy(loadingDetail = false, detail = article, savedReadingPosition = position, isOfflineAvailable = offlineAvailable) }
+          mutableState.update {
+            it.copy(
+              loadingDetail = false,
+              detail = article,
+              savedReadingPosition = position,
+              isOfflineAvailable = offlineAvailable,
+              isReadingOffline = false,
+            )
+          }
         }
         .onFailure { error -> mutableState.update { it.copy(loadingDetail = false, detailError = error.message ?: "加载文章失败") } }
     }
   }
+
+  /** Opens a local article directly from offline-content management without any network request. */
+  fun openOffline(id: Int) {
+    viewModelScope.launch {
+      mutableState.update {
+        it.copy(
+          loadingDetail = true,
+          detail = null,
+          detailError = null,
+          detailRefreshing = false,
+          savedReadingPosition = null,
+          isReadingOffline = false,
+        )
+      }
+      val offline = runCatching { offlineDownloadManager.loadOfflineContent(id) }.getOrNull()
+      if (offline == null) {
+        mutableState.update { it.copy(loadingDetail = false, detailError = "离线内容已被清除或损坏") }
+        return@launch
+      }
+      val position = runCatching { readingPositionRepository.get(id)?.scrollPercentage }.getOrNull()
+      mutableState.update {
+        it.copy(
+          loadingDetail = false,
+          detail = offlineReaderDetail(card = null, offline = offline),
+          savedReadingPosition = position,
+          isOfflineAvailable = true,
+          isReadingOffline = true,
+        )
+      }
+    }
+  }
+
+  /** Serves only validated app-owned offline image URLs to the reader WebView. */
+  fun openOfflineAsset(uri: Uri) = offlineDownloadManager.openOfflineAsset(uri)
 
   fun refreshDetail() {
     val snapshot = mutableState.value
@@ -391,6 +459,7 @@ class LibraryViewModel @Inject constructor(
             detail = refreshed,
             detailRefreshing = false,
             detailRefreshVersion = current.detailRefreshVersion + 1,
+            isReadingOffline = false,
           )
         }
       }.onFailure { error ->
@@ -404,14 +473,14 @@ class LibraryViewModel @Inject constructor(
 
   fun openByPublicId(publicId: String) {
     viewModelScope.launch {
-      mutableState.update { it.copy(loadingDetail = true, detail = null, detailError = null, detailRefreshing = false, savedReadingPosition = null) }
+      mutableState.update { it.copy(loadingDetail = true, detail = null, detailError = null, detailRefreshing = false, savedReadingPosition = null, isReadingOffline = false) }
       runCatching { repository.detail(0, publicId) }
-        .onSuccess { article -> mutableState.update { it.copy(loadingDetail = false, detail = article) } }
+        .onSuccess { article -> mutableState.update { it.copy(loadingDetail = false, detail = article, isReadingOffline = false) } }
         .onFailure { error -> mutableState.update { it.copy(loadingDetail = false, detailError = error.message ?: "加载文章失败") } }
     }
   }
 
-  fun closeDetail() = mutableState.update { it.copy(detail = null, detailError = null, loadingDetail = false, detailRefreshing = false, savedReadingPosition = null) }
+  fun closeDetail() = mutableState.update { it.copy(detail = null, detailError = null, loadingDetail = false, detailRefreshing = false, savedReadingPosition = null, isReadingOffline = false) }
 
   fun toggleFavoriteCard(article: ArticleCard) {
     viewModelScope.launch {
@@ -548,7 +617,7 @@ class LibraryViewModel @Inject constructor(
   fun deleteOffline(articleId: Int) {
     viewModelScope.launch {
       runCatching { offlineDownloadManager.delete(articleId) }
-        .onSuccess { mutableState.update { it.copy(isOfflineAvailable = false) } }
+        .onSuccess { mutableState.update { it.copy(isOfflineAvailable = false, isReadingOffline = false) } }
     }
   }
 
