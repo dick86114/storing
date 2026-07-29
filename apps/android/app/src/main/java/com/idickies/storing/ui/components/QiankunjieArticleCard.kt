@@ -1,5 +1,7 @@
 package com.idickies.storing.ui.components
 
+import com.idickies.storing.ui.theme.isQiankunjieDarkTheme
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -57,7 +59,7 @@ data class ArticleCardLayout(
 val articleCardLayout = ArticleCardLayout(
   coverAspectRatio = 2.35f,
   cardCornerRadius = 24.dp,
-  coverCornerRadius = 16.dp,
+  coverCornerRadius = 24.dp,
   contentPadding = 16.dp,
 )
 
@@ -97,7 +99,7 @@ private fun rememberArticleCardPressMotion(): ArticleCardPressMotion {
 private val gridArticleCardLayout = ArticleCardLayout(
   coverAspectRatio = 1.36f,
   cardCornerRadius = 18.dp,
-  coverCornerRadius = 16.dp,
+  coverCornerRadius = 18.dp,
   contentPadding = 12.dp,
 )
 
@@ -113,21 +115,25 @@ fun QiankunjieArticleCard(
   val colors = MaterialTheme.colorScheme
   val cardShape = RoundedCornerShape(articleCardLayout.cardCornerRadius)
   val pressMotion = rememberArticleCardPressMotion()
+  val isDark = isQiankunjieDarkTheme()
+  val cardModifier = modifier
+    .fillMaxWidth()
+    .scale(pressMotion.scale)
+    .let { base -> if (isDark) base else base.liquidGlass(shape = cardShape, role = LiquidGlassRole.Panel) }
 
   Card(
-    modifier = modifier
-      .fillMaxWidth()
-      .scale(pressMotion.scale)
-      .liquidGlass(shape = cardShape, role = LiquidGlassRole.Panel)
+    modifier = cardModifier
+      .clip(cardShape)
       .combinedClickable(
         interactionSource = pressMotion.interactionSource,
         indication = null,
         onClick = { onOpen(article.id) },
         onLongClick = { onLongPress(article) },
       ),
-    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+    colors = CardDefaults.cardColors(containerColor = if (isDark) colors.surfaceVariant else Color.Transparent),
     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     shape = cardShape,
+    border = if (isDark) androidx.compose.foundation.BorderStroke(1.dp, colors.outline.copy(alpha = 0.76f)) else null,
   ) {
     Column {
       ArticleThumbnail(
@@ -194,20 +200,23 @@ fun QiankunjieGridArticleCard(
   val colors = MaterialTheme.colorScheme
   val pressMotion = rememberArticleCardPressMotion()
   val cardShape = RoundedCornerShape(gridArticleCardLayout.cardCornerRadius)
+  val isDark = isQiankunjieDarkTheme()
+  val cardModifier = modifier
+    .fillMaxWidth()
+    .scale(pressMotion.scale)
+    .let { base -> if (isDark) base else base.liquidGlass(shape = cardShape, role = LiquidGlassRole.Panel) }
   Card(
-    modifier = modifier
-      .fillMaxWidth()
-      .scale(pressMotion.scale)
-      .liquidGlass(shape = cardShape, role = LiquidGlassRole.Panel)
+    modifier = cardModifier
       .combinedClickable(
         interactionSource = pressMotion.interactionSource,
         indication = null,
         onClick = { onOpen(article.id) },
         onLongClick = { onLongPress(article) },
       ),
-    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+    colors = CardDefaults.cardColors(containerColor = if (isDark) colors.surfaceVariant else Color.Transparent),
     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     shape = cardShape,
+    border = if (isDark) androidx.compose.foundation.BorderStroke(1.dp, colors.outline.copy(alpha = 0.68f)) else null,
   ) {
     Column {
       ArticleThumbnail(
@@ -246,20 +255,23 @@ fun QiankunjieCompactArticleRow(
 ) {
   val pressMotion = rememberArticleCardPressMotion()
   val cardShape = MaterialTheme.shapes.medium
+  val isDark = isQiankunjieDarkTheme()
+  val cardModifier = modifier
+    .fillMaxWidth()
+    .scale(pressMotion.scale)
+    .let { base -> if (isDark) base else base.liquidGlass(shape = cardShape, role = LiquidGlassRole.Panel) }
   Card(
-    modifier = modifier
-      .fillMaxWidth()
-      .scale(pressMotion.scale)
-      .liquidGlass(shape = cardShape, role = LiquidGlassRole.Panel)
+    modifier = cardModifier
       .combinedClickable(
         interactionSource = pressMotion.interactionSource,
         indication = null,
         onClick = { onOpen(article.id) },
         onLongClick = { onLongPress(article) },
       ),
-    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    colors = CardDefaults.cardColors(containerColor = if (isDark) MaterialTheme.colorScheme.surface else Color.Transparent),
+    elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 2.dp else 0.dp),
     shape = cardShape,
+    border = if (isDark) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else null,
   ) {
     Row(
       modifier = Modifier.padding(10.dp),

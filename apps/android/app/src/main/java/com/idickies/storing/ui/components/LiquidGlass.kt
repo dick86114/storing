@@ -1,9 +1,10 @@
 package com.idickies.storing.ui.components
 
+import com.idickies.storing.ui.theme.isQiankunjieDarkTheme
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +17,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -37,37 +39,28 @@ fun liquidGlassTokens(
   role: LiquidGlassRole = LiquidGlassRole.Panel,
 ): LiquidGlassTokens = when (isDark) {
   false -> when (role) {
-    LiquidGlassRole.Panel -> LiquidGlassTokens(0.82f, 0.72f, 0.92f, 0.12f, 7.dp)
+    LiquidGlassRole.Panel -> LiquidGlassTokens(0.82f, 0.72f, 0.92f, 0.12f, 0.dp)
     LiquidGlassRole.Chrome -> LiquidGlassTokens(0.88f, 0.80f, 0.96f, 0.16f, 16.dp)
     LiquidGlassRole.Control -> LiquidGlassTokens(0.68f, 0.74f, 0.92f, 0.10f, 4.dp)
     LiquidGlassRole.Accent -> LiquidGlassTokens(0.84f, 0.66f, 0.96f, 0.18f, 12.dp)
   }
-  true -> when (role) {
-    LiquidGlassRole.Panel -> LiquidGlassTokens(0.78f, 0.30f, 0.18f, 0.42f, 9.dp)
-    LiquidGlassRole.Chrome -> LiquidGlassTokens(0.84f, 0.36f, 0.22f, 0.50f, 18.dp)
-    LiquidGlassRole.Control -> LiquidGlassTokens(0.68f, 0.28f, 0.16f, 0.34f, 5.dp)
-    LiquidGlassRole.Accent -> LiquidGlassTokens(0.78f, 0.42f, 0.22f, 0.50f, 14.dp)
-  }
+  true -> LiquidGlassTokens(1f, 0.4f, 0f, 0f, 0.dp)
 }
 
 @Composable
 fun liquidGlassSurfaceColor(role: LiquidGlassRole = LiquidGlassRole.Chrome): Color {
-  val tokens = liquidGlassTokens(isSystemInDarkTheme(), role)
+  val isDark = isQiankunjieDarkTheme()
+  if (isDark) return MaterialTheme.colorScheme.surfaceVariant
+  val tokens = liquidGlassTokens(isDark, role)
   return MaterialTheme.colorScheme.surface.copy(alpha = tokens.surfaceAlpha)
 }
 
 @Composable
 fun liquidGlassBackdropBrush(): Brush {
   val colors = MaterialTheme.colorScheme
-  val isDark = isSystemInDarkTheme()
+  val isDark = isQiankunjieDarkTheme()
   return if (isDark) {
-    Brush.verticalGradient(
-      listOf(
-        colors.background,
-        colors.surfaceVariant.copy(alpha = 0.72f),
-        colors.background,
-      ),
-    )
+    SolidColor(colors.background)
   } else {
     Brush.verticalGradient(
       listOf(
@@ -89,7 +82,7 @@ fun Modifier.liquidGlass(
   tint: Color = Color.Unspecified,
   shadowElevation: Dp? = null,
 ): Modifier {
-  val isDark = isSystemInDarkTheme()
+  val isDark = isQiankunjieDarkTheme()
   val tokens = liquidGlassTokens(isDark, role)
   val colors = MaterialTheme.colorScheme
   val base = if (tint == Color.Unspecified) colors.surface else tint
@@ -102,14 +95,20 @@ fun Modifier.liquidGlass(
   }
   val shadowColor = if (isDark) Color.Black else Color(0xFF173B2B)
 
-  return this
-    .shadow(
-      elevation = shadowElevation ?: tokens.shadowElevation,
+  val elevation = shadowElevation ?: tokens.shadowElevation
+  val decorated = if (elevation > 0.dp) {
+    this.shadow(
+      elevation = elevation,
       shape = shape,
       clip = false,
       ambientColor = shadowColor.copy(alpha = tokens.shadowAlpha * 0.66f),
       spotColor = shadowColor.copy(alpha = tokens.shadowAlpha),
     )
+  } else {
+    this
+  }
+
+  return decorated
     .clip(shape)
     .background(
       brush = Brush.verticalGradient(
@@ -135,14 +134,28 @@ fun QiankunjieGlassPanel(
   tint: Color = Color.Unspecified,
   content: @Composable BoxScope.() -> Unit,
 ) {
-  Surface(
-    modifier = modifier.liquidGlass(shape = shape, role = role, tint = tint),
-    shape = shape,
-    color = Color.Transparent,
-    contentColor = MaterialTheme.colorScheme.onSurface,
-    tonalElevation = 0.dp,
-    shadowElevation = 0.dp,
-  ) {
-    Box(content = content)
+  if (isQiankunjieDarkTheme()) {
+    Surface(
+      modifier = modifier,
+      shape = shape,
+      color = MaterialTheme.colorScheme.surface,
+      contentColor = MaterialTheme.colorScheme.onSurface,
+      border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
+      tonalElevation = 0.dp,
+      shadowElevation = 2.dp,
+    ) {
+      Box(content = content)
+    }
+  } else {
+    Surface(
+      modifier = modifier.liquidGlass(shape = shape, role = role, tint = tint),
+      shape = shape,
+      color = Color.Transparent,
+      contentColor = MaterialTheme.colorScheme.onSurface,
+      tonalElevation = 0.dp,
+      shadowElevation = 0.dp,
+    ) {
+      Box(content = content)
+    }
   }
 }

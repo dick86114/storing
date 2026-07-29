@@ -1,5 +1,7 @@
 package com.idickies.storing.ui
 
+import com.idickies.storing.ui.theme.isQiankunjieDarkTheme
+
 import android.content.ClipboardManager
 import android.view.ViewGroup
 import android.content.Intent
@@ -244,6 +246,28 @@ internal fun restoreLibraryRefreshAnchor(anchor: LibraryRefreshAnchor, itemCount
 
 internal enum class LibraryTopAction { Collect, Search, More }
 
+internal enum class LibraryMoreMenuSection { Tasks, Layout, Theme, System }
+
+internal data class LibraryMoreMenuPresentation(
+  val sections: List<LibraryMoreMenuSection>,
+)
+
+internal val libraryMoreMenuPresentation = LibraryMoreMenuPresentation(
+  sections = listOf(
+    LibraryMoreMenuSection.Tasks,
+    LibraryMoreMenuSection.Layout,
+    LibraryMoreMenuSection.Theme,
+    LibraryMoreMenuSection.System,
+  ),
+)
+
+internal fun libraryMoreMenuSectionLabel(section: LibraryMoreMenuSection): String = when (section) {
+  LibraryMoreMenuSection.Tasks -> "采集任务"
+  LibraryMoreMenuSection.Layout -> "列表布局"
+  LibraryMoreMenuSection.Theme -> "外观主题"
+  LibraryMoreMenuSection.System -> "系统操作"
+}
+
 internal data class LibraryTopBarPresentation(
   val actions: List<LibraryTopAction>,
   val themeModes: List<ThemeMode>,
@@ -299,6 +323,13 @@ internal data class LibraryMenuMetrics(
   val sourceMenuWidth: androidx.compose.ui.unit.Dp,
 )
 
+internal data class LibraryInteractionMetrics(
+  val searchFieldHeight: androidx.compose.ui.unit.Dp,
+  val searchDebounceMillis: Long,
+  val pagerBeyondViewportPageCount: Int,
+  val lightCardShadowElevation: androidx.compose.ui.unit.Dp,
+)
+
 internal data class ShimmerColors(
   val baseAlpha: Float,
   val highlightAlpha: Float,
@@ -316,6 +347,13 @@ internal val libraryMenuMetrics = LibraryMenuMetrics(
   moreMenuWidth = 216.dp,
   sortMenuWidth = 216.dp,
   sourceMenuWidth = 280.dp,
+)
+
+internal val libraryInteractionMetrics = LibraryInteractionMetrics(
+  searchFieldHeight = 42.dp,
+  searchDebounceMillis = 180L,
+  pagerBeyondViewportPageCount = 0,
+  lightCardShadowElevation = 0.dp,
 )
 
 internal fun shimmerColors(isDark: Boolean): ShimmerColors = if (isDark) {
@@ -438,16 +476,20 @@ internal fun LibraryPresentationModeSelector(
   selected: ArticleListPresentationMode,
   onSelect: (ArticleListPresentationMode) -> Unit,
 ) {
+  val isDark = isQiankunjieDarkTheme()
   Surface(
     modifier = Modifier
       .height(libraryControlMetrics.triggerHeight)
-      .liquidGlass(
-        shape = libraryControlShape,
-        role = LiquidGlassRole.Control,
-        shadowElevation = 2.dp,
-      ),
+      .let { base ->
+        if (isDark) base else base.liquidGlass(
+          shape = libraryControlShape,
+          role = LiquidGlassRole.Control,
+          shadowElevation = 2.dp,
+        )
+      },
     color = Color.Transparent,
     shape = libraryControlShape,
+    border = if (isDark) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.72f)) else null,
   ) {
     Row(modifier = Modifier.padding(2.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
       listOf(
@@ -460,10 +502,14 @@ internal fun LibraryPresentationModeSelector(
           modifier = Modifier
             .size(libraryControlMetrics.presentationCellSize)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.13f) else Color.Transparent)
+            .background(
+              if (isSelected) {
+                if (isDark) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.primary.copy(alpha = 0.13f)
+              } else Color.Transparent,
+            )
             .border(
               width = 0.7.dp,
-              color = if (isSelected) Color.White.copy(alpha = 0.62f) else Color.Transparent,
+              color = if (isSelected && !isDark) Color.White.copy(alpha = 0.62f) else Color.Transparent,
               shape = RoundedCornerShape(10.dp),
             ),
           contentAlignment = Alignment.Center,
@@ -550,6 +596,8 @@ internal fun LibraryMoreMenu(
   expanded: Boolean,
   onDismissRequest: () -> Unit,
   activeJobCount: Int,
+  presentationMode: ArticleListPresentationMode,
+  onPresentationModeChange: (ArticleListPresentationMode) -> Unit,
   themeMode: ThemeMode,
   onThemeModeChange: (ThemeMode) -> Unit,
   onOpenTasks: () -> Unit,
@@ -577,31 +625,68 @@ internal fun LibraryMoreMenu(
       color = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
       thickness = 0.5.dp,
     )
+    Text(
+      libraryMoreMenuSectionLabel(LibraryMoreMenuSection.Layout),
+      color = MaterialTheme.colorScheme.onSurface,
+      style = MaterialTheme.typography.bodyLarge,
+      modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    )
+    Box(
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+      contentAlignment = Alignment.Center,
+    ) {
+      LibraryPresentationModeSelector(
+        selected = presentationMode,
+        onSelect = { mode ->
+          onPresentationModeChange(mode)
+          onDismissRequest()
+        },
+      )
+    }
+    HorizontalDivider(
+      modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+      color = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
+      thickness = 0.5.dp,
+    )
+    Text(
+      libraryMoreMenuSectionLabel(LibraryMoreMenuSection.Theme),
+      color = MaterialTheme.colorScheme.onSurface,
+      style = MaterialTheme.typography.bodyLarge,
+      modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    )
     Row(
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-      horizontalArrangement = Arrangement.spacedBy(12.dp),
-      verticalAlignment = Alignment.CenterVertically,
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+      horizontalArrangement = Arrangement.SpaceEvenly,
+      verticalAlignment = Alignment.Top,
     ) {
       libraryTopBarPresentation.themeModes.forEach { mode ->
         val selected = mode == themeMode
-        Box(
-          modifier = Modifier
-            .size(48.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent),
-          contentAlignment = Alignment.Center,
-        ) {
-          IconButton(onClick = { onThemeModeChange(mode); onDismissRequest() }) {
-            Icon(
-              when (mode) {
-                ThemeMode.System -> Icons.Outlined.BrightnessAuto
-                ThemeMode.Dark -> Icons.Outlined.DarkMode
-                ThemeMode.Light -> Icons.Outlined.LightMode
-              },
-              contentDescription = mode.label,
-              tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+          Box(
+            modifier = Modifier
+              .size(44.dp)
+              .clip(RoundedCornerShape(14.dp))
+              .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent),
+            contentAlignment = Alignment.Center,
+          ) {
+            IconButton(onClick = { onThemeModeChange(mode); onDismissRequest() }) {
+              Icon(
+                when (mode) {
+                  ThemeMode.System -> Icons.Outlined.BrightnessAuto
+                  ThemeMode.Dark -> Icons.Outlined.DarkMode
+                  ThemeMode.Light -> Icons.Outlined.LightMode
+                },
+                contentDescription = mode.label,
+                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+            }
           }
+          Text(
+            mode.label,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp),
+          )
         }
       }
     }
@@ -661,6 +746,7 @@ fun LibraryScreen(
   jobsViewModel: CollectJobsViewModel = hiltViewModel(),
   readerPreferencesViewModel: ReaderPreferencesViewModel = hiltViewModel(),
 ) {
+  val isDarkAppearance = isQiankunjieDarkTheme()
   val state by libraryViewModel.state.collectAsState()
   val readerPreferences by readerPreferencesViewModel.preferences.collectAsState()
   val collectState by collectViewModel.state.collectAsState()
@@ -925,6 +1011,8 @@ fun LibraryScreen(
                       expanded = moreExpanded,
                       onDismissRequest = { moreExpanded = false },
                       activeJobCount = jobsState.activeJobCount,
+                      presentationMode = presentationMode,
+                      onPresentationModeChange = { presentationMode = it },
                       themeMode = themeMode,
                       onThemeModeChange = onThemeModeChange,
                       onOpenTasks = { showTasks = true },
@@ -954,23 +1042,38 @@ fun LibraryScreen(
             animationSpec = spring(stiffness = 620f),
             label = "collectFabIconRotation",
           )
-          Box(
-            modifier = Modifier
-              .size(62.dp)
-              .liquidGlass(
-                shape = CircleShape,
-                role = LiquidGlassRole.Accent,
-                tint = MaterialTheme.colorScheme.primary,
-              ),
-            contentAlignment = Alignment.Center,
-          ) {
-            IconButton(onClick = { showManualCollect = true }, modifier = Modifier.fillMaxSize()) {
+          if (isDarkAppearance) {
+            FloatingActionButton(
+              onClick = { showManualCollect = true },
+              containerColor = MaterialTheme.colorScheme.primary,
+              contentColor = MaterialTheme.colorScheme.onPrimary,
+              shape = CircleShape,
+            ) {
               Icon(
                 Icons.Outlined.Add,
                 contentDescription = "采集网页链接",
-                tint = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.size(32.dp).graphicsLayer { rotationZ = iconRotation },
               )
+            }
+          } else {
+            Box(
+              modifier = Modifier
+                .size(62.dp)
+                .liquidGlass(
+                  shape = CircleShape,
+                  role = LiquidGlassRole.Accent,
+                  tint = MaterialTheme.colorScheme.primary,
+                ),
+              contentAlignment = Alignment.Center,
+            ) {
+              IconButton(onClick = { showManualCollect = true }, modifier = Modifier.fillMaxSize()) {
+                Icon(
+                  Icons.Outlined.Add,
+                  contentDescription = "采集网页链接",
+                  tint = MaterialTheme.colorScheme.onPrimary,
+                  modifier = Modifier.size(32.dp).graphicsLayer { rotationZ = iconRotation },
+                )
+              }
             }
           }
         }
@@ -1016,14 +1119,14 @@ fun LibraryScreen(
     ) { padding ->
       val pagerState = rememberPagerState(initialPage = state.view.ordinal, pageCount = { LibraryView.entries.size })
       LaunchedEffect(state.view) {
-        if (pagerState.currentPage != state.view.ordinal && !pagerState.isScrollInProgress) pagerState.animateScrollToPage(state.view.ordinal)
+        if (pagerState.currentPage != state.view.ordinal && !pagerState.isScrollInProgress) pagerState.scrollToPage(state.view.ordinal)
       }
       LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
           LibraryView.entries.getOrNull(page)?.takeIf { it != state.view }?.let(libraryViewModel::select)
         }
       }
-      HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize(), beyondViewportPageCount = 1) { page ->
+      HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize(), beyondViewportPageCount = if (isDarkAppearance) 1 else libraryInteractionMetrics.pagerBeyondViewportPageCount) { page ->
         val renderedView = LibraryView.entries[page]
         val renderedState = tabContentStates[renderedView] ?: state.takeIf { renderedView == state.view }
           ?: state.copy(view = renderedView, articles = emptyList(), loading = false, refreshing = false, error = null)
@@ -1381,6 +1484,7 @@ private fun LibraryList(
   listState: LazyListState,
   modifier: Modifier = Modifier,
 ) {
+  val isDarkAppearance = isQiankunjieDarkTheme()
   val gridState = rememberLazyStaggeredGridState()
   val lastVisibleItemIndex by remember { derivedStateOf { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 } }
   LaunchedEffect(lastVisibleItemIndex, state.articles.size, state.hasMore, state.loadingMore, state.fromCache) {
@@ -1416,16 +1520,24 @@ private fun LibraryList(
                 onClick = { sortExpanded = true },
                 modifier = Modifier.height(libraryControlMetrics.triggerHeight),
                 shape = libraryControlShape,
-                colors = AssistChipDefaults.assistChipColors(
-                  containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
-                  labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                  leadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                ),
-                border = AssistChipDefaults.assistChipBorder(
-                  enabled = true,
-                  borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.74f),
-                  borderWidth = 0.8.dp,
-                ),
+                colors = if (isDarkAppearance) {
+                  AssistChipDefaults.assistChipColors()
+                } else {
+                  AssistChipDefaults.assistChipColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
+                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    leadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                },
+                border = if (isDarkAppearance) {
+                  AssistChipDefaults.assistChipBorder(enabled = true)
+                } else {
+                  AssistChipDefaults.assistChipBorder(
+                    enabled = true,
+                    borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.74f),
+                    borderWidth = 0.8.dp,
+                  )
+                },
                 label = {
                   Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(state.sort.label)
@@ -1452,16 +1564,24 @@ private fun LibraryList(
                 onClick = { sourceExpanded = true },
                 modifier = Modifier.height(libraryControlMetrics.triggerHeight),
                 shape = libraryControlShape,
-                colors = AssistChipDefaults.assistChipColors(
-                  containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
-                  labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                  leadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                ),
-                border = AssistChipDefaults.assistChipBorder(
-                  enabled = true,
-                  borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.74f),
-                  borderWidth = 0.8.dp,
-                ),
+                colors = if (isDarkAppearance) {
+                  AssistChipDefaults.assistChipColors()
+                } else {
+                  AssistChipDefaults.assistChipColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
+                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    leadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                },
+                border = if (isDarkAppearance) {
+                  AssistChipDefaults.assistChipBorder(enabled = true)
+                } else {
+                  AssistChipDefaults.assistChipBorder(
+                    enabled = true,
+                    borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.74f),
+                    borderWidth = 0.8.dp,
+                  )
+                },
                 label = { Text(if (state.archiveSourcesLoading) "来源" else state.archiveSource.label) },
                 leadingIcon = { Icon(Icons.Outlined.FilterList, contentDescription = "归档来源", modifier = Modifier.size(16.dp)) },
               )
@@ -1475,10 +1595,6 @@ private fun LibraryList(
               }
             }
           }
-          LibraryPresentationModeSelector(
-            selected = presentationMode,
-            onSelect = onPresentationModeChange,
-          )
         }
       }
     }
@@ -1617,6 +1733,7 @@ internal fun ArticleDetailSkeleton() {
 @Composable
 private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onSaveReadingPosition: (Float) -> Unit) {
   val context = LocalContext.current
+  val isDarkAppearance = isQiankunjieDarkTheme()
   var confirmDelete by remember { mutableStateOf(false) }
   var confirmPermanentDelete by remember { mutableStateOf(false) }
   var confirmPublication by remember { mutableStateOf<PublicationAction?>(null) }
@@ -1650,9 +1767,12 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
     }
   }
   Scaffold(
+    modifier = Modifier.background(liquidGlassBackdropBrush()),
+    containerColor = Color.Transparent,
+    contentColor = MaterialTheme.colorScheme.onBackground,
     topBar = {
       TopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = liquidGlassSurfaceColor(LiquidGlassRole.Chrome)),
         title = {
           Text(article.source ?: "乾坤戒阅读", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         },
@@ -1670,7 +1790,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
               modifier = Modifier
                 .width(libraryMenuMetrics.sortMenuWidth)
                 .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.76f), RoundedCornerShape(20.dp)),
-              containerColor = MaterialTheme.colorScheme.surfaceVariant,
+              containerColor = if (isDarkAppearance) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
               shape = RoundedCornerShape(20.dp),
             ) {
               DropdownMenuItem(
@@ -1937,7 +2057,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
 }
 
 @Composable
-private fun LibraryEmptyState(view: LibraryView, isSearchResult: Boolean) {
+internal fun LibraryEmptyState(view: LibraryView, isSearchResult: Boolean) {
   val (_, title, message) = if (isSearchResult) {
     Triple(Icons.Outlined.ErrorOutline, "没有匹配的文章", "试试更短的关键词，或切换到其他资料库。")
   } else when (view) {

@@ -1,5 +1,7 @@
 package com.idickies.storing.uilab
 
+import com.idickies.storing.ui.theme.isQiankunjieDarkTheme
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -60,7 +62,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
@@ -83,11 +84,14 @@ import com.idickies.storing.ui.libraryControlMetrics
 import com.idickies.storing.ui.LibrarySortMenu
 import com.idickies.storing.ui.LibrarySourceMenu
 import com.idickies.storing.ui.LibraryPresentationModeSelector
+import com.idickies.storing.ui.LibraryEmptyState
+import com.idickies.storing.ui.LibrarySearchScreen
 import com.idickies.storing.ui.theme.ThemeMode
 import com.idickies.storing.library.ArchiveSourceFilter
 import com.idickies.storing.library.ArticleListPresentationMode
 import com.idickies.storing.library.LibrarySort
 import com.idickies.storing.library.LibraryView
+import com.idickies.storing.library.LibraryUiState
 import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 import com.idickies.storing.ui.components.liquidGlassBackdropBrush
 import com.idickies.storing.ui.components.liquidGlass
@@ -107,21 +111,43 @@ internal fun UiLabScreen(
   var scenarioRoute by rememberSaveable { mutableStateOf(initialScenario.route) }
   var previewMoreExpanded by rememberSaveable { mutableStateOf(false) }
   var previewThemeMode by rememberSaveable { mutableStateOf(ThemeMode.System) }
+  var previewPresentationMode by remember { mutableStateOf(ArticleListPresentationMode.Grid) }
   val scenario = UiLabScenario.fromRoute(scenarioRoute)
+  if (scenario == UiLabScenario.Search) {
+    LibrarySearchScreen(
+      initialQuery = "",
+      state = LibraryUiState(articles = UiLabFixtures.library, loading = false),
+      onBack = { scenarioRoute = UiLabScenario.Library.route },
+      onSearch = {},
+      onOpen = {},
+      onLongPress = {},
+    )
+    return
+  }
+  val isDarkAppearance = isQiankunjieDarkTheme()
   Scaffold(
     modifier = Modifier.background(liquidGlassBackdropBrush()),
     containerColor = Color.Transparent,
     contentColor = MaterialTheme.colorScheme.onBackground,
     floatingActionButton = {
       if (scenario == UiLabScenario.Library) {
-        Box(
-          modifier = Modifier
-            .size(62.dp)
-            .liquidGlass(CircleShape, LiquidGlassRole.Accent, MaterialTheme.colorScheme.primary),
-          contentAlignment = Alignment.Center,
-        ) {
-          IconButton(onClick = {}, modifier = Modifier.fillMaxSize()) {
-            Icon(Icons.Outlined.Add, contentDescription = "采集", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(32.dp))
+        if (isDarkAppearance) {
+          FloatingActionButton(
+            onClick = {},
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            shape = CircleShape,
+          ) { Icon(Icons.Outlined.Add, contentDescription = "采集", modifier = Modifier.size(32.dp)) }
+        } else {
+          Box(
+            modifier = Modifier
+              .size(62.dp)
+              .liquidGlass(CircleShape, LiquidGlassRole.Accent, MaterialTheme.colorScheme.primary),
+            contentAlignment = Alignment.Center,
+          ) {
+            IconButton(onClick = {}, modifier = Modifier.fillMaxSize()) {
+              Icon(Icons.Outlined.Add, contentDescription = "采集", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(32.dp))
+            }
           }
         }
       }
@@ -144,13 +170,15 @@ internal fun UiLabScreen(
         actions = {
           if (scenario == UiLabScenario.Library) {
             IconButton(onClick = {}) { Icon(Icons.Outlined.Add, contentDescription = "采集") }
-            IconButton(onClick = {}) { Icon(Icons.Outlined.Search, contentDescription = "搜索") }
+            IconButton(onClick = { scenarioRoute = UiLabScenario.Search.route }) { Icon(Icons.Outlined.Search, contentDescription = "搜索") }
             Box {
               IconButton(onClick = { previewMoreExpanded = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "更多") }
               LibraryMoreMenu(
                 expanded = previewMoreExpanded,
                 onDismissRequest = { previewMoreExpanded = false },
                 activeJobCount = 2,
+                presentationMode = previewPresentationMode,
+                onPresentationModeChange = { previewPresentationMode = it },
                 themeMode = previewThemeMode,
                 onThemeModeChange = { previewThemeMode = it },
                 onOpenTasks = {},
@@ -181,7 +209,9 @@ internal fun UiLabScreen(
       }
       when (scenario) {
         UiLabScenario.Login -> LoginScreen(submitting = false, errorMessage = null, onLogin = {})
-        UiLabScenario.Library -> UiLabLibrary()
+        UiLabScenario.Library -> UiLabLibrary(previewPresentationMode, onPresentationModeChange = { previewPresentationMode = it })
+        UiLabScenario.Search -> Unit
+        UiLabScenario.Empty -> UiLabEmptyLibrary()
         UiLabScenario.Reader -> UiLabReader()
         UiLabScenario.Share -> UiLabShare()
         UiLabScenario.Tasks -> UiLabTasks()
@@ -193,11 +223,14 @@ internal fun UiLabScreen(
 }
 
 @Composable
-private fun UiLabLibrary() {
+private fun UiLabLibrary(
+  presentationMode: ArticleListPresentationMode,
+  onPresentationModeChange: (ArticleListPresentationMode) -> Unit,
+) {
+  val isDarkAppearance = isQiankunjieDarkTheme()
   var sortExpanded by remember { mutableStateOf(false) }
   var selectedSort by remember { mutableStateOf(LibrarySort.Collected) }
   var sortOrder by remember { mutableStateOf("desc") }
-  var presentationMode by remember { mutableStateOf(ArticleListPresentationMode.Grid) }
   var sourceExpanded by remember { mutableStateOf(false) }
   var selectedSource by remember { mutableStateOf(ArchiveSourceFilter.All) }
   val sourceOptions = listOf(ArchiveSourceFilter.All, ArchiveSourceFilter.source("少数派"), ArchiveSourceFilter.source("微信公众号"))
@@ -216,16 +249,24 @@ private fun UiLabLibrary() {
           AssistChip(
             onClick = { sortExpanded = true },
             modifier = Modifier.height(libraryControlMetrics.triggerHeight),
-            colors = AssistChipDefaults.assistChipColors(
-              containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
-              labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-              leadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
-            border = AssistChipDefaults.assistChipBorder(
-              enabled = true,
-              borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.74f),
-              borderWidth = 0.8.dp,
-            ),
+            colors = if (isDarkAppearance) {
+              AssistChipDefaults.assistChipColors()
+            } else {
+              AssistChipDefaults.assistChipColors(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
+                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                leadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+            },
+            border = if (isDarkAppearance) {
+              AssistChipDefaults.assistChipBorder(enabled = true)
+            } else {
+              AssistChipDefaults.assistChipBorder(
+                enabled = true,
+                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.74f),
+                borderWidth = 0.8.dp,
+              )
+            },
             label = { Text(selectedSort.label) },
             leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = null, modifier = Modifier.size(18.dp)) },
           )
@@ -244,16 +285,24 @@ private fun UiLabLibrary() {
           AssistChip(
             onClick = { sourceExpanded = true },
             modifier = Modifier.height(libraryControlMetrics.triggerHeight),
-            colors = AssistChipDefaults.assistChipColors(
-              containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
-              labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-              leadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
-            border = AssistChipDefaults.assistChipBorder(
-              enabled = true,
-              borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.74f),
-              borderWidth = 0.8.dp,
-            ),
+            colors = if (isDarkAppearance) {
+              AssistChipDefaults.assistChipColors()
+            } else {
+              AssistChipDefaults.assistChipColors(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
+                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                leadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+            },
+            border = if (isDarkAppearance) {
+              AssistChipDefaults.assistChipBorder(enabled = true)
+            } else {
+              AssistChipDefaults.assistChipBorder(
+                enabled = true,
+                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.74f),
+                borderWidth = 0.8.dp,
+              )
+            },
             label = { Text(selectedSource.category?.let { "$it · ${sourceCounts[it] ?: 0}" } ?: "全部来源") },
             leadingIcon = { Icon(Icons.Outlined.FilterList, contentDescription = null, modifier = Modifier.size(18.dp)) },
           )
@@ -274,11 +323,6 @@ private fun UiLabLibrary() {
         Text("来源筛选只在归档的非搜索状态显示。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
       }
     }
-    item {
-      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        LibraryPresentationModeSelector(selected = presentationMode, onSelect = { presentationMode = it })
-      }
-    }
     items(UiLabFixtures.library.take(1)) { article -> QiankunjieArticleCard(article = article, onOpen = {}) }
     item {
       Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -296,7 +340,7 @@ private fun UiLabLibrary() {
 
 @Composable
 private fun UiLabReader() {
-  val readerColorScheme = if (isSystemInDarkTheme()) com.idickies.storing.reader.ReaderColorScheme.Dark else com.idickies.storing.reader.ReaderColorScheme.Light
+  val readerColorScheme = if (isQiankunjieDarkTheme()) com.idickies.storing.reader.ReaderColorScheme.Dark else com.idickies.storing.reader.ReaderColorScheme.Light
   Scaffold(
     topBar = {
       Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
@@ -540,5 +584,15 @@ private fun UiLabTaskCard(title: String, url: String, status: String, stage: Str
         }
       }
     }
+  }
+}
+
+@Composable
+private fun UiLabEmptyLibrary() {
+  Column(
+    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+    verticalArrangement = Arrangement.Center,
+  ) {
+    LibraryEmptyState(view = LibraryView.Favorites, isSearchResult = false)
   }
 }

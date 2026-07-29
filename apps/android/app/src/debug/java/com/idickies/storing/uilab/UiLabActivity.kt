@@ -11,7 +11,9 @@ class UiLabActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
     setContent {
-      QiankunjieTheme {
+      val forcedDarkTheme = intent?.takeIf { it.hasExtra(EXTRA_FORCE_DARK_THEME) }
+        ?.getBooleanExtra(EXTRA_FORCE_DARK_THEME, false)
+      QiankunjieTheme(darkTheme = forcedDarkTheme ?: androidx.compose.foundation.isSystemInDarkTheme()) {
         UiLabScreen(
           initialScenario = UiLabScenario.fromRoute(intent?.getStringExtra(EXTRA_SCENARIO)),
           onClose = ::finish,
@@ -22,5 +24,6 @@ class UiLabActivity : ComponentActivity() {
 
   companion object {
     const val EXTRA_SCENARIO = "com.idickies.storing.uilab.SCENARIO"
+    const val EXTRA_FORCE_DARK_THEME = "com.idickies.storing.uilab.FORCE_DARK_THEME"
   }
 }

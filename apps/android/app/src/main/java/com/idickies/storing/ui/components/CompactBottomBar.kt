@@ -1,5 +1,7 @@
 package com.idickies.storing.ui.components
 
+import com.idickies.storing.ui.theme.isQiankunjieDarkTheme
+
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -67,6 +69,18 @@ val compactBottomBarMetrics = CompactBottomBarMetrics(
   contentVerticalOffset = 12.dp,
 )
 
+data class CompactBottomBarItemMetrics(
+  val itemVerticalSpacing: androidx.compose.ui.unit.Dp,
+  val contentVerticalOffset: androidx.compose.ui.unit.Dp,
+  val shadowElevation: androidx.compose.ui.unit.Dp,
+)
+
+fun compactBottomBarItemMetrics(isDark: Boolean): CompactBottomBarItemMetrics = CompactBottomBarItemMetrics(
+  itemVerticalSpacing = compactBottomBarMetrics.itemVerticalSpacing,
+  contentVerticalOffset = compactBottomBarMetrics.contentVerticalOffset,
+  shadowElevation = 14.dp,
+)
+
 @Composable
 private fun navSelectedColor(): Color = MaterialTheme.colorScheme.primary
 
@@ -79,19 +93,17 @@ fun QiankunjieCompactBottomBar(
     topStart = compactBottomBarMetrics.cornerRadius,
     topEnd = compactBottomBarMetrics.cornerRadius,
   )
-  Box(
-    modifier = modifier
-      .fillMaxWidth()
-      .liquidGlass(
-        shape = shape,
-        role = LiquidGlassRole.Chrome,
-        tint = MaterialTheme.colorScheme.surface,
-      ),
-  ) {
+  val isDark = isQiankunjieDarkTheme()
+  val itemMetrics = compactBottomBarItemMetrics(isDark)
+  val barContent: @Composable () -> Unit = {
     Column {
       HorizontalDivider(
-        thickness = 0.7.dp,
-        color = Color.White.copy(alpha = if (MaterialTheme.colorScheme.background.red > 0.5f) 0.78f else 0.16f),
+        thickness = if (isDark) 0.5.dp else 0.7.dp,
+        color = if (isDark) {
+          MaterialTheme.colorScheme.outline.copy(alpha = 0.42f)
+        } else {
+          Color.White.copy(alpha = 0.78f)
+        },
       )
       Row(
         modifier = Modifier
@@ -104,6 +116,30 @@ fun QiankunjieCompactBottomBar(
       ) {
         content()
       }
+    }
+  }
+  if (isDark) {
+    Surface(
+      modifier = modifier.fillMaxWidth(),
+      shape = shape,
+      color = MaterialTheme.colorScheme.surfaceVariant,
+      contentColor = MaterialTheme.colorScheme.onSurface,
+      border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.56f)),
+      tonalElevation = 0.dp,
+      shadowElevation = itemMetrics.shadowElevation,
+      content = barContent,
+    )
+  } else {
+    Box(
+      modifier = modifier
+        .fillMaxWidth()
+        .liquidGlass(
+          shape = shape,
+          role = LiquidGlassRole.Chrome,
+          tint = MaterialTheme.colorScheme.surface,
+        ),
+    ) {
+      barContent()
     }
   }
 }
@@ -135,8 +171,10 @@ fun CompactBottomBarItem(
     animationSpec = spring(stiffness = 500f),
     label = "bottomNavLabelAlpha",
   )
+  val isDark = isQiankunjieDarkTheme()
+  val itemMetrics = compactBottomBarItemMetrics(isDark)
   val selectionAlpha by animateFloatAsState(
-    targetValue = if (selected) 1f else 0f,
+    targetValue = if (selected && !isDark) 1f else 0f,
     animationSpec = spring(dampingRatio = 0.78f, stiffness = 520f),
     label = "bottomNavSelectionGlass",
   )
@@ -150,14 +188,17 @@ fun CompactBottomBarItem(
   val selectionShape = RoundedCornerShape(18.dp)
   Column(
     modifier = Modifier
-      .offset(y = compactBottomBarMetrics.contentVerticalOffset)
-      .clip(selectionShape)
-      .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.09f * selectionAlpha))
-      .border(
-        width = 0.7.dp,
-        color = Color.White.copy(alpha = 0.58f * selectionAlpha),
-        shape = selectionShape,
-      )
+      .offset(y = itemMetrics.contentVerticalOffset)
+      .let { base ->
+        if (isDark) base else base
+          .clip(selectionShape)
+          .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.09f * selectionAlpha))
+          .border(
+            width = 0.7.dp,
+            color = Color.White.copy(alpha = 0.58f * selectionAlpha),
+            shape = selectionShape,
+          )
+      }
       .semantics {
         stateDescription = when {
           selected && refreshing -> "$label，正在刷新"
@@ -173,9 +214,9 @@ fun CompactBottomBarItem(
         onClick = onClick,
         onDoubleClick = onDoubleClick,
       )
-      .padding(horizontal = 12.dp, vertical = 6.dp),
+      .padding(horizontal = if (isDark) 10.dp else 12.dp, vertical = 6.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.spacedBy(compactBottomBarMetrics.itemVerticalSpacing),
+    verticalArrangement = Arrangement.spacedBy(itemMetrics.itemVerticalSpacing),
   ) {
     Box(contentAlignment = Alignment.TopEnd) {
       Icon(

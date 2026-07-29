@@ -54,3 +54,21 @@ class LibraryTopBarPresentationTest {
     assertEquals(listOf(ThemeMode.System, ThemeMode.Dark, ThemeMode.Light), libraryTopBarPresentation.themeModes)
   }
 }
+
+class LibraryMoreMenuPresentationTest {
+  @Test
+  fun `layout chooser appears above theme chooser in the more menu`() {
+    assertEquals(
+      listOf(LibraryMoreMenuSection.Tasks, LibraryMoreMenuSection.Layout, LibraryMoreMenuSection.Theme, LibraryMoreMenuSection.System),
+      libraryMoreMenuPresentation.sections,
+    )
+  }
+}
+
+class LibraryMoreMenuTypographyTest {
+  @Test
+  fun `layout and theme sections use the same menu heading treatment`() {
+    assertEquals("列表布局", libraryMoreMenuSectionLabel(LibraryMoreMenuSection.Layout))
+    assertEquals("外观主题", libraryMoreMenuSectionLabel(LibraryMoreMenuSection.Theme))
+  }
+}

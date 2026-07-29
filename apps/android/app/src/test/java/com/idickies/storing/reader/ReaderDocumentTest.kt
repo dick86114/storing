@@ -39,3 +39,14 @@ class ReaderDocumentTest {
     assertTrue(document.contains("qiankunjie-mobile-reader"))
   }
 }
+
+class ReaderLightAppearanceTest {
+  @Test
+  fun `light reader uses a mint reading canvas and gives the title breathing room below navigation`() {
+    val document = ReaderDocument.forWebView("<html><head></head><body><p>正文</p></body></html>")
+
+    assertTrue(document.contains("background:#F2F8F3"))
+    assertTrue(document.contains(".qj-header { padding:20px 0 0;"))
+    assertTrue(document.contains("details.qj-ai-card { background:#F8FCF9"))
+  }
+}
