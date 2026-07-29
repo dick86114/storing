@@ -798,7 +798,13 @@ fun LibraryScreen(
       publicUrl = "https://storing.idickies.com/p/${detail.publicId}",
       onBack = { showSharePoster = false },
     )
-    showOfflineContent -> OfflineContentScreen(onBack = { showOfflineContent = false })
+    showOfflineContent -> OfflineContentScreen(
+      onBack = { showOfflineContent = false },
+      onOpenArticle = { articleId ->
+        showOfflineContent = false
+        libraryViewModel.openOffline(articleId)
+      },
+    )
     showMcp -> McpScreen(onBack = { showMcp = false })
     showAdmin -> AdminScreen(onBack = { showAdmin = false })
     showChangePassword -> ChangePasswordScreen(
@@ -837,7 +843,9 @@ fun LibraryScreen(
       detailRefreshVersion = state.detailRefreshVersion,
       savedReadingPosition = state.savedReadingPosition,
       isOfflineAvailable = state.isOfflineAvailable,
+      isReadingOffline = state.isReadingOffline,
       downloadingOffline = state.downloadingOffline,
+      onOpenOfflineAsset = libraryViewModel::openOfflineAsset,
       onFavorite = { libraryViewModel.toggleFavorite(detail) },
       onArchive = { libraryViewModel.toggleArchive(detail) },
       onPublication = { libraryViewModel.togglePublication(detail) },
@@ -1562,7 +1570,7 @@ internal fun ArticleDetailSkeleton() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, downloadingOffline: Boolean, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onSaveReadingPosition: (Float) -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onSaveReadingPosition: (Float) -> Unit) {
   val context = LocalContext.current
   var confirmDelete by remember { mutableStateOf(false) }
   var confirmPermanentDelete by remember { mutableStateOf(false) }
@@ -1754,13 +1762,21 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                       this,
                       readerPreferences,
                       onOpenExternalUrl = { uri -> webContext.startActivity(Intent(Intent.ACTION_VIEW, uri)) },
+                      offlineResourceLoader = if (isReadingOffline) onOpenOfflineAsset else null,
                       onPageFinished = {
                         savedReadingPosition?.let { pos -> ReaderWebView.restoreScrollPosition(this, pos) }
                       },
                       onPageCommitVisible = { webLoaded = true },
                       onScrollChanged = { percentage -> currentScrollPercentage = percentage },
                     )
-                    ReaderWebView.loadCapturedHtml(this, html, readerColorScheme, readerPreferences, headerHtml)
+                    ReaderWebView.loadCapturedHtml(
+                      this,
+                      html,
+                      readerColorScheme,
+                      readerPreferences,
+                      headerHtml,
+                      documentBaseUrl = if (isReadingOffline) com.idickies.storing.offline.offlineDocumentBaseUrl(article.id) else "https://storing.idickies.com",
+                    )
                   }
                   SwipeRefreshLayout(webContext).apply {
                     setColorSchemeColors(refreshColor)

@@ -2,6 +2,7 @@ package com.idickies.storing.reader
 
 import android.net.Uri
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 
@@ -31,6 +32,7 @@ object ReaderWebView {
     webView: WebView,
     preferences: ReaderPreferences = ReaderPreferences.Default,
     onOpenExternalUrl: (Uri) -> Unit,
+    offlineResourceLoader: ((Uri) -> WebResourceResponse?)? = null,
     onPageFinished: (() -> Unit)? = null,
     onPageCommitVisible: (() -> Unit)? = null,
     onScrollChanged: ((Float) -> Unit)? = null,
@@ -49,6 +51,11 @@ object ReaderWebView {
         val uri = request?.url ?: return true
         if (uri.scheme == "http" || uri.scheme == "https") onOpenExternalUrl(uri)
         return true
+      }
+
+      override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
+        val uri = request?.url ?: return super.shouldInterceptRequest(view, request)
+        return offlineResourceLoader?.invoke(uri) ?: super.shouldInterceptRequest(view, request)
       }
 
       override fun onPageFinished(view: WebView?, url: String?) {
@@ -91,7 +98,8 @@ object ReaderWebView {
     colorScheme: ReaderColorScheme = ReaderColorScheme.Light,
     preferences: ReaderPreferences = ReaderPreferences.Default,
     headerHtml: String = "",
+    documentBaseUrl: String = baseUrl,
   ) {
-    webView.loadDataWithBaseURL(baseUrl, ReaderDocument.forWebView(capturedHtml, colorScheme, preferences, headerHtml), "text/html", "UTF-8", null)
+    webView.loadDataWithBaseURL(documentBaseUrl, ReaderDocument.forWebView(capturedHtml, colorScheme, preferences, headerHtml), "text/html", "UTF-8", null)
   }
 }

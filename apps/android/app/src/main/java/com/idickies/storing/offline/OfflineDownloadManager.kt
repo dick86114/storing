@@ -1,10 +1,10 @@
 package com.idickies.storing.offline
 
 import android.content.Context
+import android.net.Uri
+import android.webkit.MimeTypeMap
+import android.webkit.WebResourceResponse
 import com.idickies.storing.library.ArticleDetail
-import com.idickies.storing.reader.ReaderColorScheme
-import com.idickies.storing.reader.ReaderDocument
-import com.idickies.storing.reader.ReaderPreferences
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -37,7 +37,6 @@ class OfflineDownloadManager @Inject constructor(
     article: ArticleDetail,
     html: String,
     coverUrl: String?,
-    preferences: ReaderPreferences = ReaderPreferences.Default,
   ): OfflineArticle = withContext(Dispatchers.IO) {
     val articleDir = File(baseDir, article.id.toString()).apply { mkdirs() }
     var totalSize = 0L
@@ -51,12 +50,12 @@ class OfflineDownloadManager @Inject constructor(
     }
 
     // 2. Process HTML: download embedded images and rewrite URLs
-    val processedHtml = processImages(html, articleDir) { file ->
+    val processedHtml = processImages(html, article.id, articleDir) { file ->
       totalSize += file.length()
       imageCount++
     }
 
-    // 3. Save the processed HTML with reader styling applied (light theme default; dark handled at read time)
+    // 3. Save the image-rewritten HTML; the reader applies the current visual preferences at open time.
     val htmlFile = File(articleDir, "content.html")
     htmlFile.writeText(processedHtml)
     totalSize += htmlFile.length()
@@ -76,19 +75,29 @@ class OfflineDownloadManager @Inject constructor(
     record
   }
 
-  /** Load the offline HTML for reading, applying the current color scheme and preferences. */
-  suspend fun loadOfflineHtml(
-    articleId: Int,
-    colorScheme: ReaderColorScheme,
-    preferences: ReaderPreferences = ReaderPreferences.Default,
-  ): String? = withContext(Dispatchers.IO) {
-    val record = dao.get(articleId) ?: return@withContext null
+  /**
+   * Returns a completed local copy for the reader. Legacy downloads that reference
+   * file:// images are normalized to the app-owned HTTPS resource origin on load.
+   */
+  suspend fun loadOfflineContent(articleId: Int): OfflineReaderContent? = withContext(Dispatchers.IO) {
+    val record = dao.get(articleId)?.takeIf { it.status == OfflineDownloadStatus.Completed.name } ?: return@withContext null
     val htmlFile = File(record.localHtmlPath)
     if (!htmlFile.exists()) return@withContext null
-    val rawHtml = htmlFile.readText()
-    // Re-apply reader styling on top of the already image-rewritten HTML
-    ReaderDocument.forWebView(rawHtml, colorScheme, preferences)
+    val articleDir = htmlFile.parentFile ?: return@withContext null
+    OfflineReaderContent(record, normalizeOfflineAssetUrls(htmlFile.readText(), articleId, articleDir))
   }
+
+  /** Opens a downloaded image only when it belongs to the validated article resource path. */
+  fun openOfflineAsset(uri: Uri): WebResourceResponse? = runCatching {
+    val request = parseOfflineAssetRequest(uri.toString()) ?: return null
+    val articleDir = File(baseDir, request.articleId.toString()).canonicalFile
+    val imageDir = File(articleDir, "images").canonicalFile
+    val imageFile = File(imageDir, request.fileName).canonicalFile
+    if (imageFile.parentFile != imageDir || !imageFile.isFile) return null
+    val extension = imageFile.extension.lowercase()
+    val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
+    WebResourceResponse(mimeType, null, imageFile.inputStream())
+  }.getOrNull()
 
   /** Delete a single article's offline content. */
   suspend fun delete(articleId: Int) = withContext(Dispatchers.IO) {
@@ -113,6 +122,7 @@ class OfflineDownloadManager @Inject constructor(
 
   private fun processImages(
     html: String,
+    articleId: Int,
     articleDir: File,
     onImageDownloaded: (File) -> Unit,
   ): String {
@@ -132,8 +142,8 @@ class OfflineDownloadManager @Inject constructor(
 
       if (localFile != null) {
         onImageDownloaded(localFile)
-        // Replace with local file path - use absolute path for WebView file access
-        val replacement = match.value.replace(imgUrl, "file://${localFile.absolutePath}")
+        // Serve downloaded images through a virtual HTTPS origin so WebView does not need file access.
+        val replacement = match.value.replace(imgUrl, offlineAssetUrl(articleId, localFile.name))
         result.append(replacement)
       } else {
         // Keep original if download failed
@@ -143,6 +153,14 @@ class OfflineDownloadManager @Inject constructor(
     }
     result.append(html, lastEnd, html.length)
     return result.toString()
+  }
+
+  private fun normalizeOfflineAssetUrls(html: String, articleId: Int, articleDir: File): String {
+    val imageDir = File(articleDir, "images").absolutePath
+    val legacyPrefix = "file://${imageDir}/"
+    return html.replace(Regex("${Regex.escape(legacyPrefix)}([A-Za-z0-9._-]+)")) { match ->
+      offlineAssetUrl(articleId, match.groupValues[1])
+    }
   }
 
   private fun downloadFile(url: String, target: File): File {
