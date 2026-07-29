@@ -183,6 +183,7 @@ import com.idickies.storing.library.ArticleListPresentationMode
 import com.idickies.storing.library.ArticleProcessingAction
 import com.idickies.storing.library.PublicationAction
 import com.idickies.storing.library.ArchiveSourceFilter
+import com.idickies.storing.network.ArticleCounts
 import com.idickies.storing.network.MobileCollectJob
 import com.idickies.storing.library.LibraryView
 import com.idickies.storing.library.LibrarySort
@@ -246,6 +247,32 @@ internal data class LibraryTopBarPresentation(
 internal data class LibraryTopSearchPresentation(
   val showsSearchField: Boolean,
 )
+
+internal data class LibraryTopBarSubtitle(
+  val label: String,
+  val recordCount: Int?,
+)
+
+/**
+ * Keeps the currently selected library view's total visible in the top bar while
+ * avoiding a misleading total for cross-view search results.
+ */
+internal fun libraryTopBarSubtitle(
+  view: LibraryView,
+  searchQuery: String,
+  counts: ArticleCounts?,
+): LibraryTopBarSubtitle {
+  if (searchQuery.isNotBlank()) return LibraryTopBarSubtitle(label = "搜索结果", recordCount = null)
+  val total = counts?.let {
+    when (view) {
+      LibraryView.Inbox -> it.inbox
+      LibraryView.Favorites -> it.favorites
+      LibraryView.Archive -> it.archive
+      LibraryView.Published -> it.published
+    }
+  }?.takeIf { it > 0 }
+  return LibraryTopBarSubtitle(label = view.label, recordCount = total)
+}
 
 internal val libraryTopBarPresentation = LibraryTopBarPresentation(
   actions = listOf(LibraryTopAction.Collect, LibraryTopAction.Search, LibraryTopAction.More),
@@ -839,7 +866,18 @@ fun LibraryScreen(
               Image(painter = painterResource(R.drawable.brand_logo), contentDescription = null, modifier = Modifier.size(26.dp))
               Column {
                 Text("乾坤戒", style = MaterialTheme.typography.titleLarge)
-                Text(if (state.searchQuery.isBlank()) state.view.label else "搜索结果", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val subtitle = libraryTopBarSubtitle(state.view, state.searchQuery, state.counts)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                  Text(
+                    subtitle.label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                  subtitle.recordCount?.let { total ->
+                    Text("·", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("$total", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                  }
+                }
               }
             }
           },
