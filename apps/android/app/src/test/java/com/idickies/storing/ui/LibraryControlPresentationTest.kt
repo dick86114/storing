@@ -1,7 +1,9 @@
 package com.idickies.storing.ui
 
 import androidx.compose.ui.unit.dp
+import com.idickies.storing.library.ArticleListPresentationMode
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -24,5 +26,11 @@ class LibraryControlPresentationTest {
     assertTrue(shimmerColors(isDark = true).baseAlpha > shimmerColors(isDark = false).baseAlpha)
     assertTrue(shimmerColors(isDark = true).highlightAlpha > shimmerColors(isDark = false).highlightAlpha)
     assertTrue(shimmerColors(isDark = true).usesDarkSurfaceBase)
+  }
+
+  @Test
+  fun `dual column presentation uses the staggered masonry renderer`() {
+    assertTrue(usesMasonryGrid(ArticleListPresentationMode.Grid))
+    assertFalse(usesMasonryGrid(ArticleListPresentationMode.Card))
   }
 }
