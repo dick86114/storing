@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
@@ -117,16 +118,16 @@ fun QiankunjieArticleCard(
     modifier = modifier
       .fillMaxWidth()
       .scale(pressMotion.scale)
+      .liquidGlass(shape = cardShape, role = LiquidGlassRole.Panel)
       .combinedClickable(
         interactionSource = pressMotion.interactionSource,
         indication = null,
         onClick = { onOpen(article.id) },
         onLongClick = { onLongPress(article) },
       ),
-    colors = CardDefaults.cardColors(containerColor = colors.surfaceVariant),
+    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     shape = cardShape,
-    border = androidx.compose.foundation.BorderStroke(1.dp, colors.outline.copy(alpha = 0.76f)),
   ) {
     Column {
       ArticleThumbnail(
@@ -192,20 +193,21 @@ fun QiankunjieGridArticleCard(
 ) {
   val colors = MaterialTheme.colorScheme
   val pressMotion = rememberArticleCardPressMotion()
+  val cardShape = RoundedCornerShape(gridArticleCardLayout.cardCornerRadius)
   Card(
     modifier = modifier
       .fillMaxWidth()
       .scale(pressMotion.scale)
+      .liquidGlass(shape = cardShape, role = LiquidGlassRole.Panel)
       .combinedClickable(
         interactionSource = pressMotion.interactionSource,
         indication = null,
         onClick = { onOpen(article.id) },
         onLongClick = { onLongPress(article) },
       ),
-    colors = CardDefaults.cardColors(containerColor = colors.surfaceVariant),
+    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-    shape = RoundedCornerShape(gridArticleCardLayout.cardCornerRadius),
-    border = androidx.compose.foundation.BorderStroke(1.dp, colors.outline.copy(alpha = 0.68f)),
+    shape = cardShape,
   ) {
     Column {
       ArticleThumbnail(
@@ -243,20 +245,21 @@ fun QiankunjieCompactArticleRow(
   modifier: Modifier = Modifier,
 ) {
   val pressMotion = rememberArticleCardPressMotion()
+  val cardShape = MaterialTheme.shapes.medium
   Card(
     modifier = modifier
       .fillMaxWidth()
       .scale(pressMotion.scale)
+      .liquidGlass(shape = cardShape, role = LiquidGlassRole.Panel)
       .combinedClickable(
         interactionSource = pressMotion.interactionSource,
         indication = null,
         onClick = { onOpen(article.id) },
         onLongClick = { onLongPress(article) },
       ),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-    shape = MaterialTheme.shapes.medium,
-    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    shape = cardShape,
   ) {
     Row(
       modifier = Modifier.padding(10.dp),

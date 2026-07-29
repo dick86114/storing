@@ -3,25 +3,27 @@ package com.idickies.storing.ui.components
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
@@ -35,8 +37,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
@@ -44,7 +47,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/* 底部导航：圆角承托式导航栏，较大的图标、紧凑标签和清晰 badge。 */
+/* 底部导航：独立圆角玻璃承托，不使用任何全宽直角底板。 */
 
 data class CompactBottomBarMetrics(
   val actionHeight: androidx.compose.ui.unit.Dp,
@@ -76,17 +79,20 @@ fun QiankunjieCompactBottomBar(
     topStart = compactBottomBarMetrics.cornerRadius,
     topEnd = compactBottomBarMetrics.cornerRadius,
   )
-  Surface(
-    modifier = modifier.fillMaxWidth(),
-    shape = shape,
-    color = MaterialTheme.colorScheme.surfaceVariant,
-    contentColor = MaterialTheme.colorScheme.onSurface,
-    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.56f)),
-    tonalElevation = 0.dp,
-    shadowElevation = 14.dp,
+  Box(
+    modifier = modifier
+      .fillMaxWidth()
+      .liquidGlass(
+        shape = shape,
+        role = LiquidGlassRole.Chrome,
+        tint = MaterialTheme.colorScheme.surface,
+      ),
   ) {
     Column {
-      HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.42f))
+      HorizontalDivider(
+        thickness = 0.7.dp,
+        color = Color.White.copy(alpha = if (MaterialTheme.colorScheme.background.red > 0.5f) 0.78f else 0.16f),
+      )
       Row(
         modifier = Modifier
           .fillMaxWidth()
@@ -129,6 +135,11 @@ fun CompactBottomBarItem(
     animationSpec = spring(stiffness = 500f),
     label = "bottomNavLabelAlpha",
   )
+  val selectionAlpha by animateFloatAsState(
+    targetValue = if (selected) 1f else 0f,
+    animationSpec = spring(dampingRatio = 0.78f, stiffness = 520f),
+    label = "bottomNavSelectionGlass",
+  )
   val refreshTransition = rememberInfiniteTransition(label = "bottomNavRefresh")
   val refreshRotation by refreshTransition.animateFloat(
     initialValue = 0f,
@@ -136,9 +147,17 @@ fun CompactBottomBarItem(
     animationSpec = infiniteRepeatable(tween(720), RepeatMode.Restart),
     label = "bottomNavRefreshRotation",
   )
+  val selectionShape = RoundedCornerShape(18.dp)
   Column(
     modifier = Modifier
       .offset(y = compactBottomBarMetrics.contentVerticalOffset)
+      .clip(selectionShape)
+      .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.09f * selectionAlpha))
+      .border(
+        width = 0.7.dp,
+        color = Color.White.copy(alpha = 0.58f * selectionAlpha),
+        shape = selectionShape,
+      )
       .semantics {
         stateDescription = when {
           selected && refreshing -> "$label，正在刷新"
@@ -154,11 +173,10 @@ fun CompactBottomBarItem(
         onClick = onClick,
         onDoubleClick = onDoubleClick,
       )
-      .padding(horizontal = 10.dp, vertical = 6.dp),
+      .padding(horizontal = 12.dp, vertical = 6.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(compactBottomBarMetrics.itemVerticalSpacing),
   ) {
-    // Icon + Badge
     Box(contentAlignment = Alignment.TopEnd) {
       Icon(
         imageVector = icon,
@@ -194,7 +212,6 @@ fun CompactBottomBarItem(
         }
       }
     }
-    // Label
     Text(
       if (selected && refreshing) "刷新中" else label,
       fontSize = 12.sp,

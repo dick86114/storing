@@ -38,6 +38,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -88,6 +89,9 @@ import com.idickies.storing.library.ArticleListPresentationMode
 import com.idickies.storing.library.LibrarySort
 import com.idickies.storing.library.LibraryView
 import com.idickies.storing.ui.components.liquidGlassSurfaceColor
+import com.idickies.storing.ui.components.liquidGlassBackdropBrush
+import com.idickies.storing.ui.components.liquidGlass
+import com.idickies.storing.ui.components.LiquidGlassRole
 import com.idickies.storing.ui.components.QiankunjieArticleCard
 import com.idickies.storing.ui.components.QiankunjieGridArticleCard
 import com.idickies.storing.ui.components.QiankunjieCompactArticleRow
@@ -105,14 +109,21 @@ internal fun UiLabScreen(
   var previewThemeMode by rememberSaveable { mutableStateOf(ThemeMode.System) }
   val scenario = UiLabScenario.fromRoute(scenarioRoute)
   Scaffold(
+    modifier = Modifier.background(liquidGlassBackdropBrush()),
+    containerColor = Color.Transparent,
+    contentColor = MaterialTheme.colorScheme.onBackground,
     floatingActionButton = {
       if (scenario == UiLabScenario.Library) {
-        FloatingActionButton(
-          onClick = {},
-          containerColor = MaterialTheme.colorScheme.primary,
-          contentColor = MaterialTheme.colorScheme.onPrimary,
-          shape = CircleShape,
-        ) { Icon(Icons.Outlined.Add, contentDescription = "采集", modifier = Modifier.size(32.dp)) }
+        Box(
+          modifier = Modifier
+            .size(62.dp)
+            .liquidGlass(CircleShape, LiquidGlassRole.Accent, MaterialTheme.colorScheme.primary),
+          contentAlignment = Alignment.Center,
+        ) {
+          IconButton(onClick = {}, modifier = Modifier.fillMaxSize()) {
+            Icon(Icons.Outlined.Add, contentDescription = "采集", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(32.dp))
+          }
+        }
       }
     },
     bottomBar = {
@@ -205,6 +216,16 @@ private fun UiLabLibrary() {
           AssistChip(
             onClick = { sortExpanded = true },
             modifier = Modifier.height(libraryControlMetrics.triggerHeight),
+            colors = AssistChipDefaults.assistChipColors(
+              containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
+              labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+              leadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
+            border = AssistChipDefaults.assistChipBorder(
+              enabled = true,
+              borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.74f),
+              borderWidth = 0.8.dp,
+            ),
             label = { Text(selectedSort.label) },
             leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = null, modifier = Modifier.size(18.dp)) },
           )
@@ -223,6 +244,16 @@ private fun UiLabLibrary() {
           AssistChip(
             onClick = { sourceExpanded = true },
             modifier = Modifier.height(libraryControlMetrics.triggerHeight),
+            colors = AssistChipDefaults.assistChipColors(
+              containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
+              labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+              leadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
+            border = AssistChipDefaults.assistChipBorder(
+              enabled = true,
+              borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.74f),
+              borderWidth = 0.8.dp,
+            ),
             label = { Text(selectedSource.category?.let { "$it · ${sourceCounts[it] ?: 0}" } ?: "全部来源") },
             leadingIcon = { Icon(Icons.Outlined.FilterList, contentDescription = null, modifier = Modifier.size(18.dp)) },
           )
