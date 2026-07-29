@@ -109,6 +109,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -175,6 +176,10 @@ import com.idickies.storing.ui.components.ActiveCollectJobsCard
 import com.idickies.storing.ui.components.ReaderActionBar
 import com.idickies.storing.ui.components.CompactBottomBarItem
 import com.idickies.storing.ui.components.QiankunjieCompactBottomBar
+import com.idickies.storing.ui.components.LiquidGlassRole
+import com.idickies.storing.ui.components.liquidGlass
+import com.idickies.storing.ui.components.liquidGlassBackdropBrush
+import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 import com.idickies.storing.library.ArticleCard
@@ -434,10 +439,15 @@ internal fun LibraryPresentationModeSelector(
   onSelect: (ArticleListPresentationMode) -> Unit,
 ) {
   Surface(
-    modifier = Modifier.height(libraryControlMetrics.triggerHeight),
+    modifier = Modifier
+      .height(libraryControlMetrics.triggerHeight)
+      .liquidGlass(
+        shape = libraryControlShape,
+        role = LiquidGlassRole.Control,
+        shadowElevation = 2.dp,
+      ),
     color = Color.Transparent,
     shape = libraryControlShape,
-    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.72f)),
   ) {
     Row(modifier = Modifier.padding(2.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
       listOf(
@@ -450,7 +460,12 @@ internal fun LibraryPresentationModeSelector(
           modifier = Modifier
             .size(libraryControlMetrics.presentationCellSize)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent),
+            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.13f) else Color.Transparent)
+            .border(
+              width = 0.7.dp,
+              color = if (isSelected) Color.White.copy(alpha = 0.62f) else Color.Transparent,
+              shape = RoundedCornerShape(10.dp),
+            ),
           contentAlignment = Alignment.Center,
         ) {
           IconButton(onClick = { onSelect(mode) }) {
@@ -861,6 +876,9 @@ fun LibraryScreen(
     state.loadingDetail -> ArticleDetailSkeleton()
     detailError != null -> ErrorPage(detailError, libraryViewModel::closeDetail)
     else -> Scaffold(
+      modifier = Modifier.background(liquidGlassBackdropBrush()),
+      containerColor = Color.Transparent,
+      contentColor = MaterialTheme.colorScheme.onBackground,
       snackbarHost = { SnackbarHost(snackbarHostState) },
       topBar = {
         TopAppBar(
@@ -868,7 +886,7 @@ fun LibraryScreen(
             onClick = {},
             onDoubleClick = { scope.launch { libraryListState.animateScrollToItem(0) } },
           ),
-          colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+          colors = TopAppBarDefaults.topAppBarColors(containerColor = liquidGlassSurfaceColor(LiquidGlassRole.Chrome)),
           title = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
               Image(painter = painterResource(R.drawable.brand_logo), contentDescription = null, modifier = Modifier.size(26.dp))
@@ -936,17 +954,24 @@ fun LibraryScreen(
             animationSpec = spring(stiffness = 620f),
             label = "collectFabIconRotation",
           )
-          FloatingActionButton(
-            onClick = { showManualCollect = true },
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            shape = CircleShape,
+          Box(
+            modifier = Modifier
+              .size(62.dp)
+              .liquidGlass(
+                shape = CircleShape,
+                role = LiquidGlassRole.Accent,
+                tint = MaterialTheme.colorScheme.primary,
+              ),
+            contentAlignment = Alignment.Center,
           ) {
-            Icon(
-              Icons.Outlined.Add,
-              contentDescription = "采集网页链接",
-              modifier = Modifier.size(32.dp).graphicsLayer { rotationZ = iconRotation },
-            )
+            IconButton(onClick = { showManualCollect = true }, modifier = Modifier.fillMaxSize()) {
+              Icon(
+                Icons.Outlined.Add,
+                contentDescription = "采集网页链接",
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(32.dp).graphicsLayer { rotationZ = iconRotation },
+              )
+            }
           }
         }
       },
@@ -1391,6 +1416,16 @@ private fun LibraryList(
                 onClick = { sortExpanded = true },
                 modifier = Modifier.height(libraryControlMetrics.triggerHeight),
                 shape = libraryControlShape,
+                colors = AssistChipDefaults.assistChipColors(
+                  containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
+                  labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                  leadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+                border = AssistChipDefaults.assistChipBorder(
+                  enabled = true,
+                  borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.74f),
+                  borderWidth = 0.8.dp,
+                ),
                 label = {
                   Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(state.sort.label)
@@ -1417,6 +1452,16 @@ private fun LibraryList(
                 onClick = { sourceExpanded = true },
                 modifier = Modifier.height(libraryControlMetrics.triggerHeight),
                 shape = libraryControlShape,
+                colors = AssistChipDefaults.assistChipColors(
+                  containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
+                  labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                  leadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+                border = AssistChipDefaults.assistChipBorder(
+                  enabled = true,
+                  borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.74f),
+                  borderWidth = 0.8.dp,
+                ),
                 label = { Text(if (state.archiveSourcesLoading) "来源" else state.archiveSource.label) },
                 leadingIcon = { Icon(Icons.Outlined.FilterList, contentDescription = "归档来源", modifier = Modifier.size(16.dp)) },
               )
