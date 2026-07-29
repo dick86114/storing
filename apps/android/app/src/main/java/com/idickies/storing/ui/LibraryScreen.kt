@@ -47,6 +47,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.lazy.staggeredgrid.items as staggeredItems
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyListState
@@ -286,6 +291,8 @@ internal fun shimmerColors(isDark: Boolean): ShimmerColors = if (isDark) {
 } else {
   ShimmerColors(baseAlpha = 0.06f, highlightAlpha = 0.14f, usesDarkSurfaceBase = false)
 }
+
+internal fun usesMasonryGrid(mode: ArticleListPresentationMode): Boolean = mode == ArticleListPresentationMode.Grid
 
 internal fun shouldShowLibrarySkeleton(loading: Boolean, articles: List<*>, isColdStart: Boolean): Boolean =
   loading && articles.isEmpty() && isColdStart
@@ -1303,22 +1310,25 @@ private fun LibraryList(
   listState: LazyListState,
   modifier: Modifier = Modifier,
 ) {
-  val lastVisibleItemIndex by remember { derivedStateOf { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 } }
+  val gridState = rememberLazyStaggeredGridState()
+  val lastVisibleItemIndex by remember { derivedStateOf { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 } }
   LaunchedEffect(lastVisibleItemIndex, state.articles.size, state.hasMore, state.loadingMore, state.fromCache) {
-    if (!state.loadingMore && !state.fromCache && shouldLoadMore(lastVisibleItemIndex, listState.layoutInfo.totalItemsCount, state.hasMore)) onLoadMore()
+    if (!state.loadingMore && !state.fromCache && shouldLoadMore(lastVisibleItemIndex, gridState.layoutInfo.totalItemsCount, state.hasMore)) onLoadMore()
   }
   PullToRefreshBox(
     isRefreshing = state.refreshing,
     onRefresh = onRefresh,
     modifier = modifier.fillMaxSize(),
   ) {
-    LazyColumn(
+    LazyVerticalStaggeredGrid(
+      columns = StaggeredGridCells.Fixed(if (usesMasonryGrid(presentationMode)) 2 else 1),
       modifier = Modifier.fillMaxSize(),
-      state = listState,
+      state = gridState,
       contentPadding = PaddingValues(16.dp),
-      verticalArrangement = Arrangement.spacedBy(10.dp),
+      verticalItemSpacing = 10.dp,
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-    item {
+    item(span = StaggeredGridItemSpan.FullLine) {
       var sortExpanded by remember { mutableStateOf(false) }
       var sourceExpanded by remember { mutableStateOf(false) }
       val sourceOptions = archiveSourceFilters(state.archiveSources)
@@ -1381,14 +1391,14 @@ private fun LibraryList(
         }
       }
     }
-    if (activeJobCount > 0) item {
+    if (activeJobCount > 0) item(span = StaggeredGridItemSpan.FullLine) {
       ActiveCollectJobsCard(
         activeJobCount = activeJobCount,
         onOpenTasks = onOpenTasks,
       )
     }
     if (collectUrls.isNotEmpty()) {
-      item {
+      item(span = StaggeredGridItemSpan.FullLine) {
         Card { Column(Modifier.padding(16.dp)) {
           Text("分享采集", style = MaterialTheme.typography.titleMedium)
           collectUrls.forEach { url -> Text(if (url == collectSelectedUrl) "✓ $url" else url, modifier = Modifier.fillMaxWidth().clickable { onSelectCollectUrl(url) }.padding(top = 8.dp), maxLines = 1) }
@@ -1397,25 +1407,18 @@ private fun LibraryList(
         } }
       }
     }
-    if (state.fromCache) item { Text("当前显示离线缓存，联网后可点刷新获取最新内容。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    if (state.fromCache) item(span = StaggeredGridItemSpan.FullLine) { Text("当前显示离线缓存，联网后可点刷新获取最新内容。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
     if (shouldShowLibrarySkeleton(state.loading, state.articles, isColdStart = state.view == LibraryView.Inbox && state.searchQuery.isBlank())) {
       items(4) { LibrarySkeletonCard() }
     }
-    if (state.error != null) item { ErrorPage(state.error, onRefresh) }
-    if (!state.loading && !state.searchPending && state.error == null && state.articles.isEmpty()) item { LibraryEmptyState(view = state.view, isSearchResult = state.searchQuery.isNotBlank()) }
+    if (state.error != null) item(span = StaggeredGridItemSpan.FullLine) { ErrorPage(state.error, onRefresh) }
+    if (!state.loading && !state.searchPending && state.error == null && state.articles.isEmpty()) item(span = StaggeredGridItemSpan.FullLine) { LibraryEmptyState(view = state.view, isSearchResult = state.searchQuery.isNotBlank()) }
     when (presentationMode) {
-      ArticleListPresentationMode.Grid -> {
-        items(state.articles.chunked(2), key = { row -> row.first().id }) { row ->
-          Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-            row.forEach { article ->
-              QiankunjieGridArticleCard(article, onOpen, onLongPress, modifier = Modifier.weight(1f))
-            }
-            if (row.size == 1) Spacer(Modifier.weight(1f))
-          }
-        }
+      ArticleListPresentationMode.Grid -> staggeredItems(state.articles, key = { it.id }) { article ->
+        QiankunjieGridArticleCard(article, onOpen, onLongPress, modifier = Modifier.fillMaxWidth())
       }
       ArticleListPresentationMode.Card,
-      ArticleListPresentationMode.CompactList -> items(state.articles, key = { it.id }) { article ->
+      ArticleListPresentationMode.CompactList -> staggeredItems(state.articles, key = { it.id }) { article ->
         Column {
           when (presentationMode) {
             ArticleListPresentationMode.Card -> QiankunjieArticleCard(article, onOpen, onLongPress)
@@ -1426,7 +1429,7 @@ private fun LibraryList(
         }
       }
     }
-      if (state.articles.isNotEmpty() && !state.fromCache) item {
+      if (state.articles.isNotEmpty() && !state.fromCache) item(span = StaggeredGridItemSpan.FullLine) {
         Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
           when {
             state.loadingMore -> InlineLoading("正在加载更多文章…")
