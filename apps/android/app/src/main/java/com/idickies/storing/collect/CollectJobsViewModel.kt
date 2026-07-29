@@ -7,6 +7,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -27,6 +29,9 @@ class CollectJobsViewModel @Inject constructor(
   private val mutableState = MutableStateFlow(CollectJobsUiState())
   val state = mutableState.asStateFlow()
   private var pollingJob: Job? = null
+  private val completionTracker = CollectCompletionTracker()
+  private val mutableCompletionEvents = MutableSharedFlow<MobileCollectJob>(extraBufferCapacity = 1)
+  val completionEvents = mutableCompletionEvents.asSharedFlow()
 
   fun start() {
     if (pollingJob != null) return
@@ -43,7 +48,10 @@ class CollectJobsViewModel @Inject constructor(
   fun refresh() {
     viewModelScope.launch {
       runCatching { repository.jobs() }
-        .onSuccess { jobs -> mutableState.value = CollectJobsUiState(jobs = jobs, loading = false) }
+        .onSuccess { jobs ->
+          completionTracker.observe(jobs).forEach { mutableCompletionEvents.tryEmit(it) }
+          mutableState.value = CollectJobsUiState(jobs = jobs, loading = false)
+        }
         .onFailure { error -> mutableState.update { it.copy(loading = false, error = error.message ?: "加载采集任务失败") } }
     }
   }

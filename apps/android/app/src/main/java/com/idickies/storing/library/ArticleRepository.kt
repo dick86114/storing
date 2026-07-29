@@ -21,12 +21,12 @@ class ArticleRepository @Inject constructor(
     view: LibraryView,
     page: Int = 1,
     sort: LibrarySort = LibrarySort.defaultFor(view),
-    category: String? = null,
+    categories: List<String>? = null,
     order: String = "desc",
   ): ArticleListLoad {
     val userId = sessionStore.read()?.userId
-    val canUseViewCache = sort == LibrarySort.defaultFor(view) && category == null && order == "desc"
-    return runCatching { api.articles(view.apiValue, page, sort = sort.apiValue, order = order, category = category) }
+    val canUseViewCache = sort == LibrarySort.defaultFor(view) && categories.isNullOrEmpty() && order == "desc"
+    return runCatching { api.articles(view.apiValue, page, sort = sort.apiValue, order = order, categories = categories) }
       .onSuccess { response ->
         if (userId != null && page == 1 && canUseViewCache) {
           cacheDao.replace(userId, view.apiValue, response.articles.map { it.toCached(userId, view.apiValue) })

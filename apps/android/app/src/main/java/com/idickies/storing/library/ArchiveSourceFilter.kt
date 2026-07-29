@@ -7,7 +7,7 @@ package com.idickies.storing.library
  * sources. Multiple selected values are sent as repeated `category` query parameters and use
  * OR semantics on the server.
  */
-data class ArchiveSourceFilter private constructor(
+data class ArchiveSourceFilter(
   val categories: Set<String>,
 ) {
   /** Retained for the single-source callers that have not yet migrated to [categories]. */

@@ -50,8 +50,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -120,6 +120,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
@@ -138,6 +141,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -264,6 +268,8 @@ internal data class ShimmerColors(
   val usesDarkSurfaceBase: Boolean,
 )
 
+internal val libraryControlShape = RoundedCornerShape(14.dp)
+
 internal val libraryControlMetrics = LibraryControlMetrics(
   triggerHeight = 40.dp,
   presentationCellSize = 36.dp,
@@ -280,6 +286,9 @@ internal fun shimmerColors(isDark: Boolean): ShimmerColors = if (isDark) {
 } else {
   ShimmerColors(baseAlpha = 0.06f, highlightAlpha = 0.14f, usesDarkSurfaceBase = false)
 }
+
+internal fun shouldShowLibrarySkeleton(loading: Boolean, articles: List<*>, isColdStart: Boolean): Boolean =
+  loading && articles.isEmpty() && isColdStart
 
 @Composable
 internal fun LibrarySortMenu(
@@ -393,7 +402,7 @@ internal fun LibraryPresentationModeSelector(
   Surface(
     modifier = Modifier.height(libraryControlMetrics.triggerHeight),
     color = Color.Transparent,
-    shape = RoundedCornerShape(14.dp),
+    shape = libraryControlShape,
     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.72f)),
   ) {
     Row(modifier = Modifier.padding(2.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -620,8 +629,7 @@ fun LibraryScreen(
   var showSettings by remember { mutableStateOf(false) }
   var showAbout by remember { mutableStateOf(false) }
   var moreExpanded by remember { mutableStateOf(false) }
-  var topSearchOpen by rememberSaveable { mutableStateOf(false) }
-  var topSearchQuery by rememberSaveable { mutableStateOf("") }
+  var showLibrarySearch by rememberSaveable { mutableStateOf(false) }
   var presentationMode by rememberSaveable { mutableStateOf(ArticleListPresentationMode.default) }
   val inboxListState = rememberLazyListState()
   val favoritesListState = rememberLazyListState()
@@ -643,6 +651,7 @@ fun LibraryScreen(
   var longPressedArticle by remember { mutableStateOf<com.idickies.storing.library.ArticleCard?>(null) }
   val isScrolledDown by remember(libraryListState) { derivedStateOf { libraryListState.firstVisibleItemIndex > 0 || libraryListState.firstVisibleItemScrollOffset > 200 } }
   val scope = androidx.compose.runtime.rememberCoroutineScope()
+  val snackbarHostState = remember { SnackbarHostState() }
   var refreshAnchor by remember { mutableStateOf<LibraryRefreshAnchor?>(null) }
   var refreshWasObserved by remember { mutableStateOf(false) }
 
@@ -684,6 +693,15 @@ fun LibraryScreen(
     }
   }
   LaunchedEffect(Unit) { collectViewModel.resumePendingSubmissions() }
+  LaunchedEffect(Unit) {
+    jobsViewModel.completionEvents.collect { job ->
+      val title = job.title ?: job.normalizedUrl
+      if (snackbarHostState.showSnackbar("已采集《$title》，刷新后可在收件箱查看", "刷新查看") == SnackbarResult.ActionPerformed) {
+        libraryViewModel.select(LibraryView.Inbox)
+        libraryViewModel.refresh()
+      }
+    }
+  }
   LaunchedEffect(sharedText) {
     if (sharedText != null) {
       collectViewModel.receiveSharedText(sharedText)
@@ -738,6 +756,8 @@ fun LibraryScreen(
   val detail = state.detail
   val detailError = state.detailError
   when {
+    showLibrarySearch -> LibrarySearchScreen(initialQuery = state.searchQuery, state = state, onBack = { libraryViewModel.search(""); showLibrarySearch = false }, onSearch = libraryViewModel::search, onOpen = libraryViewModel::open, onLongPress = { longPressedArticle = it })
+
     showReaderSettings -> ReaderSettingsScreen(onBack = { showReaderSettings = false })
     showSharePoster && detail != null && detail.publicId != null -> SharePosterScreen(
       article = detail,
@@ -799,6 +819,7 @@ fun LibraryScreen(
     state.loadingDetail -> ArticleDetailSkeleton()
     detailError != null -> ErrorPage(detailError, libraryViewModel::closeDetail)
     else -> Scaffold(
+      snackbarHost = { SnackbarHost(snackbarHostState) },
       topBar = {
         TopAppBar(
           modifier = Modifier.combinedClickable(
@@ -807,68 +828,22 @@ fun LibraryScreen(
           ),
           colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
           title = {
-            if (libraryTopSearchPresentation(topSearchOpen).showsSearchField) {
-              OutlinedTextField(
-                value = topSearchQuery,
-                onValueChange = { value ->
-                  topSearchQuery = value
-                  libraryViewModel.search(value)
-                },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                placeholder = { Text("搜索标题、来源、摘要或标签") },
-                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-                trailingIcon = {
-                  IconButton(onClick = {
-                    topSearchQuery = ""
-                    topSearchOpen = false
-                    libraryViewModel.search("")
-                  }) {
-                    Icon(Icons.Outlined.Close, contentDescription = "关闭搜索")
-                  }
-                },
-                singleLine = true,
-              )
-            } else {
-              Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Image(
-                  painter = painterResource(R.drawable.brand_logo),
-                  contentDescription = null,
-                  modifier = Modifier.size(26.dp),
-                )
-                Column {
-                  Text("乾坤戒", style = MaterialTheme.typography.titleLarge)
-                  Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(if (state.searchQuery.isBlank()) state.view.label else "搜索结果", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (state.searchQuery.isBlank()) {
-                      val total = state.counts?.let { c ->
-                        when (state.view) {
-                          LibraryView.Inbox -> c.inbox
-                          LibraryView.Favorites -> c.favorites
-                          LibraryView.Archive -> c.archive
-                          LibraryView.Published -> c.published
-                        }
-                      } ?: 0
-                      if (total > 0) {
-                        Text("·", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("$total", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                      }
-                    }
-                  }
-                }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+              Image(painter = painterResource(R.drawable.brand_logo), contentDescription = null, modifier = Modifier.size(26.dp))
+              Column {
+                Text("乾坤戒", style = MaterialTheme.typography.titleLarge)
+                Text(if (state.searchQuery.isBlank()) state.view.label else "搜索结果", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
               }
             }
           },
           actions = {
-            if (isAuthenticated && !topSearchOpen) {
+            if (isAuthenticated) {
               libraryTopBarPresentation.actions.forEach { action ->
                 when (action) {
                   LibraryTopAction.Collect -> IconButton(onClick = { showManualCollect = true }) {
                     Icon(Icons.Outlined.Add, contentDescription = "采集网页链接")
                   }
-                  LibraryTopAction.Search -> IconButton(onClick = {
-                    topSearchQuery = state.searchQuery
-                    topSearchOpen = true
-                  }) {
+                  LibraryTopAction.Search -> IconButton(onClick = { showLibrarySearch = true }) {
                     Icon(Icons.Outlined.Search, contentDescription = "搜索")
                   }
                   LibraryTopAction.More -> Box {
@@ -961,67 +936,29 @@ fun LibraryScreen(
         }
       },
     ) { padding ->
-      var swipeDistance by remember { mutableStateOf(0f) }
-      Box(
-        modifier = Modifier.fillMaxSize().pointerInput(isAuthenticated, state.view) {
-          if (!isAuthenticated) return@pointerInput
-          detectHorizontalDragGestures(
-            onDragStart = { swipeDistance = 0f },
-            onDragCancel = { swipeDistance = 0f },
-            onHorizontalDrag = { change, dragAmount ->
-              swipeDistance += dragAmount
-              change.consume()
-            },
-            onDragEnd = {
-              adjacentLibraryView(state.view, swipeDistance)?.let(libraryViewModel::select)
-              swipeDistance = 0f
-            },
-          )
-        },
-      ) {
-        AnimatedContent(
-          targetState = state.view,
-          label = "libraryTabTransition",
-          transitionSpec = {
-            val movesForward = targetState.ordinal > initialState.ordinal
-            (slideInHorizontally { fullWidth -> if (movesForward) fullWidth else -fullWidth } + fadeIn()) togetherWith
-              (slideOutHorizontally { fullWidth -> if (movesForward) -fullWidth / 3 else fullWidth / 3 } + fadeOut())
-          },
-        ) { renderedView ->
-          val renderedState = tabContentStates[renderedView]
-            ?: state.takeIf { renderedView == state.view }
-            ?: state.copy(
-              view = renderedView,
-              articles = emptyList(),
-              loading = true,
-              refreshing = false,
-              error = null,
-            )
-          LibraryList(
-            state = renderedState,
-            collectUrls = collectState.urls,
-            collectSelectedUrl = collectState.selectedUrl,
-            collectSubmitting = collectState.submitting,
-            collectMessage = collectState.message,
-            activeJobCount = jobsState.activeJobCount,
-            onOpenTasks = { showTasks = true },
-            onSort = libraryViewModel::selectSort,
-            onToggleSortOrder = libraryViewModel::toggleSortOrder,
-            onResetSort = libraryViewModel::resetSort,
-            sortOrder = state.sortOrder,
-            presentationMode = presentationMode,
-            onPresentationModeChange = { presentationMode = it },
-            onArchiveSource = libraryViewModel::selectArchiveSource,
-            onRefresh = ::refreshListPreservingPosition,
-            onLoadMore = libraryViewModel::loadMore,
-            onOpen = libraryViewModel::open,
-            onLongPress = { longPressedArticle = it },
-            onSelectCollectUrl = collectViewModel::select,
-            onSubmitCollect = collectViewModel::submit,
-            listState = listStateFor(renderedView),
-            modifier = Modifier.padding(padding),
-          )
+      val pagerState = rememberPagerState(initialPage = state.view.ordinal, pageCount = { LibraryView.entries.size })
+      LaunchedEffect(state.view) {
+        if (pagerState.currentPage != state.view.ordinal && !pagerState.isScrollInProgress) pagerState.animateScrollToPage(state.view.ordinal)
+      }
+      LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { page ->
+          LibraryView.entries.getOrNull(page)?.takeIf { it != state.view }?.let(libraryViewModel::select)
         }
+      }
+      HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize(), beyondViewportPageCount = 1) { page ->
+        val renderedView = LibraryView.entries[page]
+        val renderedState = tabContentStates[renderedView] ?: state.takeIf { renderedView == state.view }
+          ?: state.copy(view = renderedView, articles = emptyList(), loading = false, refreshing = false, error = null)
+        LibraryList(
+          state = renderedState, collectUrls = collectState.urls, collectSelectedUrl = collectState.selectedUrl,
+          collectSubmitting = collectState.submitting, collectMessage = collectState.message, activeJobCount = jobsState.activeJobCount,
+          onOpenTasks = { showTasks = true }, onSort = libraryViewModel::selectSort, onToggleSortOrder = libraryViewModel::toggleSortOrder,
+          onResetSort = libraryViewModel::resetSort, sortOrder = state.sortOrder, presentationMode = presentationMode,
+          onPresentationModeChange = { presentationMode = it }, onArchiveSources = libraryViewModel::selectArchiveSources,
+          onRefresh = ::refreshListPreservingPosition, onLoadMore = libraryViewModel::loadMore, onOpen = libraryViewModel::open,
+          onLongPress = { longPressedArticle = it }, onSelectCollectUrl = collectViewModel::select, onSubmitCollect = collectViewModel::submit,
+          listState = listStateFor(renderedView), modifier = Modifier.padding(padding),
+        )
       }
     }
   }
@@ -1356,7 +1293,7 @@ private fun LibraryList(
   sortOrder: String,
   presentationMode: ArticleListPresentationMode,
   onPresentationModeChange: (ArticleListPresentationMode) -> Unit,
-  onArchiveSource: (ArchiveSourceFilter) -> Unit,
+  onArchiveSources: (Set<String>) -> Unit,
   onRefresh: () -> Unit,
   onLoadMore: () -> Unit,
   onOpen: (Int) -> Unit,
@@ -1397,6 +1334,7 @@ private fun LibraryList(
               AssistChip(
                 onClick = { sortExpanded = true },
                 modifier = Modifier.height(libraryControlMetrics.triggerHeight),
+                shape = libraryControlShape,
                 label = {
                   Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(state.sort.label)
@@ -1422,17 +1360,18 @@ private fun LibraryList(
               AssistChip(
                 onClick = { sourceExpanded = true },
                 modifier = Modifier.height(libraryControlMetrics.triggerHeight),
+                shape = libraryControlShape,
                 label = { Text(if (state.archiveSourcesLoading) "来源" else state.archiveSource.label) },
                 leadingIcon = { Icon(Icons.Outlined.FilterList, contentDescription = "归档来源", modifier = Modifier.size(16.dp)) },
               )
-              LibrarySourceMenu(
-                expanded = sourceExpanded,
-                onDismissRequest = { sourceExpanded = false },
-                options = sourceOptions,
-                selected = state.archiveSource,
-                sourceCounts = sourceCounts,
-                onSelect = onArchiveSource,
-              )
+              if (sourceExpanded) {
+                LibrarySourceFilterSheet(
+                  selected = state.archiveSource,
+                  options = state.archiveSources,
+                  onDismiss = { sourceExpanded = false },
+                  onApply = onArchiveSources,
+                )
+              }
             }
           }
           LibraryPresentationModeSelector(
@@ -1459,7 +1398,7 @@ private fun LibraryList(
       }
     }
     if (state.fromCache) item { Text("当前显示离线缓存，联网后可点刷新获取最新内容。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-    if (state.loading && state.articles.isEmpty()) {
+    if (shouldShowLibrarySkeleton(state.loading, state.articles, isColdStart = state.view == LibraryView.Inbox && state.searchQuery.isBlank())) {
       items(4) { LibrarySkeletonCard() }
     }
     if (state.error != null) item { ErrorPage(state.error, onRefresh) }
@@ -1589,8 +1528,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
   var confirmPublication by remember { mutableStateOf<PublicationAction?>(null) }
   var confirmProcessing by remember { mutableStateOf<ArticleProcessingAction?>(null) }
   var moreExpanded by remember { mutableStateOf(false) }
-  var topSearchOpen by rememberSaveable { mutableStateOf(false) }
-  var topSearchQuery by rememberSaveable { mutableStateOf("") }
+  var showLibrarySearch by rememberSaveable { mutableStateOf(false) }
   BackHandler(onBack = onBack)
   val publicUrl = article.publicId?.let { "https://storing.idickies.com/p/$it" }
 

@@ -31,7 +31,7 @@ object CollectNotificationHelper {
     val pendingIntent = PendingIntent.getActivity(context, job.id, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     val succeeded = job.status == "completed"
     val title = if (succeeded) "采集完成" else "采集失败"
-    val content = if (succeeded) job.title ?: job.normalizedUrl else job.errorSummary ?: job.title ?: job.normalizedUrl
+    val content = if (succeeded) "${job.title ?: job.normalizedUrl}，已保存到收件箱" else job.errorSummary ?: job.title ?: job.normalizedUrl
     val notification = NotificationCompat.Builder(context, channelId)
       .setSmallIcon(android.R.drawable.stat_notify_sync)
       .setContentTitle(title)

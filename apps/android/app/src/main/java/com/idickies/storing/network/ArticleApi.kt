@@ -24,7 +24,7 @@ interface ArticleApi {
     @Query("perPage") perPage: Int = 20,
     @Query("sort") sort: String? = null,
     @Query("order") order: String = "desc",
-    @Query("category") category: String? = null,
+    @Query("category") categories: List<String>? = null,
   ): ArticleListResponse
 
   @GET("sources")
