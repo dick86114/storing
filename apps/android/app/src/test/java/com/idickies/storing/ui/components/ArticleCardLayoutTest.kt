@@ -6,10 +6,10 @@ import org.junit.Test
 
 class ArticleCardLayoutTest {
   @Test
-  fun `full article cards preserve the WeChat cover ratio and approved geometry`() {
+  fun `full article covers align to the outer card corners without a rectangular underlay`() {
     assertEquals(2.35f, articleCardLayout.coverAspectRatio)
     assertEquals(24.dp, articleCardLayout.cardCornerRadius)
-    assertEquals(16.dp, articleCardLayout.coverCornerRadius)
+    assertEquals(24.dp, articleCardLayout.coverCornerRadius)
     assertEquals(16.dp, articleCardLayout.contentPadding)
   }
 }

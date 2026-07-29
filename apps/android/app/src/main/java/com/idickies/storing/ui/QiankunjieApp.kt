@@ -58,6 +58,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
@@ -76,6 +77,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.core.view.WindowCompat
 import com.idickies.storing.BuildConfig
 import com.idickies.storing.R
 import com.idickies.storing.auth.AuthViewModel
@@ -86,6 +88,7 @@ import com.idickies.storing.update.UpdateViewModel
 import com.idickies.storing.reader.ReaderColorScheme
 import com.idickies.storing.ui.theme.AppearanceViewModel
 import com.idickies.storing.ui.theme.QiankunjieTheme
+import com.idickies.storing.ui.theme.systemBarsUseDarkIcons
 import com.idickies.storing.security.BiometricLockScreen
 import com.idickies.storing.security.BiometricManager
 import com.idickies.storing.security.SecurityViewModel
@@ -139,7 +142,16 @@ fun QiankunjieApp(
       updateViewModel.checkOnLaunch()
     }
   }
-  QiankunjieTheme(darkTheme = themeMode.resolve(systemDark)) {
+  val appDarkTheme = themeMode.resolve(systemDark)
+  QiankunjieTheme(darkTheme = appDarkTheme) {
+  SideEffect {
+    val activity = context as? Activity ?: return@SideEffect
+    WindowCompat.getInsetsController(activity.window, activity.window.decorView).apply {
+      val useDarkIcons = systemBarsUseDarkIcons(appDarkTheme)
+      isAppearanceLightStatusBars = useDarkIcons
+      isAppearanceLightNavigationBars = useDarkIcons
+    }
+  }
   if (biometricLocked && user != null) {
     BiometricLockScreen(
       onUnlocked = securityViewModel::unlock,

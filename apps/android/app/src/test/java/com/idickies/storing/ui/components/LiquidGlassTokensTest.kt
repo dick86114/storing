@@ -18,22 +18,24 @@ class LiquidGlassTokensTest {
   }
 
   @Test
-  fun `dark glass uses a quieter highlight and stronger separation shadow`() {
-    val panel = liquidGlassTokens(isDark = true, role = LiquidGlassRole.Panel)
-    val control = liquidGlassTokens(isDark = true, role = LiquidGlassRole.Control)
+  fun `dark mode keeps the previous opaque material treatment across roles`() {
+    LiquidGlassRole.entries.forEach { role ->
+      val tokens = liquidGlassTokens(isDark = true, role = role)
 
-    assertEquals(0.18f, panel.highlightAlpha, 0.001f)
-    assertEquals(0.42f, panel.shadowAlpha, 0.001f)
-    assertTrue(control.surfaceAlpha < panel.surfaceAlpha)
+      assertEquals(1f, tokens.surfaceAlpha, 0.001f)
+      assertEquals(0.4f, tokens.borderAlpha, 0.001f)
+      assertEquals(0f, tokens.highlightAlpha, 0.001f)
+      assertEquals(0f, tokens.shadowAlpha, 0.001f)
+    }
   }
 
   @Test
-  fun `accent glass remains translucent instead of becoming an opaque primary button`() {
+  fun `accent glass stays translucent only in the light appearance`() {
     val lightAccent = liquidGlassTokens(isDark = false, role = LiquidGlassRole.Accent)
     val darkAccent = liquidGlassTokens(isDark = true, role = LiquidGlassRole.Accent)
 
     assertTrue(lightAccent.surfaceAlpha < 1f)
-    assertTrue(darkAccent.surfaceAlpha < 1f)
+    assertEquals(1f, darkAccent.surfaceAlpha, 0.001f)
     assertTrue(lightAccent.borderAlpha > 0.5f)
   }
 }

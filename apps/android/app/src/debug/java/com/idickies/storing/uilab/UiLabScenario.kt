@@ -6,6 +6,8 @@ enum class UiLabScenario(
 ) {
   Login("login", "登录"),
   Library("library", "资料库"),
+  Search("search", "搜索"),
+  Empty("empty", "空状态"),
   Reader("reader", "阅读器"),
   Share("share", "分享采集"),
   Tasks("tasks", "采集任务"),

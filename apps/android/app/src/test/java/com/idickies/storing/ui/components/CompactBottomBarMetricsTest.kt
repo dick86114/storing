@@ -15,3 +15,14 @@ class CompactBottomBarMetricsTest {
     assertEquals(12.dp, compactBottomBarMetrics.contentVerticalOffset)
   }
 }
+
+class CompactBottomBarDarkBaselineTest {
+  @Test
+  fun `dark navigation keeps the shared refined vertical rhythm and shadow`() {
+    val metrics = compactBottomBarItemMetrics(isDark = true)
+
+    assertEquals(2.dp, metrics.itemVerticalSpacing)
+    assertEquals(12.dp, metrics.contentVerticalOffset)
+    assertEquals(14.dp, metrics.shadowElevation)
+  }
+}

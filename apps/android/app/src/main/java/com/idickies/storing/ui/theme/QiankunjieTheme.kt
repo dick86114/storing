@@ -9,6 +9,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -18,10 +19,10 @@ import androidx.compose.ui.unit.sp
 
 // ── 浅色：暖珍珠金 ─────────────────────────────
 private val LightColors = lightColorScheme(
-  primary = Color(0xFFB28724),
+  primary = Color(0xFFB86F54),
   onPrimary = Color(0xFFFFFFFF),
-  primaryContainer = Color(0xFFFFF1C8),
-  onPrimaryContainer = Color(0xFF3D2A00),
+  primaryContainer = Color(0xFFF8E2DA),
+  onPrimaryContainer = Color(0xFF452017),
   secondary = Color(0xFF0D2B1E),
   onSecondary = Color(0xFFFFFFFF),
   secondaryContainer = Color(0xFFDCEDE3),
@@ -43,7 +44,7 @@ private val LightColors = lightColorScheme(
   outlineVariant = Color(0xFFE5ECE7),
 )
 
-// ── 深色：深墨玻璃 ─────────────────────────────
+// ── 深色：墨绿金（保持原有样式）──────────────────
 private val DarkColors = darkColorScheme(
   primary = Color(0xFFC9A84C),
   onPrimary = Color(0xFF071A12),
@@ -62,12 +63,12 @@ private val DarkColors = darkColorScheme(
   onErrorContainer = Color(0xFFFFDAD6),
   background = Color(0xFF071A12),
   onBackground = Color(0xFFE8E4DC),
-  surface = Color(0xFF10271D),
+  surface = Color(0xFF0E2419),
   onSurface = Color(0xFFE8E4DC),
-  surfaceVariant = Color(0xFF173126),
+  surfaceVariant = Color(0xFF0D2B1E),
   onSurfaceVariant = Color(0xFF9CA89F),
-  outline = Color(0xFF315043),
-  outlineVariant = Color(0xFF29473A),
+  outline = Color(0xFF1C3A2B),
+  outlineVariant = Color(0xFF243D30),
 )
 
 private val QiankunjieTypography = Typography(
@@ -87,6 +88,13 @@ private val QiankunjieShapes = Shapes(
   medium = RoundedCornerShape(12.dp),
   large = RoundedCornerShape(16.dp),
 )
+
+internal fun isQiankunjieDarkBackground(background: Color): Boolean = background.luminance() < 0.5f
+
+internal fun systemBarsUseDarkIcons(appDarkTheme: Boolean): Boolean = !appDarkTheme
+
+@Composable
+fun isQiankunjieDarkTheme(): Boolean = isQiankunjieDarkBackground(MaterialTheme.colorScheme.background)
 
 @Composable
 fun QiankunjieTheme(

@@ -19,8 +19,8 @@ object ReaderDocument {
   body a { color:#C9A84C !important; }
   body :where(pre,code) { background:#0E2419 !important; color:#E8E4DC !important; }
 """.trimIndent() else """
-  html { color-scheme:light; background:#F5F1E8; }
-  body { background:#F5F1E8; color:#1A2E24; }
+  html { color-scheme:light; background:#F2F8F3; }
+  body { background:#F2F8F3; color:#1A2E24; }
 """.trimIndent()
     return """
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -42,7 +42,7 @@ $darkTheme
 
   /** 文章详情头部样式 -- 对齐设计稿（古卷书斋） */
   private val qiankunjieReaderHeader = """
-  .qj-header { padding:4px 0 0; margin-bottom:20px; }
+  .qj-header { padding:20px 0 0; margin-bottom:20px; }
   .qj-source-tag { display:inline-flex; align-items:center; gap:4px; font-size:11px; padding:3px 10px; border-radius:99px; font-weight:500; }
   .qj-source-web { background:#E8F0F7; color:#2A5A8A; }
   .qj-source-wechat { background:#E8F4EC; color:#1E7A3A; }
@@ -51,7 +51,7 @@ $darkTheme
   .qj-meta { display:flex; align-items:center; gap:8px; font-size:12px; margin-bottom:20px; flex-wrap:wrap; color:#8FA897; }
   .qj-meta-source { color:#5A7062; font-weight:500; }
   .qj-meta-sep { opacity:0.8; }
-  details.qj-ai-card { background:#FFFBF0; border-radius:12px; padding:16px; margin-bottom:24px; border:1px solid rgba(184,145,42,0.15); position:relative; overflow:hidden; }
+  details.qj-ai-card { background:#F8FCF9; border-radius:12px; padding:16px; margin-bottom:24px; border:1px solid rgba(104,156,120,0.20); position:relative; overflow:hidden; }
   details.qj-ai-card::before { content:''; position:absolute; left:0; top:12px; bottom:12px; width:3px; background:#B8912A; border-radius:0 2px 2px 0; }
   details.qj-ai-card > summary { list-style:none; cursor:pointer; -webkit-tap-highlight-color:transparent; outline:none; }
   details.qj-ai-card > summary::-webkit-details-marker { display:none; }
