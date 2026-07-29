@@ -1,6 +1,6 @@
 FROM node:20-alpine AS base
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN npm install -g pnpm@10.33.3 && npm cache clean --force
 
 WORKDIR /app
 

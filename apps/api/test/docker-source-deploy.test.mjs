@@ -13,3 +13,9 @@ test('deployment rebuilds and recreates services instead of trusting a stale lat
   assert.match(deployScript, /docker-compose build --pull storing singlefile/);
   assert.match(deployScript, /docker-compose up -d --force-recreate --remove-orphans/);
 });
+
+test('Docker build installs the repository-pinned pnpm without Corepack latest resolution', () => {
+  const dockerfile = readFileSync(new URL('../../../Dockerfile', import.meta.url), 'utf8');
+  assert.doesNotMatch(dockerfile, /corepack\s+prepare\s+pnpm@latest/);
+  assert.match(dockerfile, /npm\s+install\s+-g\s+pnpm@10\.33\.3/);
+});
