@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   release:
-    name: Bump, build and publish browser extension
+    name: Package and publish browser extension
     runs-on: ubuntu-latest
     steps:
       - name: Require master as selected workflow branch
@@ -36,15 +36,21 @@ jobs:
         with:
           node-version: "22"
           cache: pnpm
-      - name: Auto-increment browser extension patch version
+      - name: Resolve next extension version from release tags
         id: version
         run: |
-          RESULT="$(node scripts/release/client-release-version.mjs bump-extension-version --package-path apps/browser-extension/package.json)"
-          RESULT="$RESULT" node - <<'NODE' >> "$GITHUB_OUTPUT"
-          const result = JSON.parse(process.env.RESULT);
-          console.log(`previous=${result.previousVersion}`);
-          console.log(`next=${result.version}`);
-          NODE
+          LATEST_TAG="$(git tag -l 'browser-extension-v*' --sort=-v:refname | head -n 1)"
+          if [ -n "$LATEST_TAG" ]; then
+            BASE_VERSION="${LATEST_TAG#browser-extension-v}"
+          else
+            BASE_VERSION="$(node -p "require('./apps/browser-extension/package.json').version")"
+          fi
+          NEXT_VERSION="$(node scripts/release/client-release-version.mjs bump-patch-version --version "$BASE_VERSION")"
+          node scripts/release/client-release-version.mjs set-extension-version --package-path apps/browser-extension/package.json --version "$NEXT_VERSION" >/dev/null
+          {
+            echo "base=${BASE_VERSION}"
+            echo "next=${NEXT_VERSION}"
+          } >> "$GITHUB_OUTPUT"
       - name: Reject an existing browser extension release tag
         env:
           GH_TOKEN: ${{ github.token }}
@@ -70,15 +76,6 @@ jobs:
           OBSERVED="$(unzip -p "$SOURCE" manifest.json | node -e 'let s=""; process.stdin.on("data", c => s += c); process.stdin.on("end", () => console.log(JSON.parse(s).version));')"
           [[ "$OBSERVED" == "$VERSION" ]] || { echo "ZIP manifest 版本为 $OBSERVED，预期为 $VERSION。" >&2; exit 1; }
           sha256sum "$SOURCE" > "$SOURCE.sha256"
-      - name: Commit and push the version bump
-        env:
-          VERSION: ${{ steps.version.outputs.next }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/browser-extension/package.json
-          git commit -m "chore(browser-extension): release v${VERSION}"
-          git push origin HEAD:master
       - name: Create browser extension release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -88,11 +85,11 @@ jobs:
           TAG="browser-extension-v${VERSION}"
           SOURCE="releases/browser-extension/storing-browser-extension-v${VERSION}.zip"
           printf '%s\n' "$RELEASE_NOTES" > "$RUNNER_TEMP/notes.md"
-          gh release create "$TAG" "$SOURCE" "$SOURCE.sha256" --target "$(git rev-parse HEAD)" --title "Storing Browser Extension v${VERSION}" --notes-file "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" "$SOURCE" "$SOURCE.sha256" --target "$GITHUB_SHA" --title "Storing Browser Extension v${VERSION}" --notes-file "$RUNNER_TEMP/notes.md"
           {
             echo "## 浏览器插件已发布"
             echo ""
             echo "- 版本：\`${VERSION}\`"
             echo "- 标签：\`${TAG}\`"
-            echo "- 版本提交已推送至 master。"
+            echo "- 发布产物使用工作流临时版本；master 未写入版本提交。"
           } >> "$GITHUB_STEP_SUMMARY"

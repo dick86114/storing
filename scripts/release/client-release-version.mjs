@@ -66,6 +66,14 @@ function runCli() {
     process.stdout.write(`${JSON.stringify(setExtensionVersion({ packagePath, version: nextVersion }))}\n`);
     return;
   }
+  if (command === 'bump-patch-version') {
+    process.stdout.write(`${bumpPatchVersion(requireArg(values, 'version'))}\n`);
+    return;
+  }
+  if (command === 'set-extension-version') {
+    process.stdout.write(`${JSON.stringify(setExtensionVersion({ packagePath: requireArg(values, 'package-path'), version: requireArg(values, 'version') }))}\n`);
+    return;
+  }
   if (command === 'assert-extension-version') {
     process.stdout.write(`${JSON.stringify(assertExtensionVersion({ packagePath: requireArg(values, 'package-path'), expectedVersion: requireArg(values, 'expected-version') }))}\n`);
     return;

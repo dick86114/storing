@@ -20,16 +20,16 @@ Android APK 与浏览器插件使用两套独立 GitHub Actions 工作流，互�
 
 工作流会自动：
 
-1. 读取 `apps/browser-extension/package.json` 的当前稳定版本；
+1. 优先读取最新 `browser-extension-v*` Release 标签；首次发布时才回退到 `apps/browser-extension/package.json`；
 2. 自动递增补丁版本，例如 `0.1.1 → 0.1.2`、`2.1.0 → 2.1.1`；
-3. 更新版本、运行测试和 TypeScript 检查，并打包 ZIP；
+3. 只在 GitHub Actions 临时工作区写入该版本，运行测试和 TypeScript 检查，并打包 ZIP；
 4. 验证 ZIP 内 `manifest.json` 版本；
-5. 自动提交并推送 `chore(browser-extension): release v<版本>` 到 `master`；
-6. 创建 `browser-extension-v<版本>` GitHub Release，上传 ZIP 和 SHA-256 文件。
+5. 创建 `browser-extension-v<版本>` GitHub Release，上传 ZIP 和 SHA-256 文件，并绑定触发工作流的 `master` 提交；
+6. 不提交、不推送版本文件到 `master`。
 
 只支持稳定 `X.Y.Z` 插件版本自动递增。若当前版本为预发布版本（例如 `2.1.0-rc.1`），工作流会停止并要求先人工处理版本。
 
-> 浏览器插件发布工作流会直接写入 `master`。若仓库分支保护不允许 GitHub Actions 推送，工作流会在推送步骤失败，且不会创建 Release。
+> 浏览器插件发布工作流不再写入 `master`；Release 标签是浏览器插件已发布版本的权威来源。可以在迁移后启用分支保护，阻止 GitHub Actions 或其他身份直接推送 `master`。
 
 ## 历史统一工作流
 
