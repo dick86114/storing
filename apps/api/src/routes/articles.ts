@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
 import { db } from '../db/index.js';
 import { articles, articleMetadata, users } from '../db/schema.js';
-import { eq, and, asc, desc, count, sql, or, gt } from 'drizzle-orm';
+import { eq, and, asc, desc, count, sql, or, gt, inArray } from 'drizzle-orm';
 import { generateSummaryAndTags } from '../services/ai.service.js';
 import {
   COVER_IMAGE_PROCESSING_VERSION,
@@ -30,6 +30,21 @@ function metadataJoinCondition(userId: number) {
 
 function metadataWhereCondition(articleId: number, userId: number) {
   return and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, userId));
+}
+
+function archiveCategoryFilters(c: any): string[] {
+  const rawCategories = (c.req.queries('category') ?? []) as string[];
+  return [...new Set(rawCategories
+    .map((category) => category.trim())
+    .filter((category) => category.length > 0 && category !== 'all'))];
+}
+
+function applyArchiveCategoryFilter(whereCondition: any, view: string, categoryFilters: string[]) {
+  if (view !== 'archive' || categoryFilters.length === 0) return whereCondition;
+  const sourceCondition = categoryFilters.length === 1
+    ? eq(articles.source, categoryFilters[0])
+    : inArray(articles.source, categoryFilters);
+  return and(whereCondition, sourceCondition);
 }
 
 function getViewCondition(view: string) {
@@ -255,7 +270,7 @@ async function backfillOutdatedCoverImages(
 articlesRoutes.get('/articles', optionalAuth, async (c) => {
   const view = c.req.query('view') || 'inbox';
   const scope = c.req.query('scope');
-  const category = c.req.query('category');
+  const categoryFilters = archiveCategoryFilters(c);
   const page = parseInt(c.req.query('page') || '1');
   const perPage = parseInt(c.req.query('perPage') || '8');
   const sort = normalizeArticleSort(view, c.req.query('sort'));
@@ -369,9 +384,7 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
 
   const userId = getCurrentUser(c).id as number;
   let whereCondition = getViewCondition(view);
-  if (category && category !== 'all' && view === 'archive') {
-    whereCondition = and(whereCondition, eq(articles.source, category));
-  }
+  whereCondition = applyArchiveCategoryFilter(whereCondition, view, categoryFilters);
 
   const baseQuery = db
     .select({
@@ -902,7 +915,7 @@ articlesRoutes.get('/articles/:id/position', optionalAuth, async (c) => {
   if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
   const id = parseInt(idParam);
   const view = c.req.query('view') || 'inbox';
-  const category = c.req.query('category');
+  const categoryFilters = archiveCategoryFilters(c);
   const perPageParam = c.req.query('perPage') || '18';
   const perPage = parseInt(perPageParam);
 
@@ -917,9 +930,7 @@ articlesRoutes.get('/articles/:id/position', optionalAuth, async (c) => {
   const userId = getCurrentUser(c).id as number;
   let whereCondition = getViewCondition(view);
 
-  if (category && category !== 'all' && view === 'archive') {
-    whereCondition = and(whereCondition, eq(articles.source, category));
-  }
+  whereCondition = applyArchiveCategoryFilter(whereCondition, view, categoryFilters);
 
   const [targetArticle] = await db
     .select({

@@ -146,8 +146,11 @@ class LibraryViewModel @Inject constructor(
     loadCounts()
   }
 
-  fun selectArchiveSource(filter: ArchiveSourceFilter) {
+  fun selectArchiveSource(filter: ArchiveSourceFilter) = selectArchiveSources(filter.categories)
+
+  fun selectArchiveSources(categories: Set<String>) {
     val snapshot = mutableState.value
+    val filter = ArchiveSourceFilter.of(*categories.toTypedArray())
     if (!ArchiveSourceFilter.isAvailableFor(snapshot.view, snapshot.searchQuery) || filter == snapshot.archiveSource) return
     mutableState.update {
       it.copy(
@@ -327,7 +330,7 @@ class LibraryViewModel @Inject constructor(
   }
 
   private suspend fun loadPage(request: LibraryRequest, page: Int): ArticleListLoad =
-    if (request.query.isBlank()) repository.list(request.view, page, request.sort, request.archiveSource.category, request.sortOrder)
+    if (request.query.isBlank()) repository.list(request.view, page, request.sort, archiveSourceQueryCategories(request.archiveSource), request.sortOrder)
     else ArticleListLoad(repository.search(request.query, page), fromCache = false)
 
   private fun matches(request: LibraryRequest): Boolean = mutableState.value.toRequest() == request
