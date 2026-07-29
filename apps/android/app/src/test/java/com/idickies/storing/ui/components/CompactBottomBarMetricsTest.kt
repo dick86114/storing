@@ -10,5 +10,8 @@ class CompactBottomBarMetricsTest {
     assertEquals(68.dp, compactBottomBarMetrics.actionHeight)
     assertEquals(0.dp, compactBottomBarMetrics.verticalInset)
     assertEquals(68.dp, compactBottomBarMetrics.totalHeight)
+    assertEquals(2.dp, compactBottomBarMetrics.itemVerticalSpacing)
+    assertEquals(30.dp, compactBottomBarMetrics.cornerRadius)
+    assertEquals(12.dp, compactBottomBarMetrics.contentVerticalOffset)
   }
 }
