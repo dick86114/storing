@@ -46,6 +46,24 @@ data class AdminUpdateUserRequest(
 )
 
 @Serializable
+data class AdminUserCleanupSummary(
+  @SerialName("article_metadata") val articleMetadata: Int = 0,
+  @SerialName("collect_jobs") val collectJobs: Int = 0,
+  @SerialName("mobile_sessions") val mobileSessions: Int = 0,
+  @SerialName("mcp_clients") val mcpClients: Int = 0,
+  @SerialName("mcp_request_logs_anonymized") val mcpRequestLogsAnonymized: Int = 0,
+  @SerialName("admin_audit_logs_anonymized") val adminAuditLogsAnonymized: Int = 0,
+)
+
+@Serializable
+data class AdminDeleteUserResponse(
+  val deleted: Boolean,
+  @SerialName("user_id") val userId: Int,
+  val username: String,
+  val cleanup: AdminUserCleanupSummary,
+)
+
+@Serializable
 data class AdminAuditLog(
   val id: Int,
   @SerialName("actor_user_id") val actorUserId: Int? = null,
