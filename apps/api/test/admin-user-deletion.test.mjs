@@ -68,6 +68,8 @@ test('Android 与 Web 都必须把用户名确认传给删除接口', () => {
   const androidViewModel = readWorkspace('apps/android/app/src/main/java/com/idickies/storing/admin/AdminViewModel.kt');
   const androidScreen = readWorkspace('apps/android/app/src/main/java/com/idickies/storing/ui/AdminScreen.kt');
 
+  assert.match(androidApi, /import retrofit2\.http\.HTTP/);
+  assert.match(androidApi, /@HTTP\(method = "DELETE", path = "admin\/users\/\{id\}", hasBody = true\)/);
   assert.match(androidApi, /deleteUser\(@Path\("id"\) id: Int, @Body request: AdminDeleteUserRequest\)/);
   assert.match(androidRepository, /suspend fun deleteUser\(id: Int, confirmUsername: String\)/);
   assert.match(androidViewModel, /fun deleteUser\(id: Int, confirmUsername: String\)/);
