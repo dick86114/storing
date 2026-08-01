@@ -972,9 +972,9 @@ authRoutes.delete('/admin/users/:id', requireAdmin, async (c) => {
     await tx.update(adminAuditLogs).set({
       targetUserId: null,
       detail: sql`COALESCE(${adminAuditLogs.detail}, '{}'::jsonb) || jsonb_build_object(
-        'deleted_user_id', ${id},
-        'deleted_username', ${existing.username},
-        'anonymized_by', 'user_deleted'
+        'deleted_user_id', ${id}::integer,
+        'deleted_username', ${existing.username}::text,
+        'anonymized_by', 'user_deleted'::text
       )`,
     }).where(eq(adminAuditLogs.targetUserId, id));
     await tx.update(collectJobs).set({ userId: null, clientId: null, ownerDeleted: true, updatedAt: new Date() }).where(relatedJobCondition);
