@@ -690,6 +690,7 @@ export async function initCollectSchema() {
   await db.execute(sql.raw(`ALTER TABLE collect_jobs ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES mcp_clients(id) ON DELETE SET NULL`));
   await db.execute(sql.raw(`ALTER TABLE collect_jobs ADD COLUMN IF NOT EXISTS request_source TEXT NOT NULL DEFAULT 'web'`));
   await db.execute(sql.raw(`ALTER TABLE collect_jobs ADD COLUMN IF NOT EXISTS save_to_inbox BOOLEAN NOT NULL DEFAULT TRUE`));
+  await db.execute(sql.raw(`ALTER TABLE collect_jobs ADD COLUMN IF NOT EXISTS owner_deleted BOOLEAN NOT NULL DEFAULT FALSE`));
   await db.execute(sql.raw(`ALTER TABLE collect_jobs ADD COLUMN IF NOT EXISTS result_json JSONB`));
   const adminUsername = process.env.ADMIN_USERNAME || 'admin';
   await db.execute(sql`
@@ -697,6 +698,7 @@ export async function initCollectSchema() {
     SET user_id = (SELECT id FROM users WHERE username = ${adminUsername} LIMIT 1)
     WHERE user_id IS NULL
       AND request_source = 'web'
+      AND owner_deleted = FALSE
   `);
   await ensureArticleMetadataContentHtmlMobileColumn();
   const defaultSingleFileStrategy = getInitialSingleFileStrategy();
@@ -778,7 +780,11 @@ async function runNextWebCollectJob() {
   const [job] = await db
     .select()
     .from(collectJobs)
-    .where(and(inArray(collectJobs.requestSource, ['web', 'android', 'android_share', 'browser_extension']), eq(collectJobs.status, 'pending')))
+    .where(and(
+      inArray(collectJobs.requestSource, ['web', 'android', 'android_share', 'browser_extension']),
+      eq(collectJobs.status, 'pending'),
+      eq(collectJobs.ownerDeleted, false),
+    ))
     .orderBy(asc(collectJobs.createdAt), asc(collectJobs.id))
     .limit(1);
 
@@ -803,7 +809,7 @@ async function runNextMcpCollectJob() {
   const [job] = await db
     .select()
     .from(collectJobs)
-    .where(and(eq(collectJobs.requestSource, 'mcp'), eq(collectJobs.status, 'pending')))
+    .where(and(eq(collectJobs.requestSource, 'mcp'), eq(collectJobs.status, 'pending'), eq(collectJobs.ownerDeleted, false)))
     .orderBy(asc(collectJobs.createdAt), asc(collectJobs.id))
     .limit(1);
 
@@ -836,6 +842,7 @@ export async function resumePendingCollectJobs() {
     .where(and(
       inArray(collectJobs.requestSource, ['web', 'android', 'android_share', 'browser_extension', 'mcp']),
       eq(collectJobs.status, 'running'),
+      eq(collectJobs.ownerDeleted, false),
     ));
   scheduleWebCollectJobs();
   scheduleMcpCollectJobs();
@@ -845,7 +852,7 @@ export async function retryCollectJob(jobId: number) {
   const [job] = await db
     .update(collectJobs)
     .set({ status: 'pending', stage: 'queued', error: null, startedAt: null, finishedAt: null, updatedAt: new Date() })
-    .where(eq(collectJobs.id, jobId))
+    .where(and(eq(collectJobs.id, jobId), eq(collectJobs.ownerDeleted, false)))
     .returning();
 
   if (job?.requestSource !== 'mcp') {
@@ -863,7 +870,7 @@ export async function processCollectJob(jobId: number) {
   const [job] = await db
     .update(collectJobs)
     .set({ status: 'running', stage: 'starting', startedAt: new Date(), error: null, updatedAt: new Date() })
-    .where(and(eq(collectJobs.id, jobId), eq(collectJobs.status, 'pending')))
+    .where(and(eq(collectJobs.id, jobId), eq(collectJobs.status, 'pending'), eq(collectJobs.ownerDeleted, false)))
     .returning();
 
   if (!job) {

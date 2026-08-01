@@ -46,6 +46,11 @@ data class AdminUpdateUserRequest(
 )
 
 @Serializable
+data class AdminDeleteUserRequest(
+  @SerialName("confirm_username") val confirmUsername: String,
+)
+
+@Serializable
 data class AdminUserCleanupSummary(
   @SerialName("article_metadata") val articleMetadata: Int = 0,
   @SerialName("collect_jobs") val collectJobs: Int = 0,

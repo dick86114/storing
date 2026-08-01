@@ -26,7 +26,7 @@ class AdminRepository @Inject constructor(
 
   suspend fun updateUser(id: Int, request: AdminUpdateUserRequest) = authenticatedRequest { api.updateUser(id, request).user }
 
-  suspend fun deleteUser(id: Int) = authenticatedRequest { api.deleteUser(id) }
+  suspend fun deleteUser(id: Int, confirmUsername: String) = authenticatedRequest { api.deleteUser(id, AdminDeleteUserRequest(confirmUsername)) }
 
   suspend fun auditLogs() = authenticatedRequest { api.auditLogs().logs }
 

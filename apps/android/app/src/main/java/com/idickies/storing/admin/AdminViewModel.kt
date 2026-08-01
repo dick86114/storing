@@ -76,11 +76,11 @@ class AdminViewModel @Inject constructor(
     }
   }
 
-  fun deleteUser(id: Int) {
+  fun deleteUser(id: Int, confirmUsername: String) {
     if (mutableState.value.submitting) return
     viewModelScope.launch {
       mutableState.update { it.copy(submitting = true, error = null, notice = null) }
-      runCatching { repository.deleteUser(id) }
+      runCatching { repository.deleteUser(id, confirmUsername) }
         .onSuccess { response ->
           mutableState.update { state -> adminUserDeletionSucceeded(state, response) }
           load()

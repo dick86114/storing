@@ -135,6 +135,19 @@ export type CreateAdminUserInput = {
 
 export type UpdateAdminUserInput = Partial<Pick<CreateAdminUserInput, 'role' | 'status' | 'password'>> & { username?: string };
 
+export type AdminUserDeletionResult = {
+  deleted: true;
+  user: { id: number; username: string; role: AdminUser['role'] };
+  cleanup: {
+    deleted_user_id: number;
+    deleted_username: string;
+    deleted_role: string;
+    deleted_metadata_count: number;
+    deleted_mcp_client_count: number;
+    deleted_active_session_count: number;
+  };
+};
+
 
 type ApiRequestInit = RequestInit & {
   timeoutMs?: number;
@@ -199,6 +212,9 @@ export const api = {
 
   updateAdminUser: (id: number, input: UpdateAdminUserInput) =>
     fetchJSON<{ user: AdminUser }>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+
+  deleteAdminUser: (id: number, confirmUsername: string) =>
+    fetchJSON<AdminUserDeletionResult>(`/admin/users/${id}`, { method: 'DELETE', body: JSON.stringify({ confirm_username: confirmUsername }) }),
 
   getAdminUserActivity: (id: number, limit = 20, offset = 0) =>
     fetchJSON<AdminUserActivity>(`/admin/users/${id}/activity?limit=${limit}&offset=${offset}`),
