@@ -50,6 +50,20 @@ class AdminRepositoryAuthenticationTest {
     assertEquals(2, api.usersCalls)
   }
 
+  @Test
+  fun `删除用户在 401 后只刷新并重试一次`() = runBlocking {
+    val auth = FakeAuthenticator(ensureResult = true, refreshResult = true)
+    val api = FakeAdminApi(unauthorizedDeleteResponsesBeforeSuccess = 1)
+    val repository = AdminRepository(api, auth)
+
+    val result = repository.deleteUser(42)
+
+    assertTrue(result.deleted)
+    assertEquals(1, auth.ensureCalls)
+    assertEquals(1, auth.refreshCalls)
+    assertEquals(2, api.deleteUserCalls)
+  }
+
   private class FakeAuthenticator(
     private val ensureResult: Boolean,
     private val refreshResult: Boolean = true,
@@ -70,8 +84,10 @@ class AdminRepositoryAuthenticationTest {
 
   private class FakeAdminApi(
     private var unauthorizedUserResponsesBeforeSuccess: Int = 0,
+    private var unauthorizedDeleteResponsesBeforeSuccess: Int = 0,
   ) : AdminApi {
     var usersCalls = 0
+    var deleteUserCalls = 0
 
     override suspend fun users(): AdminUsersResponse {
       usersCalls += 1
@@ -85,6 +101,20 @@ class AdminRepositoryAuthenticationTest {
     override suspend fun createUser(request: AdminCreateUserRequest): AdminUserResponse = AdminUserResponse(user())
 
     override suspend fun updateUser(id: Int, request: AdminUpdateUserRequest): AdminUserResponse = AdminUserResponse(user())
+
+    override suspend fun deleteUser(id: Int): AdminDeleteUserResponse {
+      deleteUserCalls += 1
+      if (unauthorizedDeleteResponsesBeforeSuccess > 0) {
+        unauthorizedDeleteResponsesBeforeSuccess -= 1
+        throw HttpException(Response.error<AdminDeleteUserResponse>(401, "Unauthorized".toResponseBody("text/plain".toMediaType())))
+      }
+      return AdminDeleteUserResponse(
+        deleted = true,
+        userId = id,
+        username = "reader",
+        cleanup = AdminUserCleanupSummary(),
+      )
+    }
 
     override suspend fun auditLogs(limit: Int, offset: Int, targetUserId: Int?): AdminAuditLogsResponse = AdminAuditLogsResponse()
 

@@ -12,6 +12,7 @@ import javax.inject.Inject
 data class AdminUiState(
   val loading: Boolean = true,
   val error: String? = null,
+  val notice: String? = null,
   val users: List<AdminUser> = emptyList(),
   val auditLogs: List<AdminAuditLog> = emptyList(),
   val mcpClients: List<AdminMcpClient> = emptyList(),
@@ -75,6 +76,21 @@ class AdminViewModel @Inject constructor(
     }
   }
 
+  fun deleteUser(id: Int) {
+    if (mutableState.value.submitting) return
+    viewModelScope.launch {
+      mutableState.update { it.copy(submitting = true, error = null, notice = null) }
+      runCatching { repository.deleteUser(id) }
+        .onSuccess { response ->
+          mutableState.update { state -> adminUserDeletionSucceeded(state, response) }
+          load()
+        }
+        .onFailure { error ->
+          mutableState.update { state -> adminUserDeletionFailed(state, error) }
+        }
+    }
+  }
+
   fun updateMcpLimits(perMinute: Int, perDay: Int, concurrent: Int) {
     if (mutableState.value.submitting) return
     viewModelScope.launch {
@@ -86,4 +102,23 @@ class AdminViewModel @Inject constructor(
   }
 
   fun clearError() = mutableState.update { it.copy(error = null) }
+
+  fun clearNotice() = mutableState.update { it.copy(notice = null) }
 }
+
+internal fun adminUserDeletionSucceeded(
+  state: AdminUiState,
+  response: AdminDeleteUserResponse,
+): AdminUiState = state.copy(
+  submitting = false,
+  users = state.users.filterNot { it.id == response.userId },
+  notice = "已永久删除用户「${response.username}」",
+)
+
+internal fun adminUserDeletionFailed(
+  state: AdminUiState,
+  error: Throwable,
+): AdminUiState = state.copy(
+  submitting = false,
+  error = error.message ?: "删除用户失败",
+)

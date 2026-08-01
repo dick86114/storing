@@ -26,6 +26,8 @@ class AdminRepository @Inject constructor(
 
   suspend fun updateUser(id: Int, request: AdminUpdateUserRequest) = authenticatedRequest { api.updateUser(id, request).user }
 
+  suspend fun deleteUser(id: Int) = authenticatedRequest { api.deleteUser(id) }
+
   suspend fun auditLogs() = authenticatedRequest { api.auditLogs().logs }
 
   suspend fun mcpDefaultLimits() = authenticatedRequest { api.mcpDefaultLimits() }

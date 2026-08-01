@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -48,6 +49,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -76,6 +78,7 @@ fun AdminScreen(
   var selectedTab by remember { mutableIntStateOf(0) }
   var showCreateUser by remember { mutableStateOf(false) }
   var editingUser by remember { mutableStateOf<AdminUser?>(null) }
+  var pendingDeletionUser by remember { mutableStateOf<AdminUser?>(null) }
 
   BackHandler(onBack = onBack)
 
@@ -119,6 +122,11 @@ fun AdminScreen(
         }
       }
 
+      state.notice?.let { notice ->
+        Surface(color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), shape = MaterialTheme.shapes.small) {
+          Text(notice, color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(12.dp))
+        }
+      }
       state.error?.let { error ->
         Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth().padding(16.dp), shape = MaterialTheme.shapes.small) {
           Text(error, color = MaterialTheme.colorScheme.onError, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(12.dp))
@@ -147,9 +155,43 @@ fun AdminScreen(
         viewModel.updateUser(user.id, username, role, status, password)
         editingUser = null
       },
+      onRequestDelete = {
+        editingUser = null
+        pendingDeletionUser = user
+      },
     )
   }
+
+  pendingDeletionUser?.let { user ->
+    val wasDeleted = state.users.none { it.id == user.id }
+    LaunchedEffect(wasDeleted) {
+      if (wasDeleted) pendingDeletionUser = null
+    }
+    if (!wasDeleted) {
+      DeleteUserDialog(
+        user = user,
+        submitting = state.submitting,
+        onDismiss = { pendingDeletionUser = null },
+        onDelete = { viewModel.deleteUser(user.id) },
+      )
+    }
+  }
 }
+
+internal data class AdminUserDeletionPresentation(
+  val title: String,
+  val requiredConfirmation: String,
+  val warning: String,
+)
+
+internal fun canDeleteAdminUser(user: AdminUser): Boolean = user.role != "admin"
+
+internal fun adminUserDeletionPresentation(user: AdminUser): AdminUserDeletionPresentation =
+  AdminUserDeletionPresentation(
+    title = "永久删除用户",
+    requiredConfirmation = user.username,
+    warning = "将清理该用户的资料库内容、采集任务、设备登录和 MCP 连接。此操作不可恢复。",
+  )
 
 @Composable
 private fun AdminUsersTab(users: List<AdminUser>, onCreateClick: () -> Unit, onEditUser: (AdminUser) -> Unit) {
@@ -335,7 +377,13 @@ private fun CreateUserDialog(submitting: Boolean, onDismiss: () -> Unit, onCreat
 }
 
 @Composable
-private fun EditUserDialog(user: AdminUser, submitting: Boolean, onDismiss: () -> Unit, onUpdate: (String?, String?, String?, String?) -> Unit) {
+private fun EditUserDialog(
+  user: AdminUser,
+  submitting: Boolean,
+  onDismiss: () -> Unit,
+  onUpdate: (String?, String?, String?, String?) -> Unit,
+  onRequestDelete: () -> Unit,
+) {
   var username by remember { mutableStateOf(user.username) }
   var role by remember { mutableStateOf(user.role) }
   var status by remember { mutableStateOf(user.status) }
@@ -389,6 +437,19 @@ private fun EditUserDialog(user: AdminUser, submitting: Boolean, onDismiss: () -
               Text("重置密码")
             }
           }
+          if (canDeleteAdminUser(user)) {
+            Spacer(Modifier.height(4.dp))
+            OutlinedButton(
+              onClick = onRequestDelete,
+              enabled = !submitting,
+              modifier = Modifier.fillMaxWidth(),
+              colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            ) {
+              Icon(Icons.Outlined.DeleteOutline, contentDescription = null, modifier = Modifier.size(18.dp))
+              Spacer(Modifier.size(8.dp))
+              Text("删除用户")
+            }
+          }
         }
       },
       confirmButton = { Button(onClick = {
@@ -402,4 +463,59 @@ private fun EditUserDialog(user: AdminUser, submitting: Boolean, onDismiss: () -
       dismissButton = { TextButton(onClick = onDismiss, enabled = !submitting) { Text("取消") } },
     )
   }
+}
+
+@Composable
+private fun DeleteUserDialog(
+  user: AdminUser,
+  submitting: Boolean,
+  onDismiss: () -> Unit,
+  onDelete: () -> Unit,
+) {
+  val presentation = adminUserDeletionPresentation(user)
+  var confirmation by remember(user.id) { mutableStateOf("") }
+  val canConfirm = confirmation.trim() == presentation.requiredConfirmation && !submitting
+
+  QiankunjieAlertDialog(
+    onDismissRequest = { if (!submitting) onDismiss() },
+    icon = { Icon(Icons.Outlined.WarningAmber, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+    title = { Text(presentation.title) },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("确定要删除用户「${user.username}」吗？", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(presentation.warning, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        OutlinedTextField(
+          value = confirmation,
+          onValueChange = { confirmation = it },
+          label = { Text("输入「${presentation.requiredConfirmation}」确认") },
+          singleLine = true,
+          enabled = !submitting,
+          modifier = Modifier.fillMaxWidth(),
+        )
+      }
+    },
+    confirmButton = {
+      Button(
+        onClick = onDelete,
+        enabled = canConfirm,
+        colors = ButtonDefaults.buttonColors(
+          containerColor = MaterialTheme.colorScheme.error,
+          contentColor = MaterialTheme.colorScheme.onError,
+        ),
+      ) {
+        if (submitting) {
+          CircularProgressIndicator(
+            modifier = Modifier.size(18.dp),
+            color = MaterialTheme.colorScheme.onError,
+            strokeWidth = 2.dp,
+          )
+          Spacer(Modifier.size(8.dp))
+          Text("删除中")
+        } else {
+          Text("永久删除")
+        }
+      }
+    },
+    dismissButton = { TextButton(onClick = onDismiss, enabled = !submitting) { Text("取消") } },
+  )
 }

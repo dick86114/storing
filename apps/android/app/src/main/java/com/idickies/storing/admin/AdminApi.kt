@@ -18,6 +18,9 @@ interface AdminApi {
   @PATCH("admin/users/{id}")
   suspend fun updateUser(@Path("id") id: Int, @Body request: AdminUpdateUserRequest): AdminUserResponse
 
+  @DELETE("admin/users/{id}")
+  suspend fun deleteUser(@Path("id") id: Int): AdminDeleteUserResponse
+
   @GET("admin/audit-logs")
   suspend fun auditLogs(
     @Query("limit") limit: Int = 50,

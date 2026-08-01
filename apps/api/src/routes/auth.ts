@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { deleteCookie, setCookie } from 'hono/cookie';
 import { db } from '../db/index.js';
-import { adminAuditLogs, articleMetadata, articles, mcpClients, mcpRequestLogs, users } from '../db/schema.js';
-import { and, count, desc, eq, gt, ilike, or, sql } from 'drizzle-orm';
+import { adminAuditLogs, articleMetadata, articles, collectJobs, mcpClients, mcpRequestLogs, mobileSessions, users } from '../db/schema.js';
+import { and, count, desc, eq, gt, ilike, inArray, or, sql } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
 import { requireAuth, requireAdmin, getCurrentUser, generateClientAccessToken, generateMobileAccessToken, generateToken } from '../middleware/auth.js';
@@ -914,4 +914,93 @@ authRoutes.patch('/admin/users/:id', requireAdmin, async (c) => {
   const [updated] = await db.update(users).set(values).where(eq(users.id, id)).returning();
   if (parsed.data.password !== undefined || parsed.data.status === 'disabled') await revokeMobileSessionsForUser(id);
   return c.json({ user: serializeUser(updated) });
+});
+
+/**
+ * 管理员：永久删除普通用户或服务账号。
+ * 共享 articles 表不属于个人数据，绝不能在此流程中删除。
+ * DELETE /admin/users/:id
+ */
+authRoutes.delete('/admin/users/:id', requireAdmin, async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: { code: 'BAD_REQUEST', message: '用户 ID 无效' } }, 400);
+
+  const [existing] = await db.select({
+    id: users.id,
+    username: users.username,
+    role: users.role,
+  }).from(users).where(eq(users.id, id)).limit(1);
+  if (!existing) return c.json({ error: { code: 'USER_NOT_FOUND', message: '用户不存在' } }, 404);
+
+  const currentUser = getCurrentUser(c);
+  if (existing.id === currentUser.id) {
+    return c.json({ error: { code: 'SELF_DELETE_FORBIDDEN', message: '不能在当前登录会话中删除自己' } }, 409);
+  }
+  if (existing.role === 'admin') {
+    return c.json({ error: { code: 'ADMIN_DELETE_FORBIDDEN', message: '管理员账号受保护，不能删除' } }, 409);
+  }
+
+  const cleanup = await db.transaction(async (tx) => {
+    const [articleMetadataCount] = await tx.select({ total: count() }).from(articleMetadata).where(eq(articleMetadata.userId, id));
+    const [collectJobsCount] = await tx.select({ total: count() }).from(collectJobs).where(eq(collectJobs.userId, id));
+    const [mobileSessionsCount] = await tx.select({ total: count() }).from(mobileSessions).where(eq(mobileSessions.userId, id));
+    const clientRows = await tx.select({ id: mcpClients.id }).from(mcpClients).where(eq(mcpClients.ownerUserId, id));
+    const clientIds = clientRows.map((client) => client.id);
+    const [mcpRequestLogsCount] = await tx.select({ total: count() }).from(mcpRequestLogs).where(
+      clientIds.length > 0
+        ? or(eq(mcpRequestLogs.userId, id), inArray(mcpRequestLogs.clientId, clientIds))
+        : eq(mcpRequestLogs.userId, id),
+    );
+    const [adminAuditLogsCount] = await tx.select({ total: count() }).from(adminAuditLogs).where(eq(adminAuditLogs.targetUserId, id));
+
+    // 先解除历史日志的外键关系，保留调用和管理审计线索。
+    await tx.update(mcpRequestLogs).set({ userId: null }).where(eq(mcpRequestLogs.userId, id));
+    if (clientIds.length > 0) {
+      await tx.update(mcpRequestLogs).set({ clientId: null }).where(inArray(mcpRequestLogs.clientId, clientIds));
+    }
+    await tx.update(adminAuditLogs).set({
+      targetUserId: null,
+      detail: sql`COALESCE(${adminAuditLogs.detail}, '{}'::jsonb) || jsonb_build_object(
+        'deleted_user_id', ${id},
+        'deleted_username', ${existing.username},
+        'anonymized_by', 'user_deleted'
+      )`,
+    }).where(eq(adminAuditLogs.targetUserId, id));
+
+    // 按外键依赖从个人元数据、任务和会话开始清理，最后删除用户本体。
+    await tx.delete(articleMetadata).where(eq(articleMetadata.userId, id));
+    await tx.delete(collectJobs).where(eq(collectJobs.userId, id));
+    await tx.delete(mobileSessions).where(eq(mobileSessions.userId, id));
+    await tx.delete(mcpClients).where(eq(mcpClients.ownerUserId, id));
+    await tx.delete(users).where(eq(users.id, id));
+
+    const result = {
+      article_metadata: Number(articleMetadataCount?.total ?? 0),
+      collect_jobs: Number(collectJobsCount?.total ?? 0),
+      mobile_sessions: Number(mobileSessionsCount?.total ?? 0),
+      mcp_clients: clientIds.length,
+      mcp_request_logs_anonymized: Number(mcpRequestLogsCount?.total ?? 0),
+      admin_audit_logs_anonymized: Number(adminAuditLogsCount?.total ?? 0),
+    };
+
+    await tx.insert(adminAuditLogs).values({
+      actorUserId: currentUser.id,
+      targetUserId: null,
+      action: 'user_deleted',
+      detail: {
+        deleted_user_id: existing.id,
+        deleted_username: existing.username,
+        cleanup: result,
+      },
+    });
+
+    return result;
+  });
+
+  return c.json({
+    deleted: true,
+    user_id: existing.id,
+    username: existing.username,
+    cleanup,
+  });
 });
