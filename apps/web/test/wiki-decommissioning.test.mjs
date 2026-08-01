@@ -39,3 +39,9 @@ test('the retired Wiki feature has no active routes, workers, UI, or article hoo
     assert.equal(exists(path), false, `${path} should be removed with the retired Wiki feature`);
   }
 });
+
+test('API 构建前会清理旧 dist，避免已删除的 Wiki 编译文件残留', () => {
+  const packageJson = JSON.parse(read('apps/api/package.json'));
+  assert.match(packageJson.scripts.build, /rmSync\('dist'/);
+  assert.match(packageJson.scripts.build, /tsc$/);
+});
