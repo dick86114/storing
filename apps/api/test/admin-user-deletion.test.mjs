@@ -26,6 +26,8 @@ test('删除用户必须在事务内处理关联数据，并保留全局 article
   assert.match(route, /\.for\('update'\)/);
   assert.match(route, /tx\.update\(adminAuditLogs\)\.set\(\{/);
   assert.match(route, /targetUserId: null/);
+  assert.match(route, /\$\{id\}::integer/);
+  assert.match(route, /\$\{existing\.username\}::text/);
   assert.match(route, /tx\.update\(collectJobs\)\.set\(\{(?=[^}]*userId: null)(?=[^}]*clientId: null)[^}]*\}\)/);
   assert.match(route, /tx\.update\(mcpRequestLogs\)\.set\(\{ userId: null, clientId: null \}\)/);
   assert.match(route, /tx\.delete\(mobileSessions\)/);
