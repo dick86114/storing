@@ -1,7 +1,7 @@
 package com.idickies.storing.admin
 
 import retrofit2.http.Body
-import retrofit2.http.DELETE
+import retrofit2.http.HTTP
 import retrofit2.http.GET
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -18,7 +18,7 @@ interface AdminApi {
   @PATCH("admin/users/{id}")
   suspend fun updateUser(@Path("id") id: Int, @Body request: AdminUpdateUserRequest): AdminUserResponse
 
-  @DELETE("admin/users/{id}")
+  @HTTP(method = "DELETE", path = "admin/users/{id}", hasBody = true)
   suspend fun deleteUser(@Path("id") id: Int, @Body request: AdminDeleteUserRequest): AdminDeleteUserResponse
 
   @GET("admin/audit-logs")
