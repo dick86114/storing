@@ -172,7 +172,7 @@ fun AdminScreen(
         user = user,
         submitting = state.submitting,
         onDismiss = { pendingDeletionUser = null },
-        onDelete = { viewModel.deleteUser(user.id) },
+        onDelete = { confirmation -> viewModel.deleteUser(user.id, confirmation) },
       )
     }
   }
@@ -470,7 +470,7 @@ private fun DeleteUserDialog(
   user: AdminUser,
   submitting: Boolean,
   onDismiss: () -> Unit,
-  onDelete: () -> Unit,
+  onDelete: (String) -> Unit,
 ) {
   val presentation = adminUserDeletionPresentation(user)
   var confirmation by remember(user.id) { mutableStateOf("") }
@@ -496,7 +496,7 @@ private fun DeleteUserDialog(
     },
     confirmButton = {
       Button(
-        onClick = onDelete,
+        onClick = { onDelete(confirmation.trim()) },
         enabled = canConfirm,
         colors = ButtonDefaults.buttonColors(
           containerColor = MaterialTheme.colorScheme.error,

@@ -56,12 +56,13 @@ class AdminRepositoryAuthenticationTest {
     val api = FakeAdminApi(unauthorizedDeleteResponsesBeforeSuccess = 1)
     val repository = AdminRepository(api, auth)
 
-    val result = repository.deleteUser(42)
+    val result = repository.deleteUser(42, "reader")
 
     assertTrue(result.deleted)
     assertEquals(1, auth.ensureCalls)
     assertEquals(1, auth.refreshCalls)
     assertEquals(2, api.deleteUserCalls)
+    assertEquals("reader", api.lastDeleteConfirmUsername)
   }
 
   private class FakeAuthenticator(
@@ -88,6 +89,7 @@ class AdminRepositoryAuthenticationTest {
   ) : AdminApi {
     var usersCalls = 0
     var deleteUserCalls = 0
+    var lastDeleteConfirmUsername: String? = null
 
     override suspend fun users(): AdminUsersResponse {
       usersCalls += 1
@@ -102,8 +104,9 @@ class AdminRepositoryAuthenticationTest {
 
     override suspend fun updateUser(id: Int, request: AdminUpdateUserRequest): AdminUserResponse = AdminUserResponse(user())
 
-    override suspend fun deleteUser(id: Int): AdminDeleteUserResponse {
+    override suspend fun deleteUser(id: Int, request: AdminDeleteUserRequest): AdminDeleteUserResponse {
       deleteUserCalls += 1
+      lastDeleteConfirmUsername = request.confirmUsername
       if (unauthorizedDeleteResponsesBeforeSuccess > 0) {
         unauthorizedDeleteResponsesBeforeSuccess -= 1
         throw HttpException(Response.error<AdminDeleteUserResponse>(401, "Unauthorized".toResponseBody("text/plain".toMediaType())))

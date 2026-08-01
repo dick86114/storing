@@ -19,7 +19,7 @@ interface AdminApi {
   suspend fun updateUser(@Path("id") id: Int, @Body request: AdminUpdateUserRequest): AdminUserResponse
 
   @DELETE("admin/users/{id}")
-  suspend fun deleteUser(@Path("id") id: Int): AdminDeleteUserResponse
+  suspend fun deleteUser(@Path("id") id: Int, @Body request: AdminDeleteUserRequest): AdminDeleteUserResponse
 
   @GET("admin/audit-logs")
   suspend fun auditLogs(

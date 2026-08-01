@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { AppstoreOutlined, CloseOutlined, EditOutlined, FolderOutlined, HeartOutlined, KeyOutlined, LockOutlined, PlusOutlined, ReloadOutlined, SafetyOutlined, SearchOutlined, SyncOutlined, UserOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, CloseOutlined, DeleteOutlined, EditOutlined, FolderOutlined, HeartOutlined, KeyOutlined, LockOutlined, PlusOutlined, ReloadOutlined, SafetyOutlined, SearchOutlined, SyncOutlined, UserOutlined } from '@ant-design/icons';
 import { api, type AdminBootstrapStatus, type AdminUser, type AdminUserActivity } from '@/lib/api';
 import { useAuth } from '@/components/providers/AuthContext';
 
@@ -50,6 +50,8 @@ export function UserManagementContent() {
   const [status, setStatus] = useState<'all' | UserStatus>('all');
   const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
+  const [deleteConfirmUsername, setDeleteConfirmUsername] = useState('');
   const [activityUser, setActivityUser] = useState<AdminUser | null>(null);
   const [activity, setActivity] = useState<AdminUserActivity | null>(null);
   const [activityLoading, setActivityLoading] = useState(false);
@@ -78,12 +80,12 @@ export function UserManagementContent() {
   useEffect(() => { refresh(); }, [refresh]);
 
   useEffect(() => {
-    const hasOpenModal = isCreateModalOpen || Boolean(editingUser) || Boolean(activityUser) || isAdminMaintenanceOpen;
+    const hasOpenModal = isCreateModalOpen || Boolean(editingUser) || Boolean(deletingUser) || Boolean(activityUser) || isAdminMaintenanceOpen;
     if (!hasOpenModal) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = previousOverflow; };
-  }, [activityUser, editingUser, isAdminMaintenanceOpen, isCreateModalOpen]);
+  }, [activityUser, deletingUser, editingUser, isAdminMaintenanceOpen, isCreateModalOpen]);
 
   const filteredUsers = useMemo(() => users.filter((item) => {
     const matchesQuery = !query.trim() || item.username.toLowerCase().includes(query.trim().toLowerCase());
@@ -111,6 +113,23 @@ export function UserManagementContent() {
     setNotice(null);
     setEditingUser(item);
     setEditForm({ username: item.username, password: '', role: item.role, status: item.status });
+  }
+
+  function openDeleteModal(item: AdminUser) {
+    if (item.role === 'admin') {
+      setError('管理员账号受保护，不能删除。');
+      return;
+    }
+    setError(null);
+    setNotice(null);
+    setDeleteConfirmUsername('');
+    setDeletingUser(item);
+  }
+
+  function closeDeleteModal() {
+    if (saving) return;
+    setDeletingUser(null);
+    setDeleteConfirmUsername('');
   }
 
   async function loadActivity(item: AdminUser, offset: number) {
@@ -174,6 +193,30 @@ export function UserManagementContent() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : '更新用户失败');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!deletingUser) return;
+    if (deleteConfirmUsername !== deletingUser.username) {
+      setError('请输入完整用户名以确认删除。');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await api.deleteAdminUser(deletingUser.id, deleteConfirmUsername);
+      setDeletingUser(null);
+      setDeleteConfirmUsername('');
+      setNotice(`用户「${result.user.username}」已删除；已清理 ${result.cleanup.deleted_metadata_count} 条私有资料、${result.cleanup.deleted_mcp_client_count} 个 MCP 连接和 ${result.cleanup.deleted_active_session_count} 个有效会话。`);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '删除用户失败');
     } finally {
       setSaving(false);
     }
@@ -276,7 +319,10 @@ export function UserManagementContent() {
               </div>
               <div className="user-admin-actions">
                 <button type="button" className="user-admin-edit-button" aria-label="编辑用户" title="编辑用户" disabled={saving} onClick={(event) => { event.stopPropagation(); openEditModal(item); }}><EditOutlined /></button>
-                {protectedAdmin ? <span className="user-admin-protected"><SafetyOutlined /> 管理员受保护</span> : <button type="button" className="mcp-btn mcp-btn-quiet" disabled={saving} onClick={(event) => { event.stopPropagation(); toggleUser(item); }}>{item.status === 'active' ? '禁用' : '启用'}</button>}
+                {protectedAdmin ? <span className="user-admin-protected"><SafetyOutlined /> 管理员受保护</span> : <>
+                  <button type="button" className="mcp-btn mcp-btn-quiet" disabled={saving} onClick={(event) => { event.stopPropagation(); toggleUser(item); }}>{item.status === 'active' ? '禁用' : '启用'}</button>
+                  <button type="button" className="mcp-btn mcp-btn-danger" disabled={saving} onClick={(event) => { event.stopPropagation(); openDeleteModal(item); }}><DeleteOutlined /> 删除</button>
+                </>}
               </div>
             </div>
             <div className="user-admin-usage">
@@ -319,6 +365,18 @@ export function UserManagementContent() {
         <p className="user-admin-role-hint">{editingUser.role === 'admin' ? '管理员账号受系统保护：不能被禁用或降级，但可由管理员重置密码。' : roleDescription(editForm.role)}</p>
         <footer><button type="button" className="mcp-btn mcp-btn-quiet" onClick={() => setEditingUser(null)}>取消</button><button type="submit" className="mcp-btn mcp-btn-primary" disabled={saving}><EditOutlined /> 保存修改</button></footer>
       </form>
+    </div>}
+
+    {deletingUser && <div className="user-admin-modal-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeDeleteModal(); }}>
+      <section className="user-admin-modal user-admin-delete-modal" role="dialog" aria-modal="true" aria-labelledby="delete-user-title">
+        <header><div><p className="mcp-kicker">不可逆操作</p><h2 id="delete-user-title">删除用户</h2></div><button type="button" className="user-admin-modal-close" onClick={closeDeleteModal} aria-label="关闭" disabled={saving}><CloseOutlined /></button></header>
+        <form onSubmit={deleteUser}>
+          <p className="user-admin-modal-intro">将永久删除用户「{deletingUser.username}」及其私有资料库、MCP 连接和所有登录会话。采集与 MCP 请求历史会保留为无归属记录；全局文章不会删除。</p>
+          <div className="user-admin-delete-warning"><SafetyOutlined /><span>此操作无法撤销。请确认你已备份需要保留的个人资料。</span></div>
+          <div className="user-admin-modal-fields"><label>输入用户名 <strong>{deletingUser.username}</strong> 以确认<input value={deleteConfirmUsername} onChange={(event) => setDeleteConfirmUsername(event.target.value)} autoComplete="off" placeholder={deletingUser.username} disabled={saving} aria-label="输入用户名确认删除" /></label></div>
+          <footer><button type="button" className="mcp-btn mcp-btn-quiet" onClick={closeDeleteModal} disabled={saving}>取消</button><button type="submit" className="mcp-btn mcp-btn-danger" disabled={saving || deleteConfirmUsername !== deletingUser.username}><DeleteOutlined /> 确认删除</button></footer>
+        </form>
+      </section>
     </div>}
 
     {activityUser && <div className="user-admin-modal-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeActivityModal(); }}>
