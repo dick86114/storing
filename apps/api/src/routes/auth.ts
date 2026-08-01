@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { deleteCookie, setCookie } from 'hono/cookie';
 import { db } from '../db/index.js';
-import { adminAuditLogs, articleMetadata, articles, mcpClients, mcpRequestLogs, users } from '../db/schema.js';
-import { and, count, desc, eq, gt, ilike, or, sql } from 'drizzle-orm';
+import { adminAuditLogs, articleMetadata, articles, collectJobs, mcpClients, mcpRequestLogs, mobileSessions, users } from '../db/schema.js';
+import { and, count, desc, eq, gt, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
 import { requireAuth, requireAdmin, getCurrentUser, generateClientAccessToken, generateMobileAccessToken, generateToken } from '../middleware/auth.js';
@@ -28,6 +28,10 @@ const adminUpdateUserSchema = z.object({
   role: z.enum(['admin', 'user', 'service']).optional(),
   status: z.enum(['active', 'disabled']).optional(),
   password: z.string().min(12, '密码至少需要 12 个字符').max(256, '密码过长').optional(),
+});
+
+const adminDeleteUserSchema = z.object({
+  confirm_username: z.string().trim().min(2, '请输入目标用户名以确认删除').max(64, '用户名过长'),
 });
 
 const resetConfiguredAdminPasswordSchema = z.object({
@@ -914,4 +918,83 @@ authRoutes.patch('/admin/users/:id', requireAdmin, async (c) => {
   const [updated] = await db.update(users).set(values).where(eq(users.id, id)).returning();
   if (parsed.data.password !== undefined || parsed.data.status === 'disabled') await revokeMobileSessionsForUser(id);
   return c.json({ user: serializeUser(updated) });
+});
+
+/**
+ * 管理员：永久删除非管理员用户及其私有数据。
+ * 全局 articles 与历史采集/MCP 请求记录保留；后两者会脱敏为无归属记录。
+ */
+authRoutes.delete('/admin/users/:id', requireAdmin, async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: { code: 'BAD_REQUEST', message: '用户 ID 无效' } }, 400);
+
+  const body = await c.req.json().catch(() => null);
+  const parsed = adminDeleteUserSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: { code: 'BAD_REQUEST', message: parsed.error.errors[0]?.message || '参数错误' } }, 400);
+  }
+
+  const currentUser = getCurrentUser(c);
+  const result = await db.transaction(async (tx) => {
+    // 锁定目标行并在事务内重新校验，避免并发改名、提权后仍按旧状态删除。
+    const [existing] = await tx.select().from(users).where(eq(users.id, id)).for('update').limit(1);
+    if (!existing) return { outcome: 'not_found' as const };
+    if (parsed.data.confirm_username !== existing.username) return { outcome: 'confirmation_mismatch' as const };
+    if (existing.id === currentUser.id) return { outcome: 'self_forbidden' as const };
+    if (existing.role === 'admin') return { outcome: 'admin_forbidden' as const };
+
+    const [[metadataRow], [mcpClientRow], [activeSessionRow], clientRows] = await Promise.all([
+      tx.select({ total: count() }).from(articleMetadata).where(eq(articleMetadata.userId, id)),
+      tx.select({ total: count() }).from(mcpClients).where(eq(mcpClients.ownerUserId, id)),
+      tx.select({ total: count() }).from(mobileSessions).where(and(
+        eq(mobileSessions.userId, id),
+        isNull(mobileSessions.revokedAt),
+        gt(mobileSessions.expiresAt, new Date()),
+      )),
+      tx.select({ id: mcpClients.id }).from(mcpClients).where(eq(mcpClients.ownerUserId, id)),
+    ]);
+    const clientIds = clientRows.map((client) => client.id);
+    const relatedJobCondition = clientIds.length > 0
+      ? or(eq(collectJobs.userId, id), inArray(collectJobs.clientId, clientIds))
+      : eq(collectJobs.userId, id);
+    const relatedMcpLogCondition = clientIds.length > 0
+      ? or(eq(mcpRequestLogs.userId, id), inArray(mcpRequestLogs.clientId, clientIds))
+      : eq(mcpRequestLogs.userId, id);
+
+    // 先解除所有外键引用，再删除账号与其私有资料库数据。
+    await tx.update(adminAuditLogs).set({ targetUserId: null }).where(eq(adminAuditLogs.targetUserId, id));
+    await tx.update(collectJobs).set({ userId: null, clientId: null, ownerDeleted: true, updatedAt: new Date() }).where(relatedJobCondition);
+    await tx.update(mcpRequestLogs).set({ userId: null, clientId: null }).where(relatedMcpLogCondition);
+    await tx.delete(mobileSessions).where(eq(mobileSessions.userId, id));
+    await tx.delete(articleMetadata).where(eq(articleMetadata.userId, id));
+    await tx.delete(mcpClients).where(eq(mcpClients.ownerUserId, id));
+    await tx.delete(users).where(eq(users.id, id));
+
+    const cleanup = {
+      deleted_user_id: existing.id,
+      deleted_username: existing.username,
+      deleted_role: existing.role,
+      deleted_metadata_count: Number(metadataRow?.total ?? 0),
+      deleted_mcp_client_count: Number(mcpClientRow?.total ?? 0),
+      deleted_active_session_count: Number(activeSessionRow?.total ?? 0),
+    };
+    await tx.insert(adminAuditLogs).values({
+      actorUserId: currentUser.id,
+      targetUserId: null,
+      action: 'user_deleted',
+      detail: cleanup,
+    });
+    return {
+      outcome: 'deleted' as const,
+      user: { id: existing.id, username: existing.username, role: existing.role },
+      cleanup,
+    };
+  });
+
+  if (result.outcome === 'not_found') return c.json({ error: { code: 'USER_NOT_FOUND', message: '用户不存在' } }, 404);
+  if (result.outcome === 'confirmation_mismatch') return c.json({ error: { code: 'DELETE_CONFIRMATION_MISMATCH', message: '确认用户名与目标用户不一致' } }, 409);
+  if (result.outcome === 'self_forbidden') return c.json({ error: { code: 'SELF_DELETE_FORBIDDEN', message: '不能删除当前登录用户' } }, 409);
+  if (result.outcome === 'admin_forbidden') return c.json({ error: { code: 'ADMIN_DELETE_FORBIDDEN', message: '管理员账号受保护，不能删除' } }, 409);
+
+  return c.json({ deleted: true, user: result.user, cleanup: result.cleanup });
 });

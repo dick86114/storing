@@ -140,6 +140,7 @@ export const collectJobs = pgTable('collect_jobs', {
   clientId: integer('client_id').references(() => mcpClients.id),
   requestSource: text('request_source').notNull().default('web'),
   saveToInbox: boolean('save_to_inbox').notNull().default(true),
+  ownerDeleted: boolean('owner_deleted').notNull().default(false),
   status: text('status').notNull().default('pending'),
   stage: text('stage').notNull().default('queued'),
   method: text('method').notNull().default('singlefile'),

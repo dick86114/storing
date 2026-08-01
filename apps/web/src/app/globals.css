@@ -15660,3 +15660,19 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   height: auto;
   margin: 0 auto;
 }
+
+.user-admin-delete-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: -4px 0 16px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in oklch, red 30%, var(--border));
+  border-radius: 10px;
+  color: oklch(52% .16 28);
+  background: color-mix(in oklch, red 8%, transparent);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.user-admin-delete-warning svg { flex: 0 0 auto; margin-top: 2px; }
+.user-admin-delete-modal .user-admin-modal-fields strong { color: var(--fg); }
