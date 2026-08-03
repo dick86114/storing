@@ -20,3 +20,11 @@ class LoginPresentationTest {
     assertEquals("账号由管理员创建，如需帮助请联系管理员", loginPresentation.helpText)
   }
 }
+
+class LoginImeLayoutTest {
+  @Test
+  fun `输入法只为可滚动登录表单预留空间，不移动底部版本号`() {
+    assertEquals(true, loginImeLayoutPolicy.formConsumesImeInsets)
+    assertEquals(false, loginImeLayoutPolicy.footerConsumesImeInsets)
+  }
+}

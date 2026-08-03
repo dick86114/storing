@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
@@ -25,7 +26,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
@@ -43,6 +43,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -73,6 +76,20 @@ data class CompactBottomBarItemMetrics(
   val itemVerticalSpacing: androidx.compose.ui.unit.Dp,
   val contentVerticalOffset: androidx.compose.ui.unit.Dp,
   val shadowElevation: androidx.compose.ui.unit.Dp,
+)
+
+data class CompactBottomBarBadgeMetrics(
+  val size: androidx.compose.ui.unit.Dp,
+  val fontSize: androidx.compose.ui.unit.TextUnit,
+  val lineHeight: androidx.compose.ui.unit.TextUnit,
+  val includeFontPadding: Boolean,
+)
+
+val compactBottomBarBadgeMetrics = CompactBottomBarBadgeMetrics(
+  size = 18.dp,
+  fontSize = 10.sp,
+  lineHeight = 10.sp,
+  includeFontPadding = false,
 )
 
 fun compactBottomBarItemMetrics(isDark: Boolean): CompactBottomBarItemMetrics = CompactBottomBarItemMetrics(
@@ -241,15 +258,24 @@ fun CompactBottomBarItem(
           shape = CircleShape,
           modifier = Modifier
             .offset(x = 7.dp, y = (-5).dp)
-            .size(18.dp)
+            .size(compactBottomBarBadgeMetrics.size)
             .alpha(pulseAlpha),
         ) {
-          Text(
-            if (badgeCount > 99) "99+" else badgeCount.toString(),
-            fontSize = 10.sp,
-            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-            modifier = Modifier.wrapContentSize(Alignment.Center),
-          )
+          Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+          ) {
+            Text(
+              if (badgeCount > 99) "99+" else badgeCount.toString(),
+              style = TextStyle(
+                fontSize = compactBottomBarBadgeMetrics.fontSize,
+                lineHeight = compactBottomBarBadgeMetrics.lineHeight,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                platformStyle = PlatformTextStyle(includeFontPadding = compactBottomBarBadgeMetrics.includeFontPadding),
+              ),
+              textAlign = TextAlign.Center,
+            )
+          }
         }
       }
     }
