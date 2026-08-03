@@ -271,6 +271,16 @@ internal data class LoginPresentation(
   val helpText: String,
 )
 
+internal data class LoginImeLayoutPolicy(
+  val formConsumesImeInsets: Boolean,
+  val footerConsumesImeInsets: Boolean,
+)
+
+internal val loginImeLayoutPolicy = LoginImeLayoutPolicy(
+  formConsumesImeInsets = true,
+  footerConsumesImeInsets = false,
+)
+
 internal val loginPresentation = LoginPresentation(
   brandMarkSize = 56.dp,
   inputHeight = 56.dp,
@@ -310,13 +320,13 @@ internal fun LoginScreen(
     modifier = Modifier
       .fillMaxSize()
       .background(colors.background)
-      .windowInsetsPadding(WindowInsets.statusBars)
-      .imePadding(),
+      .windowInsetsPadding(WindowInsets.statusBars),
   ) {
     Column(
       modifier = Modifier
         .fillMaxSize()
         .verticalScroll(rememberScrollState())
+        .let { base -> if (loginImeLayoutPolicy.formConsumesImeInsets) base.imePadding() else base }
         .padding(horizontal = 20.dp)
         .padding(top = 56.dp, bottom = 76.dp),
       horizontalAlignment = Alignment.CenterHorizontally,
