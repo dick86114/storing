@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { readFile } from 'node:fs/promises';
-import { loadRemoteAndroidReleaseManifest, parseAndroidReleaseManifest, type AndroidReleaseManifest } from '../services/android-release.service.js';
+import { loadGitHubReleaseNotes, loadRemoteAndroidReleaseManifest, parseAndroidReleaseManifest, type AndroidReleaseManifest } from '../services/android-release.service.js';
 
 const defaultManifestPath = '/app/releases/android/latest.json';
 
@@ -53,6 +53,14 @@ releasesRoutes.get('/mobile/releases/latest', async (c) => {
     return c.json({ error: { code: 'RELEASE_MANIFEST_UNAVAILABLE', message: 'Android 更新清单暂不可用' } }, 503);
   }
   if (resolvedRelease.versionCode <= currentVersionCode) return c.body(null, 204);
+  if (!resolvedRelease.releaseTag) {
+    try {
+      const body = await loadGitHubReleaseNotes(resolvedRelease.apkUrl);
+      if (body?.trim()) resolvedRelease.releaseNotes = [body];
+    } catch (error) {
+      console.error('Unable to read GitHub Android release notes:', error);
+    }
+  }
   c.header('Cache-Control', 'no-store');
   return c.json(resolvedRelease);
 });

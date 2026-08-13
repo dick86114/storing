@@ -10,6 +10,7 @@ import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type Ar
 import { SourceSidebar } from '@/components/archive/SourceSidebar';
 import { SourcePills } from '@/components/archive/SourcePills';
 import { CategoryNavigation } from '@/components/archive/CategoryNavigation';
+import { CategoryAssignmentDialog } from '@/components/article/WechatDetailPanel';
 import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { api, type ArchiveTag } from '@/lib/api';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
@@ -47,7 +48,6 @@ function ArchiveContentInner() {
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedArticleIds, setSelectedArticleIds] = useState<Set<number>>(new Set());
   const [bulkCategoryPickerOpen, setBulkCategoryPickerOpen] = useState(false);
-  const [bulkCategoryId, setBulkCategoryId] = useState<number | null>(null);
   const [bulkSaving, setBulkSaving] = useState(false);
   const removingIdsRef = useRef<Set<number>>(new Set());
   const allArticlesRef = useRef(allArticles);
@@ -268,15 +268,14 @@ function ArchiveContentInner() {
     setBulkMode(false);
     setSelectedArticleIds(new Set());
     setBulkCategoryPickerOpen(false);
-    setBulkCategoryId(null);
   }, []);
 
-  const confirmBulkMove = useCallback(async () => {
-    if (!bulkCategoryId || selectedArticleIds.size === 0 || bulkSaving) return;
+  const handleBulkCategorySelect = useCallback(async (categoryId: number) => {
+    if (selectedArticleIds.size === 0 || bulkSaving) return;
     setBulkSaving(true);
     try {
-      const result = await api.bulkMoveArticlesToCategory([...selectedArticleIds], bulkCategoryId);
-      const category = categories.find((item) => item.id === bulkCategoryId);
+      const result = await api.bulkMoveArticlesToCategory([...selectedArticleIds], categoryId);
+      const category = categories.find((item) => item.id === categoryId);
       showToast(`已将 ${result.updatedCount} 篇文章归入${category?.name || '所选分类'}`);
       exitBulkMode();
       await refreshList();
@@ -285,7 +284,7 @@ function ArchiveContentInner() {
     } finally {
       setBulkSaving(false);
     }
-  }, [bulkCategoryId, bulkSaving, categories, exitBulkMode, refreshList, selectedArticleIds, showToast]);
+  }, [bulkSaving, categories, exitBulkMode, refreshList, selectedArticleIds, showToast]);
 
   const confirmBulkClassify = useCallback(async () => {
     if (selectedArticleIds.size === 0 || bulkSaving) return;
@@ -440,19 +439,13 @@ function ArchiveContentInner() {
       )}
 
       {bulkCategoryPickerOpen && (
-        <div className="archive-category-confirm-overlay" role="presentation" onMouseDown={() => !bulkSaving && setBulkCategoryPickerOpen(false)}>
-          <section className="archive-category-confirm" role="dialog" aria-modal="true" aria-labelledby="bulk-category-confirm-title" onMouseDown={(event) => event.stopPropagation()}>
-            <h2 id="bulk-category-confirm-title">批量修改分类</h2>
-            <select value={bulkCategoryId ?? ''} onChange={(event) => setBulkCategoryId(event.target.value ? Number(event.target.value) : null)} aria-label="选择目标分类" disabled={bulkSaving}>
-              <option value="">请选择目标分类</option>
-              {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-            </select>
-            <div className="archive-category-confirm-actions">
-              <button type="button" onClick={() => setBulkCategoryPickerOpen(false)} disabled={bulkSaving}>取消</button>
-              <button type="button" onClick={confirmBulkMove} disabled={!bulkCategoryId || bulkSaving}>{bulkSaving ? '正在修改…' : '确认修改'}</button>
-            </div>
-          </section>
-        </div>
+        <CategoryAssignmentDialog
+          categories={categories}
+          currentCategoryId={null}
+          loading={bulkSaving}
+          onClose={() => setBulkCategoryPickerOpen(false)}
+          onSelect={handleBulkCategorySelect}
+        />
       )}
 
       {tagFilterOpen && (

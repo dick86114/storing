@@ -1,6 +1,7 @@
 package com.idickies.storing.share
 
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class SharePosterLayoutTest {
@@ -33,5 +34,16 @@ class SharePosterLayoutTest {
 
     assertTrue(slots.summaryTop >= slots.coverBottom + 24)
     assertTrue(slots.summaryBottom <= 420)
+  }
+
+  @Test
+  fun `相对封面地址会解析为当前服务的可访问地址`() {
+    assertEquals(
+      "https://storing.example.com/uploads/covers/article.png",
+      SharePosterGenerator.resolveCoverUrl(
+        "/uploads/covers/article.png",
+        "https://storing.example.com/api/v1/",
+      ),
+    )
   }
 }

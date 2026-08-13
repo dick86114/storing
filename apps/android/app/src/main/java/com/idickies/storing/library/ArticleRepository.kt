@@ -47,7 +47,12 @@ class ArticleRepository @Inject constructor(
 
   suspend fun search(query: String, page: Int = 1) = api.search(query, page)
   suspend fun sources() = api.sources()
-  suspend fun categories() = api.categories()
+  suspend fun categories(includeInactive: Boolean = false) = api.categories(includeInactive)
+  suspend fun createCategory(request: CategoryMutationRequest) = api.createCategory(request)
+  suspend fun updateCategory(id: Int, request: CategoryMutationRequest) = api.updateCategory(id, request)
+  suspend fun deleteCategory(id: Int, targetCategoryId: Int) = api.deleteCategory(id, targetCategoryId)
+  suspend fun reorderCategories(categoryIds: List<Int>) = api.reorderCategories(CategoryReorderRequest(categoryIds))
+  suspend fun optimizeCategoryDescription(request: CategoryOptimizeRequest) = api.optimizeCategoryDescription(request)
   suspend fun tags() = api.tags()
   suspend fun detail(id: Int, publicId: String? = null) =
     publicId?.let { api.publication(it).article } ?: api.article(id)

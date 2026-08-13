@@ -18,30 +18,40 @@ class UpdateInstaller @Inject constructor(
   private val client: OkHttpClient,
   @ApplicationContext private val context: Context,
 ) {
-  suspend fun downloadVerifyAndInstall(release: AndroidRelease) = withContext(Dispatchers.IO) {
+  suspend fun downloadVerifyAndInstall(
+    release: AndroidRelease,
+    onProgress: (UpdateStage, Float?) -> Unit = { _, _ -> },
+  ) = withContext(Dispatchers.IO) {
     val updateDirectory = File(context.cacheDir, "updates").apply { mkdirs() }
     val output = File(updateDirectory, "qiankunjie-${release.versionCode}.apk")
     val digest = MessageDigest.getInstance("SHA-256")
     client.newCall(Request.Builder().url(release.apkUrl).build()).execute().use { response ->
       if (!response.isSuccessful) throw IllegalStateException("下载更新失败：HTTP ${response.code}")
       val body = response.body ?: throw IllegalStateException("下载更新失败：响应为空")
+      val totalBytes = body.contentLength()
+      var bytesRead = 0L
+      onProgress(UpdateStage.DOWNLOADING, 0f)
       body.byteStream().use { input ->
         output.outputStream().use { destination ->
           val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
           while (true) {
             val count = input.read(buffer)
             if (count < 0) break
+            bytesRead += count
             digest.update(buffer, 0, count)
             destination.write(buffer, 0, count)
+            onProgress(UpdateStage.DOWNLOADING, downloadProgressFraction(bytesRead, totalBytes))
           }
         }
       }
     }
+    onProgress(UpdateStage.VERIFYING, null)
     if (!digest.digest().joinToString("") { "%02x".format(it) }.equals(release.sha256, ignoreCase = true)) {
       output.delete()
       throw IllegalStateException("下载包校验失败，已拒绝安装")
     }
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", output)
+    onProgress(UpdateStage.INSTALLING, null)
     context.startActivity(
       Intent(Intent.ACTION_VIEW)
         .setDataAndType(uri, "application/vnd.android.package-archive")

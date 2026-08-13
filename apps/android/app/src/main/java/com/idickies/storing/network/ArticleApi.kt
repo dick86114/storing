@@ -11,6 +11,13 @@ import com.idickies.storing.library.ArticleBulkCategoryRequest
 import com.idickies.storing.library.ArticleBulkCategoryResponse
 import com.idickies.storing.library.ArticleBulkClassifyRequest
 import com.idickies.storing.library.ArticleBulkClassifyResponse
+import com.idickies.storing.library.CategoryDeleteResponse
+import com.idickies.storing.library.CategoryMutationRequest
+import com.idickies.storing.library.CategoryMutationResponse
+import com.idickies.storing.library.CategoryReorderRequest
+import com.idickies.storing.library.CategoryReorderResponse
+import com.idickies.storing.library.CategoryOptimizeRequest
+import com.idickies.storing.library.CategoryOptimizeResponse
 import com.idickies.storing.library.ArticleClassifyResponse
 import com.idickies.storing.library.ArticleListResponse
 import com.idickies.storing.library.ArticleSource
@@ -45,7 +52,22 @@ interface ArticleApi {
   suspend fun sources(): List<ArticleSource>
 
   @GET("categories")
-  suspend fun categories(): ArchiveCategoriesResponse
+  suspend fun categories(@Query("includeInactive") includeInactive: Boolean = false): ArchiveCategoriesResponse
+
+  @POST("categories")
+  suspend fun createCategory(@Body request: CategoryMutationRequest): CategoryMutationResponse
+
+  @PATCH("categories/{id}")
+  suspend fun updateCategory(@Path("id") id: Int, @Body request: CategoryMutationRequest): CategoryMutationResponse
+
+  @DELETE("categories/{id}")
+  suspend fun deleteCategory(@Path("id") id: Int, @Query("targetCategoryId") targetCategoryId: Int): CategoryDeleteResponse
+
+  @POST("categories/reorder")
+  suspend fun reorderCategories(@Body request: CategoryReorderRequest): CategoryReorderResponse
+
+  @POST("categories/optimize-description")
+  suspend fun optimizeCategoryDescription(@Body request: CategoryOptimizeRequest): CategoryOptimizeResponse
 
   @GET("tags")
   suspend fun tags(): List<ArticleTag>

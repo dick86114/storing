@@ -13,6 +13,7 @@ import android.os.Build
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
+import com.idickies.storing.ApiConfiguration
 import androidx.core.graphics.withTranslation
 import com.idickies.storing.library.ArticleDetail
 import kotlinx.coroutines.Dispatchers
@@ -95,6 +96,11 @@ object SharePosterGenerator {
       summaryBottom = summaryTop + summaryHeight,
     )
   }
+
+  private val imageClient = OkHttpClient.Builder()
+    .followRedirects(true)
+    .followSslRedirects(true)
+    .build()
 
   suspend fun generate(
     context: Context,
@@ -180,11 +186,10 @@ object SharePosterGenerator {
     if (contentSlots.coverHeight > (56 * density).roundToInt()) {
       val coverRect = RectF(contentLeft, cursorY.toFloat(), contentRight, (cursorY + contentSlots.coverHeight).toFloat())
       canvas.drawRoundRect(coverRect, 8 * density, 8 * density, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = coverFallback })
-      article.coverImage?.let { coverUrl ->
-        loadBitmap(coverUrl)?.let { coverBitmap ->
-          val srcRect = calculateCenterCropSrc(coverBitmap.width, coverBitmap.height, coverRect.width(), coverRect.height())
-          canvas.drawBitmap(coverBitmap, srcRect, coverRect, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
-        }
+      val coverBitmap = loadBitmap(resolveCoverUrl(article.coverImage, ApiConfiguration.baseUrl).orEmpty())
+      if (coverBitmap != null) {
+        val srcRect = calculateCenterCropSrc(coverBitmap.width, coverBitmap.height, coverRect.width(), coverRect.height())
+        canvas.drawBitmap(coverBitmap, srcRect, coverRect, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
       }
       cursorY += contentSlots.coverHeight
     }
@@ -290,10 +295,20 @@ object SharePosterGenerator {
     }
   }
 
+  internal fun resolveCoverUrl(rawUrl: String?, apiBaseUrl: String): String? {
+    val value = rawUrl?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    return runCatching { java.net.URI(apiBaseUrl).resolve(value).toString() }.getOrNull()
+  }
+
   private suspend fun loadBitmap(url: String): Bitmap? = withContext(Dispatchers.IO) {
+    if (url.isBlank()) return@withContext null
     try {
-      val request = Request.Builder().url(url).build()
-      OkHttpClient().newCall(request).execute().use { response ->
+      val request = Request.Builder()
+        .url(url)
+        .header("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+        .header("User-Agent", "Qiankunjie-Android/1.0")
+        .build()
+      imageClient.newCall(request).execute().use { response ->
         if (!response.isSuccessful) return@use null
         response.body?.byteStream()?.use(BitmapFactory::decodeStream)
       }
