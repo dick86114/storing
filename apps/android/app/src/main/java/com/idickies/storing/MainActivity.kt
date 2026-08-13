@@ -13,6 +13,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.fragment.app.FragmentActivity
 import com.idickies.storing.ui.QiankunjieApp
 import com.idickies.storing.collect.ManualCollectUrl
+import com.idickies.storing.collect.ClipboardCollectCandidate
+import com.idickies.storing.collect.clipboardUrlToPrompt
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -23,11 +25,12 @@ class MainActivity : FragmentActivity() {
   private val collectJobId = mutableStateOf<Int?>(null)
   private val openMcpSettings = mutableStateOf(false)
   private val clipboardCollectUrl = mutableStateOf<String?>(null)
+  private var lastClipboardPrompted: ClipboardCollectCandidate? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     handleIntent(intent)
-    clipboardCollectUrl.value = readClipboardCollectUrl()
+    checkClipboardForCollectionPrompt()
     if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
       requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
     }
@@ -53,6 +56,11 @@ class MainActivity : FragmentActivity() {
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     handleIntent(intent)
+  }
+
+  override fun onResume() {
+    super.onResume()
+    checkClipboardForCollectionPrompt()
   }
 
   private fun handleIntent(intent: Intent?) {
@@ -107,10 +115,25 @@ class MainActivity : FragmentActivity() {
     }
   }
 
-  private fun readClipboardCollectUrl(): String? {
+  private fun readClipboardCollectCandidate(): ClipboardCollectCandidate? {
     val clipboard = getSystemService(ClipboardManager::class.java) ?: return null
     val clip = clipboard.primaryClip ?: return null
-    return ManualCollectUrl.fromClipboardText(clip.getItemAt(0).coerceToText(this))
+    val url = ManualCollectUrl.fromClipboardText(clip.getItemAt(0).coerceToText(this)) ?: return null
+    return ClipboardCollectCandidate(url = url, timestamp = clip.description.timestamp)
+  }
+
+  private fun checkClipboardForCollectionPrompt() {
+    val current = readClipboardCollectCandidate()
+    val promptUrl = clipboardUrlToPrompt(
+      current = current,
+      pendingUrl = clipboardCollectUrl.value,
+      lastPrompted = lastClipboardPrompted,
+    )
+    if (current == null) lastClipboardPrompted = null
+    if (promptUrl != null) {
+      clipboardCollectUrl.value = promptUrl.url
+      lastClipboardPrompted = promptUrl
+    }
   }
 
   companion object {

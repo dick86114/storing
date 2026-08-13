@@ -44,6 +44,12 @@ export type ControlledCategoryResult = {
   modelVersion: string | null;
 };
 
+export type CategoryDescriptionDraft = {
+  description: string;
+  includeExamples: string[];
+  excludeExamples: string[];
+};
+
 // 统一 AI 调用接口
 async function callAI(system: string, user: string, maxTokens = 1024, options: AIProviderOptions = {}): Promise<string> {
   const provider = options.provider || process.env.AI_PROVIDER || 'anthropic';
@@ -180,6 +186,37 @@ export async function classifyArticleWithAllowedCategories(
     return { categoryId, confidence, reason: typeof parsed.reason === 'string' ? parsed.reason.slice(0, 240) : null, modelVersion: process.env.AI_MODEL || null };
   } catch {
     return { categoryId: null, confidence: 0, reason: 'AI 分类结果无法解析', modelVersion: process.env.AI_MODEL || null };
+  }
+}
+
+/** 根据用户给出的分类名称生成可继续编辑的分类边界，不会创建或修改分类。 */
+export async function optimizeCategoryDescription(input: {
+  name: string;
+  description?: string | null;
+  includeExamples?: string[];
+  excludeExamples?: string[];
+}): Promise<CategoryDescriptionDraft> {
+  const raw = await callAI(
+    '你负责协助用户定义个人知识库分类规则。不要新增分类名称，不要输出营销文案。根据分类名称给出一段清楚、简短、便于 AI 判断归档归属的说明，并提供收录边界。仅输出 JSON：{"description":"不超过 120 字","include_examples":["最多 5 条"],"exclude_examples":["最多 5 条"]}。',
+    `分类名称：${input.name}\n\n现有说明：${input.description || '无'}\n\n现有适合收录示例：${JSON.stringify(input.includeExamples || [])}\n\n现有不适合收录示例：${JSON.stringify(input.excludeExamples || [])}`,
+    640,
+  );
+
+  try {
+    const json = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+    const parsed = JSON.parse(json) as { description?: unknown; include_examples?: unknown; exclude_examples?: unknown };
+    const normalizeExamples = (value: unknown) => Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean).slice(0, 5)
+      : [];
+    const description = typeof parsed.description === 'string' ? parsed.description.trim().slice(0, 120) : '';
+    if (!description) throw new Error('AI 未返回有效说明');
+    return {
+      description,
+      includeExamples: normalizeExamples(parsed.include_examples),
+      excludeExamples: normalizeExamples(parsed.exclude_examples),
+    };
+  } catch (error) {
+    throw new Error(error instanceof Error && error.message === 'AI 未返回有效说明' ? error.message : 'AI 返回的分类说明无法解析');
   }
 }
 

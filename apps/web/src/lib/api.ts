@@ -389,6 +389,9 @@ export const api = {
   getTags: () =>
     fetchJSON<ArchiveTag[]>('/tags'),
 
+  optimizeCategoryDescription: (input: Pick<ArchiveCategory, 'name' | 'description' | 'includeExamples' | 'excludeExamples'>) =>
+    fetchJSON<{ draft: Pick<ArchiveCategory, 'description' | 'includeExamples' | 'excludeExamples'> }>('/categories/optimize-description', { method: 'POST', body: JSON.stringify(input), timeoutMs: 30000 }),
+
   createCategory: (input: Pick<ArchiveCategory, 'name' | 'description' | 'includeExamples' | 'excludeExamples' | 'color'>) =>
     fetchJSON<{ category: ArchiveCategory }>('/categories', { method: 'POST', body: JSON.stringify(input) }),
 
@@ -397,6 +400,9 @@ export const api = {
 
   mergeCategories: (sourceCategoryId: number, targetCategoryId: number) =>
     fetchJSON<{ ok: true }>('/categories/merge', { method: 'POST', body: JSON.stringify({ sourceCategoryId, targetCategoryId }) }),
+
+  deleteCategory: (categoryId: number, targetCategoryId: number) =>
+    fetchJSON<{ ok: true; movedArticleCount: number }>(`/categories/${categoryId}?targetCategoryId=${targetCategoryId}`, { method: 'DELETE' }),
 
   reorderCategories: (categoryIds: number[]) =>
     fetchJSON<{ categories: ArchiveCategory[] }>('/categories/reorder', { method: 'POST', body: JSON.stringify({ categoryIds }) }),

@@ -28,6 +28,14 @@ class CompactBottomBarDarkBaselineTest {
   }
 }
 
+class CompactBottomBarSelectionStyleTest {
+  @Test
+  fun `浅色和深色主题都不使用选中项胶囊容器`() {
+    assertEquals(false, compactBottomBarItemMetrics(isDark = false).showsSelectionContainer)
+    assertEquals(false, compactBottomBarItemMetrics(isDark = true).showsSelectionContainer)
+  }
+}
+
 class CompactBottomBarBadgeMetricsTest {
   @Test
   fun `数字气泡使用无字体内边距的固定行高以保持数字垂直居中`() {

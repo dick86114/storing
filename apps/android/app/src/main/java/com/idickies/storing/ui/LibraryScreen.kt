@@ -321,6 +321,12 @@ internal data class LibraryControlMetrics(
   val presentationCellSize: androidx.compose.ui.unit.Dp,
 )
 
+internal data class LibraryArchiveControlMetrics(
+  val maxRows: Int,
+  val toolbarHeight: androidx.compose.ui.unit.Dp,
+  val batchActionSharesToolbar: Boolean,
+)
+
 internal data class LibraryMenuMetrics(
   val moreMenuWidth: androidx.compose.ui.unit.Dp,
   val sortMenuWidth: androidx.compose.ui.unit.Dp,
@@ -345,6 +351,12 @@ internal val libraryControlShape = RoundedCornerShape(14.dp)
 internal val libraryControlMetrics = LibraryControlMetrics(
   triggerHeight = 40.dp,
   presentationCellSize = 36.dp,
+)
+
+internal val libraryArchiveControlMetrics = LibraryArchiveControlMetrics(
+  maxRows = 2,
+  toolbarHeight = 40.dp,
+  batchActionSharesToolbar = true,
 )
 
 internal val libraryMenuMetrics = LibraryMenuMetrics(
@@ -1609,8 +1621,8 @@ private fun LibraryList(
       modifier = Modifier.fillMaxSize(),
       state = gridState,
       contentPadding = PaddingValues(16.dp),
-      verticalItemSpacing = 10.dp,
-      horizontalArrangement = Arrangement.spacedBy(12.dp),
+      verticalItemSpacing = 14.dp,
+      horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
     item(span = StaggeredGridItemSpan.FullLine) {
       var sortExpanded by remember { mutableStateOf(false) }
@@ -1645,39 +1657,40 @@ private fun LibraryList(
             }
           }
         }
-        if (state.view == LibraryView.Archive && state.searchQuery.isBlank()) {
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically,
-          ) {
+        Row(
+          modifier = Modifier.fillMaxWidth().height(libraryArchiveControlMetrics.toolbarHeight),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          if (state.view == LibraryView.Archive && state.searchQuery.isBlank()) {
             if (batchMode) {
-              Text("已选择 ${selectedArticleIds.size} 篇", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-              Spacer(Modifier.width(8.dp))
-              TextButton(onClick = { batchCategoryPickerOpen = true }, enabled = selectedArticleIds.isNotEmpty() && !batchCategoryUpdating) { Text("修改分类") }
-              TextButton(
-                onClick = {
-                  onBatchReclassify(selectedArticleIds) { succeeded ->
-                    if (succeeded) {
-                      batchMode = false
-                      selectedArticleIds = emptySet()
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("已选 ${selectedArticleIds.size}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                TextButton(onClick = { batchCategoryPickerOpen = true }, enabled = selectedArticleIds.isNotEmpty() && !batchCategoryUpdating) { Text("改分类") }
+                TextButton(
+                  onClick = {
+                    onBatchReclassify(selectedArticleIds) { succeeded ->
+                      if (succeeded) {
+                        batchMode = false
+                        selectedArticleIds = emptySet()
+                      }
                     }
-                  }
-                },
-                enabled = selectedArticleIds.isNotEmpty() && !batchCategoryUpdating,
-              ) { Text("重新判断分类") }
-              TextButton(onClick = { batchMode = false; selectedArticleIds = emptySet() }, enabled = !batchCategoryUpdating) { Text("取消") }
+                  },
+                  enabled = selectedArticleIds.isNotEmpty() && !batchCategoryUpdating,
+                ) { Text("重判") }
+                TextButton(onClick = { batchMode = false; selectedArticleIds = emptySet() }, enabled = !batchCategoryUpdating) { Text("取消") }
+              }
             } else {
-              TextButton(onClick = { batchMode = true }) { Text("批量整理") }
+              TextButton(onClick = { batchMode = true }) {
+                Icon(Icons.Outlined.TaskAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("批量整理")
+              }
             }
+          } else {
+            Spacer(Modifier.width(1.dp))
           }
-        }
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+          if (!batchMode) Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
           if (state.view != LibraryView.Published && state.searchQuery.isBlank()) {
             Box {
               AssistChip(
@@ -1704,9 +1717,9 @@ private fun LibraryList(
                 },
                 label = {
                   Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(state.sort.label)
-                    Icon(Icons.Outlined.ArrowDownward, contentDescription = if (sortOrder == "desc") "当前降序" else "降序", modifier = Modifier.size(14.dp))
-                    Icon(Icons.Outlined.ArrowUpward, contentDescription = if (sortOrder == "asc") "当前升序" else "升序", modifier = Modifier.size(14.dp))
+                    Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = "排序", modifier = Modifier.size(16.dp))
+                    Text("排序")
+                    Icon(if (sortOrder == "desc") Icons.Outlined.ArrowDownward else Icons.Outlined.ArrowUpward, contentDescription = if (sortOrder == "desc") "当前降序" else "当前升序", modifier = Modifier.size(14.dp))
                   }
                 },
               )
@@ -1746,7 +1759,7 @@ private fun LibraryList(
                     borderWidth = 0.8.dp,
                   )
                 },
-                label = { Text(if (state.archiveSourcesLoading) "来源" else state.archiveSource.label) },
+                label = { Text("来源") },
                 leadingIcon = { Icon(Icons.Outlined.FilterList, contentDescription = "归档来源", modifier = Modifier.size(16.dp)) },
               )
               if (sourceExpanded) {
@@ -1781,7 +1794,7 @@ private fun LibraryList(
                     borderWidth = 0.8.dp,
                   )
                 },
-                label = { Text(if (state.archiveTagsLoading) "标签" else state.archiveTagFilter.label) },
+                label = { Text("标签") },
                 leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Label, contentDescription = "归档标签", modifier = Modifier.size(16.dp)) },
               )
               if (tagExpanded) {
@@ -1794,8 +1807,8 @@ private fun LibraryList(
               }
             }
           }
+          }
         }
-      }
       }
     }
     if (activeJobCount > 0) item(span = StaggeredGridItemSpan.FullLine) {

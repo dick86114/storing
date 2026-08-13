@@ -16,7 +16,7 @@ Commands:
   doctor                         Report ADB, connected devices, emulator and AVD readiness.
   build                          Build the Debug APK.
   install                        Build and install the newest Debug APK on the selected ADB device.
-  launch <login|library|reader|share|tasks|states|settings>
+  launch <login|library|reader|poster|share|tasks|states|settings>
                                  Launch a deterministic Debug-only UI Lab scenario.
   screenshot [name]              Save a PNG screenshot to artifacts/android-ui-lab/.
   capture <scenario> [name]      Build, install, launch a scenario and save its screenshot.
@@ -53,7 +53,7 @@ install() {
 }
 
 validate_scenario() {
-  case "$1" in login|library|reader|share|tasks|states|settings) ;; *) echo "Unknown UI Lab scenario: $1" >&2; exit 2;; esac
+  case "$1" in login|library|reader|poster|share|tasks|states|settings) ;; *) echo "Unknown UI Lab scenario: $1" >&2; exit 2;; esac
 }
 
 launch() {

@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useSWRConfig } from 'swr';
 import useSWR from 'swr';
 import QRCode from 'qrcode';
-import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, DeleteOutlined, UpOutlined, DownOutlined, ExclamationCircleOutlined, CloseOutlined } from '@ant-design/icons';
+import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, GlobalOutlined, DeleteOutlined, UpOutlined, DownOutlined, ExclamationCircleOutlined, CloseOutlined } from '@ant-design/icons';
 import { useArticle, useArticleMeta } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/providers/AuthContext';
@@ -2865,73 +2865,82 @@ function DetailContent({
                       <span>{detailHeaderLocation}</span>
                     </>
                   )}
-                  {article.isArchived && article.category && (
-                    <button className="detail-panel-category-button" type="button" onClick={() => setCategoryAssignmentOpen(true)}>
-                      <span className="detail-panel-category-dot" style={{ background: article.category.color || 'var(--accent)' }} aria-hidden="true" />
-                      {article.category.name}
-                    </button>
-                  )}
                 </div>
-                {article.categoryResult?.reviewStatus === 'needs_review' && (
-                  <div className="detail-panel-category-review">
-                    <span>AI 分类待确认</span>
-                    {article.categoryResult.reason && <span>· {article.categoryResult.reason}</span>}
+                {(article.isArchived && article.category || article.categoryResult?.reviewStatus === 'needs_review') && (
+                  <div className="detail-panel-category-status" aria-label="分类状态">
+                    {article.isArchived && article.category && (
+                      <button className="detail-panel-category-current" type="button" onClick={() => setCategoryAssignmentOpen(true)}>
+                        <span className="detail-panel-category-dot" style={{ background: article.category.color || 'var(--accent)' }} aria-hidden="true" />
+                        <span className="detail-panel-category-status-label">当前分类</span>
+                        <span className="detail-panel-category-status-value">{article.category.name}</span>
+                      </button>
+                    )}
+                    {article.categoryResult?.reviewStatus === 'needs_review' && (
+                      <div className="detail-panel-category-review">
+                        <span className="detail-panel-category-review-label">AI 分类待确认</span>
+                        {article.categoryResult.reason && <span className="detail-panel-category-review-reason">{article.categoryResult.reason}</span>}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             </div>
-            {/* AI标签 */}
-            {showAISkeleton ? (
-              <div className="detail-panel-tags" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: 0 }}>
-                <div className="skeleton-line" style={{ width: 56, height: 24, borderRadius: '4px' }} />
-                <div className="skeleton-line" style={{ width: 72, height: 24, borderRadius: '4px' }} />
-                <div className="skeleton-line" style={{ width: 48, height: 24, borderRadius: '4px' }} />
-              </div>
-            ) : article.aiTags?.length > 0 && (
-              <div className="detail-panel-tags" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {article.aiTags.map((tag: string) => (
-                  <span className="article-card-tag" key={tag} style={{ padding: '4px 10px', background: 'var(--tag-bg)', color: 'var(--text-muted)', fontSize: '12px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
-                    #{tag}
-                  </span>
-                ))}
+            {(showAISkeleton || article.aiTags?.length > 0 || article.aiSummary) && (
+              <div className="detail-panel-intelligence">
+                {/* AI标签 */}
+                {showAISkeleton ? (
+                  <div className="detail-panel-tags" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <div className="skeleton-line" style={{ width: 56, height: 24, borderRadius: '4px' }} />
+                    <div className="skeleton-line" style={{ width: 72, height: 24, borderRadius: '4px' }} />
+                    <div className="skeleton-line" style={{ width: 48, height: 24, borderRadius: '4px' }} />
+                  </div>
+                ) : article.aiTags?.length > 0 && (
+                  <div className="detail-panel-tags" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {article.aiTags.map((tag: string) => (
+                      <span className="article-card-tag" key={tag} style={{ padding: '4px 10px', background: 'var(--tag-bg)', color: 'var(--text-muted)', fontSize: '12px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* AI摘要 */}
+                {showAISkeleton ? (
+                  <div className="ai-summary-block" style={{ background: 'var(--tag-bg)', borderRadius: '8px' }}>
+                    <div className="ai-summary-row" aria-hidden="true">
+                      <div className="skeleton-line" style={{ width: 16, height: 16, borderRadius: '50%', flexShrink: 0 }} />
+                      <div className="skeleton-line" style={{ width: 72, height: 14 }} />
+                    </div>
+                    <div className="ai-summary-text" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div className="skeleton-line" style={{ width: '100%', height: 14 }} />
+                      <div className="skeleton-line" style={{ width: '90%', height: 14 }} />
+                      <div className="skeleton-line" style={{ width: '75%', height: 14 }} />
+                    </div>
+                  </div>
+                ) : article.aiSummary && (
+                  <div className={`ai-summary-block${summaryCollapsed ? ' collapsed' : ''}`} style={{ background: 'var(--tag-bg)', borderRadius: '8px' }}>
+                    <button
+                      className="ai-summary-row"
+                      type="button"
+                      onClick={() => setSummaryCollapsed((collapsed) => !collapsed)}
+                      aria-expanded={!summaryCollapsed}
+                    >
+                      <div className="ai-summary-dot" aria-hidden="true" />
+                      <span className="ai-summary-title" style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', flex: 1 }}>
+                        智能摘要
+                      </span>
+                      <span className="ai-summary-toggle" aria-hidden="true">
+                        {summaryCollapsed ? <DownOutlined /> : <UpOutlined />}
+                      </span>
+                    </button>
+                    {!summaryCollapsed && (
+                      <p className="ai-summary-text" style={{ fontSize: '15px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{article.aiSummary}</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
-
-	          {/* AI摘要 */}
-	          {showAISkeleton ? (
-            <div className="ai-summary-block" style={{ background: 'var(--tag-bg)', margin: '4px 16px 8px', borderRadius: '8px' }}>
-	              <div className="ai-summary-row" aria-hidden="true">
-	                <div className="skeleton-line" style={{ width: 16, height: 16, borderRadius: '50%', flexShrink: 0 }} />
-	                <div className="skeleton-line" style={{ width: 72, height: 14 }} />
-	              </div>
-	              <div className="ai-summary-text" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-	                <div className="skeleton-line" style={{ width: '100%', height: 14 }} />
-	                <div className="skeleton-line" style={{ width: '90%', height: 14 }} />
-	                <div className="skeleton-line" style={{ width: '75%', height: 14 }} />
-	              </div>
-	            </div>
-	          ) : article.aiSummary && (
-              <div className={`ai-summary-block${summaryCollapsed ? ' collapsed' : ''}`} style={{ background: 'var(--tag-bg)', margin: '4px 16px 8px', borderRadius: '8px' }}>
-	              <button
-	                className="ai-summary-row"
-	                type="button"
-	                onClick={() => setSummaryCollapsed((collapsed) => !collapsed)}
-	                aria-expanded={!summaryCollapsed}
-	              >
-	                <div className="ai-summary-dot" aria-hidden="true" />
-	                <span className="ai-summary-title" style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', flex: 1 }}>
-	                  智能摘要
-	                </span>
-	                <span className="ai-summary-toggle" aria-hidden="true">
-	                  {summaryCollapsed ? <DownOutlined /> : <UpOutlined />}
-	                </span>
-	              </button>
-	              {!summaryCollapsed && (
-	                <p className="ai-summary-text" style={{ fontSize: '15px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{article.aiSummary}</p>
-	              )}
-	            </div>
-	          )}
 
           {/* 正文 */}
           <div
@@ -3038,7 +3047,7 @@ function DetailContent({
                <span className="detail-panel-action-label" style={{ fontSize: '11px', color: article.isFavorited ? 'var(--accent)' : 'var(--text-muted)' }}>收藏</span>
              </button>
              <button className={`detail-panel-action-btn${article.isPublished ? ' published' : ''}`} onClick={handlePublish} type="button" disabled={pendingAction === 'publish'} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: pendingAction === 'publish' ? 'wait' : 'pointer' }}>
-               <ExportOutlined style={{ fontSize: '20px', color: article.isPublished ? 'var(--accent)' : 'var(--text)' }} />
+               <GlobalOutlined style={{ fontSize: '20px', color: article.isPublished ? 'var(--accent)' : 'var(--text)' }} />
                <span className="detail-panel-action-label" style={{ fontSize: '11px', color: article.isPublished ? 'var(--accent)' : 'var(--text-muted)' }}>{pendingAction === 'publish' ? '发布中' : article.isPublished ? '取消发布' : '发布'}</span>
              </button>
            </>

@@ -9,6 +9,7 @@ class UiLabScenarioTest {
     assertEquals(UiLabScenario.Library, UiLabScenario.fromRoute(null))
     assertEquals(UiLabScenario.Reader, UiLabScenario.fromRoute("reader"))
     assertEquals(UiLabScenario.Settings, UiLabScenario.fromRoute("settings"))
+    assertEquals(UiLabScenario.Poster, UiLabScenario.fromRoute("poster"))
     assertEquals(UiLabScenario.Login, UiLabScenario.fromRoute("login"))
     assertEquals(UiLabScenario.Library, UiLabScenario.fromRoute("not-a-page"))
   }
@@ -19,5 +20,6 @@ class UiLabScenarioTest {
     assertEquals("tasks", UiLabScenario.Tasks.route)
     assertEquals("settings", UiLabScenario.Settings.route)
     assertEquals("login", UiLabScenario.Login.route)
+    assertEquals("poster", UiLabScenario.Poster.route)
   }
 }

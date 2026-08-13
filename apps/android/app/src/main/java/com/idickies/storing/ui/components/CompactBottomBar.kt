@@ -9,7 +9,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -39,7 +38,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -76,6 +74,7 @@ data class CompactBottomBarItemMetrics(
   val itemVerticalSpacing: androidx.compose.ui.unit.Dp,
   val contentVerticalOffset: androidx.compose.ui.unit.Dp,
   val shadowElevation: androidx.compose.ui.unit.Dp,
+  val showsSelectionContainer: Boolean,
 )
 
 data class CompactBottomBarBadgeMetrics(
@@ -96,6 +95,7 @@ fun compactBottomBarItemMetrics(isDark: Boolean): CompactBottomBarItemMetrics = 
   itemVerticalSpacing = compactBottomBarMetrics.itemVerticalSpacing,
   contentVerticalOffset = compactBottomBarMetrics.contentVerticalOffset,
   shadowElevation = 14.dp,
+  showsSelectionContainer = false,
 )
 
 @Composable
@@ -189,11 +189,6 @@ fun CompactBottomBarItem(
   )
   val isDark = isQiankunjieDarkTheme()
   val itemMetrics = compactBottomBarItemMetrics(isDark)
-  val selectionAlpha by animateFloatAsState(
-    targetValue = if (selected && !isDark) 1f else 0f,
-    animationSpec = spring(dampingRatio = 0.78f, stiffness = 520f),
-    label = "bottomNavSelectionGlass",
-  )
   val refreshTransition = rememberInfiniteTransition(label = "bottomNavRefresh")
   val refreshRotation by refreshTransition.animateFloat(
     initialValue = 0f,
@@ -201,20 +196,9 @@ fun CompactBottomBarItem(
     animationSpec = infiniteRepeatable(tween(720), RepeatMode.Restart),
     label = "bottomNavRefreshRotation",
   )
-  val selectionShape = RoundedCornerShape(18.dp)
   Column(
     modifier = Modifier
       .offset(y = itemMetrics.contentVerticalOffset)
-      .let { base ->
-        if (isDark) base else base
-          .clip(selectionShape)
-          .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.09f * selectionAlpha))
-          .border(
-            width = 0.7.dp,
-            color = Color.White.copy(alpha = 0.58f * selectionAlpha),
-            shape = selectionShape,
-          )
-      }
       .semantics {
         stateDescription = when {
           selected && refreshing -> "$label，正在刷新"

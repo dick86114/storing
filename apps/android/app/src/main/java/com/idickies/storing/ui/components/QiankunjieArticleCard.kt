@@ -24,7 +24,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Inventory2
-import androidx.compose.material.icons.outlined.IosShare
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -54,6 +55,41 @@ data class ArticleCardLayout(
   val coverCornerRadius: androidx.compose.ui.unit.Dp,
   val contentPadding: androidx.compose.ui.unit.Dp,
 )
+
+internal data class ArticleCardSurfaceTokens(
+  val surfaceAlpha: Float,
+  val borderAlpha: Float,
+  val shadowElevation: androidx.compose.ui.unit.Dp,
+)
+
+internal fun articleCardSurfaceTokens(isDark: Boolean): ArticleCardSurfaceTokens = if (isDark) {
+  ArticleCardSurfaceTokens(surfaceAlpha = 1f, borderAlpha = 0.82f, shadowElevation = 3.dp)
+} else {
+  ArticleCardSurfaceTokens(surfaceAlpha = 0.985f, borderAlpha = 0.52f, shadowElevation = 14.dp)
+}
+
+private fun Modifier.articleCardSurface(
+  shape: Shape,
+  colors: androidx.compose.material3.ColorScheme,
+  tokens: ArticleCardSurfaceTokens,
+): Modifier = shadow(
+  elevation = tokens.shadowElevation,
+  shape = shape,
+  clip = false,
+  ambientColor = Color(0xFF1E4230).copy(alpha = 0.08f),
+  spotColor = Color(0xFF1E4230).copy(alpha = 0.15f),
+)
+  .clip(shape)
+  .background(
+    brush = Brush.verticalGradient(
+      listOf(
+        colors.surface.copy(alpha = 1f),
+        Color(0xFFFFFCF7).copy(alpha = tokens.surfaceAlpha),
+      ),
+    ),
+    shape = shape,
+  )
+  .border(1.dp, colors.outline.copy(alpha = tokens.borderAlpha), shape)
 
 /** Full-card geometry: WeChat official-account cover plus the approved reading-card rhythm. */
 val articleCardLayout = ArticleCardLayout(
@@ -119,10 +155,11 @@ fun QiankunjieArticleCard(
   val cardShape = RoundedCornerShape(articleCardLayout.cardCornerRadius)
   val pressMotion = rememberArticleCardPressMotion()
   val isDark = isQiankunjieDarkTheme()
+  val surfaceTokens = articleCardSurfaceTokens(isDark)
   val cardModifier = modifier
     .fillMaxWidth()
     .scale(pressMotion.scale)
-    .let { base -> if (isDark) base else base.liquidGlass(shape = cardShape, role = LiquidGlassRole.Panel) }
+    .let { base -> if (isDark) base else base.articleCardSurface(cardShape, colors, surfaceTokens) }
 
   Card(
     modifier = cardModifier
@@ -134,9 +171,9 @@ fun QiankunjieArticleCard(
         onLongClick = { onLongPress(article) },
       ),
     colors = CardDefaults.cardColors(containerColor = if (isDark) colors.surfaceVariant else Color.Transparent),
-    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) surfaceTokens.shadowElevation else 0.dp),
     shape = cardShape,
-    border = if (isDark) androidx.compose.foundation.BorderStroke(1.dp, colors.outline.copy(alpha = 0.76f)) else null,
+    border = if (isDark) androidx.compose.foundation.BorderStroke(0.9.dp, colors.outline.copy(alpha = surfaceTokens.borderAlpha)) else null,
   ) {
     Column {
       ArticleThumbnail(
@@ -218,10 +255,11 @@ fun QiankunjieGridArticleCard(
   val pressMotion = rememberArticleCardPressMotion()
   val cardShape = RoundedCornerShape(gridArticleCardLayout.cardCornerRadius)
   val isDark = isQiankunjieDarkTheme()
+  val surfaceTokens = articleCardSurfaceTokens(isDark)
   val cardModifier = modifier
     .fillMaxWidth()
     .scale(pressMotion.scale)
-    .let { base -> if (isDark) base else base.liquidGlass(shape = cardShape, role = LiquidGlassRole.Panel) }
+    .let { base -> if (isDark) base else base.articleCardSurface(cardShape, colors, surfaceTokens) }
   Card(
     modifier = cardModifier
       .combinedClickable(
@@ -231,9 +269,9 @@ fun QiankunjieGridArticleCard(
         onLongClick = { onLongPress(article) },
       ),
     colors = CardDefaults.cardColors(containerColor = if (isDark) colors.surfaceVariant else Color.Transparent),
-    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) surfaceTokens.shadowElevation else 0.dp),
     shape = cardShape,
-    border = if (isDark) androidx.compose.foundation.BorderStroke(1.dp, colors.outline.copy(alpha = 0.68f)) else null,
+    border = if (isDark) androidx.compose.foundation.BorderStroke(0.9.dp, colors.outline.copy(alpha = surfaceTokens.borderAlpha)) else null,
   ) {
     Column {
       ArticleThumbnail(
@@ -287,10 +325,11 @@ fun QiankunjieCompactArticleRow(
   val pressMotion = rememberArticleCardPressMotion()
   val cardShape = MaterialTheme.shapes.medium
   val isDark = isQiankunjieDarkTheme()
+  val surfaceTokens = articleCardSurfaceTokens(isDark)
   val cardModifier = modifier
     .fillMaxWidth()
     .scale(pressMotion.scale)
-    .let { base -> if (isDark) base else base.liquidGlass(shape = cardShape, role = LiquidGlassRole.Panel) }
+    .let { base -> if (isDark) base else base.articleCardSurface(cardShape, MaterialTheme.colorScheme, surfaceTokens) }
   Card(
     modifier = cardModifier
       .combinedClickable(
@@ -300,9 +339,9 @@ fun QiankunjieCompactArticleRow(
         onLongClick = { onLongPress(article) },
       ),
     colors = CardDefaults.cardColors(containerColor = if (isDark) MaterialTheme.colorScheme.surface else Color.Transparent),
-    elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 2.dp else 0.dp),
+    elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) surfaceTokens.shadowElevation else 0.dp),
     shape = cardShape,
-    border = if (isDark) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else null,
+    border = if (isDark) androidx.compose.foundation.BorderStroke(0.9.dp, MaterialTheme.colorScheme.outline.copy(alpha = surfaceTokens.borderAlpha)) else null,
   ) {
     Row(
       modifier = Modifier.padding(10.dp),
@@ -379,7 +418,7 @@ private fun ArticleMetadata(article: ArticleCard, color: androidx.compose.ui.gra
       when (marker) {
         ArticleCardStatusMarker.Favorite -> Icon(Icons.Outlined.Star, contentDescription = "已收藏", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
         ArticleCardStatusMarker.Archived -> Icon(Icons.Outlined.Inventory2, contentDescription = "已归档", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        ArticleCardStatusMarker.Published -> Icon(Icons.Outlined.IosShare, contentDescription = "已发布", modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.tertiary)
+        ArticleCardStatusMarker.Published -> Icon(Icons.Outlined.Public, contentDescription = "已公开", modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.tertiary)
       }
     }
   }
@@ -430,19 +469,6 @@ private fun ArticleThumbnail(article: ArticleCard, modifier: Modifier, shape: Sh
         contentScale = ContentScale.Crop,
         modifier = Modifier.fillMaxSize(),
       )
-    }
-    if (article.isPublished) {
-      Surface(
-        modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).size(30.dp),
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.94f),
-        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-        shadowElevation = 2.dp,
-      ) {
-        Box(contentAlignment = Alignment.Center) {
-          Icon(Icons.Outlined.IosShare, contentDescription = "已发布", modifier = Modifier.size(16.dp))
-        }
-      }
     }
   }
 }

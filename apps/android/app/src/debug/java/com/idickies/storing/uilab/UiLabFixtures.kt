@@ -1,6 +1,7 @@
 package com.idickies.storing.uilab
 
 import com.idickies.storing.library.ArticleCard
+import com.idickies.storing.library.ArticleDetail
 
 internal object UiLabFixtures {
   val library = listOf(
@@ -18,4 +19,14 @@ internal object UiLabFixtures {
 
     后续设计评审会在这里完成浅色、深色、空态、加载态、长内容和失败态的视觉验证，再进入真实资料库和小米 / 澎湃 OS 真机验收。
   """.trimIndent()
+
+  val posterArticle = ArticleDetail(
+    id = 240,
+    title = "炸裂！5.5k Star anydoc 一锅端，Word、PPT、Excel、PDF",
+    author = "小华",
+    source = "公众号",
+    publishTime = "2026-08-07T15:59:00Z",
+    aiSummary = "一个统一处理 Word、PPT、Excel 与 PDF 的开源工具，适合需要在多种文档格式间转换、提取和整理内容的工作流。这里使用更长的固定摘要验证内容不会进入底部二维码区域。",
+    isPublished = true,
+  )
 }

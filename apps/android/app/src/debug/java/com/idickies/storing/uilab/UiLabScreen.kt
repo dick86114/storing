@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.AddLink
@@ -78,9 +79,11 @@ import com.idickies.storing.ui.components.ReaderActionBar
 import com.idickies.storing.reader.ReaderWebView
 import com.idickies.storing.ui.QiankunjieSettingsScreen
 import com.idickies.storing.ui.LoginScreen
+import com.idickies.storing.ui.SharePosterScreen
 import com.idickies.storing.ui.ArticleDetailSkeleton
 import com.idickies.storing.ui.LibraryMoreMenu
 import com.idickies.storing.ui.libraryControlMetrics
+import com.idickies.storing.ui.libraryArchiveControlMetrics
 import com.idickies.storing.ui.LibrarySortMenu
 import com.idickies.storing.ui.LibrarySourceMenu
 import com.idickies.storing.ui.LibraryPresentationModeSelector
@@ -121,6 +124,14 @@ internal fun UiLabScreen(
       onSearch = {},
       onOpen = {},
       onLongPress = {},
+    )
+    return
+  }
+  if (scenario == UiLabScenario.Poster) {
+    SharePosterScreen(
+      article = UiLabFixtures.posterArticle,
+      publicUrl = "https://storing.idickies.com/p/240",
+      onBack = onClose,
     )
     return
   }
@@ -213,6 +224,7 @@ internal fun UiLabScreen(
         UiLabScenario.Search -> Unit
         UiLabScenario.Empty -> UiLabEmptyLibrary()
         UiLabScenario.Reader -> UiLabReader()
+        UiLabScenario.Poster -> Unit
         UiLabScenario.Share -> UiLabShare()
         UiLabScenario.Tasks -> UiLabTasks()
         UiLabScenario.States -> UiLabStates()
@@ -228,6 +240,8 @@ private fun UiLabLibrary(
   onPresentationModeChange: (ArticleListPresentationMode) -> Unit,
 ) {
   val isDarkAppearance = isQiankunjieDarkTheme()
+  var selectedCategory by remember { mutableStateOf("全部") }
+  var batchMode by remember { mutableStateOf(false) }
   var sortExpanded by remember { mutableStateOf(false) }
   var selectedSort by remember { mutableStateOf(LibrarySort.Collected) }
   var sortOrder by remember { mutableStateOf("desc") }
@@ -241,10 +255,32 @@ private fun UiLabLibrary(
     verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
     item {
-      ActiveCollectJobsCard(activeJobCount = 2, onOpenTasks = {})
+      Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+      ) {
+        listOf("全部", "待整理", "NAS", "Docker", "编程开发").forEach { category ->
+          AssistChip(
+            onClick = { selectedCategory = category },
+            label = { Text(category) },
+            colors = AssistChipDefaults.assistChipColors(
+              containerColor = if (selectedCategory == category) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+            ),
+          )
+        }
+      }
     }
     item {
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+      Row(
+        modifier = Modifier.fillMaxWidth().height(libraryArchiveControlMetrics.toolbarHeight),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        TextButton(onClick = { batchMode = !batchMode }) {
+          Icon(Icons.Outlined.TaskAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+          Text(if (batchMode) "已选 0" else "批量整理", modifier = Modifier.padding(start = 4.dp))
+        }
+        if (!batchMode) Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         Box {
           AssistChip(
             onClick = { sortExpanded = true },
@@ -267,7 +303,7 @@ private fun UiLabLibrary(
                 borderWidth = 0.8.dp,
               )
             },
-            label = { Text(selectedSort.label) },
+            label = { Text("排序") },
             leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = null, modifier = Modifier.size(18.dp)) },
           )
           LibrarySortMenu(
@@ -303,7 +339,7 @@ private fun UiLabLibrary(
                 borderWidth = 0.8.dp,
               )
             },
-            label = { Text(selectedSource.category?.let { "$it · ${sourceCounts[it] ?: 0}" } ?: "全部来源") },
+            label = { Text("来源") },
             leadingIcon = { Icon(Icons.Outlined.FilterList, contentDescription = null, modifier = Modifier.size(18.dp)) },
           )
           LibrarySourceMenu(
@@ -315,12 +351,19 @@ private fun UiLabLibrary(
             onSelect = { selectedSource = it },
           )
         }
+        AssistChip(
+          onClick = {},
+          modifier = Modifier.height(libraryControlMetrics.triggerHeight),
+          label = { Text("标签") },
+          leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Label, contentDescription = null, modifier = Modifier.size(18.dp)) },
+        )
+        }
       }
     }
     item {
       Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text("归档资料库", style = MaterialTheme.typography.headlineSmall)
-        Text("来源筛选只在归档的非搜索状态显示。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("分类、批量整理和筛选集中在两行内。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
       }
     }
     items(UiLabFixtures.library.take(1)) { article -> QiankunjieArticleCard(article = article, onOpen = {}) }
