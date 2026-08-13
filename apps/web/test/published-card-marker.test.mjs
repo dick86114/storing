@@ -10,7 +10,7 @@ test('published articles expose an icon-only status mark beside their card date'
   const styles = readWeb('src/app/globals.css');
 
   assert.match(card, /article\.isPublished && <span className="article-card-published-mark"/);
-  assert.match(card, /aria-label="已发布"/);
-  assert.match(card, /<ExportOutlined aria-hidden="true" \/>/);
+  assert.match(card, /aria-label="已公开"/);
+  assert.match(card, /<GlobalOutlined aria-hidden="true" \/>/);
   assert.match(styles, /\.article-card-published-mark \{[\s\S]*?width: 16px;[\s\S]*?height: 16px;[\s\S]*?color: var\(--accent\);/);
 });

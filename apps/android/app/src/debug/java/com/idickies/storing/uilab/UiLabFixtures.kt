@@ -25,6 +25,7 @@ internal object UiLabFixtures {
     title = "炸裂！5.5k Star anydoc 一锅端，Word、PPT、Excel、PDF",
     author = "小华",
     source = "公众号",
+    coverImage = "https://images.unsplash.com/photo-1515879218367-8466d910aaa4?auto=format&fit=crop&w=1200&q=85",
     publishTime = "2026-08-07T15:59:00Z",
     aiSummary = "一个统一处理 Word、PPT、Excel 与 PDF 的开源工具，适合需要在多种文档格式间转换、提取和整理内容的工作流。这里使用更长的固定摘要验证内容不会进入底部二维码区域。",
     isPublished = true,

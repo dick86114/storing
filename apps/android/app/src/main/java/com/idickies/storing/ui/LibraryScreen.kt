@@ -86,6 +86,7 @@ import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.Link
@@ -782,6 +783,7 @@ fun LibraryScreen(
   var showAdmin by remember { mutableStateOf(false) }
   var showDeviceSessions by remember { mutableStateOf(false) }
   var showSettings by remember { mutableStateOf(false) }
+  var showCategoryManagement by remember { mutableStateOf(false) }
   var showAbout by remember { mutableStateOf(false) }
   var moreExpanded by remember { mutableStateOf(false) }
   var showLibrarySearch by rememberSaveable { mutableStateOf(false) }
@@ -907,8 +909,9 @@ fun LibraryScreen(
     }
   }
 
-  BackHandler(enabled = showSettings || showReaderSettings || showSharePoster || showChangePassword || showOfflineContent || showMcp || showAdmin || showDeviceSessions || showTasks || showManualCollect) {
+  BackHandler(enabled = showSettings || showCategoryManagement || showReaderSettings || showSharePoster || showChangePassword || showOfflineContent || showMcp || showAdmin || showDeviceSessions || showTasks || showManualCollect) {
     when {
+      showCategoryManagement -> showCategoryManagement = false
       showReaderSettings -> showReaderSettings = false
       showSharePoster -> showSharePoster = false
       showChangePassword -> showChangePassword = false
@@ -947,6 +950,7 @@ fun LibraryScreen(
       onPasswordChanged = onLogout,
     )
     showDeviceSessions -> DeviceSessionsScreen(onBack = { showDeviceSessions = false })
+    showCategoryManagement -> CategoryManagementScreen(onBack = { showCategoryManagement = false })
     showSettings -> QiankunjieSettingsScreen(
       checkingUpdate = updateChecking,
       themeMode = themeMode,
@@ -956,6 +960,7 @@ fun LibraryScreen(
       onOpenChangePassword = { showChangePassword = true },
       onOpenOfflineContent = { showOfflineContent = true },
       onOpenMcp = { showMcp = true },
+      onOpenCategoryManagement = { showCategoryManagement = true },
       onOpenAdmin = if (isAdmin) ({ showAdmin = true }) else null,
       biometricAvailable = biometricAvailable,
       biometricEnabled = biometricEnabled,
@@ -1517,6 +1522,61 @@ private fun ArchiveCategoryPickerDialog(
   )
 }
 
+@Composable
+private fun CategoryAssignmentDialog(
+  onDismissRequest: () -> Unit,
+  title: String,
+  subtitle: String,
+  categories: List<ArticleCategory>,
+  currentCategoryId: Int?,
+  loading: Boolean,
+  onSelect: (Int) -> Unit,
+) {
+  QiankunjieAlertDialog(
+    onDismissRequest = onDismissRequest,
+    icon = { Icon(Icons.AutoMirrored.Outlined.Label, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+    title = { Text(title) },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        if (categories.isEmpty()) {
+          Text("暂无可用分类，请先在分类管理中创建分类。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+          categories.forEach { category ->
+            val selected = category.id == currentCategoryId
+            Surface(
+              modifier = Modifier.fillMaxWidth().clickable(enabled = !loading && !selected) { onSelect(category.id) },
+              shape = RoundedCornerShape(10.dp),
+              color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+              border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.48f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
+              ),
+            ) {
+              Row(
+                modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Box(
+                  modifier = Modifier
+                    .size(10.dp)
+                    .background(category.color?.let { parseCategoryColor(it) } ?: MaterialTheme.colorScheme.primary, CircleShape),
+                )
+                Text(category.name, modifier = Modifier.weight(1f), color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                if (selected) Text("当前", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+              }
+            }
+          }
+        }
+      }
+    },
+    confirmButton = { TextButton(onClick = onDismissRequest, enabled = !loading) { Text("取消") } },
+  )
+}
+
+private fun parseCategoryColor(value: String): Color = runCatching { Color(android.graphics.Color.parseColor(value)) }.getOrDefault(Color.Unspecified)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ArticleLongPressSheet(
@@ -1630,10 +1690,11 @@ private fun LibraryList(
       var tagExpanded by remember { mutableStateOf(false) }
       val sourceOptions = archiveSourceFilters(state.archiveSources)
       val sourceCounts = state.archiveSources.associate { it.source to it.count }
-      Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-      ) {
+      if (shouldShowLibraryControls(state.view, state.searchQuery)) {
+        Column(
+          modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+          verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
         if (ArchiveSourceFilter.isAvailableFor(state.view, state.searchQuery)) {
           Row(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -1809,6 +1870,7 @@ private fun LibraryList(
           }
           }
         }
+        }
       }
     }
     if (activeJobCount > 0) item(span = StaggeredGridItemSpan.FullLine) {
@@ -1883,33 +1945,29 @@ private fun LibraryList(
       }
     }
   }
-  if (batchCategoryPickerOpen) QiankunjieAlertDialog(
+  if (batchCategoryPickerOpen) CategoryAssignmentDialog(
     onDismissRequest = { if (!batchCategoryUpdating) batchCategoryPickerOpen = false },
-    icon = { Icon(Icons.AutoMirrored.Outlined.Label, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-    title = { Text("批量修改分类") },
-    text = {
-      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        state.archiveCategories.forEach { category ->
-          TextButton(
-            onClick = {
-              onBatchMoveToCategory(selectedArticleIds, category.id) { succeeded ->
-                if (succeeded) {
-                  batchCategoryPickerOpen = false
-                  batchMode = false
-                  selectedArticleIds = emptySet()
-                }
-              }
-            },
-            enabled = !batchCategoryUpdating,
-            modifier = Modifier.fillMaxWidth(),
-          ) { Text(category.name, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurface) }
+    title = "批量修改分类",
+    subtitle = "为已选 ${selectedArticleIds.size} 篇文章选择一个预设分类。",
+    categories = state.archiveCategories,
+    currentCategoryId = null,
+    loading = batchCategoryUpdating,
+    onSelect = { categoryId ->
+      onBatchMoveToCategory(selectedArticleIds, categoryId) { succeeded ->
+        if (succeeded) {
+          batchCategoryPickerOpen = false
+          batchMode = false
+          selectedArticleIds = emptySet()
         }
-        if (state.archiveCategories.isEmpty()) Text("暂无可用分类，请先在网页端的分类管理中创建分类。", color = MaterialTheme.colorScheme.onSurfaceVariant)
       }
     },
-    confirmButton = { TextButton(onClick = { batchCategoryPickerOpen = false }, enabled = !batchCategoryUpdating) { Text("取消") } },
   )
 }
+
+internal fun shouldShowLibraryControls(view: LibraryView, searchQuery: String): Boolean =
+  view != LibraryView.Published || searchQuery.isNotBlank()
+
+internal fun detailCategoryActionIcon() = Icons.Outlined.FolderOpen
 
 @Composable
 private fun shimmerBrush(): Brush {
@@ -2044,6 +2102,11 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
             onClick = { article.originalUrl?.let { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) } },
             enabled = !article.originalUrl.isNullOrBlank(),
           ) { Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = "打开原网页") }
+          if (canManage && article.isArchived) {
+            IconButton(onClick = { categoryPickerOpen = true }, enabled = processingAction == null) {
+              Icon(detailCategoryActionIcon(), contentDescription = "修改分类")
+            }
+          }
           Box {
             IconButton(onClick = { moreExpanded = true }, enabled = processingAction == null) { Icon(Icons.Outlined.MoreVert, contentDescription = "更多阅读操作") }
             DropdownMenu(
@@ -2089,7 +2152,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
               if (canManage && article.isArchived) DropdownMenuItem(
                 text = { Text("修改分类", style = MaterialTheme.typography.bodyLarge) },
                 onClick = { moreExpanded = false; categoryPickerOpen = true },
-                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Label, contentDescription = null) },
+                leadingIcon = { Icon(detailCategoryActionIcon(), contentDescription = null) },
               )
               if (canManage && article.categoryResult?.reviewStatus == "needs_review") DropdownMenuItem(
                 text = { Text("重新判断分类", style = MaterialTheme.typography.bodyLarge) },
@@ -2284,29 +2347,17 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
       dismissButton = { TextButton(onClick = { confirmProcessing = null }) { Text("取消") } },
     )
   }
-  if (categoryPickerOpen) QiankunjieAlertDialog(
+  if (categoryPickerOpen) CategoryAssignmentDialog(
     onDismissRequest = { categoryPickerOpen = false },
-    icon = { Icon(Icons.AutoMirrored.Outlined.Label, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-    title = { Text("修改分类") },
-    text = {
-      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        archiveCategories.forEach { category ->
-          TextButton(
-            onClick = { categoryPickerOpen = false; onMoveToCategory(category.id) },
-            enabled = category.id != article.category?.id,
-            modifier = Modifier.fillMaxWidth(),
-          ) {
-            Text(
-              if (category.id == article.category?.id) "${category.name}（当前）" else category.name,
-              modifier = Modifier.fillMaxWidth(),
-              color = if (category.id == article.category?.id) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-            )
-          }
-        }
-        if (archiveCategories.isEmpty()) Text("暂无可用分类，请先在网页端的分类管理中创建分类。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-      }
+    title = "修改分类",
+    subtitle = "选择一个预设分类。",
+    categories = archiveCategories,
+    currentCategoryId = article.category?.id,
+    loading = processingAction != null,
+    onSelect = { categoryId ->
+      categoryPickerOpen = false
+      onMoveToCategory(categoryId)
     },
-    confirmButton = { TextButton(onClick = { categoryPickerOpen = false }) { Text("取消") } },
   )
   confirmPublication?.let { action ->
     QiankunjieAlertDialog(

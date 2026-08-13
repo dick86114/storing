@@ -2235,7 +2235,7 @@ function SharePosterDialog({
   );
 }
 
-function CategoryAssignmentDialog({
+export function CategoryAssignmentDialog({
   categories,
   currentCategoryId,
   loading,

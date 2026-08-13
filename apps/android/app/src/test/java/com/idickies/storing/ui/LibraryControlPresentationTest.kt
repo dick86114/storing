@@ -2,6 +2,9 @@ package com.idickies.storing.ui
 
 import androidx.compose.ui.unit.dp
 import com.idickies.storing.library.ArticleListPresentationMode
+import com.idickies.storing.library.LibraryView
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.FolderOpen
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -19,6 +22,17 @@ class LibraryControlPresentationTest {
     assertEquals(2, libraryArchiveControlMetrics.maxRows)
     assertEquals(40.dp, libraryArchiveControlMetrics.toolbarHeight)
     assertTrue(libraryArchiveControlMetrics.batchActionSharesToolbar)
+  }
+
+  @Test
+  fun `发布页不渲染空的资料库工具栏`() {
+    assertFalse(shouldShowLibraryControls(LibraryView.Published, searchQuery = ""))
+    assertTrue(shouldShowLibraryControls(LibraryView.Archive, searchQuery = ""))
+  }
+
+  @Test
+  fun `文章详情将分类入口展示为归档目录而不是标签`() {
+    assertEquals(Icons.Outlined.FolderOpen, detailCategoryActionIcon())
   }
 
   @Test

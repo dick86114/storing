@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material.icons.outlined.Fingerprint
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -69,6 +70,7 @@ fun QiankunjieSettingsScreen(
   onOpenChangePassword: () -> Unit,
   onOpenOfflineContent: () -> Unit,
   onOpenMcp: () -> Unit,
+  onOpenCategoryManagement: () -> Unit,
   onOpenAdmin: (() -> Unit)? = null,
   biometricAvailable: Boolean = false,
   biometricEnabled: Boolean = false,
@@ -155,6 +157,15 @@ fun QiankunjieSettingsScreen(
           title = "阅读设置",
           detail = "字号、行距和正文页面边距",
           onClick = onOpenReaderSettings,
+        )
+      }
+      item { SettingsSectionTitle("归档") }
+      item {
+        SettingsRow(
+          icon = Icons.Outlined.FolderOpen,
+          title = "分类管理",
+          detail = "维护 AI 可选择的归档分类与收录边界",
+          onClick = onOpenCategoryManagement,
         )
       }
       item { SettingsSectionTitle("版本与更新") }

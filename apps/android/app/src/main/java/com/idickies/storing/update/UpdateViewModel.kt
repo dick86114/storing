@@ -13,6 +13,9 @@ data class UpdateUiState(
   val release: AndroidRelease? = null,
   val checking: Boolean = false,
   val downloading: Boolean = false,
+  val updateStage: UpdateStage? = null,
+  val downloadProgress: Float? = null,
+  val installationStarted: Boolean = false,
   val error: String? = null,
   val statusMessage: String? = null,
 )
@@ -55,9 +58,21 @@ class UpdateViewModel @Inject constructor(
   fun download() {
     val release = mutableState.value.release ?: return
     viewModelScope.launch {
-      mutableState.value = mutableState.value.copy(downloading = true, error = null)
-      runCatching { installer.downloadVerifyAndInstall(release) }
-        .onFailure { error -> mutableState.value = mutableState.value.copy(downloading = false, error = error.message ?: "下载更新失败") }
+      mutableState.value = mutableState.value.copy(downloading = true, updateStage = UpdateStage.DOWNLOADING, downloadProgress = 0f, error = null)
+      runCatching {
+        installer.downloadVerifyAndInstall(release) { stage, progress ->
+          mutableState.value = mutableState.value.copy(updateStage = stage, downloadProgress = progress)
+        }
+      }.onSuccess {
+        mutableState.value = mutableState.value.copy(
+          downloading = false,
+          updateStage = null,
+          downloadProgress = null,
+          installationStarted = true,
+        )
+      }.onFailure { error ->
+        mutableState.value = mutableState.value.copy(downloading = false, updateStage = null, downloadProgress = null, error = error.message ?: "下载更新失败")
+      }
     }
   }
 }

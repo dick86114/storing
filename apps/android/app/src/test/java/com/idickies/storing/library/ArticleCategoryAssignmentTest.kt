@@ -64,4 +64,15 @@ class ArticleCategoryAssignmentTest {
     assertEquals(42, result.articleId)
     assertEquals(1, result.updatedCount)
   }
+
+  @Test
+  fun `分类管理会保留分类规则与启用状态`() {
+    val category = Json.decodeFromString<ArticleCategory>(
+      """{"id":12,"name":"技术","description":"技术实践","includeExamples":["Docker"],"excludeExamples":["产品新闻"],"color":"#2F6A4F","sortOrder":3,"isActive":false,"isSystem":false}""",
+    )
+
+    assertEquals("技术实践", category.description)
+    assertEquals(listOf("Docker"), category.includeExamples)
+    assertEquals(false, category.isActive)
+  }
 }

@@ -13,7 +13,8 @@ enum class UiLabScenario(
   Share("share", "分享采集"),
   Tasks("tasks", "采集任务"),
   States("states", "状态反馈"),
-  Settings("settings", "设置");
+  Settings("settings", "设置"),
+  Categories("categories", "分类管理");
 
   companion object {
     fun fromRoute(route: String?): UiLabScenario = entries.firstOrNull { it.route == route } ?: Library

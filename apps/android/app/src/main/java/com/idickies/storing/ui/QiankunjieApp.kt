@@ -85,6 +85,10 @@ import com.idickies.storing.auth.LoginCredentials
 import com.idickies.storing.collect.ShareCollectViewModel
 import com.idickies.storing.update.AndroidReleaseUpdatePolicy
 import com.idickies.storing.update.UpdateViewModel
+import com.idickies.storing.update.UpdateStage
+import com.idickies.storing.update.parseReleaseMarkdown
+import com.idickies.storing.update.ReleaseMarkdownBlock
+import com.idickies.storing.update.updateStageLabel
 import com.idickies.storing.reader.ReaderColorScheme
 import com.idickies.storing.ui.theme.AppearanceViewModel
 import com.idickies.storing.ui.theme.QiankunjieTheme
@@ -234,11 +238,45 @@ fun QiankunjieApp(
               Text(if (mandatory) "此版本需要安装后才能继续使用。" else "新版本已经准备好，可随时下载并安装。", color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
             }
           }
-          Text(release.releaseNotes.ifEmpty { listOf("此版本包含体验改进。") }.joinToString("\n"), color = MaterialTheme.colorScheme.onSurfaceVariant)
+          Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("更新日志", style = MaterialTheme.typography.titleSmall)
+            val notes = release.releaseNotes.joinToString("\n").ifBlank { "此版本包含体验改进。" }
+            parseReleaseMarkdown(notes).forEach { block ->
+              when (block) {
+                is ReleaseMarkdownBlock.Heading -> Text(block.text, style = if (block.level == 1) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall)
+                is ReleaseMarkdownBlock.Bullet -> Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { Text("•", color = MaterialTheme.colorScheme.primary); Text(block.text, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                is ReleaseMarkdownBlock.Paragraph -> Text(block.text, color = MaterialTheme.colorScheme.onSurfaceVariant)
+              }
+            }
+          }
+          updateState.updateStage?.let { stage ->
+            val (_, label) = updateStageLabel(stage, updateState.downloadProgress ?: 0f)
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+              Text(label, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+              if (stage == UpdateStage.DOWNLOADING) {
+                androidx.compose.material3.LinearProgressIndicator(
+                  progress = { updateState.downloadProgress ?: 0f },
+                  modifier = Modifier.fillMaxWidth(),
+                )
+              } else {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+              }
+            }
+          }
+          if (updateState.installationStarted) {
+            Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(12.dp)) {
+              Text(
+                "已打开系统安装器，请在系统页面完成安装。",
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(11.dp),
+              )
+            }
+          }
           updateState.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
         }
       },
-      confirmButton = { Button(onClick = updateViewModel::download, enabled = !updateState.downloading) { Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(7.dp)); Text(if (updateState.downloading) "下载并校验中…" else "下载更新") } },
+      confirmButton = { Button(onClick = updateViewModel::download, enabled = !updateState.downloading && !updateState.installationStarted) { Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(7.dp)); Text(if (updateState.downloading) "下载并校验中…" else if (updateState.installationStarted) "已打开安装器" else "下载更新") } },
       dismissButton = if (!mandatory) {
         {
           Row {

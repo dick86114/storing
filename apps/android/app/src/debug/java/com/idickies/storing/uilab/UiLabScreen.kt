@@ -78,6 +78,7 @@ import com.idickies.storing.ui.components.ActiveCollectJobsCard
 import com.idickies.storing.ui.components.ReaderActionBar
 import com.idickies.storing.reader.ReaderWebView
 import com.idickies.storing.ui.QiankunjieSettingsScreen
+import com.idickies.storing.ui.CategoryManagementScreen
 import com.idickies.storing.ui.LoginScreen
 import com.idickies.storing.ui.SharePosterScreen
 import com.idickies.storing.ui.ArticleDetailSkeleton
@@ -133,6 +134,10 @@ internal fun UiLabScreen(
       publicUrl = "https://storing.idickies.com/p/240",
       onBack = onClose,
     )
+    return
+  }
+  if (scenario == UiLabScenario.Categories) {
+    CategoryManagementScreen(onBack = onClose)
     return
   }
   val isDarkAppearance = isQiankunjieDarkTheme()
@@ -229,6 +234,7 @@ internal fun UiLabScreen(
         UiLabScenario.Tasks -> UiLabTasks()
         UiLabScenario.States -> UiLabStates()
         UiLabScenario.Settings -> UiLabSettings()
+        UiLabScenario.Categories -> Unit
       }
     }
   }
@@ -437,6 +443,7 @@ private fun UiLabSettings() {
     onOpenChangePassword = {},
     onOpenOfflineContent = {},
     onOpenMcp = {},
+    onOpenCategoryManagement = {},
     onOpenAdmin = null,
     biometricAvailable = false,
     biometricEnabled = false,

@@ -7,9 +7,57 @@ import kotlinx.serialization.Serializable
 data class ArticleCategory(
   val id: Int,
   val name: String,
+  val description: String? = null,
+  @SerialName("includeExamples") val includeExamples: List<String> = emptyList(),
+  @SerialName("excludeExamples") val excludeExamples: List<String> = emptyList(),
   val color: String? = null,
+  @SerialName("sortOrder") val sortOrder: Int = 0,
+  @SerialName("isActive") val isActive: Boolean = true,
   @SerialName("isSystem") val isSystem: Boolean = false,
 )
+
+@Serializable
+data class CategoryMutationRequest(
+  val name: String? = null,
+  val description: String? = null,
+  @SerialName("includeExamples") val includeExamples: List<String>? = null,
+  @SerialName("excludeExamples") val excludeExamples: List<String>? = null,
+  val color: String? = null,
+  @SerialName("isActive") val isActive: Boolean? = null,
+)
+
+@Serializable
+data class CategoryMutationResponse(val category: ArticleCategory)
+
+@Serializable
+data class CategoryDeleteResponse(
+  val ok: Boolean,
+  @SerialName("movedArticleCount") val movedArticleCount: Int,
+)
+
+@Serializable
+data class CategoryReorderRequest(@SerialName("categoryIds") val categoryIds: List<Int>)
+
+@Serializable
+data class CategoryReorderResponse(val categories: List<ArticleCategory>)
+
+@Serializable
+data class CategoryOptimizeRequest(
+  val name: String,
+  val description: String? = null,
+  @SerialName("includeExamples") val includeExamples: List<String> = emptyList(),
+  @SerialName("excludeExamples") val excludeExamples: List<String> = emptyList(),
+)
+
+@Serializable
+data class CategoryOptimizeDraft(
+  val description: String? = null,
+  @SerialName("includeExamples") val includeExamples: List<String> = emptyList(),
+  @SerialName("excludeExamples") val excludeExamples: List<String> = emptyList(),
+)
+
+@Serializable
+data class CategoryOptimizeResponse(val draft: CategoryOptimizeDraft)
 
 @Serializable
 data class ArticleCategoryResult(
