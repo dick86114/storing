@@ -10,8 +10,15 @@ test('startup repairs library metadata that an older deployment assigned to admi
   assert.match(scopeService, /INSERT INTO article_metadata \(/);
   assert.match(scopeService, /FROM collect_jobs j/);
   assert.match(scopeService, /DELETE FROM article_metadata admin_meta/);
-  assert.match(scopeService, /collect_metadata_owner_repair_v1/);
+  assert.match(scopeService, /collect_metadata_owner_repair_v2/);
   assert.match(apiIndex, /await repairCollectedArticleMetadataOwnership\(\)/);
+});
+
+test('启动补偿不会把其他用户的采集文章补进管理员资料库', () => {
+  const legacyBackfill = scopeService.match(/INSERT INTO article_metadata \(article_id, user_id, source_type, is_favorited, is_archived, created_at, updated_at\)[\s\S]*?ON CONFLICT DO NOTHING/);
+
+  assert.ok(legacyBackfill, '旧单用户元数据补偿应存在');
+  assert.match(legacyBackfill[0], /AND NOT EXISTS \([\s\S]*?j\.user_id IS NOT NULL[\s\S]*?j\.user_id <> \$\{adminUserId\}[\s\S]*?j\.save_to_inbox = true[\s\S]*?\)/);
 });
 
 test('startup cleanup preserves a saved MCP article when the same owner also used summarize_url', () => {

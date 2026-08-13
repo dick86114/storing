@@ -16,9 +16,12 @@ interface WechatArticleCardProps {
   showMenu?: boolean;
   highlight?: boolean;
   featured?: boolean;
+  selectable?: boolean;
+  selected?: boolean;
+  onSelectionChange?: (id: number, selected: boolean, e: React.MouseEvent) => void;
 }
 
-function WechatArticleCardBase({ article, onClick, onToggleFavorite, onArchive, onPublish, showMenu = true, highlight, featured = false }: WechatArticleCardProps) {
+function WechatArticleCardBase({ article, onClick, onToggleFavorite, onArchive, onPublish, showMenu = true, highlight, featured = false, selectable = false, selected = false, onSelectionChange }: WechatArticleCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuWrapRef = useRef<HTMLDivElement>(null);
   const tags = article.aiTags?.slice(0, 3) ?? [];
@@ -64,7 +67,7 @@ function WechatArticleCardBase({ article, onClick, onToggleFavorite, onArchive, 
 
   return (
     <div
-      className={`article-card wechat-article-card${featured ? ' article-card--featured' : ''}${highlight ? ' highlighted' : ''}${menuOpen ? ' article-card--menu-open' : ''}`}
+      className={`article-card wechat-article-card${featured ? ' article-card--featured' : ''}${highlight ? ' highlighted' : ''}${menuOpen ? ' article-card--menu-open' : ''}${selected ? ' article-card--selected' : ''}`}
       onClick={() => onClick(article.id)}
       style={{
         position: 'relative',
@@ -78,6 +81,20 @@ function WechatArticleCardBase({ article, onClick, onToggleFavorite, onArchive, 
       {/* 内容区域 */}
       <div className="article-card-inner" style={{ padding: '12px 16px' }}>
         <div className="article-card-main">
+        {selectable && (
+          <button
+            className="article-card-select-toggle"
+            type="button"
+            aria-label="选择文章"
+            aria-pressed={selected}
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelectionChange?.(article.id, !selected, event);
+            }}
+          >
+            {selected ? '✓' : ''}
+          </button>
+        )}
         {/* 第一行：标题 + 三点菜单 */}
         <div className="article-card-heading" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
           <div
@@ -100,7 +117,7 @@ function WechatArticleCardBase({ article, onClick, onToggleFavorite, onArchive, 
             {article.title}
           </div>
           {/* 三点菜单 —— 游客不显示 */}
-          {showMenu && (
+          {showMenu && !selectable && (
             <div ref={menuWrapRef} style={{ position: 'relative', flexShrink: 0 }}>
               <button
                 className="article-card-menu-btn"

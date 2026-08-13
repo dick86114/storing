@@ -18,4 +18,10 @@ enum class ArticleProcessingAction(
     confirmationLead = "不会重新抓取原文",
     confirmationMessage = "不会重新抓取原文，将基于当前保存的正文重新生成摘要、分类和标签。",
   ),
+  ReclassifyCategory(
+    label = "重新判断分类",
+    confirmationTitle = "重新判断文章分类？",
+    confirmationLead = "不会重新生成摘要或标签",
+    confirmationMessage = "将仅根据现有预设分类重新判断这篇文章的主分类；人工确认过的分类不会被覆盖。",
+  ),
 }

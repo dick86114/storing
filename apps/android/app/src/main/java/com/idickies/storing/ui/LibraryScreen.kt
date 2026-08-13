@@ -174,6 +174,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.idickies.storing.R
 import com.idickies.storing.BuildConfig
 import com.idickies.storing.collect.CollectJobsViewModel
+import com.idickies.storing.collect.ManualCollectUrl
+import com.idickies.storing.collect.shouldDismissManualCollectDialog
 import com.idickies.storing.collect.ShareCollectViewModel
 import com.idickies.storing.ui.components.ActiveCollectJobsCard
 import com.idickies.storing.ui.components.ReaderActionBar
@@ -203,6 +205,7 @@ import com.idickies.storing.library.shouldLoadMore
 import com.idickies.storing.library.canManageArticle
 import com.idickies.storing.library.publicationAction
 import com.idickies.storing.library.archiveSourceFilters
+import com.idickies.storing.library.toggleArchiveBatchSelection
 import com.idickies.storing.reader.ReaderWebView
 import com.idickies.storing.reader.ReaderPreferences
 import com.idickies.storing.reader.ReaderPreferencesViewModel
@@ -218,10 +221,9 @@ internal enum class LibraryTabInteraction { Select, ScrollToStart, Refresh }
 internal fun libraryTabInteraction(
   active: LibraryView,
   tapped: LibraryView,
-  isDoubleTap: Boolean,
+  @Suppress("UNUSED_PARAMETER") isDoubleTap: Boolean,
 ): LibraryTabInteraction = when {
   active != tapped -> LibraryTabInteraction.Select
-  isDoubleTap -> LibraryTabInteraction.Refresh
   else -> LibraryTabInteraction.ScrollToStart
 }
 
@@ -729,6 +731,8 @@ fun LibraryScreen(
   onCollectJobsOpened: () -> Unit,
   openMcpSettings: Boolean = false,
   onMcpSettingsOpened: () -> Unit = {},
+  clipboardCollectUrl: String? = null,
+  onClipboardCollectUrlConsumed: () -> Unit = {},
   onManualUpdateCheck: () -> Unit,
   updateChecking: Boolean,
   themeMode: ThemeMode,
@@ -756,6 +760,8 @@ fun LibraryScreen(
   val lifecycleOwner = LocalLifecycleOwner.current
   var showTasks by remember { mutableStateOf(false) }
   var showManualCollect by remember { mutableStateOf(false) }
+  var manualCollectInitialUrl by rememberSaveable { mutableStateOf("") }
+  var manualCollectSessionId by rememberSaveable { mutableStateOf(0) }
   var showReaderSettings by remember { mutableStateOf(false) }
   var showSharePoster by remember { mutableStateOf(false) }
   var showChangePassword by remember { mutableStateOf(false) }
@@ -786,6 +792,7 @@ fun LibraryScreen(
     if (!shouldKeepCachedContent) tabContentStates[state.view] = state
   }
   var longPressedArticle by remember { mutableStateOf<com.idickies.storing.library.ArticleCard?>(null) }
+  var archiveCategoryTarget by remember { mutableStateOf<ArchiveCategoryTarget?>(null) }
   val isScrolledDown by remember(libraryListState) { derivedStateOf { libraryListState.firstVisibleItemIndex > 0 || libraryListState.firstVisibleItemScrollOffset > 200 } }
   val scope = androidx.compose.runtime.rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
@@ -798,6 +805,13 @@ fun LibraryScreen(
       itemOffset = libraryListState.firstVisibleItemScrollOffset,
     )
     libraryViewModel.refresh()
+  }
+
+  fun openManualCollect(initialUrl: String = "") {
+    manualCollectInitialUrl = initialUrl
+    manualCollectSessionId += 1
+    collectViewModel.clearSubmissionResult()
+    showManualCollect = true
   }
 
   LaunchedEffect(state.refreshing) {
@@ -872,6 +886,12 @@ fun LibraryScreen(
     if (openCollectJobs) {
       showTasks = true
       onCollectJobsOpened()
+    }
+  }
+  LaunchedEffect(clipboardCollectUrl, isAuthenticated) {
+    if (isAuthenticated && clipboardCollectUrl != null) {
+      openManualCollect(clipboardCollectUrl)
+      onClipboardCollectUrlConsumed()
     }
   }
 
@@ -950,9 +970,16 @@ fun LibraryScreen(
       downloadingOffline = state.downloadingOffline,
       onOpenOfflineAsset = libraryViewModel::openOfflineAsset,
       onFavorite = { libraryViewModel.toggleFavorite(detail) },
-      onArchive = { libraryViewModel.toggleArchive(detail) },
+      onArchive = {
+        if (detail.isArchived) libraryViewModel.toggleArchive(detail)
+        else {
+          libraryViewModel.prepareArchiveCategories()
+          archiveCategoryTarget = ArchiveCategoryTarget.Detail(detail)
+        }
+      },
       archiveCategories = state.archiveCategories,
       onMoveToCategory = { categoryId -> libraryViewModel.moveToCategory(detail, categoryId) },
+      onReclassify = { libraryViewModel.reclassify(detail) },
       onPublication = { libraryViewModel.togglePublication(detail) },
       onOpenSharePoster = { showSharePoster = true },
       onProcess = { action -> libraryViewModel.processArticle(detail, action) },
@@ -1001,7 +1028,7 @@ fun LibraryScreen(
             if (isAuthenticated) {
               libraryTopBarPresentation.actions.forEach { action ->
                 when (action) {
-                  LibraryTopAction.Collect -> IconButton(onClick = { showManualCollect = true }) {
+                  LibraryTopAction.Collect -> IconButton(onClick = ::openManualCollect) {
                     Icon(Icons.Outlined.Add, contentDescription = "采集网页链接")
                   }
                   LibraryTopAction.Search -> IconButton(onClick = { showLibrarySearch = true }) {
@@ -1048,7 +1075,7 @@ fun LibraryScreen(
           )
           if (isDarkAppearance) {
             FloatingActionButton(
-              onClick = { showManualCollect = true },
+              onClick = ::openManualCollect,
               containerColor = MaterialTheme.colorScheme.primary,
               contentColor = MaterialTheme.colorScheme.onPrimary,
               shape = CircleShape,
@@ -1070,7 +1097,7 @@ fun LibraryScreen(
                 ),
               contentAlignment = Alignment.Center,
             ) {
-              IconButton(onClick = { showManualCollect = true }, modifier = Modifier.fillMaxSize()) {
+              IconButton(onClick = ::openManualCollect, modifier = Modifier.fillMaxSize()) {
                 Icon(
                   Icons.Outlined.Add,
                   contentDescription = "采集网页链接",
@@ -1108,13 +1135,6 @@ fun LibraryScreen(
                     LibraryTabInteraction.Refresh -> Unit
                   }
                 },
-                onDoubleClick = {
-                  when (libraryTabInteraction(state.view, item, isDoubleTap = true)) {
-                    LibraryTabInteraction.Refresh -> refreshListPreservingPosition()
-                    LibraryTabInteraction.Select -> libraryViewModel.select(item)
-                    LibraryTabInteraction.ScrollToStart -> Unit
-                  }
-                },
               )
             }
           }
@@ -1139,7 +1159,8 @@ fun LibraryScreen(
           collectSubmitting = collectState.submitting, collectMessage = collectState.message, activeJobCount = jobsState.activeJobCount,
           onOpenTasks = { showTasks = true }, onSort = libraryViewModel::selectSort, onToggleSortOrder = libraryViewModel::toggleSortOrder,
           onResetSort = libraryViewModel::resetSort, sortOrder = state.sortOrder, presentationMode = presentationMode,
-          onPresentationModeChange = { presentationMode = it }, onArchiveSources = libraryViewModel::selectArchiveSources, onArchiveCategory = libraryViewModel::selectArchiveCategory,
+          onPresentationModeChange = { presentationMode = it }, onArchiveSources = libraryViewModel::selectArchiveSources, onArchiveTags = libraryViewModel::selectArchiveTags, onArchiveCategory = libraryViewModel::selectArchiveCategory,
+          onBatchMoveToCategory = { articleIds, categoryId, onComplete -> libraryViewModel.moveToCategory(articleIds, categoryId, onComplete) }, onBatchReclassify = { articleIds, onComplete -> libraryViewModel.reclassify(articleIds, onComplete) }, batchCategoryUpdating = state.batchCategoryUpdating,
           onRefresh = ::refreshListPreservingPosition, onLoadMore = libraryViewModel::loadMore, onOpen = libraryViewModel::open,
           onLongPress = { longPressedArticle = it }, onSelectCollectUrl = collectViewModel::select, onSubmitCollect = collectViewModel::submit,
           listState = listStateFor(renderedView), modifier = Modifier.padding(padding),
@@ -1167,11 +1188,43 @@ fun LibraryScreen(
       article = article,
       onDismiss = { longPressedArticle = null },
       onFavorite = { libraryViewModel.toggleFavoriteCard(article); longPressedArticle = null },
-      onArchive = { libraryViewModel.toggleArchiveCard(article); longPressedArticle = null },
+      onArchive = {
+        longPressedArticle = null
+        if (article.isArchived) libraryViewModel.toggleArchiveCard(article)
+        else {
+          libraryViewModel.prepareArchiveCategories()
+          archiveCategoryTarget = ArchiveCategoryTarget.Card(article)
+        }
+      },
       onDelete = { libraryViewModel.deleteCard(article); longPressedArticle = null },
     )
   }
-  if (showManualCollect) ManualCollectDialog(onDismiss = { showManualCollect = false }, viewModel = collectViewModel)
+  archiveCategoryTarget?.let { target ->
+    ArchiveCategoryPickerDialog(
+      categories = state.archiveCategories,
+      onDismiss = { archiveCategoryTarget = null },
+      onArchiveWithAi = {
+        archiveCategoryTarget = null
+        when (target) {
+          is ArchiveCategoryTarget.Card -> libraryViewModel.toggleArchiveCard(target.article)
+          is ArchiveCategoryTarget.Detail -> libraryViewModel.toggleArchive(target.article)
+        }
+      },
+      onArchiveInCategory = { categoryId ->
+        archiveCategoryTarget = null
+        when (target) {
+          is ArchiveCategoryTarget.Card -> libraryViewModel.toggleArchiveCard(target.article, categoryId)
+          is ArchiveCategoryTarget.Detail -> libraryViewModel.toggleArchive(target.article, categoryId)
+        }
+      },
+    )
+  }
+  if (showManualCollect) ManualCollectDialog(
+    sessionId = manualCollectSessionId,
+    initialUrl = manualCollectInitialUrl,
+    onDismiss = { showManualCollect = false; manualCollectInitialUrl = "" },
+    viewModel = collectViewModel,
+  )
   if (showAbout) QiankunjieAlertDialog(
     onDismissRequest = { showAbout = false },
     icon = { Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
@@ -1190,14 +1243,24 @@ fun LibraryScreen(
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 private fun ManualCollectDialog(
+  sessionId: Int,
+  initialUrl: String,
   onDismiss: () -> Unit,
   viewModel: ShareCollectViewModel,
 ) {
   val state by viewModel.state.collectAsState()
   val context = LocalContext.current
-  var url by rememberSaveable { mutableStateOf("") }
+  var url by rememberSaveable(sessionId, initialUrl) { mutableStateOf(initialUrl) }
+  var submittedByThisDialog by rememberSaveable(sessionId) { mutableStateOf(false) }
   val messageColor = if (state.submissionAccepted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
   val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+  fun submit() {
+    submittedByThisDialog = true
+    viewModel.submitManual(url)
+  }
+  LaunchedEffect(submittedByThisDialog, state.submissionAccepted) {
+    if (shouldDismissManualCollectDialog(submittedByThisDialog, state.submissionAccepted)) onDismiss()
+  }
   androidx.compose.material3.ModalBottomSheet(
     onDismissRequest = onDismiss,
     sheetState = sheetState,
@@ -1219,14 +1282,16 @@ private fun ManualCollectDialog(
         trailingIcon = {
           IconButton(onClick = {
             val clipboard = context.getSystemService(ClipboardManager::class.java)
-            url = clipboard?.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
+            url = ManualCollectUrl.fromClipboardText(
+              clipboard?.primaryClip?.getItemAt(0)?.coerceToText(context),
+            ).orEmpty()
           }) { Icon(Icons.Outlined.ContentPaste, contentDescription = "从剪贴板粘贴") }
         },
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
         singleLine = true,
         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
-        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { if (url.isNotBlank() && !state.submitting) viewModel.submitManual(url) }),
+        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { if (url.isNotBlank() && !state.submitting) submit() }),
       )
       state.message?.let { message ->
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1240,7 +1305,7 @@ private fun ManualCollectDialog(
         }
       }
       Button(
-        onClick = { viewModel.submitManual(url) },
+        onClick = ::submit,
         enabled = !state.submitting && url.isNotBlank(),
         modifier = Modifier.fillMaxWidth(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 14.dp),
@@ -1408,6 +1473,38 @@ private fun collectMethodLabel(method: String): String = when (method) {
   else -> method
 }
 
+private sealed interface ArchiveCategoryTarget {
+  data class Card(val article: ArticleCard) : ArchiveCategoryTarget
+  data class Detail(val article: ArticleDetail) : ArchiveCategoryTarget
+}
+
+@Composable
+private fun ArchiveCategoryPickerDialog(
+  categories: List<ArticleCategory>,
+  onDismiss: () -> Unit,
+  onArchiveWithAi: () -> Unit,
+  onArchiveInCategory: (Int) -> Unit,
+) {
+  QiankunjieAlertDialog(
+    onDismissRequest = onDismiss,
+    icon = { Icon(Icons.AutoMirrored.Outlined.Label, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+    title = { Text("归档到哪里？") },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        TextButton(onClick = onArchiveWithAi, modifier = Modifier.fillMaxWidth()) {
+          Text("采用 AI 推荐，低置信度进入待整理", modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurface)
+        }
+        categories.forEach { category ->
+          TextButton(onClick = { onArchiveInCategory(category.id) }, modifier = Modifier.fillMaxWidth()) {
+            Text(category.name, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurface)
+          }
+        }
+      }
+    },
+    confirmButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+  )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ArticleLongPressSheet(
@@ -1479,7 +1576,11 @@ private fun LibraryList(
   presentationMode: ArticleListPresentationMode,
   onPresentationModeChange: (ArticleListPresentationMode) -> Unit,
   onArchiveSources: (Set<String>) -> Unit,
+  onArchiveTags: (List<String>) -> Unit,
   onArchiveCategory: (Int?) -> Unit,
+  onBatchMoveToCategory: (Set<Int>, Int, (Boolean) -> Unit) -> Unit,
+  onBatchReclassify: (Set<Int>, (Boolean) -> Unit) -> Unit,
+  batchCategoryUpdating: Boolean,
   onRefresh: () -> Unit,
   onLoadMore: () -> Unit,
   onOpen: (Int) -> Unit,
@@ -1490,6 +1591,9 @@ private fun LibraryList(
   modifier: Modifier = Modifier,
 ) {
   val isDarkAppearance = isQiankunjieDarkTheme()
+  var batchMode by remember { mutableStateOf(false) }
+  var selectedArticleIds by remember { mutableStateOf<Set<Int>>(emptySet()) }
+  var batchCategoryPickerOpen by remember { mutableStateOf(false) }
   val gridState = rememberLazyStaggeredGridState()
   val lastVisibleItemIndex by remember { derivedStateOf { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 } }
   LaunchedEffect(lastVisibleItemIndex, state.articles.size, state.hasMore, state.loadingMore, state.fromCache) {
@@ -1511,6 +1615,7 @@ private fun LibraryList(
     item(span = StaggeredGridItemSpan.FullLine) {
       var sortExpanded by remember { mutableStateOf(false) }
       var sourceExpanded by remember { mutableStateOf(false) }
+      var tagExpanded by remember { mutableStateOf(false) }
       val sourceOptions = archiveSourceFilters(state.archiveSources)
       val sourceCounts = state.archiveSources.associate { it.source to it.count }
       Column(
@@ -1537,6 +1642,33 @@ private fun LibraryList(
                   containerColor = if (state.archiveCategoryId == category.id) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
                 ),
               )
+            }
+          }
+        }
+        if (state.view == LibraryView.Archive && state.searchQuery.isBlank()) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            if (batchMode) {
+              Text("已选择 ${selectedArticleIds.size} 篇", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+              Spacer(Modifier.width(8.dp))
+              TextButton(onClick = { batchCategoryPickerOpen = true }, enabled = selectedArticleIds.isNotEmpty() && !batchCategoryUpdating) { Text("修改分类") }
+              TextButton(
+                onClick = {
+                  onBatchReclassify(selectedArticleIds) { succeeded ->
+                    if (succeeded) {
+                      batchMode = false
+                      selectedArticleIds = emptySet()
+                    }
+                  }
+                },
+                enabled = selectedArticleIds.isNotEmpty() && !batchCategoryUpdating,
+              ) { Text("重新判断分类") }
+              TextButton(onClick = { batchMode = false; selectedArticleIds = emptySet() }, enabled = !batchCategoryUpdating) { Text("取消") }
+            } else {
+              TextButton(onClick = { batchMode = true }) { Text("批量整理") }
             }
           }
         }
@@ -1626,6 +1758,41 @@ private fun LibraryList(
                 )
               }
             }
+            Box {
+              AssistChip(
+                onClick = { tagExpanded = true },
+                modifier = Modifier.height(libraryControlMetrics.triggerHeight),
+                shape = libraryControlShape,
+                colors = if (isDarkAppearance) {
+                  AssistChipDefaults.assistChipColors()
+                } else {
+                  AssistChipDefaults.assistChipColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
+                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    leadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                },
+                border = if (isDarkAppearance) {
+                  AssistChipDefaults.assistChipBorder(enabled = true)
+                } else {
+                  AssistChipDefaults.assistChipBorder(
+                    enabled = true,
+                    borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.74f),
+                    borderWidth = 0.8.dp,
+                  )
+                },
+                label = { Text(if (state.archiveTagsLoading) "标签" else state.archiveTagFilter.label) },
+                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Label, contentDescription = "归档标签", modifier = Modifier.size(16.dp)) },
+              )
+              if (tagExpanded) {
+                LibraryTagFilterSheet(
+                  selected = state.archiveTagFilter,
+                  options = state.archiveTags,
+                  onDismiss = { tagExpanded = false },
+                  onApply = onArchiveTags,
+                )
+              }
+            }
           }
         }
       }
@@ -1655,14 +1822,36 @@ private fun LibraryList(
     if (!state.loading && !state.searchPending && state.error == null && state.articles.isEmpty()) item(span = StaggeredGridItemSpan.FullLine) { LibraryEmptyState(view = state.view, isSearchResult = state.searchQuery.isNotBlank()) }
     when (presentationMode) {
       ArticleListPresentationMode.Grid -> staggeredItems(state.articles, key = { it.id }) { article ->
-        QiankunjieGridArticleCard(article, onOpen, onLongPress, modifier = Modifier.fillMaxWidth())
+        QiankunjieGridArticleCard(
+          article,
+          onOpen,
+          onLongPress,
+          selectionEnabled = batchMode,
+          selected = article.id in selectedArticleIds,
+          onSelectionChange = { id -> selectedArticleIds = toggleArchiveBatchSelection(selectedArticleIds, id) },
+          modifier = Modifier.fillMaxWidth(),
+        )
       }
       ArticleListPresentationMode.Card,
       ArticleListPresentationMode.CompactList -> staggeredItems(state.articles, key = { it.id }) { article ->
         Column {
           when (presentationMode) {
-            ArticleListPresentationMode.Card -> QiankunjieArticleCard(article, onOpen, onLongPress)
-            ArticleListPresentationMode.CompactList -> QiankunjieCompactArticleRow(article, onOpen, onLongPress)
+            ArticleListPresentationMode.Card -> QiankunjieArticleCard(
+              article,
+              onOpen,
+              onLongPress,
+              selectionEnabled = batchMode,
+              selected = article.id in selectedArticleIds,
+              onSelectionChange = { id -> selectedArticleIds = toggleArchiveBatchSelection(selectedArticleIds, id) },
+            )
+            ArticleListPresentationMode.CompactList -> QiankunjieCompactArticleRow(
+              article,
+              onOpen,
+              onLongPress,
+              selectionEnabled = batchMode,
+              selected = article.id in selectedArticleIds,
+              onSelectionChange = { id -> selectedArticleIds = toggleArchiveBatchSelection(selectedArticleIds, id) },
+            )
             ArticleListPresentationMode.Grid -> Unit
           }
           HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), thickness = 0.5.dp)
@@ -1681,6 +1870,32 @@ private fun LibraryList(
       }
     }
   }
+  if (batchCategoryPickerOpen) QiankunjieAlertDialog(
+    onDismissRequest = { if (!batchCategoryUpdating) batchCategoryPickerOpen = false },
+    icon = { Icon(Icons.AutoMirrored.Outlined.Label, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+    title = { Text("批量修改分类") },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        state.archiveCategories.forEach { category ->
+          TextButton(
+            onClick = {
+              onBatchMoveToCategory(selectedArticleIds, category.id) { succeeded ->
+                if (succeeded) {
+                  batchCategoryPickerOpen = false
+                  batchMode = false
+                  selectedArticleIds = emptySet()
+                }
+              }
+            },
+            enabled = !batchCategoryUpdating,
+            modifier = Modifier.fillMaxWidth(),
+          ) { Text(category.name, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurface) }
+        }
+        if (state.archiveCategories.isEmpty()) Text("暂无可用分类，请先在网页端的分类管理中创建分类。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+    },
+    confirmButton = { TextButton(onClick = { batchCategoryPickerOpen = false }, enabled = !batchCategoryUpdating) { Text("取消") } },
+  )
 }
 
 @Composable
@@ -1764,7 +1979,7 @@ internal fun ArticleDetailSkeleton() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, archiveCategories: List<ArticleCategory>, onMoveToCategory: (Int) -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onSaveReadingPosition: (Float) -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, archiveCategories: List<ArticleCategory>, onMoveToCategory: (Int) -> Unit, onReclassify: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onSaveReadingPosition: (Float) -> Unit) {
   val context = LocalContext.current
   val isDarkAppearance = isQiankunjieDarkTheme()
   var confirmDelete by remember { mutableStateOf(false) }
@@ -1863,12 +2078,17 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                 onClick = { moreExpanded = false; categoryPickerOpen = true },
                 leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Label, contentDescription = null) },
               )
+              if (canManage && article.categoryResult?.reviewStatus == "needs_review") DropdownMenuItem(
+                text = { Text("重新判断分类", style = MaterialTheme.typography.bodyLarge) },
+                onClick = { moreExpanded = false; onReclassify() },
+                leadingIcon = { Icon(Icons.Outlined.Sync, contentDescription = null) },
+              )
               if (canManage) DropdownMenuItem(
                 text = { Text(publicationAction(article.isPublished).label, style = MaterialTheme.typography.bodyLarge) },
                 onClick = { moreExpanded = false; confirmPublication = publicationAction(article.isPublished) },
                 leadingIcon = { Icon(Icons.Outlined.Public, contentDescription = null) },
               )
-              if (canManage) ArticleProcessingAction.entries.forEach { action ->
+              if (canManage) ArticleProcessingAction.entries.filter { it != ArticleProcessingAction.ReclassifyCategory }.forEach { action ->
                 DropdownMenuItem(
                   text = { Text(action.label, style = MaterialTheme.typography.bodyLarge) },
                   onClick = { moreExpanded = false; confirmProcessing = action },

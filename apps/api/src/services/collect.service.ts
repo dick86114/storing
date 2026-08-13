@@ -204,6 +204,8 @@ async function upsertArticleFromCapture(input: {
     .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, options.userId)));
   const markArchived = options.markArchived ?? true;
   const metadataValues: Partial<typeof articleMetadata.$inferInsert> = {
+    // 主动重新采集表示用户希望重新纳入资料库，恢复此前删除的当前用户元数据。
+    isDeleted: false,
     isArchived: markArchived,
     archivedAt: markArchived ? now : null,
     updatedAt: now,

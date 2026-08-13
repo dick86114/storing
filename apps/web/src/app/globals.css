@@ -742,6 +742,62 @@ h4 {
   color: var(--accent);
 }
 
+.article-card--selected {
+  outline: 2px solid color-mix(in oklch, var(--accent) 70%, transparent);
+  outline-offset: 1px;
+}
+
+.article-card-select-toggle {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: white;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.article-card-select-toggle[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.archive-bulk-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 40px;
+  margin: 8px 0 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.archive-bulk-toolbar button {
+  min-height: 32px;
+  padding: 6px 10px;
+  color: var(--text);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.archive-bulk-toolbar button:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
 .article-card-title {
   font-family: var(--font-display);
   font-size: var(--fs-h3);
@@ -2116,6 +2172,21 @@ body {
   border-radius: 999px;
 }
 
+.detail-panel-category-review {
+  display: flex;
+  gap: 4px;
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.detail-panel-category-review > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .category-assignment-overlay {
   position: fixed;
   inset: 0;
@@ -2986,6 +3057,8 @@ body {
 
 .archive-category-confirm-overlay { position: fixed; inset: 0; z-index: 2200; display: grid; place-items: center; padding: 16px; background: color-mix(in oklch, var(--bg) 68%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
 .archive-category-confirm { width: min(420px, 100%); padding: 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg); box-shadow: var(--shadow-lg); }.archive-category-confirm h2 { margin: 0 0 14px; font-size: 18px; }.archive-category-confirm select { width: 100%; min-height: 40px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); padding: 8px; }.archive-category-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }.archive-category-confirm-actions button { border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; background: transparent; color: var(--text); cursor: pointer; }.archive-category-confirm-actions button:last-child { border-color: var(--accent); color: var(--accent); }
+
+.archive-tag-filter { width: min(520px, 100%); max-height: min(620px, calc(100vh - 32px)); overflow: auto; padding: 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg); box-shadow: var(--shadow-lg); }.archive-tag-filter-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.archive-tag-filter h2 { margin: 0; font-size: 18px; }.archive-tag-filter p { margin: 8px 0 14px; color: var(--text-muted); font-size: 13px; }.archive-tag-filter-header button,.archive-tag-filter-trigger { border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--text-secondary); cursor: pointer; }.archive-tag-filter-header button { padding: 6px 9px; }.archive-tag-filter-list { display: flex; flex-wrap: wrap; gap: 8px; }.archive-tag-filter-list button { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px; background: var(--bg); color: var(--text-secondary); cursor: pointer; }.archive-tag-filter-list button.is-selected,.archive-tag-filter-trigger.is-active { border-color: var(--accent); background: color-mix(in oklch, var(--accent) 12%, transparent); color: var(--text); }.archive-tag-filter-list span { color: var(--text-muted); font-size: 12px; }.archive-tag-filter-empty { color: var(--text-muted); font-size: 13px; }.archive-tag-filter-trigger-wrap { padding: 0 16px 8px; }.archive-tag-filter-trigger { padding: 7px 10px; }.archive-tag-filter-trigger--desktop { width: 100%; margin-bottom: 10px; text-align: left; padding: 8px 10px; }
 
 .category-settings-shell { max-width: 1120px; margin: 0 auto; padding: 32px 0 56px; }
 .category-settings-header h1 { margin: 0; font-size: 24px; }

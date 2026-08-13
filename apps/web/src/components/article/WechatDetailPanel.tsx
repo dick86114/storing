@@ -2536,6 +2536,19 @@ function DetailContent({
     }, '修改分类失败');
   }
 
+  async function handleReclassifyCategory() {
+    if (!article) return;
+    await runArticleAction('classify', async () => {
+      await api.classifyArticle(article.id);
+      await mutateArticle();
+      onMutate();
+      detailMutate('categories');
+      detailMutate('categories:detail-assignment');
+      detailMutate((key) => typeof key === 'string' && key.startsWith('articles:archive:'), undefined, { revalidate: true });
+      showToast('已重新判断分类');
+    }, '重新判断分类失败');
+  }
+
   const showArticleSkeleton = isLoading || pendingAction === 'refetch';
   const showAISkeleton = pendingAction === 'ai';
   const recordDeleteMode: DeleteConfirmMode | null = currentView === 'archive' && article?.isArchived
@@ -2687,6 +2700,12 @@ function DetailContent({
                       <button className="app-menu-item detail-more-menu-item" type="button" onClick={() => { setMoreOpen(false); setCategoryAssignmentOpen(true); }} disabled={!!pendingAction}>
                         <FolderOutlined />
                         <span>{pendingAction === 'category' ? '正在修改…' : '修改分类'}</span>
+                      </button>
+                    )}
+                    {article?.categoryResult?.reviewStatus === 'needs_review' && (
+                      <button className="app-menu-item detail-more-menu-item" type="button" onClick={handleReclassifyCategory} disabled={!!pendingAction}>
+                        <RobotOutlined />
+                        <span>{pendingAction === 'classify' ? '正在判断…' : '重新判断分类'}</span>
                       </button>
                     )}
                     <div className="detail-more-menu-divider" />
@@ -2853,6 +2872,12 @@ function DetailContent({
                     </button>
                   )}
                 </div>
+                {article.categoryResult?.reviewStatus === 'needs_review' && (
+                  <div className="detail-panel-category-review">
+                    <span>AI 分类待确认</span>
+                    {article.categoryResult.reason && <span>· {article.categoryResult.reason}</span>}
+                  </div>
+                )}
               </div>
             </div>
             {/* AI标签 */}

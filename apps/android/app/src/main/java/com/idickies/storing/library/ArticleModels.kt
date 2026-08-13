@@ -12,6 +12,16 @@ data class ArticleCategory(
 )
 
 @Serializable
+data class ArticleCategoryResult(
+  @SerialName("categoryId") val categoryId: Int,
+  val confidence: Double? = null,
+  val reason: String? = null,
+  val source: String = "rule",
+  @SerialName("reviewStatus") val reviewStatus: String = "pending",
+  @SerialName("modelVersion") val modelVersion: String? = null,
+)
+
+@Serializable
 data class ArticleCard(
   val id: Int,
   val title: String? = null,
@@ -24,6 +34,7 @@ data class ArticleCard(
   @SerialName("aiCategory") val aiCategory: String? = null,
   @SerialName("aiTags") val aiTags: List<String> = emptyList(),
   val category: ArticleCategory? = null,
+  @SerialName("categoryResult") val categoryResult: ArticleCategoryResult? = null,
   @SerialName("isFavorited") val isFavorited: Boolean = false,
   @SerialName("isArchived") val isArchived: Boolean = false,
   @SerialName("isPublished") val isPublished: Boolean = false,
@@ -38,6 +49,12 @@ data class ArticleSource(
   val source: String,
   val count: Int,
   @SerialName("latestCreatedAt") val latestCreatedAt: String? = null,
+)
+
+@Serializable
+data class ArticleTag(
+  val tag: String,
+  val count: Int,
 )
 
 @Serializable
@@ -70,6 +87,7 @@ data class ArticleDetail(
   @SerialName("aiCategory") val aiCategory: String? = null,
   @SerialName("aiTags") val aiTags: List<String> = emptyList(),
   val category: ArticleCategory? = null,
+  @SerialName("categoryResult") val categoryResult: ArticleCategoryResult? = null,
   @SerialName("isFavorited") val isFavorited: Boolean = false,
   @SerialName("isArchived") val isArchived: Boolean = false,
   @SerialName("isPublished") val isPublished: Boolean = false,
@@ -89,6 +107,12 @@ data class ToggleFavoriteResponse(
 data class ArchiveResponse(
   @SerialName("articleId") val articleId: Int,
   @SerialName("isArchived") val isArchived: Boolean,
+  val category: ArticleCategory? = null,
+)
+
+@Serializable
+data class ArticleArchiveRequest(
+  @SerialName("categoryId") val categoryId: Int? = null,
 )
 
 @Serializable
@@ -100,6 +124,50 @@ data class ArticleCategoryAssignmentRequest(
 data class ArticleCategoryAssignmentResponse(
   @SerialName("articleId") val articleId: Int,
   @SerialName("updatedCount") val updatedCount: Int,
+)
+
+@Serializable
+data class ArticleBulkCategoryRequest(
+  @SerialName("articleIds") val articleIds: List<Int>,
+  @SerialName("categoryId") val categoryId: Int,
+)
+
+@Serializable
+data class ArticleBulkCategoryResponse(
+  @SerialName("updatedCount") val updatedCount: Int,
+)
+
+@Serializable
+data class ArticleBulkClassifyRequest(
+  @SerialName("articleIds") val articleIds: List<Int>,
+)
+
+@Serializable
+data class ArticleBulkClassifySkipped(
+  @SerialName("articleId") val articleId: Int,
+  val code: String,
+)
+
+@Serializable
+data class ArticleBulkClassifyResponse(
+  @SerialName("classifiedArticleIds") val classifiedArticleIds: List<Int> = emptyList(),
+  val skipped: List<ArticleBulkClassifySkipped> = emptyList(),
+  val failed: List<ArticleBulkClassifyFailure> = emptyList(),
+)
+
+@Serializable
+data class ArticleBulkClassifyFailure(
+  @SerialName("articleId") val articleId: Int,
+  val message: String,
+)
+
+fun toggleArchiveBatchSelection(selected: Set<Int>, articleId: Int): Set<Int> =
+  if (articleId in selected) selected - articleId else selected + articleId
+
+@Serializable
+data class ArticleClassifyResponse(
+  @SerialName("articleId") val articleId: Int,
+  val ok: Boolean,
 )
 
 

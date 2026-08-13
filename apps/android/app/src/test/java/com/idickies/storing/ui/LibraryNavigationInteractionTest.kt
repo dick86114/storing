@@ -8,9 +8,9 @@ import org.junit.Test
 
 class LibraryNavigationInteractionTest {
   @Test
-  fun `double tapping the active tab refreshes while a single tap scrolls to its beginning`() {
+  fun `点击当前 tab 始终立即滚动到开头，不等待双击判定`() {
     assertEquals(LibraryTabInteraction.ScrollToStart, libraryTabInteraction(LibraryView.Inbox, LibraryView.Inbox, isDoubleTap = false))
-    assertEquals(LibraryTabInteraction.Refresh, libraryTabInteraction(LibraryView.Inbox, LibraryView.Inbox, isDoubleTap = true))
+    assertEquals(LibraryTabInteraction.ScrollToStart, libraryTabInteraction(LibraryView.Inbox, LibraryView.Inbox, isDoubleTap = true))
     assertEquals(LibraryTabInteraction.Select, libraryTabInteraction(LibraryView.Inbox, LibraryView.Archive, isDoubleTap = false))
   }
 

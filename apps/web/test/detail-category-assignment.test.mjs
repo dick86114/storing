@@ -10,4 +10,8 @@ test('文章详情提供分类选择并在保存后刷新归档数据', () => {
   assert.match(detailPanel, /api\.moveArticleToCategory\(article\.id, categoryId\)/);
   assert.match(detailPanel, /detailMutate\('categories'\)/);
   assert.match(detailPanel, /detailMutate\('categories:archive-action'\)/);
+  assert.match(detailPanel, /categoryResult\?\.reviewStatus === 'needs_review'/);
+  assert.match(detailPanel, /categoryResult\.reason/);
+  assert.match(detailPanel, /重新判断分类/);
+  assert.match(detailPanel, /api\.classifyArticle\(article\.id\)/);
 });
