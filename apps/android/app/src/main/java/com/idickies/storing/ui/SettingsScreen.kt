@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -58,6 +59,7 @@ import com.idickies.storing.ui.theme.ThemeMode
 import com.idickies.storing.cache.CacheManager
 import com.idickies.storing.diagnostics.DiagnosticsExporter
 import com.idickies.storing.update.settingsUpdatePresentation
+import com.idickies.storing.update.UpdateSource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +68,8 @@ fun QiankunjieSettingsScreen(
   themeMode: ThemeMode,
   onThemeModeChange: (ThemeMode) -> Unit,
   onCheckUpdate: () -> Unit,
+  updateSource: UpdateSource = UpdateSource.Official,
+  onUpdateSourceChange: (UpdateSource) -> Unit = {},
   onOpenReaderSettings: () -> Unit,
   onOpenChangePassword: () -> Unit,
   onOpenOfflineContent: () -> Unit,
@@ -147,6 +151,35 @@ fun QiankunjieSettingsScreen(
               Text("在资料库中显示快速采集入口", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Switch(checked = floatingCollectEnabled, onCheckedChange = onFloatingCollectEnabledChange)
+          }
+        }
+      }
+      item { SettingsSectionTitle("更新") }
+      item {
+        Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+          Column(modifier = Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(13.dp), verticalAlignment = Alignment.CenterVertically) {
+              Icon(Icons.Outlined.CloudDone, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+              Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("更新源", style = MaterialTheme.typography.titleSmall)
+                Text("GitHub 访问较慢时，可切换公共加速源。下载后仍会校验 SHA-256。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+              }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              listOf(UpdateSource.Official, UpdateSource.GhProxy).forEach { source ->
+                FilterChip(selected = updateSource.label == source.label, onClick = { onUpdateSourceChange(source) }, label = { Text(source.label) })
+              }
+            }
+            OutlinedTextField(
+              value = if (updateSource is UpdateSource.Custom) updateSource.inputValue() else "",
+              onValueChange = { onUpdateSourceChange(UpdateSource.Custom(it)) },
+              label = { Text("自定义 HTTPS 前缀") },
+              placeholder = { Text("https://your-mirror.example") },
+              singleLine = true,
+              isError = updateSource is UpdateSource.Custom && updateSource.isInvalid,
+              supportingText = { Text("仅拼接到 GitHub Release APK 地址前，必须是 HTTPS。") },
+              modifier = Modifier.fillMaxWidth(),
+            )
           }
         }
       }

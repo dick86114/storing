@@ -748,6 +748,8 @@ fun LibraryScreen(
   onClipboardCollectUrlConsumed: () -> Unit = {},
   onManualUpdateCheck: () -> Unit,
   updateChecking: Boolean,
+  updateSource: com.idickies.storing.update.UpdateSource = com.idickies.storing.update.UpdateSource.Official,
+  onUpdateSourceChange: (com.idickies.storing.update.UpdateSource) -> Unit = {},
   themeMode: ThemeMode,
   onThemeModeChange: (ThemeMode) -> Unit,
   isAuthenticated: Boolean,
@@ -760,6 +762,8 @@ fun LibraryScreen(
   readerColorScheme: ReaderColorScheme,
   onRequestLogin: () -> Unit,
   onLogout: () -> Unit,
+  openSettingsRequest: Boolean = false,
+  onSettingsRequestConsumed: () -> Unit = {},
   libraryViewModel: LibraryViewModel = hiltViewModel(),
   collectViewModel: ShareCollectViewModel = hiltViewModel(),
   jobsViewModel: CollectJobsViewModel = hiltViewModel(),
@@ -812,6 +816,13 @@ fun LibraryScreen(
   val snackbarHostState = remember { SnackbarHostState() }
   var refreshAnchor by remember { mutableStateOf<LibraryRefreshAnchor?>(null) }
   var refreshWasObserved by remember { mutableStateOf(false) }
+
+  LaunchedEffect(openSettingsRequest) {
+    if (openSettingsRequest) {
+      showSettings = true
+      onSettingsRequestConsumed()
+    }
+  }
 
   fun refreshListPreservingPosition() {
     refreshAnchor = LibraryRefreshAnchor(
@@ -956,6 +967,8 @@ fun LibraryScreen(
       themeMode = themeMode,
       onThemeModeChange = onThemeModeChange,
       onCheckUpdate = onManualUpdateCheck,
+      updateSource = updateSource,
+      onUpdateSourceChange = onUpdateSourceChange,
       onOpenReaderSettings = { showReaderSettings = true },
       onOpenChangePassword = { showChangePassword = true },
       onOpenOfflineContent = { showOfflineContent = true },
