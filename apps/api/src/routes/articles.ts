@@ -40,6 +40,13 @@ function archiveCategoryFilters(c: any): string[] {
     .filter((category) => category.length > 0 && category !== 'all'))];
 }
 
+function archiveTagFilters(c: any): string[] {
+  const rawTags = (c.req.queries('tag') ?? []) as string[];
+  return [...new Set(rawTags
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0 && tag.length <= 80))];
+}
+
 function applyArchiveCategoryFilter(whereCondition: any, view: string, categoryFilters: string[]) {
   if (view !== 'archive' || categoryFilters.length === 0) return whereCondition;
   const sourceCondition = categoryFilters.length === 1
@@ -53,6 +60,14 @@ function applyArchiveCategoryIdFilter(whereCondition: any, view: string, categor
   const id = Number(categoryId);
   if (!Number.isInteger(id) || id <= 0) return and(whereCondition, sql`FALSE`);
   return and(whereCondition, eq(articleMetadata.categoryId, id));
+}
+
+function applyArchiveTagFilter(whereCondition: any, view: string, tags: string[]) {
+  if (view !== 'archive' || tags.length === 0) return whereCondition;
+  return and(
+    whereCondition,
+    sql`${articleMetadata.aiTags} @> ARRAY[${sql.join(tags.map((tag) => sql`${tag}`), sql`, `)}]::text[]`,
+  );
 }
 
 function categoryProjection() {
@@ -193,6 +208,14 @@ function serializeArticleRecord(article: NonNullable<Awaited<ReturnType<typeof g
     isPublished,
     publicUrl: isPublished && article.publicId ? `/p/${article.publicId}` : null,
     aiTags: article.aiTags ?? [],
+    categoryResult: article.categoryId ? {
+      categoryId: article.categoryId,
+      source: article.categorySource ?? 'rule',
+      confidence: article.categoryConfidence === null ? null : Number(article.categoryConfidence),
+      reason: article.categoryReason,
+      reviewStatus: article.categoryReviewStatus ?? 'pending',
+      modelVersion: article.categoryModelVersion,
+    } : null,
   };
 }
 
@@ -302,6 +325,7 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
   const view = c.req.query('view') || 'inbox';
   const scope = c.req.query('scope');
   const categoryFilters = archiveCategoryFilters(c);
+  const tagFilters = archiveTagFilters(c);
   const categoryId = c.req.query('categoryId');
   const page = parseInt(c.req.query('page') || '1');
   const perPage = parseInt(c.req.query('perPage') || '8');
@@ -418,6 +442,7 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
   let whereCondition = getViewCondition(view);
   whereCondition = applyArchiveCategoryFilter(whereCondition, view, categoryFilters);
   whereCondition = applyArchiveCategoryIdFilter(whereCondition, view, categoryId);
+  whereCondition = applyArchiveTagFilter(whereCondition, view, tagFilters);
 
   const baseQuery = db
     .select({
@@ -499,6 +524,22 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
     order,
     totalPages: Math.ceil(total / perPage),
   });
+  });
+
+/** GET /tags — 当前用户归档文章的 AI 标签统计。 */
+articlesRoutes.get('/tags', requireAuth, async (c) => {
+  const userId = getCurrentUser(c).id as number;
+  const result = await db.execute<{ tag: string; count: number | string }>(sql`
+    SELECT tag, COUNT(*)::int AS count
+    FROM ${articleMetadata}
+    CROSS JOIN LATERAL unnest(COALESCE(${articleMetadata.aiTags}, ARRAY[]::text[])) AS tag
+    WHERE ${articleMetadata.userId} = ${userId}
+      AND ${articleMetadata.isArchived} = TRUE
+      AND ${articleMetadata.isDeleted} = FALSE
+    GROUP BY tag
+    ORDER BY count DESC, tag ASC
+  `);
+  return c.json(result.rows.map((row) => ({ tag: row.tag, count: Number(row.count) })));
 });
 
 /**
@@ -648,9 +689,50 @@ articlesRoutes.post('/articles/:id/classify', requireAuth, async (c) => {
   const userId = getCurrentUser(c).id as number;
   const article = await getArticleRecord(id, userId);
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: '文章不存在或无权访问' } }, 404);
+  if (!article.isArchived) return c.json({ error: { code: 'CATEGORY_NOT_ARCHIVED', message: '仅归档文章可以重新判断分类' } }, 409);
   if ((article as any).categorySource === 'user') return c.json({ error: { code: 'CATEGORY_USER_OVERRIDE', message: '文章分类已由用户确认，不能自动覆盖' } }, 409);
   await classifyStoredArticleForArchive(id, userId);
   return c.json({ articleId: id, ok: true });
+});
+
+articlesRoutes.post('/articles/bulk-classify', requireAuth, async (c) => {
+  const body = await c.req.json().catch(() => null) as { articleIds?: unknown } | null;
+  if (!body || !Array.isArray(body.articleIds)) {
+    return c.json({ error: { code: 'BAD_REQUEST', message: '批量重判参数无效' } }, 400);
+  }
+  const articleIds = [...new Set(body.articleIds)];
+  if (!articleIds.length || articleIds.some((id) => !Number.isInteger(id) || id <= 0)) {
+    return c.json({ error: { code: 'BAD_REQUEST', message: '请选择至少一篇有效文章' } }, 400);
+  }
+
+  const userId = getCurrentUser(c).id as number;
+  const classifiedArticleIds: number[] = [];
+  const skipped: Array<{ articleId: number; code: 'NOT_FOUND' | 'NOT_ARCHIVED' | 'CATEGORY_USER_OVERRIDE' }> = [];
+  const failed: Array<{ articleId: number; message: string }> = [];
+
+  for (const articleId of articleIds) {
+    const article = await getArticleRecord(articleId, userId);
+    if (!article) {
+      skipped.push({ articleId, code: 'NOT_FOUND' });
+      continue;
+    }
+    if (!article.isArchived) {
+      skipped.push({ articleId, code: 'NOT_ARCHIVED' });
+      continue;
+    }
+    if (article.categorySource === 'user') {
+      skipped.push({ articleId, code: 'CATEGORY_USER_OVERRIDE' });
+      continue;
+    }
+    try {
+      await classifyStoredArticleForArchive(articleId, userId);
+      classifiedArticleIds.push(articleId);
+    } catch (error) {
+      failed.push({ articleId, message: error instanceof Error ? error.message : '分类失败' });
+    }
+  }
+
+  return c.json({ classifiedArticleIds, skipped, failed });
 });
 
 articlesRoutes.patch('/articles/:id/category', requireAuth, async (c) => {

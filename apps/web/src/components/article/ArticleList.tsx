@@ -16,6 +16,9 @@ interface ArticleListProps {
  onPublish?: (id: number, e: React.MouseEvent) => void;
  showMenu?: boolean;
   highlightId?: number | null;
+  selectable?: boolean;
+  selectedArticleIds?: Set<number>;
+  onSelectionChange?: (id: number, selected: boolean, e: React.MouseEvent) => void;
 }
 
 export function ArticleList({
@@ -30,6 +33,9 @@ export function ArticleList({
  onPublish,
  showMenu = true,
   highlightId,
+  selectable = false,
+  selectedArticleIds = new Set(),
+  onSelectionChange,
 }: ArticleListProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -79,6 +85,9 @@ export function ArticleList({
            onArchive={onArchive}
            onPublish={onPublish}
            showMenu={showMenu}
+            selectable={selectable}
+            selected={selectedArticleIds.has(article.id)}
+            onSelectionChange={onSelectionChange}
             highlight={highlightId === article.id}
             featured={index === 0}
           />

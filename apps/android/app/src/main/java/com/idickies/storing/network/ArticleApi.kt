@@ -1,13 +1,20 @@
 package com.idickies.storing.network
 
 import com.idickies.storing.library.ArchiveResponse
+import com.idickies.storing.library.ArticleArchiveRequest
 import com.idickies.storing.library.ArticleRefetchResponse
 import com.idickies.storing.library.ArticleRegenerateAiResponse
 import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.library.ArticleCategoryAssignmentRequest
 import com.idickies.storing.library.ArticleCategoryAssignmentResponse
+import com.idickies.storing.library.ArticleBulkCategoryRequest
+import com.idickies.storing.library.ArticleBulkCategoryResponse
+import com.idickies.storing.library.ArticleBulkClassifyRequest
+import com.idickies.storing.library.ArticleBulkClassifyResponse
+import com.idickies.storing.library.ArticleClassifyResponse
 import com.idickies.storing.library.ArticleListResponse
 import com.idickies.storing.library.ArticleSource
+import com.idickies.storing.library.ArticleTag
 import com.idickies.storing.library.ArchiveCategoriesResponse
 import com.idickies.storing.library.PublicArticleResponse
 import com.idickies.storing.library.PublicationResponse
@@ -31,6 +38,7 @@ interface ArticleApi {
     @Query("order") order: String = "desc",
     @Query("category") categories: List<String>? = null,
     @Query("categoryId") categoryId: Int? = null,
+    @Query("tag") tags: List<String>? = null,
   ): ArticleListResponse
 
   @GET("sources")
@@ -38,6 +46,9 @@ interface ArticleApi {
 
   @GET("categories")
   suspend fun categories(): ArchiveCategoriesResponse
+
+  @GET("tags")
+  suspend fun tags(): List<ArticleTag>
 
   @GET("search")
   suspend fun search(
@@ -60,7 +71,7 @@ interface ArticleApi {
   suspend fun toggleFavorite(@Path("id") id: Int): ToggleFavoriteResponse
 
   @POST("articles/{id}/archive")
-  suspend fun archive(@Path("id") id: Int): ArchiveResponse
+  suspend fun archive(@Path("id") id: Int, @Body request: ArticleArchiveRequest? = null): ArchiveResponse
 
   @POST("articles/{id}/unarchive")
   suspend fun unarchive(@Path("id") id: Int): ArchiveResponse
@@ -70,6 +81,15 @@ interface ArticleApi {
     @Path("id") id: Int,
     @Body request: ArticleCategoryAssignmentRequest,
   ): ArticleCategoryAssignmentResponse
+
+  @POST("articles/bulk-category")
+  suspend fun moveToCategoryBulk(@Body request: ArticleBulkCategoryRequest): ArticleBulkCategoryResponse
+
+  @POST("articles/{id}/classify")
+  suspend fun classify(@Path("id") id: Int): ArticleClassifyResponse
+
+  @POST("articles/bulk-classify")
+  suspend fun classifyBulk(@Body request: ArticleBulkClassifyRequest): ArticleBulkClassifyResponse
 
   @POST("articles/{id}/publish")
   suspend fun publish(@Path("id") id: Int): PublicationResponse

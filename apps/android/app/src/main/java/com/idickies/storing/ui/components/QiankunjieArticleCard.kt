@@ -110,6 +110,9 @@ fun QiankunjieArticleCard(
   article: ArticleCard,
   onOpen: (Int) -> Unit,
   onLongPress: (ArticleCard) -> Unit = {},
+  selectionEnabled: Boolean = false,
+  selected: Boolean = false,
+  onSelectionChange: (Int) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   val colors = MaterialTheme.colorScheme
@@ -127,7 +130,7 @@ fun QiankunjieArticleCard(
       .combinedClickable(
         interactionSource = pressMotion.interactionSource,
         indication = null,
-        onClick = { onOpen(article.id) },
+        onClick = { if (selectionEnabled) onSelectionChange(article.id) else onOpen(article.id) },
         onLongClick = { onLongPress(article) },
       ),
     colors = CardDefaults.cardColors(containerColor = if (isDark) colors.surfaceVariant else Color.Transparent),
@@ -147,6 +150,17 @@ fun QiankunjieArticleCard(
         ),
       )
       Column(modifier = Modifier.padding(articleCardLayout.contentPadding)) {
+        if (selectionEnabled) {
+          Surface(
+            modifier = Modifier.clickable { onSelectionChange(article.id) },
+            color = if (selected) colors.primary else colors.surfaceVariant,
+            shape = CircleShape,
+          ) {
+            Box(modifier = Modifier.size(22.dp), contentAlignment = Alignment.Center) {
+              if (selected) Text("✓", color = colors.onPrimary, style = MaterialTheme.typography.labelMedium)
+            }
+          }
+        }
         ArticleMetadata(article, color = colors.onSurfaceVariant)
         Text(
           article.displayTitle,
@@ -195,6 +209,9 @@ fun QiankunjieGridArticleCard(
   article: ArticleCard,
   onOpen: (Int) -> Unit,
   onLongPress: (ArticleCard) -> Unit = {},
+  selectionEnabled: Boolean = false,
+  selected: Boolean = false,
+  onSelectionChange: (Int) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   val colors = MaterialTheme.colorScheme
@@ -210,7 +227,7 @@ fun QiankunjieGridArticleCard(
       .combinedClickable(
         interactionSource = pressMotion.interactionSource,
         indication = null,
-        onClick = { onOpen(article.id) },
+        onClick = { if (selectionEnabled) onSelectionChange(article.id) else onOpen(article.id) },
         onLongClick = { onLongPress(article) },
       ),
     colors = CardDefaults.cardColors(containerColor = if (isDark) colors.surfaceVariant else Color.Transparent),
@@ -231,6 +248,17 @@ fun QiankunjieGridArticleCard(
         modifier = Modifier.padding(gridArticleCardLayout.contentPadding),
         verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
+        if (selectionEnabled) {
+          Surface(
+            modifier = Modifier.clickable { onSelectionChange(article.id) },
+            color = if (selected) colors.primary else colors.surfaceVariant,
+            shape = CircleShape,
+          ) {
+            Box(modifier = Modifier.size(22.dp), contentAlignment = Alignment.Center) {
+              if (selected) Text("✓", color = colors.onPrimary, style = MaterialTheme.typography.labelMedium)
+            }
+          }
+        }
         ArticleMetadata(article, color = colors.onSurfaceVariant)
         Text(
           article.displayTitle,
@@ -251,6 +279,9 @@ fun QiankunjieCompactArticleRow(
   article: ArticleCard,
   onOpen: (Int) -> Unit,
   onLongPress: (ArticleCard) -> Unit = {},
+  selectionEnabled: Boolean = false,
+  selected: Boolean = false,
+  onSelectionChange: (Int) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   val pressMotion = rememberArticleCardPressMotion()
@@ -265,7 +296,7 @@ fun QiankunjieCompactArticleRow(
       .combinedClickable(
         interactionSource = pressMotion.interactionSource,
         indication = null,
-        onClick = { onOpen(article.id) },
+        onClick = { if (selectionEnabled) onSelectionChange(article.id) else onOpen(article.id) },
         onLongClick = { onLongPress(article) },
       ),
     colors = CardDefaults.cardColors(containerColor = if (isDark) MaterialTheme.colorScheme.surface else Color.Transparent),
@@ -284,6 +315,17 @@ fun QiankunjieCompactArticleRow(
         shape = MaterialTheme.shapes.small,
       )
       Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (selectionEnabled) {
+          Surface(
+            modifier = Modifier.clickable { onSelectionChange(article.id) },
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+            shape = CircleShape,
+          ) {
+            Box(modifier = Modifier.size(22.dp), contentAlignment = Alignment.Center) {
+              if (selected) Text("✓", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelMedium)
+            }
+          }
+        }
         ArticleMetadata(article)
         Text(
           article.displayTitle,

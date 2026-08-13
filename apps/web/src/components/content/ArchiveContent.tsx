@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
+import { Suspense, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import useSWR from 'swr';
 import { useToast } from '@/components/ui/Toast';
 import { useArticleContext, type ArticleListMutation } from '@/components/providers/ArticleContext';
@@ -11,7 +11,7 @@ import { SourceSidebar } from '@/components/archive/SourceSidebar';
 import { SourcePills } from '@/components/archive/SourcePills';
 import { CategoryNavigation } from '@/components/archive/CategoryNavigation';
 import { PullToRefresh } from '@/components/ui/PullToRefresh';
-import { api } from '@/lib/api';
+import { api, type ArchiveTag } from '@/lib/api';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
 import type { ArticleListItem } from '@storing/shared';
@@ -31,6 +31,8 @@ function ArchiveContentInner() {
 
   const [activeSource, setActiveSource] = useState('all');
   const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
+  const [activeTags, setActiveTags] = useState<string[]>([]);
+  const [tagFilterOpen, setTagFilterOpen] = useState(false);
   const [sidebarMode, setSidebarMode] = useState<'categories' | 'sources'>('categories');
   const [currentSort, setCurrentSort] = useState('count');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -42,6 +44,11 @@ function ArchiveContentInner() {
   const [bookmarkPrompt, setBookmarkPrompt] = useState<ReadingBookmark | null>(null);
   const [requestTimedOut, setRequestTimedOut] = useState(false);
   const [sourceSidebarCollapsed, setSourceSidebarCollapsed] = useState(false);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedArticleIds, setSelectedArticleIds] = useState<Set<number>>(new Set());
+  const [bulkCategoryPickerOpen, setBulkCategoryPickerOpen] = useState(false);
+  const [bulkCategoryId, setBulkCategoryId] = useState<number | null>(null);
+  const [bulkSaving, setBulkSaving] = useState(false);
   const removingIdsRef = useRef<Set<number>>(new Set());
   const allArticlesRef = useRef(allArticles);
   allArticlesRef.current = allArticles;
@@ -63,19 +70,21 @@ function ArchiveContentInner() {
   }, [getBookmark]);
 
   const { data, error, isLoading, isValidating, mutate } = useSWR(
-    `articles:archive:${page}:${activeSource}:${activeCategoryId ?? 'all'}:${articleSort}:${articleSortOrder}`,
-    () => api.getArticles('archive', page, activeSource, 8, articleSort, articleSortOrder, undefined, activeCategoryId),
+    `articles:archive:${page}:${activeSource}:${activeCategoryId ?? 'all'}:${activeTags.join('|')}:${articleSort}:${articleSortOrder}`,
+    () => api.getArticles('archive', page, activeSource, 8, articleSort, articleSortOrder, undefined, activeCategoryId, activeTags),
     { revalidateOnFocus: false, errorRetryCount: 1 }
   );
 
   const { data: sourceData } = useSWR(`sources:${currentSort}:${sortOrder}`, () => api.getSources(currentSort, sortOrder), { revalidateOnFocus: false });
   const { data: categoryData } = useSWR('categories', () => api.getCategories(), { revalidateOnFocus: false });
+  const { data: tagsData } = useSWR<ArchiveTag[]>(isAuthenticated ? 'archive-tags' : null, () => api.getTags(), { revalidateOnFocus: false });
 
   const totalPages = data?.totalPages ?? 1;
   const sources = sourceData ?? [];
-  const categories = categoryData?.categories ?? [];
+  const categories = useMemo(() => categoryData?.categories ?? [], [categoryData?.categories]);
   const categoryCounts = Object.fromEntries(Object.entries(categoryData?.counts ?? {}).map(([id, count]) => [Number(id), count]));
   const totalCount = Object.values(categoryData?.counts ?? {}).reduce((sum, count) => sum + count, 0);
+  const archiveTags = tagsData ?? [];
 
   useEffect(() => {
     if (data?.articles) {
@@ -115,6 +124,20 @@ function ArchiveContentInner() {
     removingIdsRef.current.clear();
     window.scrollTo(0, 0);
   }, [activeCategoryId]);
+
+  const toggleTag = useCallback((tag: string) => {
+    setActiveTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]);
+    setPage(1);
+    removingIdsRef.current.clear();
+    window.scrollTo(0, 0);
+  }, []);
+
+  const clearTags = useCallback(() => {
+    setActiveTags([]);
+    setPage(1);
+    removingIdsRef.current.clear();
+    window.scrollTo(0, 0);
+  }, []);
 
   const handleSortChange = useCallback((sort: string) => {
     setCurrentSort(sort);
@@ -232,6 +255,58 @@ function ArchiveContentInner() {
     }
   }, [unarchive, showToast, refreshList]);
 
+  const handleSelectionChange = useCallback((id: number, selected: boolean) => {
+    setSelectedArticleIds((current) => {
+      const next = new Set(current);
+      if (selected) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const exitBulkMode = useCallback(() => {
+    setBulkMode(false);
+    setSelectedArticleIds(new Set());
+    setBulkCategoryPickerOpen(false);
+    setBulkCategoryId(null);
+  }, []);
+
+  const confirmBulkMove = useCallback(async () => {
+    if (!bulkCategoryId || selectedArticleIds.size === 0 || bulkSaving) return;
+    setBulkSaving(true);
+    try {
+      const result = await api.bulkMoveArticlesToCategory([...selectedArticleIds], bulkCategoryId);
+      const category = categories.find((item) => item.id === bulkCategoryId);
+      showToast(`已将 ${result.updatedCount} 篇文章归入${category?.name || '所选分类'}`);
+      exitBulkMode();
+      await refreshList();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '批量修改分类失败');
+    } finally {
+      setBulkSaving(false);
+    }
+  }, [bulkCategoryId, bulkSaving, categories, exitBulkMode, refreshList, selectedArticleIds, showToast]);
+
+  const confirmBulkClassify = useCallback(async () => {
+    if (selectedArticleIds.size === 0 || bulkSaving) return;
+    setBulkSaving(true);
+    try {
+      const result = await api.bulkClassifyArticles([...selectedArticleIds]);
+      const notices = [
+        result.classifiedArticleIds.length ? `已重新判断 ${result.classifiedArticleIds.length} 篇` : '',
+        result.skipped.length ? `跳过 ${result.skipped.length} 篇人工确认或非归档文章` : '',
+        result.failed.length ? `${result.failed.length} 篇失败` : '',
+      ].filter(Boolean);
+      showToast(notices.join('，') || '没有可重新判断的文章');
+      exitBulkMode();
+      await refreshList();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '批量重新判断分类失败');
+    } finally {
+      setBulkSaving(false);
+    }
+  }, [bulkSaving, exitBulkMode, refreshList, selectedArticleIds, showToast]);
+
   const articleListContent = (error || requestTimedOut) && page === 1 ? (
     <div style={{ color: 'var(--text-muted)', padding: '48px 16px', textAlign: 'center' }}>
       <div style={{ marginBottom: 12 }}>归档列表加载失败，可能是后端或数据库暂时不可用。</div>
@@ -257,6 +332,20 @@ function ArchiveContentInner() {
         onChange={handleArticleSortChange}
         onOrderChange={handleArticleSortOrderChange}
       />
+      {isAuthenticated && (
+        <div className="archive-bulk-toolbar">
+          {bulkMode ? (
+            <>
+              <span>已选择 {selectedArticleIds.size} 篇</span>
+              <button type="button" onClick={() => setBulkCategoryPickerOpen(true)} disabled={selectedArticleIds.size === 0}>修改分类</button>
+              <button type="button" onClick={confirmBulkClassify} disabled={selectedArticleIds.size === 0 || bulkSaving}>重新判断分类</button>
+              <button type="button" onClick={exitBulkMode}>取消</button>
+            </>
+          ) : (
+            <button type="button" onClick={() => setBulkMode(true)}>批量整理</button>
+          )}
+        </div>
+      )}
       <ArticleList
         articles={allArticles}
         hasMore={page < totalPages}
@@ -268,6 +357,9 @@ function ArchiveContentInner() {
         onArchive={handleUnarchive}
         showMenu={isAuthenticated}
         highlightId={highlightId}
+        selectable={bulkMode}
+        selectedArticleIds={selectedArticleIds}
+        onSelectionChange={handleSelectionChange}
       />
     </>
   );
@@ -347,6 +439,45 @@ function ArchiveContentInner() {
         </div>
       )}
 
+      {bulkCategoryPickerOpen && (
+        <div className="archive-category-confirm-overlay" role="presentation" onMouseDown={() => !bulkSaving && setBulkCategoryPickerOpen(false)}>
+          <section className="archive-category-confirm" role="dialog" aria-modal="true" aria-labelledby="bulk-category-confirm-title" onMouseDown={(event) => event.stopPropagation()}>
+            <h2 id="bulk-category-confirm-title">批量修改分类</h2>
+            <select value={bulkCategoryId ?? ''} onChange={(event) => setBulkCategoryId(event.target.value ? Number(event.target.value) : null)} aria-label="选择目标分类" disabled={bulkSaving}>
+              <option value="">请选择目标分类</option>
+              {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+            </select>
+            <div className="archive-category-confirm-actions">
+              <button type="button" onClick={() => setBulkCategoryPickerOpen(false)} disabled={bulkSaving}>取消</button>
+              <button type="button" onClick={confirmBulkMove} disabled={!bulkCategoryId || bulkSaving}>{bulkSaving ? '正在修改…' : '确认修改'}</button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {tagFilterOpen && (
+        <div className="archive-category-confirm-overlay" role="presentation" onMouseDown={() => setTagFilterOpen(false)}>
+          <section className="archive-tag-filter" role="dialog" aria-modal="true" aria-labelledby="archive-tag-filter-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="archive-tag-filter-header">
+              <h2 id="archive-tag-filter-title">标签筛选</h2>
+              <button type="button" onClick={() => setTagFilterOpen(false)} aria-label="关闭标签筛选">关闭</button>
+            </div>
+            <p>仅显示同时包含所选标签的文章。</p>
+            <div className="archive-tag-filter-list">
+              {archiveTags.map(({ tag, count }) => {
+                const selected = activeTags.includes(tag);
+                return <button key={tag} type="button" className={selected ? 'is-selected' : ''} onClick={() => toggleTag(tag)} aria-pressed={selected}>{tag}<span>{count}</span></button>;
+              })}
+              {archiveTags.length === 0 && <span className="archive-tag-filter-empty">暂无可筛选标签</span>}
+            </div>
+            <div className="archive-category-confirm-actions">
+              <button type="button" onClick={clearTags} disabled={activeTags.length === 0}>清空筛选</button>
+              <button type="button" onClick={() => setTagFilterOpen(false)}>完成</button>
+            </div>
+          </section>
+        </div>
+      )}
+
       {isMobile && (
         <>
           <CategoryNavigation categories={categories} activeCategoryId={activeCategoryId} counts={categoryCounts} totalCount={totalCount} onSelect={handleCategorySelect} compact />
@@ -360,6 +491,11 @@ function ArchiveContentInner() {
             sortOrder={sortOrder}
             onSortOrderChange={handleSortOrderChange}
           />
+          <div className="archive-tag-filter-trigger-wrap">
+            <button type="button" className={`archive-tag-filter-trigger${activeTags.length ? ' is-active' : ''}`} onClick={() => setTagFilterOpen(true)} aria-haspopup="dialog">
+              标签{activeTags.length ? ` (${activeTags.length})` : ''}
+            </button>
+          </div>
         </>
       )}
 
@@ -373,6 +509,9 @@ function ArchiveContentInner() {
               <button type="button" className={sidebarMode === 'categories' ? 'is-active' : ''} onClick={() => setSidebarMode('categories')} role="tab" aria-selected={sidebarMode === 'categories'}>分类</button>
               <button type="button" className={sidebarMode === 'sources' ? 'is-active' : ''} onClick={() => setSidebarMode('sources')} role="tab" aria-selected={sidebarMode === 'sources'}>来源</button>
             </div>
+            <button type="button" className={`archive-tag-filter-trigger archive-tag-filter-trigger--desktop${activeTags.length ? ' is-active' : ''}`} onClick={() => setTagFilterOpen(true)} aria-haspopup="dialog">
+              标签筛选{activeTags.length ? ` (${activeTags.length})` : ''}
+            </button>
             {sidebarMode === 'categories' ? (
               <CategoryNavigation categories={categories} activeCategoryId={activeCategoryId} counts={categoryCounts} totalCount={totalCount} onSelect={handleCategorySelect} />
             ) : (

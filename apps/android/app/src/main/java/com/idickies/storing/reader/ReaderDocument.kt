@@ -66,6 +66,7 @@ $darkTheme
   .qj-tags { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
   .qj-tag { font-size:11px; padding:3px 10px; border-radius:99px; background:#D0E8D8; color:#0D2B1E; }
   .qj-offline { font-size:11px; color:#1E7A3A; margin-bottom:12px; }
+  .qj-category-review { margin:-10px 0 14px; color:#8A7541; font-size:12px; line-height:1.5; }
 """.trimIndent()
 
   /** 深色模式头部覆盖样式 */
@@ -82,6 +83,7 @@ $darkTheme
   .qj-ai-body { color:#9CA89F !important; }
   .qj-tag { background:#1C3A2B !important; color:#8BAA94 !important; }
   .qj-offline { color:rgba(110,231,183,0.9) !important; }
+  .qj-category-review { color:#C9A84C !important; }
 """.trimIndent()
 
   /** 根据文章详情构建头部 HTML，注入到 WebView 正文前 */
@@ -89,6 +91,7 @@ $darkTheme
     val title = escapeHtml(article.displayTitle)
 
     val metaParts = buildList {
+      article.category?.name?.takeIf { it.isNotBlank() }?.let { add("""<span class="qj-meta-source">${escapeHtml(it)}</span>""") }
       article.source?.takeIf { it.isNotBlank() }?.let { add("""<span class="qj-meta-source">${escapeHtml(it)}</span>""") }
       article.author?.takeIf { it.isNotBlank() }?.let { add("<span>${escapeHtml(it)}</span>") }
       article.publishTime?.takeIf { it.isNotBlank() }?.let { add("<span>${escapeHtml(formatDate(it))}</span>") }
@@ -115,6 +118,14 @@ $darkTheme
       """<div class="qj-tags">${article.aiTags.joinToString("") { """<span class="qj-tag">${escapeHtml(it)}</span>""" }}</div>"""
     } else ""
 
+    val categoryReviewHtml = article.categoryResult
+      ?.takeIf { it.reviewStatus == "needs_review" }
+      ?.let { result ->
+        val reason = result.reason?.takeIf { it.isNotBlank() }?.let { "：${escapeHtml(it)}" }.orEmpty()
+        """<div class="qj-category-review">AI 分类待确认$reason</div>"""
+      }
+      .orEmpty()
+
     val offlineHtml = if (isOfflineAvailable) """<div class="qj-offline">⤓ 离线可用</div>""" else ""
 
     val darkOverride = if (colorScheme == ReaderColorScheme.Dark) "<style>$darkHeaderOverride</style>" else ""
@@ -124,6 +135,7 @@ $darkTheme
   <h1 class="qj-title">$title</h1>
   $metaHtml
   $summaryHtml
+  $categoryReviewHtml
   $tagsHtml
   $offlineHtml
 </div>

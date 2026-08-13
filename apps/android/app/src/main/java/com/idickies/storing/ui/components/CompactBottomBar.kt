@@ -11,7 +11,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -170,7 +170,6 @@ fun CompactBottomBarItem(
   enabled: Boolean = true,
   badgeCount: Int? = null,
   onClick: () -> Unit,
-  onDoubleClick: (() -> Unit)? = null,
 ) {
   val selectedColor = navSelectedColor()
   val contentColor = when {
@@ -223,13 +222,12 @@ fun CompactBottomBarItem(
           else -> label
         }
       }
-      .combinedClickable(
+      .clickable(
         interactionSource = remember { MutableInteractionSource() },
         indication = null,
         enabled = enabled,
         role = Role.Tab,
         onClick = onClick,
-        onDoubleClick = onDoubleClick,
       )
       .padding(horizontal = if (isDark) 10.dp else 12.dp, vertical = 6.dp),
     horizontalAlignment = Alignment.CenterHorizontally,

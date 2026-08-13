@@ -23,6 +23,11 @@ data class ShareCollectUiState(
   val submissionAccepted: Boolean = false,
 )
 
+internal fun shouldDismissManualCollectDialog(
+  submittedByThisDialog: Boolean,
+  submissionAccepted: Boolean,
+): Boolean = submittedByThisDialog && submissionAccepted
+
 @HiltViewModel
 class ShareCollectViewModel @Inject constructor(
   private val collectRepository: CollectRepository,
@@ -43,6 +48,10 @@ class ShareCollectViewModel @Inject constructor(
   }
 
   fun select(url: String) = mutableState.update { it.copy(selectedUrl = url) }
+
+  fun clearSubmissionResult() {
+    mutableState.update { it.copy(message = null, submittedJobId = null, submissionAccepted = false) }
+  }
 
   fun submitManual(rawUrl: String) {
     val url = ManualCollectUrl.normalize(rawUrl)

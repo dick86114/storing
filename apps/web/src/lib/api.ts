@@ -17,6 +17,11 @@ export type ArchiveCategory = {
   updatedAt: string | null;
 };
 
+export type ArchiveTag = {
+  tag: string;
+  count: number;
+};
+
 export type AdminBootstrapStatus = {
   configured_username: string;
   account_exists: boolean;
@@ -309,13 +314,14 @@ export const api = {
   },
 
   // 文章相关
-  getArticles: (view: string, page = 1, category?: string, perPage = 8, sort?: string, order?: 'asc' | 'desc', scope?: 'mine', categoryId?: number | null) => {
+  getArticles: (view: string, page = 1, category?: string, perPage = 8, sort?: string, order?: 'asc' | 'desc', scope?: 'mine', categoryId?: number | null, tags: string[] = []) => {
     const params = new URLSearchParams({ view, page: String(page), perPage: String(perPage) });
     if (category && category !== 'all') params.set('category', category);
     if (sort) params.set('sort', sort);
     if (order) params.set('order', order);
     if (scope) params.set('scope', scope);
     if (categoryId) params.set('categoryId', String(categoryId));
+    tags.forEach((tag) => params.append('tag', tag));
     return fetchJSON<any>(`/articles?${params}`);
   },
 
@@ -380,6 +386,9 @@ export const api = {
   getCategories: (includeInactive = false) =>
     fetchJSON<{ categories: ArchiveCategory[]; counts: Record<string, number> }>(`/categories${includeInactive ? '?includeInactive=true' : ''}`),
 
+  getTags: () =>
+    fetchJSON<ArchiveTag[]>('/tags'),
+
   createCategory: (input: Pick<ArchiveCategory, 'name' | 'description' | 'includeExamples' | 'excludeExamples' | 'color'>) =>
     fetchJSON<{ category: ArchiveCategory }>('/categories', { method: 'POST', body: JSON.stringify(input) }),
 
@@ -394,6 +403,19 @@ export const api = {
 
   moveArticleToCategory: (articleId: number, categoryId: number) =>
     fetchJSON<{ articleId: number; updatedCount: number }>(`/articles/${articleId}/category`, { method: 'PATCH', body: JSON.stringify({ categoryId }) }),
+
+  bulkMoveArticlesToCategory: (articleIds: number[], categoryId: number) =>
+    fetchJSON<{ updatedCount: number }>('/articles/bulk-category', { method: 'POST', body: JSON.stringify({ articleIds, categoryId }) }),
+
+  classifyArticle: (articleId: number) =>
+    fetchJSON<{ articleId: number; ok: true }>(`/articles/${articleId}/classify`, { method: 'POST', timeoutMs: 120000 }),
+
+  bulkClassifyArticles: (articleIds: number[]) =>
+    fetchJSON<{
+      classifiedArticleIds: number[];
+      skipped: Array<{ articleId: number; code: 'NOT_FOUND' | 'NOT_ARCHIVED' | 'CATEGORY_USER_OVERRIDE' }>;
+      failed: Array<{ articleId: number; message: string }>;
+    }>('/articles/bulk-classify', { method: 'POST', body: JSON.stringify({ articleIds }), timeoutMs: 120000 }),
 
   getCounts: () =>
     fetchJSON<{ inbox: number; favorites: number; archive: number; published: number }>('/counts'),

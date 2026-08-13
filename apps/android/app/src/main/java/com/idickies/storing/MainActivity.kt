@@ -1,6 +1,7 @@
 package com.idickies.storing
 
 import android.Manifest
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -11,6 +12,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
 import androidx.fragment.app.FragmentActivity
 import com.idickies.storing.ui.QiankunjieApp
+import com.idickies.storing.collect.ManualCollectUrl
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -20,10 +22,12 @@ class MainActivity : FragmentActivity() {
   private val publicId = mutableStateOf<String?>(null)
   private val collectJobId = mutableStateOf<Int?>(null)
   private val openMcpSettings = mutableStateOf(false)
+  private val clipboardCollectUrl = mutableStateOf<String?>(null)
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     handleIntent(intent)
+    clipboardCollectUrl.value = readClipboardCollectUrl()
     if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
       requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
     }
@@ -40,6 +44,8 @@ class MainActivity : FragmentActivity() {
         onCollectJobsOpened = { collectJobId.value = null },
         openMcpSettings = openMcpSettings.value,
         onMcpSettingsOpened = { openMcpSettings.value = false },
+        clipboardCollectUrl = clipboardCollectUrl.value,
+        onClipboardCollectUrlConsumed = { clipboardCollectUrl.value = null },
       )
     }
   }
@@ -99,6 +105,12 @@ class MainActivity : FragmentActivity() {
         }
       }
     }
+  }
+
+  private fun readClipboardCollectUrl(): String? {
+    val clipboard = getSystemService(ClipboardManager::class.java) ?: return null
+    val clip = clipboard.primaryClip ?: return null
+    return ManualCollectUrl.fromClipboardText(clip.getItemAt(0).coerceToText(this))
   }
 
   companion object {

@@ -366,6 +366,7 @@ export async function moveArticlesToCategory(
     SELECT ${articleMetadata.articleId} AS article_id
     FROM ${articleMetadata}
     WHERE ${articleMetadata.userId} = ${userId}
+      AND ${articleMetadata.isArchived} = TRUE
       AND ${articleMetadata.articleId} IN (${sql.join(uniqueArticleIds.map((id) => sql`${id}`), sql`, `)})
   `);
   if (owned.rows.length !== uniqueArticleIds.length) {
@@ -380,6 +381,7 @@ export async function moveArticlesToCategory(
       category_review_status = ${'confirmed' satisfies CategoryReviewStatus},
       updated_at = NOW()
     WHERE ${articleMetadata.userId} = ${userId}
+      AND ${articleMetadata.isArchived} = TRUE
       AND ${articleMetadata.articleId} IN (${sql.join(uniqueArticleIds.map((id) => sql`${id}`), sql`, `)})
     RETURNING ${articleMetadata.articleId} AS article_id
   `);

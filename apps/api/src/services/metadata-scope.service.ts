@@ -49,6 +49,14 @@ export async function initArticleMetadataUserScope() {
           AND j.request_source = 'mcp'
           AND j.save_to_inbox = false
       )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM collect_jobs j
+        WHERE j.article_id = a.id
+          AND j.user_id IS NOT NULL
+          AND j.user_id <> ${adminUserId}
+          AND j.save_to_inbox = true
+      )
     ON CONFLICT DO NOTHING
   `);
 
@@ -130,7 +138,7 @@ export async function repairCollectedArticleMetadataOwnership() {
     `));
     const marker = await tx.execute(sql.raw(`
       INSERT INTO storing_schema_migrations (key)
-      VALUES ('collect_metadata_owner_repair_v1')
+      VALUES ('collect_metadata_owner_repair_v2')
       ON CONFLICT (key) DO NOTHING
       RETURNING key
     `));
@@ -169,6 +177,7 @@ export async function repairCollectedArticleMetadataOwnership() {
       INNER JOIN article_metadata admin_meta
         ON admin_meta.article_id = owner_job.article_id
        AND admin_meta.user_id = ${adminUserId}
+       AND admin_meta.source_type = 'legacy'
       LEFT JOIN article_metadata owner_meta
         ON owner_meta.article_id = owner_job.article_id
        AND owner_meta.user_id = owner_job.user_id
@@ -185,6 +194,7 @@ export async function repairCollectedArticleMetadataOwnership() {
       USING collect_jobs owner_job
       WHERE admin_meta.article_id = owner_job.article_id
         AND admin_meta.user_id = ${adminUserId}
+        AND admin_meta.source_type = 'legacy'
         AND owner_job.user_id IS NOT NULL
         AND owner_job.user_id <> ${adminUserId}
         AND owner_job.article_id IS NOT NULL

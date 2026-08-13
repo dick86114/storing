@@ -42,6 +42,7 @@ private data class LibraryRequest(
   val sortOrder: String,
   val archiveSource: ArchiveSourceFilter,
   val archiveCategoryId: Int?,
+  val archiveTagFilter: ArchiveTagFilter,
 )
 
 data class LibraryUiState(
@@ -63,6 +64,10 @@ data class LibraryUiState(
   val archiveCategories: List<ArticleCategory> = emptyList(),
   val archiveCategoryId: Int? = null,
   val archiveCategoriesLoading: Boolean = false,
+  val archiveTagFilter: ArchiveTagFilter = ArchiveTagFilter.All,
+  val archiveTags: List<ArticleTag> = emptyList(),
+  val archiveTagsLoading: Boolean = false,
+  val batchCategoryUpdating: Boolean = false,
   val page: Int = 1,
   val totalPages: Int = 0,
   val detail: ArticleDetail? = null,
@@ -98,6 +103,7 @@ class LibraryViewModel @Inject constructor(
   private var loadMoreJob: Job? = null
   private var sourceLoadJob: Job? = null
   private var categoryLoadJob: Job? = null
+  private var tagLoadJob: Job? = null
   private val lastSeenCounts = mutableMapOf<LibraryView, Int>()
 
   init {
@@ -110,6 +116,7 @@ class LibraryViewModel @Inject constructor(
     searchDebounceJob?.cancel()
     sourceLoadJob?.cancel()
     categoryLoadJob?.cancel()
+    tagLoadJob?.cancel()
     mutableState.update {
       it.copy(
         view = view,
@@ -118,8 +125,10 @@ class LibraryViewModel @Inject constructor(
         sortOrder = "desc",
         archiveSource = ArchiveSourceFilter.All,
         archiveCategoryId = null,
+        archiveTagFilter = ArchiveTagFilter.All,
         archiveSourcesLoading = false,
         archiveCategoriesLoading = false,
+        archiveTagsLoading = false,
         articles = emptyList(),
         loading = true,
         refreshing = false,
@@ -135,6 +144,7 @@ class LibraryViewModel @Inject constructor(
     if (view == LibraryView.Archive) {
       loadArchiveSources()
       loadArchiveCategories()
+      loadArchiveTags()
     }
   }
 
@@ -159,6 +169,7 @@ class LibraryViewModel @Inject constructor(
     if (ArchiveSourceFilter.isAvailableFor(mutableState.value.view, mutableState.value.searchQuery)) {
       loadArchiveSources()
       loadArchiveCategories()
+      loadArchiveTags()
     }
     loadCounts()
   }
@@ -197,6 +208,25 @@ class LibraryViewModel @Inject constructor(
     }
     loadInitial()
   }
+
+  fun selectArchiveTags(tags: List<String>) {
+    val snapshot = mutableState.value
+    val filter = ArchiveTagFilter.of(*tags.toTypedArray())
+    if (!ArchiveSourceFilter.isAvailableFor(snapshot.view, snapshot.searchQuery) || filter == snapshot.archiveTagFilter) return
+    mutableState.update {
+      it.copy(
+        archiveTagFilter = filter,
+        articles = emptyList(),
+        page = 1,
+        totalPages = 0,
+        fromCache = false,
+        loadMoreError = null,
+      )
+    }
+    loadInitial()
+  }
+
+  fun prepareArchiveCategories() = loadArchiveCategories(force = true)
 
   fun toggleSortOrder() {
     val snapshot = mutableState.value
@@ -270,6 +300,7 @@ class LibraryViewModel @Inject constructor(
     if (query.isBlank()) {
       loadInitial()
       if (mutableState.value.view == LibraryView.Archive) loadArchiveSources()
+      if (mutableState.value.view == LibraryView.Archive) loadArchiveTags()
       return
     }
     searchDebounceJob = viewModelScope.launch {
@@ -363,7 +394,7 @@ class LibraryViewModel @Inject constructor(
   }
 
   private suspend fun loadPage(request: LibraryRequest, page: Int): ArticleListLoad =
-    if (request.query.isBlank()) repository.list(request.view, page, request.sort, archiveSourceQueryCategories(request.archiveSource), request.archiveCategoryId, request.sortOrder)
+    if (request.query.isBlank()) repository.list(request.view, page, request.sort, archiveSourceQueryCategories(request.archiveSource), request.archiveCategoryId, archiveTagQueryValues(request.archiveTagFilter), request.sortOrder)
     else ArticleListLoad(repository.search(request.query, page), fromCache = false)
 
   private fun matches(request: LibraryRequest): Boolean = mutableState.value.toRequest() == request
@@ -375,6 +406,7 @@ class LibraryViewModel @Inject constructor(
     sortOrder = sortOrder,
     archiveSource = if (ArchiveSourceFilter.isAvailableFor(view, searchQuery)) archiveSource else ArchiveSourceFilter.All,
     archiveCategoryId = if (ArchiveSourceFilter.isAvailableFor(view, searchQuery)) archiveCategoryId else null,
+    archiveTagFilter = if (ArchiveSourceFilter.isAvailableFor(view, searchQuery)) archiveTagFilter else ArchiveTagFilter.All,
   )
 
   private fun loadArchiveCategories(force: Boolean = false) {
@@ -411,6 +443,25 @@ class LibraryViewModel @Inject constructor(
       } catch (_: Throwable) {
         if (!ArchiveSourceFilter.isAvailableFor(mutableState.value.view, mutableState.value.searchQuery)) return@launch
         mutableState.update { it.copy(archiveSourcesLoading = false) }
+      }
+    }
+  }
+
+  private fun loadArchiveTags() {
+    val snapshot = mutableState.value
+    if (!ArchiveSourceFilter.isAvailableFor(snapshot.view, snapshot.searchQuery)) return
+    tagLoadJob?.cancel()
+    mutableState.update { it.copy(archiveTagsLoading = true) }
+    tagLoadJob = viewModelScope.launch {
+      try {
+        val tags = repository.tags()
+        if (!ArchiveSourceFilter.isAvailableFor(mutableState.value.view, mutableState.value.searchQuery)) return@launch
+        mutableState.update { it.copy(archiveTags = tags, archiveTagsLoading = false) }
+      } catch (error: CancellationException) {
+        throw error
+      } catch (_: Throwable) {
+        if (!ArchiveSourceFilter.isAvailableFor(mutableState.value.view, mutableState.value.searchQuery)) return@launch
+        mutableState.update { it.copy(archiveTagsLoading = false) }
       }
     }
   }
@@ -543,12 +594,12 @@ class LibraryViewModel @Inject constructor(
     }
   }
 
-  fun toggleArchiveCard(article: ArticleCard) {
+  fun toggleArchiveCard(article: ArticleCard, categoryId: Int? = null) {
     viewModelScope.launch {
-      runCatching { repository.toggleArchive(article.id, article.isArchived) }.onSuccess { result ->
+      runCatching { repository.toggleArchive(article.id, article.isArchived, categoryId) }.onSuccess { result ->
         mutableState.update { state ->
           val cards = if (state.view == LibraryView.Inbox && result.isArchived) state.articles.filterNot { it.id == article.id }
-          else state.articles.map { if (it.id == article.id) it.copy(isArchived = result.isArchived) else it }
+          else state.articles.map { if (it.id == article.id) it.copy(isArchived = result.isArchived, category = result.category ?: it.category) else it }
           state.copy(articles = cards)
         }
         loadCounts()
@@ -578,13 +629,13 @@ class LibraryViewModel @Inject constructor(
     }
   }
 
-  fun toggleArchive(article: ArticleDetail) {
+  fun toggleArchive(article: ArticleDetail, categoryId: Int? = null) {
     viewModelScope.launch {
-      runCatching { repository.toggleArchive(article.id, article.isArchived) }.onSuccess { result ->
+      runCatching { repository.toggleArchive(article.id, article.isArchived, categoryId) }.onSuccess { result ->
         mutableState.update { state ->
           val cards = if (state.view == LibraryView.Inbox && result.isArchived) state.articles.filterNot { it.id == article.id }
-          else state.articles.map { if (it.id == article.id) it.copy(isArchived = result.isArchived) else it }
-          state.copy(detail = state.detail?.copy(isArchived = result.isArchived), articles = cards)
+          else state.articles.map { if (it.id == article.id) it.copy(isArchived = result.isArchived, category = result.category ?: it.category) else it }
+          state.copy(detail = state.detail?.copy(isArchived = result.isArchived, category = result.category ?: state.detail.category), articles = cards)
         }
         if (mutableState.value.view == LibraryView.Archive) loadArchiveSources()
       }
@@ -612,6 +663,70 @@ class LibraryViewModel @Inject constructor(
         loadArchiveCategories(force = true)
       }.onFailure { error ->
         mutableState.update { it.copy(processingError = error.message ?: "修改分类失败") }
+      }
+    }
+  }
+
+  fun reclassify(article: ArticleDetail) {
+    if (article.categoryResult?.reviewStatus != "needs_review") return
+    if (mutableState.value.processingAction != null) return
+    viewModelScope.launch {
+      mutableState.update { it.copy(processingAction = ArticleProcessingAction.ReclassifyCategory, processingError = null) }
+      runCatching {
+        repository.classify(article.id)
+        repository.detail(article.id)
+      }.onSuccess { refreshed ->
+        mutableState.update { state ->
+          state.copy(
+            detail = if (state.detail?.id == article.id) refreshed else state.detail,
+            articles = state.articles.map { card ->
+              if (card.id == article.id) card.copy(category = refreshed.category, categoryResult = refreshed.categoryResult) else card
+            },
+            processingAction = null,
+          )
+        }
+        loadArchiveCategories(force = true)
+      }.onFailure { error ->
+        mutableState.update { it.copy(processingAction = null, processingError = error.message ?: "重新判断分类失败") }
+      }
+    }
+  }
+
+  fun moveToCategory(articleIds: Set<Int>, categoryId: Int, onComplete: (Boolean) -> Unit = {}) {
+    if (articleIds.isEmpty() || mutableState.value.batchCategoryUpdating) return
+    val category = mutableState.value.archiveCategories.firstOrNull { it.id == categoryId } ?: return
+    viewModelScope.launch {
+      mutableState.update { it.copy(batchCategoryUpdating = true, processingError = null) }
+      runCatching { repository.moveToCategory(articleIds.toList(), categoryId) }.onSuccess {
+        mutableState.update { state ->
+          val cards = state.articles.mapNotNull { card ->
+            if (card.id !in articleIds) card
+            else if (state.view == LibraryView.Archive && state.archiveCategoryId != null && state.archiveCategoryId != categoryId) null
+            else card.copy(category = category)
+          }
+          state.copy(articles = cards, batchCategoryUpdating = false)
+        }
+        loadArchiveCategories(force = true)
+        onComplete(true)
+      }.onFailure { error ->
+        mutableState.update { it.copy(batchCategoryUpdating = false, processingError = error.message ?: "批量修改分类失败") }
+        onComplete(false)
+      }
+    }
+  }
+
+  fun reclassify(articleIds: Set<Int>, onComplete: (Boolean) -> Unit = {}) {
+    if (articleIds.isEmpty() || mutableState.value.batchCategoryUpdating) return
+    viewModelScope.launch {
+      mutableState.update { it.copy(batchCategoryUpdating = true, processingError = null) }
+      runCatching { repository.classify(articleIds.toList()) }.onSuccess {
+        mutableState.update { it.copy(batchCategoryUpdating = false) }
+        loadInitial(refreshing = true, preserveLoadedContent = true)
+        loadArchiveCategories(force = true)
+        onComplete(true)
+      }.onFailure { error ->
+        mutableState.update { it.copy(batchCategoryUpdating = false, processingError = error.message ?: "批量重新判断分类失败") }
+        onComplete(false)
       }
     }
   }
@@ -652,6 +767,7 @@ class LibraryViewModel @Inject constructor(
         when (action) {
           ArticleProcessingAction.Refetch -> repository.refetch(article.id)
           ArticleProcessingAction.RegenerateAi -> repository.regenerateAi(article.id)
+          ArticleProcessingAction.ReclassifyCategory -> repository.classify(article.id)
         }
         repository.detail(article.id)
       }.onSuccess { refreshed ->
