@@ -376,6 +376,15 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
                         <SettingOutlined style={{ fontSize: '16px' }} />
                         我的 MCP
                       </button>
+                      <button
+                        className="app-menu-item"
+                        onClick={() => { setMenuOpen(false); router.push('/settings/categories'); }}
+                        type="button"
+                        style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 16px', textAlign: 'left', background: 'transparent', border: 'none', fontSize: '16px', color: '#fff', cursor: 'pointer' }}
+                      >
+                        <FolderOutlined style={{ fontSize: '16px' }} />
+                        分类管理
+                      </button>
                       {user?.role === 'admin' && (
                         <>
                           <button

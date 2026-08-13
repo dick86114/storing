@@ -202,6 +202,14 @@ function normalizeRawHtmlFragment(html: string): string {
     .join('\n');
 }
 
+/**
+ * 微信 Reader 返回的富文本偶尔会含有 jsdom 无法解析的 background 简写组合。
+ * 正文样式不参与阅读器的内容语义，解析前移除内联样式以保留文本、结构和图片。
+ */
+export function normalizeWechatContentHtml(html: string): string {
+  return html.replace(/\sstyle=(['"])[\s\S]*?\1/gi, '');
+}
+
 function normalizeImageUrl(url: string): string {
   const trimmed = url.trim().replace(/&amp;/g, '&');
   if (trimmed.startsWith('//')) return `https:${trimmed}`;
@@ -775,7 +783,7 @@ function getRawContentPictureUrls(rawContent: any): string[] {
 async function buildHtmlFromRawContent(rawContent: any): Promise<string | null> {
   if (!rawContent?.content_noencode) return null;
 
-  const html = normalizeRawHtmlFragment(rawContent.content_noencode);
+  const html = normalizeWechatContentHtml(normalizeRawHtmlFragment(rawContent.content_noencode));
   const pictures = getRawContentPictures(rawContent);
   const pictureUrls = pictures.map((picture) => picture.cdn_url);
   if (pictureUrls.length === 0) return uploadImagesInHtml(html);
@@ -1084,14 +1092,15 @@ async function fetchContent(url: string, format: 'markdown' | 'html' = 'markdown
   });
   if (!res.ok) throw new Error(`Reader API error: ${res.status}`);
   const raw = await res.text();
+  const content = isWechatArticleUrl(url) ? normalizeWechatContentHtml(raw) : raw;
   
   if (format === 'html') {
     // HTML 格式：清洗、上传图片并替换 URL
-    const cleaned = cleanHtml(raw);
+    const cleaned = cleanHtml(content);
     return uploadImagesInHtml(cleaned);
   } else {
     // Markdown 格式：清洗并上传图片
-    const cleaned = cleanMarkdown(raw);
+    const cleaned = cleanMarkdown(content);
     return uploadImagesInMarkdown(cleaned);
   }
 }
@@ -1251,7 +1260,7 @@ export async function fetchArticleContentFromSources(
       const parts: string[] = [];
 
       if (rawContent.content_noencode) {
-        const extracted = extractContentFromHtml(rawContent.content_noencode);
+        const extracted = extractContentFromHtml(normalizeWechatContentHtml(rawContent.content_noencode));
         if (extracted.text) {
           parts.push(extracted.text);
         }

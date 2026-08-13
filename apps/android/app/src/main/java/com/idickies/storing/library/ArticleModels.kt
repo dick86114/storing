@@ -4,6 +4,14 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
+data class ArticleCategory(
+  val id: Int,
+  val name: String,
+  val color: String? = null,
+  @SerialName("isSystem") val isSystem: Boolean = false,
+)
+
+@Serializable
 data class ArticleCard(
   val id: Int,
   val title: String? = null,
@@ -15,6 +23,7 @@ data class ArticleCard(
   @SerialName("aiSummary") val aiSummary: String? = null,
   @SerialName("aiCategory") val aiCategory: String? = null,
   @SerialName("aiTags") val aiTags: List<String> = emptyList(),
+  val category: ArticleCategory? = null,
   @SerialName("isFavorited") val isFavorited: Boolean = false,
   @SerialName("isArchived") val isArchived: Boolean = false,
   @SerialName("isPublished") val isPublished: Boolean = false,
@@ -29,6 +38,12 @@ data class ArticleSource(
   val source: String,
   val count: Int,
   @SerialName("latestCreatedAt") val latestCreatedAt: String? = null,
+)
+
+@Serializable
+data class ArchiveCategoriesResponse(
+  val categories: List<ArticleCategory> = emptyList(),
+  val counts: Map<String, Int> = emptyMap(),
 )
 
 @Serializable
@@ -54,6 +69,7 @@ data class ArticleDetail(
   @SerialName("aiSummary") val aiSummary: String? = null,
   @SerialName("aiCategory") val aiCategory: String? = null,
   @SerialName("aiTags") val aiTags: List<String> = emptyList(),
+  val category: ArticleCategory? = null,
   @SerialName("isFavorited") val isFavorited: Boolean = false,
   @SerialName("isArchived") val isArchived: Boolean = false,
   @SerialName("isPublished") val isPublished: Boolean = false,
@@ -73,6 +89,17 @@ data class ToggleFavoriteResponse(
 data class ArchiveResponse(
   @SerialName("articleId") val articleId: Int,
   @SerialName("isArchived") val isArchived: Boolean,
+)
+
+@Serializable
+data class ArticleCategoryAssignmentRequest(
+  @SerialName("categoryId") val categoryId: Int,
+)
+
+@Serializable
+data class ArticleCategoryAssignmentResponse(
+  @SerialName("articleId") val articleId: Int,
+  @SerialName("updatedCount") val updatedCount: Int,
 )
 
 

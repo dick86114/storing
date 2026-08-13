@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { SearchOutlined, PlusOutlined, PlusCircleOutlined, UserOutlined, SunOutlined, MoonOutlined, DesktopOutlined, LockOutlined, LogoutOutlined, SettingOutlined, CloudUploadOutlined } from '@ant-design/icons';
+import { SearchOutlined, PlusOutlined, PlusCircleOutlined, UserOutlined, SunOutlined, MoonOutlined, DesktopOutlined, LockOutlined, LogoutOutlined, SettingOutlined, CloudUploadOutlined, FolderOutlined } from '@ant-design/icons';
 import { SearchModal } from '@/components/search/SearchModal';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
@@ -286,6 +286,14 @@ export function MobileTopNav({ onAddClick, onNavigate }: MobileTopNavProps) {
                     >
                       <SettingOutlined style={{ fontSize: '16px' }} />
                       我的 MCP
+                    </button>
+                    <button
+                      className="app-menu-item"
+                      onClick={() => { setMenuOpen(false); router.push('/settings/categories'); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '16px', color: '#fff' }}
+                    >
+                      <FolderOutlined style={{ fontSize: '16px' }} />
+                      分类管理
                     </button>
                     {user?.role === 'admin' && (
                       <>

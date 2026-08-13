@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, serial, integer, text, boolean, timestamp, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, serial, integer, text, boolean, timestamp, jsonb, numeric } from 'drizzle-orm/pg-core';
 
 /**
  * 用户表 - 存储管理员账号
@@ -105,6 +105,22 @@ export const mcpRequestLogs = pgTable('mcp_request_logs', {
   createdAt: timestamp('created_at').defaultNow(),
 });
 
+/** 用户维护的归档主分类。 */
+export const categories = pgTable('categories', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  includeExamples: text('include_examples').array().notNull().default(sql`ARRAY[]::text[]`),
+  excludeExamples: text('exclude_examples').array().notNull().default(sql`ARRAY[]::text[]`),
+  color: text('color'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  isActive: boolean('is_active').notNull().default(true),
+  isSystem: boolean('is_system').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
 export const articleMetadata = pgTable('article_metadata', {
   id: serial('id').primaryKey(),
   articleId: integer('article_id').notNull().references(() => articles.id),
@@ -116,6 +132,12 @@ export const articleMetadata = pgTable('article_metadata', {
   aiSummary: text('ai_summary'),
   aiCategory: text('ai_category'),
   aiTags: text('ai_tags').array(),
+  categoryId: integer('category_id').references(() => categories.id, { onDelete: 'restrict' }),
+  categorySource: text('category_source'),
+  categoryConfidence: numeric('category_confidence', { precision: 4, scale: 3 }),
+  categoryReason: text('category_reason'),
+  categoryReviewStatus: text('category_review_status'),
+  categoryModelVersion: text('category_model_version'),
   contentMd: text('content_md'),
   contentHtml: text('content_html'),
   contentHtmlMobile: text('content_html_mobile'),

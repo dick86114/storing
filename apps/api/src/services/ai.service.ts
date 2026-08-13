@@ -3,6 +3,7 @@ import { db } from '../db/index.js';
 import { articles, articleMetadata } from '../db/schema.js';
 import { and, eq } from 'drizzle-orm';
 import { fetchArticleContentFromSources, getArticleContent } from './reader.service.js';
+import { applyAiCategory, listCategories } from './category.service.js';
 
 /** 预置 provider 配置：env 中只需写 AI_PROVIDER + 对应 API_KEY + 可选 MODEL */
 const PROVIDERS: Record<string, { baseUrl: string; defaultModel: string; envKey: string }> = {
@@ -26,6 +27,21 @@ export type ArticleSummaryResult = {
   summary: string | null;
   category: string | null;
   tags: string[];
+};
+
+export type ControlledCategoryCandidate = {
+  id: number;
+  name: string;
+  description: string | null;
+  includeExamples: string[];
+  excludeExamples: string[];
+};
+
+export type ControlledCategoryResult = {
+  categoryId: number | null;
+  confidence: number;
+  reason: string | null;
+  modelVersion: string | null;
 };
 
 // 统一 AI 调用接口
@@ -135,6 +151,58 @@ Respond with ONLY a JSON array.`;
   } catch {
     return [];
   }
+}
+
+export async function classifyArticleWithAllowedCategories(
+  input: { title: string; content: string; categories: ControlledCategoryCandidate[] },
+): Promise<ControlledCategoryResult> {
+  if (input.categories.length === 0) return { categoryId: null, confidence: 0, reason: '没有可用的正式分类', modelVersion: process.env.AI_MODEL || null };
+  const categoryContext = input.categories.map((category) => ({
+    id: category.id,
+    name: category.name,
+    description: category.description,
+    include_examples: category.includeExamples,
+    exclude_examples: category.excludeExamples,
+  }));
+  const raw = await callAI(
+    `你负责为文章从用户预设分类中选择唯一主分类。只允许从以下分类 ID 中选择，绝不能创建新分类或输出分类名称。\n${JSON.stringify(categoryContext)}`,
+    `文章标题：${input.title}\n\n文章内容：\n${input.content.slice(0, 8000)}\n\n仅输出 JSON：{"category_id": 数字, "confidence": 0 到 1 的数字, "reason": "不超过 80 字的理由"}`,
+    512,
+  );
+  try {
+    const parsed = JSON.parse(raw.trim()) as { category_id?: unknown; confidence?: unknown; reason?: unknown };
+    const categoryId = typeof parsed.category_id === 'number' && input.categories.some((item) => item.id === parsed.category_id)
+      ? parsed.category_id
+      : null;
+    const confidence = typeof parsed.confidence === 'number' && Number.isFinite(parsed.confidence)
+      ? Math.min(1, Math.max(0, parsed.confidence))
+      : 0;
+    return { categoryId, confidence, reason: typeof parsed.reason === 'string' ? parsed.reason.slice(0, 240) : null, modelVersion: process.env.AI_MODEL || null };
+  } catch {
+    return { categoryId: null, confidence: 0, reason: 'AI 分类结果无法解析', modelVersion: process.env.AI_MODEL || null };
+  }
+}
+
+export async function classifyStoredArticleForArchive(articleId: number, userId: number): Promise<void> {
+  const [article] = await db.select({
+    title: articles.title,
+    summary: articles.summary,
+    contentHtml: articles.contentHtml,
+    contentMarkdown: articles.contentMarkdown,
+  }).from(articles).where(eq(articles.id, articleId));
+  if (!article) return;
+  const categories = (await listCategories(userId)).filter((category) => !category.isSystem);
+  const result = await classifyArticleWithAllowedCategories({
+    title: article.title || '',
+    content: article.contentMarkdown || article.contentHtml || article.summary || '',
+    categories,
+  });
+  await applyAiCategory(userId, articleId, {
+    categoryId: result.categoryId ?? 0,
+    confidence: result.confidence,
+    reason: result.reason,
+    modelVersion: result.modelVersion,
+  });
 }
 
 async function loadSummarySource(articleId: number) {

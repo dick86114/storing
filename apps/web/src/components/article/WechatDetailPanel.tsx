@@ -10,7 +10,7 @@ import { useArticle, useArticleMeta } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/providers/AuthContext';
 import { DateText } from '@/lib/formatDate';
-import { api } from '@/lib/api';
+import { api, type ArchiveCategory } from '@/lib/api';
 import { useBookmark } from '@/hooks/useBookmark';
 import { BookmarkButton } from '@/components/ui/BookmarkButton';
 import { useTheme, type ColorScheme } from '@/components/providers/ThemeProvider';
@@ -2235,6 +2235,70 @@ function SharePosterDialog({
   );
 }
 
+function CategoryAssignmentDialog({
+  categories,
+  currentCategoryId,
+  loading,
+  onClose,
+  onSelect,
+}: {
+  categories: ArchiveCategory[];
+  currentCategoryId: number | null;
+  loading: boolean;
+  onClose: () => void;
+  onSelect: (categoryId: number) => void;
+}) {
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !loading) onClose();
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [loading, onClose]);
+
+  return createPortal(
+    <div
+      className="category-assignment-overlay"
+      role="presentation"
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !loading) onClose();
+      }}
+    >
+      <section className="category-assignment-panel" role="dialog" aria-modal="true" aria-labelledby="category-assignment-title">
+        <div className="category-assignment-header">
+          <div>
+            <h2 id="category-assignment-title">修改分类</h2>
+            <p>选择一个预设分类。</p>
+          </div>
+          <button className="category-assignment-close" type="button" onClick={onClose} disabled={loading} aria-label="关闭分类选择">
+            <CloseOutlined />
+          </button>
+        </div>
+        <div className="category-assignment-list" role="list">
+          {categories.map((category) => {
+            const selected = category.id === currentCategoryId;
+            return (
+              <button
+                key={category.id}
+                className={`category-assignment-item${selected ? ' is-selected' : ''}`}
+                type="button"
+                onClick={() => onSelect(category.id)}
+                disabled={loading || selected}
+                role="listitem"
+              >
+                <span className="category-assignment-dot" style={{ background: category.color || 'var(--accent)' }} aria-hidden="true" />
+                <span>{category.name}</span>
+                {selected && <span className="category-assignment-current">当前</span>}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+    </div>,
+    document.body
+  );
+}
+
 // 详情内容组件
 function DetailContent({
   article,
@@ -2277,7 +2341,13 @@ function DetailContent({
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [deleteConfirmMode, setDeleteConfirmMode] = useState<DeleteConfirmMode | null>(null);
   const [sharePoster, setSharePoster] = useState<SharePosterState | null>(null);
+  const [categoryAssignmentOpen, setCategoryAssignmentOpen] = useState(false);
   const [currentView, setCurrentView] = useState<ArticleView>('archive');
+  const { data: categoryData, isLoading: categoriesLoading } = useSWR(
+    isAuthenticated ? 'categories:detail-assignment' : null,
+    () => api.getCategories(),
+    { revalidateOnFocus: false }
+  );
   const originalUrl = article?.originalUrl || fallbackArticle?.originalUrl || '';
   const originalLinkStatus = articleError ? '原文链接暂时不可用' : '原文链接加载中';
   const sourceArticle = article || fallbackArticle;
@@ -2450,6 +2520,22 @@ function DetailContent({
     }, '重新生成摘要失败');
   }
 
+  async function handleMoveToCategory(categoryId: number) {
+    if (!article || !article.isArchived) return;
+    const category = categoryData?.categories.find((item) => item.id === categoryId);
+    await runArticleAction('category', async () => {
+      await api.moveArticleToCategory(article.id, categoryId);
+      setCategoryAssignmentOpen(false);
+      await mutateArticle();
+      onMutate();
+      detailMutate('categories');
+      detailMutate('categories:archive-action');
+      detailMutate('categories:detail-assignment');
+      detailMutate((key) => typeof key === 'string' && key.startsWith('articles:archive:'), undefined, { revalidate: true });
+      showToast(`已归入${category?.name || '所选分类'}`);
+    }, '修改分类失败');
+  }
+
   const showArticleSkeleton = isLoading || pendingAction === 'refetch';
   const showAISkeleton = pendingAction === 'ai';
   const recordDeleteMode: DeleteConfirmMode | null = currentView === 'archive' && article?.isArchived
@@ -2596,7 +2682,14 @@ function DetailContent({
                     <button className="app-menu-item detail-more-menu-item" type="button" onClick={handleRegenerateAI} disabled={!!pendingAction}>
                       <RobotOutlined />
                       <span>{pendingAction === 'ai' ? '正在生成…' : '重新生成摘要和标签'}</span>
-                    </button>                    <div className="detail-more-menu-divider" />
+                    </button>
+                    {article?.isArchived && (
+                      <button className="app-menu-item detail-more-menu-item" type="button" onClick={() => { setMoreOpen(false); setCategoryAssignmentOpen(true); }} disabled={!!pendingAction}>
+                        <FolderOutlined />
+                        <span>{pendingAction === 'category' ? '正在修改…' : '修改分类'}</span>
+                      </button>
+                    )}
+                    <div className="detail-more-menu-divider" />
                     <button className="app-menu-item detail-more-menu-item" type="button" onClick={handleCopyOriginalUrl}>
                       <CopyOutlined />
                       <span>复制原文链接</span>
@@ -2646,6 +2739,16 @@ function DetailContent({
           loading={pendingAction === 'delete' || pendingAction === 'permanent-delete'}
           onCancel={() => setDeleteConfirmMode(null)}
           onConfirm={confirmDeleteArticle}
+        />
+      )}
+
+      {categoryAssignmentOpen && article && (
+        <CategoryAssignmentDialog
+          categories={categoryData?.categories ?? []}
+          currentCategoryId={article.category?.id ?? null}
+          loading={categoriesLoading || pendingAction === 'category'}
+          onClose={() => setCategoryAssignmentOpen(false)}
+          onSelect={handleMoveToCategory}
         />
       )}
 
@@ -2742,6 +2845,12 @@ function DetailContent({
                       <span className="detail-panel-meta-wechat-divider">·</span>
                       <span>{detailHeaderLocation}</span>
                     </>
+                  )}
+                  {article.isArchived && article.category && (
+                    <button className="detail-panel-category-button" type="button" onClick={() => setCategoryAssignmentOpen(true)}>
+                      <span className="detail-panel-category-dot" style={{ background: article.category.color || 'var(--accent)' }} aria-hidden="true" />
+                      {article.category.name}
+                    </button>
                   )}
                 </div>
               </div>

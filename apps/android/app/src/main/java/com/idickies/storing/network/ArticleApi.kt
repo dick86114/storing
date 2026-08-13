@@ -4,14 +4,19 @@ import com.idickies.storing.library.ArchiveResponse
 import com.idickies.storing.library.ArticleRefetchResponse
 import com.idickies.storing.library.ArticleRegenerateAiResponse
 import com.idickies.storing.library.ArticleDetail
+import com.idickies.storing.library.ArticleCategoryAssignmentRequest
+import com.idickies.storing.library.ArticleCategoryAssignmentResponse
 import com.idickies.storing.library.ArticleListResponse
 import com.idickies.storing.library.ArticleSource
+import com.idickies.storing.library.ArchiveCategoriesResponse
 import com.idickies.storing.library.PublicArticleResponse
 import com.idickies.storing.library.PublicationResponse
 import com.idickies.storing.library.ToggleFavoriteResponse
 import com.idickies.storing.network.ArticleCounts
 import retrofit2.http.DELETE
+import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.Path
 import retrofit2.http.POST
 import retrofit2.http.Query
@@ -25,10 +30,14 @@ interface ArticleApi {
     @Query("sort") sort: String? = null,
     @Query("order") order: String = "desc",
     @Query("category") categories: List<String>? = null,
+    @Query("categoryId") categoryId: Int? = null,
   ): ArticleListResponse
 
   @GET("sources")
   suspend fun sources(): List<ArticleSource>
+
+  @GET("categories")
+  suspend fun categories(): ArchiveCategoriesResponse
 
   @GET("search")
   suspend fun search(
@@ -55,6 +64,12 @@ interface ArticleApi {
 
   @POST("articles/{id}/unarchive")
   suspend fun unarchive(@Path("id") id: Int): ArchiveResponse
+
+  @PATCH("articles/{id}/category")
+  suspend fun moveToCategory(
+    @Path("id") id: Int,
+    @Body request: ArticleCategoryAssignmentRequest,
+  ): ArticleCategoryAssignmentResponse
 
   @POST("articles/{id}/publish")
   suspend fun publish(@Path("id") id: Int): PublicationResponse

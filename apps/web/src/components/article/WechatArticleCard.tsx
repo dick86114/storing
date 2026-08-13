@@ -232,9 +232,9 @@ function WechatArticleCardBase({ article, onClick, onToggleFavorite, onArchive, 
           </div>
         )}
 
-        {(tags.length > 0 || article.aiCategory) && (
+        {(tags.length > 0 || article.aiCategory || article.category) && (
           <div className="article-card-tags">
-            {article.aiCategory && <span className="article-card-tag">{article.aiCategory}</span>}
+            {article.category ? <span className="article-card-category" style={{ borderColor: article.category.color || undefined }}>{article.category.name}</span> : article.aiCategory && <span className="article-card-tag">{article.aiCategory}</span>}
             {tags.map((tag) => (
               <span key={tag} className="article-card-tag">{tag}</span>
             ))}

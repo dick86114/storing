@@ -2,6 +2,21 @@ const BASE = '/api/v1';
 const REQUEST_TIMEOUT_MS = 10000;
 export type ArticleHtmlVariant = 'desktop' | 'mobile';
 
+export type ArchiveCategory = {
+  id: number;
+  userId: number;
+  name: string;
+  description: string | null;
+  includeExamples: string[];
+  excludeExamples: string[];
+  color: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  isSystem: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
 export type AdminBootstrapStatus = {
   configured_username: string;
   account_exists: boolean;
@@ -294,12 +309,13 @@ export const api = {
   },
 
   // 文章相关
-  getArticles: (view: string, page = 1, category?: string, perPage = 8, sort?: string, order?: 'asc' | 'desc', scope?: 'mine') => {
+  getArticles: (view: string, page = 1, category?: string, perPage = 8, sort?: string, order?: 'asc' | 'desc', scope?: 'mine', categoryId?: number | null) => {
     const params = new URLSearchParams({ view, page: String(page), perPage: String(perPage) });
     if (category && category !== 'all') params.set('category', category);
     if (sort) params.set('sort', sort);
     if (order) params.set('order', order);
     if (scope) params.set('scope', scope);
+    if (categoryId) params.set('categoryId', String(categoryId));
     return fetchJSON<any>(`/articles?${params}`);
   },
 
@@ -321,8 +337,8 @@ export const api = {
   toggleFavorite: (id: number) =>
     fetchJSON<any>(`/articles/${id}/favorite`, { method: 'POST' }),
 
-  archive: (id: number) =>
-    fetchJSON<any>(`/articles/${id}/archive`, { method: 'POST' }),
+  archive: (id: number, categoryId?: number) =>
+    fetchJSON<any>(`/articles/${id}/archive`, { method: 'POST', body: JSON.stringify(categoryId ? { categoryId } : {}) }),
 
   unarchive: (id: number) =>
     fetchJSON<any>(`/articles/${id}/unarchive`, { method: 'POST' }),
@@ -360,6 +376,24 @@ export const api = {
     const query = params.toString();
     return fetchJSON<any>(`/sources${query ? `?${query}` : ''}`);
   },
+
+  getCategories: (includeInactive = false) =>
+    fetchJSON<{ categories: ArchiveCategory[]; counts: Record<string, number> }>(`/categories${includeInactive ? '?includeInactive=true' : ''}`),
+
+  createCategory: (input: Pick<ArchiveCategory, 'name' | 'description' | 'includeExamples' | 'excludeExamples' | 'color'>) =>
+    fetchJSON<{ category: ArchiveCategory }>('/categories', { method: 'POST', body: JSON.stringify(input) }),
+
+  updateCategory: (id: number, input: Partial<Pick<ArchiveCategory, 'name' | 'description' | 'includeExamples' | 'excludeExamples' | 'color' | 'isActive'>>) =>
+    fetchJSON<{ category: ArchiveCategory }>(`/categories/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+
+  mergeCategories: (sourceCategoryId: number, targetCategoryId: number) =>
+    fetchJSON<{ ok: true }>('/categories/merge', { method: 'POST', body: JSON.stringify({ sourceCategoryId, targetCategoryId }) }),
+
+  reorderCategories: (categoryIds: number[]) =>
+    fetchJSON<{ categories: ArchiveCategory[] }>('/categories/reorder', { method: 'POST', body: JSON.stringify({ categoryIds }) }),
+
+  moveArticleToCategory: (articleId: number, categoryId: number) =>
+    fetchJSON<{ articleId: number; updatedCount: number }>(`/articles/${articleId}/category`, { method: 'PATCH', body: JSON.stringify({ categoryId }) }),
 
   getCounts: () =>
     fetchJSON<{ inbox: number; favorites: number; archive: number; published: number }>('/counts'),

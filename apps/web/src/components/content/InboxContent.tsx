@@ -28,6 +28,8 @@ function InboxContentInner() {
   const { archive, toggleFavorite, removeArticleFromView } = useArticleOperations();
   const { getBookmark, clearBookmark } = useBookmark();
   const [bookmarkPrompt, setBookmarkPrompt] = useState<ReadingBookmark | null>(null);
+  const [archiveTargetId, setArchiveTargetId] = useState<number | null>(null);
+  const [archiveCategoryId, setArchiveCategoryId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.replace('/archive');
@@ -90,6 +92,7 @@ function InboxContentInner() {
   );
 
   const totalPages = data?.totalPages ?? 1;
+  const { data: categoryData } = useSWR(isAuthenticated ? 'categories:archive-action' : null, () => api.getCategories(), { revalidateOnFocus: false });
 
   useEffect(() => {
     if (data?.articles) {
@@ -163,20 +166,28 @@ function InboxContentInner() {
     }
   }, [toggleFavorite, showToast, refreshList]);
 
-  const handleArchive = useCallback(async (id: number, e: React.MouseEvent) => {
+  const handleArchive = useCallback((id: number, e: React.MouseEvent) => {
     e.stopPropagation();
+    setArchiveTargetId(id);
+    setArchiveCategoryId(null);
+  }, []);
+
+  const confirmArchive = useCallback(async () => {
+    if (!archiveTargetId) return;
+    const id = archiveTargetId;
+    setArchiveTargetId(null);
     removingIdsRef.current.add(id);
     setAllArticles((prev) => prev.filter((a) => a.id !== id));
-    const success = await archive(id);
+    const success = await archive(id, archiveCategoryId ?? undefined);
     if (success) {
       removingIdsRef.current.delete(id);
-      showToast('已归档');
+      showToast(archiveCategoryId ? '已归档到所选分类' : '已归档，正在生成分类建议');
     } else {
       removingIdsRef.current.delete(id);
       refreshList();
       showToast('归档失败，请重试');
     }
-  }, [archive, showToast, refreshList]);
+  }, [archive, archiveCategoryId, archiveTargetId, showToast, refreshList]);
 
   return (
     <>
@@ -226,6 +237,21 @@ function InboxContentInner() {
               继续
             </button>
           </div>
+        </div>
+      )}
+      {archiveTargetId && (
+        <div className="archive-category-confirm-overlay" role="presentation" onMouseDown={() => setArchiveTargetId(null)}>
+          <section className="archive-category-confirm" role="dialog" aria-modal="true" aria-labelledby="archive-category-confirm-title" onMouseDown={(event) => event.stopPropagation()}>
+            <h2 id="archive-category-confirm-title">归档到哪里？</h2>
+            <select value={archiveCategoryId ?? ''} onChange={(event) => setArchiveCategoryId(event.target.value ? Number(event.target.value) : null)} aria-label="选择归档分类">
+              <option value="">采用 AI 推荐，低置信度进入待整理</option>
+              {(categoryData?.categories ?? []).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+            </select>
+            <div className="archive-category-confirm-actions">
+              <button type="button" onClick={() => setArchiveTargetId(null)}>取消</button>
+              <button type="button" onClick={confirmArchive}>归档</button>
+            </div>
+          </section>
         </div>
       )}
       <PullToRefresh

@@ -311,6 +311,18 @@ private fun ArticleMetadata(article: ArticleCard, color: androidx.compose.ui.gra
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(6.dp),
   ) {
+    article.category?.let { category ->
+      Text(
+        category.name,
+        style = MaterialTheme.typography.labelMedium,
+        color = color,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+      )
+    }
+    if (article.category != null && !article.source.isNullOrBlank()) {
+      Text("·", style = MaterialTheme.typography.labelMedium, color = color)
+    }
     if (!article.source.isNullOrBlank()) {
       ArticleSourceIdentityIcon(source = article.source, originalUrl = article.originalUrl, tint = color)
       Text(

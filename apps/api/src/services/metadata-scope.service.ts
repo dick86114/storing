@@ -273,3 +273,68 @@ export async function ensurePrivateLibraryPublicationSchema() {
   await db.execute(sql.raw(`ALTER TABLE article_metadata ADD COLUMN IF NOT EXISTS public_id TEXT`));
   await db.execute(sql.raw(`CREATE UNIQUE INDEX IF NOT EXISTS article_metadata_public_id_unique ON article_metadata(public_id) WHERE public_id IS NOT NULL`));
 }
+
+/**
+ * 初始化用户级归档分类。
+ *
+ * 收件箱文章允许没有分类；迁移仅将既有归档文章放入系统“待整理”，
+ * 保留来源、标签以及旧版 ai_category 的兼容数据。
+ */
+export async function ensureArchiveCategorySchema() {
+  await db.transaction(async (tx) => {
+    await tx.execute(sql.raw(`SELECT pg_advisory_xact_lock(734291108)`));
+    await tx.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS categories (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        include_examples TEXT[] NOT NULL DEFAULT ARRAY[]::text[],
+        exclude_examples TEXT[] NOT NULL DEFAULT ARRAY[]::text[],
+        color TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        is_system BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `));
+
+    await tx.execute(sql.raw(`ALTER TABLE article_metadata ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES categories(id) ON DELETE RESTRICT`));
+    await tx.execute(sql.raw(`ALTER TABLE article_metadata ADD COLUMN IF NOT EXISTS category_source TEXT`));
+    await tx.execute(sql.raw(`ALTER TABLE article_metadata ADD COLUMN IF NOT EXISTS category_confidence NUMERIC(4, 3)`));
+    await tx.execute(sql.raw(`ALTER TABLE article_metadata ADD COLUMN IF NOT EXISTS category_reason TEXT`));
+    await tx.execute(sql.raw(`ALTER TABLE article_metadata ADD COLUMN IF NOT EXISTS category_review_status TEXT`));
+    await tx.execute(sql.raw(`ALTER TABLE article_metadata ADD COLUMN IF NOT EXISTS category_model_version TEXT`));
+
+    // 启动锁保证并发 API 实例不会为同一用户重复创建系统分类；
+    // 唯一索引由索引服务以 CONCURRENTLY 方式持久化创建。
+    await tx.execute(sql.raw(`
+      INSERT INTO categories (user_id, name, sort_order, is_active, is_system, created_at, updated_at)
+      SELECT u.id, '待整理', -1, TRUE, TRUE, NOW(), NOW()
+      FROM users u
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM categories c
+        WHERE c.user_id = u.id
+          AND c.name = '待整理'
+          AND c.is_system = TRUE
+      )
+    `));
+
+    await tx.execute(sql.raw(`
+      UPDATE article_metadata m
+      SET category_id = pending_category.id,
+          category_source = 'rule',
+          category_review_status = 'needs_review',
+          category_model_version = NULL,
+          updated_at = NOW()
+      FROM categories pending_category
+      WHERE m.user_id = pending_category.user_id
+        AND pending_category.name = '待整理'
+        AND pending_category.is_system = TRUE
+        AND m.is_archived = TRUE
+        AND m.category_id IS NULL
+    `));
+  });
+}
