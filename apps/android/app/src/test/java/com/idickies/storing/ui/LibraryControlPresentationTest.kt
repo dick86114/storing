@@ -15,6 +15,13 @@ class LibraryControlPresentationTest {
   }
 
   @Test
+  fun `归档分类与工具栏各占一行，批量整理不再单独占行`() {
+    assertEquals(2, libraryArchiveControlMetrics.maxRows)
+    assertEquals(40.dp, libraryArchiveControlMetrics.toolbarHeight)
+    assertTrue(libraryArchiveControlMetrics.batchActionSharesToolbar)
+  }
+
+  @Test
   fun `library menus use compact bordered widths`() {
     assertEquals(216.dp, libraryMenuMetrics.moreMenuWidth)
     assertEquals(216.dp, libraryMenuMetrics.sortMenuWidth)

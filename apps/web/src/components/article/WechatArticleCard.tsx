@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, memo } from 'react';
 import Image from 'next/image';
-import { MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, FieldTimeOutlined, RobotOutlined, ExportOutlined } from '@ant-design/icons';
+import { MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, FieldTimeOutlined, RobotOutlined, GlobalOutlined } from '@ant-design/icons';
 import { DateText } from '@/lib/formatDate';
 import { getArticleSourceIcon, getArticleSourceText } from '@/components/article/articleSourceIcon';
 import type { ArticleListItem } from '@storing/shared';
@@ -227,7 +227,7 @@ function WechatArticleCardBase({ article, onClick, onToggleFavorite, onArchive, 
                           color: article.isPublished ? 'var(--accent)' : '#fff',
                         }}
                       >
-                        <ExportOutlined style={{ fontSize: '16px', color: article.isPublished ? 'var(--accent)' : undefined }} />
+                        <GlobalOutlined style={{ fontSize: '16px', color: article.isPublished ? 'var(--accent)' : undefined }} />
                         {article.isPublished ? '取消发布' : '发布'}
                       </button>
                     )}
@@ -237,6 +237,23 @@ function WechatArticleCardBase({ article, onClick, onToggleFavorite, onArchive, 
             </div>
           )}
         </div>
+
+        {article.category ? (
+          <div className="article-card-category-line" title={`归档分类：${article.category.name}`}>
+            <span
+              className="article-card-category-dot"
+              style={{ backgroundColor: article.category.color || 'var(--accent)' }}
+              aria-hidden="true"
+            />
+            <span className="article-card-category-label">归档至</span>
+            <span className="article-card-category-name">{article.category.name}</span>
+          </div>
+        ) : article.aiCategory ? (
+          <div className="article-card-category-line article-card-category-line--legacy" title={`AI 分类：${article.aiCategory}`}>
+            <span className="article-card-category-label">AI 分类</span>
+            <span className="article-card-category-name">{article.aiCategory}</span>
+          </div>
+        ) : null}
 
         {summary && (
           <div className="article-card-insight" aria-label="摘要">
@@ -249,9 +266,8 @@ function WechatArticleCardBase({ article, onClick, onToggleFavorite, onArchive, 
           </div>
         )}
 
-        {(tags.length > 0 || article.aiCategory || article.category) && (
+        {tags.length > 0 && (
           <div className="article-card-tags">
-            {article.category ? <span className="article-card-category" style={{ borderColor: article.category.color || undefined }}>{article.category.name}</span> : article.aiCategory && <span className="article-card-tag">{article.aiCategory}</span>}
             {tags.map((tag) => (
               <span key={tag} className="article-card-tag">{tag}</span>
             ))}
@@ -300,7 +316,7 @@ function WechatArticleCardBase({ article, onClick, onToggleFavorite, onArchive, 
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sourceText}</span>
           </span>
           <span className="article-card-footer-meta">
-            {article.isPublished && <span className="article-card-published-mark" title="已发布" aria-label="已发布"><ExportOutlined aria-hidden="true" /></span>}
+            {article.isPublished && <span className="article-card-published-mark" title="已公开" aria-label="已公开"><GlobalOutlined aria-hidden="true" /></span>}
             <span
               title={displayTimeLabel}
               aria-label={displayTimeLabel}

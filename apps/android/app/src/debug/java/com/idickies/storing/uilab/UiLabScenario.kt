@@ -9,6 +9,7 @@ enum class UiLabScenario(
   Search("search", "搜索"),
   Empty("empty", "空状态"),
   Reader("reader", "阅读器"),
+  Poster("poster", "分享海报"),
   Share("share", "分享采集"),
   Tasks("tasks", "采集任务"),
   States("states", "状态反馈"),

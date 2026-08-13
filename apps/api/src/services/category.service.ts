@@ -27,6 +27,7 @@ export type CategoryServiceErrorCode =
   | 'SYSTEM_CATEGORY_PROTECTED'
   | 'ARTICLE_ACCESS_DENIED'
   | 'CATEGORY_MERGE_SAME_TARGET'
+  | 'CATEGORY_DELETE_SAME_TARGET'
   | 'CATEGORY_INVALID_INPUT';
 
 export class CategoryServiceError extends Error {
@@ -324,6 +325,7 @@ export async function updateCategory(
       exclude_examples = ${textArray(excludeExamples)},
       color = ${input.color === undefined ? current.color : input.color?.trim() || null},
       sort_order = ${input.sortOrder ?? current.sortOrder},
+      is_active = ${input.isActive === undefined ? current.isActive : input.isActive},
       updated_at = NOW()
     WHERE ${categories.id} = ${categoryId}
       AND ${categories.userId} = ${userId}
@@ -418,6 +420,38 @@ export async function mergeCategories(
       RETURNING *
     `);
     return { movedArticleCount: moved.rows.length, sourceCategory: toCategory(deactivated.rows[0]) };
+  });
+}
+
+/** 删除非系统分类前先迁移其归档文章，避免受外键约束或遗留无分类文章影响。 */
+export async function deleteCategory(
+  userId: number,
+  sourceId: number,
+  targetId: number,
+  database: CategoryDatabase = defaultDatabase,
+): Promise<{ movedArticleCount: number }> {
+  if (sourceId === targetId) {
+    throw new CategoryServiceError('CATEGORY_DELETE_SAME_TARGET', '不能将文章迁移到即将删除的分类');
+  }
+  return database.transaction(async (tx) => {
+    const source = await getCategoryForUser(tx, userId, sourceId);
+    assertMutableCategory(source);
+    const target = await getCategoryForUser(tx, userId, targetId);
+    assertActiveCategory(target);
+
+    const moved = await tx.execute<{ article_id: number }>(sql`
+      UPDATE ${articleMetadata}
+      SET category_id = ${targetId}, updated_at = NOW()
+      WHERE ${articleMetadata.userId} = ${userId}
+        AND ${articleMetadata.categoryId} = ${sourceId}
+      RETURNING ${articleMetadata.articleId} AS article_id
+    `);
+    await tx.execute(sql`
+      DELETE FROM ${categories}
+      WHERE ${categories.id} = ${sourceId}
+        AND ${categories.userId} = ${userId}
+    `);
+    return { movedArticleCount: moved.rows.length };
   });
 }
 

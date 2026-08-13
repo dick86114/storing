@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   CategoryServiceError,
   createCategory,
+  deleteCategory,
   deactivateCategory,
   listCategories,
   mergeCategories,
@@ -113,6 +114,18 @@ test('updateCategory 只能修改当前用户的非系统分类', async () => {
   assert.equal(database.queries.length, 3);
 });
 
+test('updateCategory 传入 isActive true 时会重新启用分类', async () => {
+  const database = new FakeDatabase([
+    { rows: [category({ id: 101, is_active: false })] },
+    { rows: [category({ id: 101, is_active: true })] },
+  ]);
+
+  const result = await updateCategory(7, 101, { isActive: true }, database);
+
+  assert.equal(result.isActive, true);
+  assert.match(sqlText(database.queries[1]), /is_active/);
+});
+
 test('moveArticlesToCategory 仅迁移当前用户全部拥有的文章，并标记为人工确认', async () => {
   const database = new FakeDatabase([
     { rows: [category()] },
@@ -163,4 +176,20 @@ test('mergeCategories 拒绝合并系统源分类', async () => {
     () => mergeCategories(7, 1, 102, database),
     (error: unknown) => error instanceof CategoryServiceError && error.code === 'SYSTEM_CATEGORY_PROTECTED',
   );
+});
+
+test('deleteCategory 在事务中迁移文章并真正删除非系统分类', async () => {
+  const database = new FakeDatabase([
+    { rows: [category({ id: 101 })] },
+    { rows: [category({ id: 102 })] },
+    { rows: [{ article_id: 11 }, { article_id: 12 }] },
+    { rows: [{ id: 101 }] },
+  ]);
+
+  const result = await deleteCategory(7, 101, 102, database);
+
+  assert.equal(result.movedArticleCount, 2);
+  assert.equal(database.transactionCalls, 1);
+  assert.equal(database.queries.length, 4);
+  assert.match(sqlText(database.queries[3]), /DELETE FROM/);
 });

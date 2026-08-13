@@ -81,7 +81,7 @@ const SOURCE_ICON_RULES: SourceIconRule[] = [
     label: '微信',
     titlePrefix: '微信来源',
     Icon: WechatOutlined,
-    color: 'oklch(0.62 0.18 154)',
+    color: 'var(--accent)',
     pattern: /mp\.weixin\.qq\.com|weixin\.qq\.com|微信|公众号/i,
   },
   {

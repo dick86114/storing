@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getCurrentUser, requireAuth } from '../middleware/auth.js';
 import {
   createCategory,
+  deleteCategory,
   deactivateCategory,
   getArchiveCategoryCounts,
   listCategories,
@@ -10,6 +11,7 @@ import {
   reorderCategories,
   updateCategory,
 } from '../services/category.service.js';
+import { optimizeCategoryDescription } from '../services/ai.service.js';
 
 export const categoriesRoutes = new Hono();
 
@@ -20,6 +22,13 @@ const categoryInput = z.object({
   excludeExamples: z.array(z.string().trim().min(1).max(120)).max(10).optional(),
   color: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, '颜色格式无效').optional().nullable(),
   isActive: z.boolean().optional(),
+});
+
+const categoryDescriptionOptimizeInput = z.object({
+  name: z.string().trim().min(1, '请先填写分类名称').max(40, '分类名称不能超过 40 个字符'),
+  description: z.string().trim().max(500, '分类说明不能超过 500 个字符').optional().nullable(),
+  includeExamples: z.array(z.string().trim().min(1).max(120)).max(10).optional(),
+  excludeExamples: z.array(z.string().trim().min(1).max(120)).max(10).optional(),
 });
 
 function validationError(c: any, message: string) {
@@ -45,6 +54,17 @@ categoriesRoutes.get('/categories', requireAuth, async (c) => {
     getArchiveCategoryCounts(userId),
   ]);
   return c.json({ categories, counts });
+});
+
+categoriesRoutes.post('/categories/optimize-description', requireAuth, async (c) => {
+  const parsed = categoryDescriptionOptimizeInput.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return validationError(c, parsed.error.issues[0]?.message || '分类说明参数无效');
+  try {
+    const draft = await optimizeCategoryDescription(parsed.data);
+    return c.json({ draft });
+  } catch (error) {
+    return c.json({ error: { code: 'AI_OPTIMIZE_FAILED', message: error instanceof Error ? error.message : 'AI 优化分类说明失败' } }, 502);
+  }
 });
 
 categoriesRoutes.post('/categories', requireAuth, async (c) => {
@@ -79,8 +99,8 @@ categoriesRoutes.delete('/categories/:id', requireAuth, async (c) => {
     return validationError(c, '删除分类时必须指定迁移目标分类');
   }
   try {
-    await mergeCategories(getCurrentUser(c).id as number, id, targetCategoryId);
-    return c.json({ ok: true });
+    const result = await deleteCategory(getCurrentUser(c).id as number, id, targetCategoryId);
+    return c.json({ ok: true, movedArticleCount: result.movedArticleCount });
   } catch (error) {
     return categoryError(c, error);
   }
