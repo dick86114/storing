@@ -20,12 +20,15 @@ class UpdateInstaller @Inject constructor(
 ) {
   suspend fun downloadVerifyAndInstall(
     release: AndroidRelease,
+    updateSource: UpdateSource = UpdateSource.Official,
     onProgress: (UpdateStage, Float?) -> Unit = { _, _ -> },
   ) = withContext(Dispatchers.IO) {
     val updateDirectory = File(context.cacheDir, "updates").apply { mkdirs() }
     val output = File(updateDirectory, "qiankunjie-${release.versionCode}.apk")
     val digest = MessageDigest.getInstance("SHA-256")
-    client.newCall(Request.Builder().url(release.apkUrl).build()).execute().use { response ->
+    val downloadUrl = updateSource.resolve(release.apkUrl)
+      ?: throw IllegalStateException("更新源只支持 GitHub Release APK 地址")
+    client.newCall(Request.Builder().url(downloadUrl).build()).execute().use { response ->
       if (!response.isSuccessful) throw IllegalStateException("下载更新失败：HTTP ${response.code}")
       val body = response.body ?: throw IllegalStateException("下载更新失败：响应为空")
       val totalBytes = body.contentLength()

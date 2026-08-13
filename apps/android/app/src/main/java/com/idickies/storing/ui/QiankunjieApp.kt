@@ -142,6 +142,7 @@ fun QiankunjieApp(
     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
   }
   var showLogin by rememberSaveable { mutableStateOf(false) }
+  var openSettingsRequest by rememberSaveable { mutableStateOf(false) }
   LaunchedEffect(user?.id) {
     if (user != null) {
       showLogin = false
@@ -191,7 +192,11 @@ fun QiankunjieApp(
       onClipboardCollectUrlConsumed = onClipboardCollectUrlConsumed,
       onCollectJobsOpened = onCollectJobsOpened,
       onManualUpdateCheck = updateViewModel::checkNow,
+      openSettingsRequest = openSettingsRequest,
+      onSettingsRequestConsumed = { openSettingsRequest = false },
       updateChecking = updateState.checking,
+      updateSource = updateState.updateSource,
+      onUpdateSourceChange = updateViewModel::selectUpdateSource,
       themeMode = themeMode,
       onThemeModeChange = appearanceViewModel::selectThemeMode,
       isAuthenticated = user != null,
@@ -221,7 +226,16 @@ fun QiankunjieApp(
       icon = { Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
       title = { Text("暂时无法检查更新") },
       text = { Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-      confirmButton = { Button(onClick = updateViewModel::dismiss) { Text("关闭") } },
+      confirmButton = {
+        if (updateState.suggestChangeSource) {
+          Button(onClick = { updateViewModel.dismiss(); openSettingsRequest = true }) { Text("去设置更换更新源") }
+        } else {
+          Button(onClick = updateViewModel::dismiss) { Text("关闭") }
+        }
+      },
+      dismissButton = if (updateState.suggestChangeSource) {
+        { androidx.compose.material3.TextButton(onClick = updateViewModel::dismiss) { Text("关闭") } }
+      } else null,
     )
   }
   updateState.release?.let { release ->
@@ -532,12 +546,16 @@ private fun HomeSkeleton(
   onPublicIdOpened: () -> Unit = {},
   openCollectJobs: Boolean,
   onCollectJobsOpened: () -> Unit,
+  openSettingsRequest: Boolean = false,
+  onSettingsRequestConsumed: () -> Unit = {},
   openMcpSettings: Boolean = false,
   onMcpSettingsOpened: () -> Unit = {},
   clipboardCollectUrl: String? = null,
   onClipboardCollectUrlConsumed: () -> Unit = {},
   onManualUpdateCheck: () -> Unit,
   updateChecking: Boolean,
+  updateSource: com.idickies.storing.update.UpdateSource = com.idickies.storing.update.UpdateSource.Official,
+  onUpdateSourceChange: (com.idickies.storing.update.UpdateSource) -> Unit = {},
   themeMode: com.idickies.storing.ui.theme.ThemeMode,
   onThemeModeChange: (com.idickies.storing.ui.theme.ThemeMode) -> Unit,
   isAuthenticated: Boolean,
@@ -575,7 +593,9 @@ private fun HomeSkeleton(
     clipboardCollectUrl = clipboardCollectUrl,
     onClipboardCollectUrlConsumed = onClipboardCollectUrlConsumed,
     onManualUpdateCheck = onManualUpdateCheck,
-    updateChecking = updateChecking,
+      updateChecking = updateChecking,
+      updateSource = updateSource,
+      onUpdateSourceChange = onUpdateSourceChange,
     themeMode = themeMode,
     onThemeModeChange = onThemeModeChange,
     isAuthenticated = isAuthenticated,
@@ -588,5 +608,7 @@ private fun HomeSkeleton(
     readerColorScheme = readerColorScheme,
     onRequestLogin = onRequestLogin,
     onLogout = onLogout,
+    openSettingsRequest = openSettingsRequest,
+    onSettingsRequestConsumed = onSettingsRequestConsumed,
   )
 }

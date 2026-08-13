@@ -439,6 +439,8 @@ private fun UiLabSettings() {
     themeMode = ThemeMode.System,
     onThemeModeChange = {},
     onCheckUpdate = {},
+    updateSource = com.idickies.storing.update.UpdateSource.Official,
+    onUpdateSourceChange = {},
     onOpenReaderSettings = {},
     onOpenChangePassword = {},
     onOpenOfflineContent = {},
