@@ -49,9 +49,9 @@ export function useArticleOperations() {
     globalMutate('categories');
   }, [globalMutate]);
 
-  const archive = useCallback(async function archive(articleId: number): Promise<boolean> {
+  const archive = useCallback(async function archive(articleId: number, categoryId?: number): Promise<boolean> {
     try {
-      await api.archive(articleId);
+      await api.archive(articleId, categoryId);
       removeArticleFromView('inbox', articleId);
       removeArticleFromView('favorites', articleId);
       updateArticleInView('archive', articleId, { isArchived: true });

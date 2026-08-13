@@ -92,6 +92,7 @@ import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Public
@@ -185,6 +186,7 @@ import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 import com.idickies.storing.library.ArticleCard
+import com.idickies.storing.library.ArticleCategory
 import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.library.ArticleListPresentationMode
 import com.idickies.storing.library.ArticleProcessingAction
@@ -949,6 +951,8 @@ fun LibraryScreen(
       onOpenOfflineAsset = libraryViewModel::openOfflineAsset,
       onFavorite = { libraryViewModel.toggleFavorite(detail) },
       onArchive = { libraryViewModel.toggleArchive(detail) },
+      archiveCategories = state.archiveCategories,
+      onMoveToCategory = { categoryId -> libraryViewModel.moveToCategory(detail, categoryId) },
       onPublication = { libraryViewModel.togglePublication(detail) },
       onOpenSharePoster = { showSharePoster = true },
       onProcess = { action -> libraryViewModel.processArticle(detail, action) },
@@ -1135,7 +1139,7 @@ fun LibraryScreen(
           collectSubmitting = collectState.submitting, collectMessage = collectState.message, activeJobCount = jobsState.activeJobCount,
           onOpenTasks = { showTasks = true }, onSort = libraryViewModel::selectSort, onToggleSortOrder = libraryViewModel::toggleSortOrder,
           onResetSort = libraryViewModel::resetSort, sortOrder = state.sortOrder, presentationMode = presentationMode,
-          onPresentationModeChange = { presentationMode = it }, onArchiveSources = libraryViewModel::selectArchiveSources,
+          onPresentationModeChange = { presentationMode = it }, onArchiveSources = libraryViewModel::selectArchiveSources, onArchiveCategory = libraryViewModel::selectArchiveCategory,
           onRefresh = ::refreshListPreservingPosition, onLoadMore = libraryViewModel::loadMore, onOpen = libraryViewModel::open,
           onLongPress = { longPressedArticle = it }, onSelectCollectUrl = collectViewModel::select, onSubmitCollect = collectViewModel::submit,
           listState = listStateFor(renderedView), modifier = Modifier.padding(padding),
@@ -1475,6 +1479,7 @@ private fun LibraryList(
   presentationMode: ArticleListPresentationMode,
   onPresentationModeChange: (ArticleListPresentationMode) -> Unit,
   onArchiveSources: (Set<String>) -> Unit,
+  onArchiveCategory: (Int?) -> Unit,
   onRefresh: () -> Unit,
   onLoadMore: () -> Unit,
   onOpen: (Int) -> Unit,
@@ -1508,8 +1513,35 @@ private fun LibraryList(
       var sourceExpanded by remember { mutableStateOf(false) }
       val sourceOptions = archiveSourceFilters(state.archiveSources)
       val sourceCounts = state.archiveSources.associate { it.source to it.count }
-      Row(
+      Column(
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        if (ArchiveSourceFilter.isAvailableFor(state.view, state.searchQuery)) {
+          Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+          ) {
+            AssistChip(
+              onClick = { onArchiveCategory(null) },
+              label = { Text("全部") },
+              colors = AssistChipDefaults.assistChipColors(
+                containerColor = if (state.archiveCategoryId == null) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+              ),
+            )
+            state.archiveCategories.forEach { category ->
+              AssistChip(
+                onClick = { onArchiveCategory(category.id) },
+                label = { Text(category.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                colors = AssistChipDefaults.assistChipColors(
+                  containerColor = if (state.archiveCategoryId == category.id) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                ),
+              )
+            }
+          }
+        }
+      Row(
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically,
       ) {
@@ -1596,6 +1628,7 @@ private fun LibraryList(
             }
           }
         }
+      }
       }
     }
     if (activeJobCount > 0) item(span = StaggeredGridItemSpan.FullLine) {
@@ -1731,7 +1764,7 @@ internal fun ArticleDetailSkeleton() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onSaveReadingPosition: (Float) -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, archiveCategories: List<ArticleCategory>, onMoveToCategory: (Int) -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onSaveReadingPosition: (Float) -> Unit) {
   val context = LocalContext.current
   val isDarkAppearance = isQiankunjieDarkTheme()
   var confirmDelete by remember { mutableStateOf(false) }
@@ -1739,6 +1772,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
   var confirmPublication by remember { mutableStateOf<PublicationAction?>(null) }
   var confirmProcessing by remember { mutableStateOf<ArticleProcessingAction?>(null) }
   var moreExpanded by remember { mutableStateOf(false) }
+  var categoryPickerOpen by remember { mutableStateOf(false) }
   var showLibrarySearch by rememberSaveable { mutableStateOf(false) }
   BackHandler(onBack = onBack)
   val publicUrl = article.publicId?.let { "https://storing.idickies.com/p/$it" }
@@ -1823,6 +1857,11 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                 text = { Text(if (article.isArchived) "移回收件箱" else "归档", style = MaterialTheme.typography.bodyLarge) },
                 onClick = { moreExpanded = false; onArchive() },
                 leadingIcon = { Icon(if (article.isArchived) Icons.Outlined.MoveToInbox else Icons.Outlined.Archive, contentDescription = null) },
+              )
+              if (canManage && article.isArchived) DropdownMenuItem(
+                text = { Text("修改分类", style = MaterialTheme.typography.bodyLarge) },
+                onClick = { moreExpanded = false; categoryPickerOpen = true },
+                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Label, contentDescription = null) },
               )
               if (canManage) DropdownMenuItem(
                 text = { Text(publicationAction(article.isPublished).label, style = MaterialTheme.typography.bodyLarge) },
@@ -2012,6 +2051,30 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
       dismissButton = { TextButton(onClick = { confirmProcessing = null }) { Text("取消") } },
     )
   }
+  if (categoryPickerOpen) QiankunjieAlertDialog(
+    onDismissRequest = { categoryPickerOpen = false },
+    icon = { Icon(Icons.AutoMirrored.Outlined.Label, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+    title = { Text("修改分类") },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        archiveCategories.forEach { category ->
+          TextButton(
+            onClick = { categoryPickerOpen = false; onMoveToCategory(category.id) },
+            enabled = category.id != article.category?.id,
+            modifier = Modifier.fillMaxWidth(),
+          ) {
+            Text(
+              if (category.id == article.category?.id) "${category.name}（当前）" else category.name,
+              modifier = Modifier.fillMaxWidth(),
+              color = if (category.id == article.category?.id) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            )
+          }
+        }
+        if (archiveCategories.isEmpty()) Text("暂无可用分类，请先在网页端的分类管理中创建分类。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+    },
+    confirmButton = { TextButton(onClick = { categoryPickerOpen = false }) { Text("取消") } },
+  )
   confirmPublication?.let { action ->
     QiankunjieAlertDialog(
       onDismissRequest = { confirmPublication = null },

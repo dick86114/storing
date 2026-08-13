@@ -10,10 +10,11 @@ import { authRoutes } from './routes/auth.js';
 import { collectRoutes } from './routes/collect.js';
 import { mcpRoutes } from './routes/mcp.js';
 import { releasesRoutes } from './routes/releases.js';
+import { categoriesRoutes } from './routes/categories.js';
 import { initCollectSchema, resumePendingCollectJobs } from './services/collect.service.js';
 import { ensureArticleMetadataCoverVersionColumn } from './services/reader.service.js';
 import { initMcpSchema, startMcpLogCleanupScheduler } from './services/mcp-auth.service.js';
-import { ensurePrivateLibraryPublicationSchema, initArticleMetadataUserScope, repairCollectedArticleMetadataOwnership, repairMissingMcpSavedArticleMetadata } from './services/metadata-scope.service.js';
+import { ensureArchiveCategorySchema, ensurePrivateLibraryPublicationSchema, initArticleMetadataUserScope, repairCollectedArticleMetadataOwnership, repairMissingMcpSavedArticleMetadata } from './services/metadata-scope.service.js';
 import { ensureConfiguredAdmin, initUserManagementSchema } from './services/admin-bootstrap.service.js';
 import { initAdminAuditSchema } from './services/admin-audit.service.js';
 import { initMobileSessionSchema } from './services/mobile-session.service.js';
@@ -45,6 +46,7 @@ app.route('/api/v1', searchRoutes);
 app.route('/api/v1', collectRoutes);
 app.route('/api/v1', mcpRoutes);
 app.route('/api/v1', releasesRoutes);
+app.route('/api/v1', categoriesRoutes);
 
 app.onError((err, c) => {
   console.error(err);
@@ -61,6 +63,7 @@ async function startServer() {
   console.log(admin.created ? `管理员账号已创建: ${admin.user.username}` : `管理员账号已就绪: ${admin.user.username}`);
   await initArticleMetadataUserScope().catch((err) => console.error('初始化用户级文章元数据失败:', err));
   await ensurePrivateLibraryPublicationSchema().catch((err) => console.error('初始化文章发布字段失败:', err));
+  await ensureArchiveCategorySchema().catch((err) => console.error('初始化归档分类字段失败:', err));
   await initCollectSchema().catch((err) => console.error('初始化采集表失败:', err));
   await ensureArticleMetadataCoverVersionColumn().catch((err) => console.error('初始化封面版本字段失败:', err));
   await repairCollectedArticleMetadataOwnership().catch((err) => console.error('修复采集文章归属失败:', err));

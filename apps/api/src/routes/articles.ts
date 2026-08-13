@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
 import { db } from '../db/index.js';
-import { articles, articleMetadata, users } from '../db/schema.js';
+import { articles, articleMetadata, categories, users } from '../db/schema.js';
 import { eq, and, asc, desc, count, sql, or, gt, inArray } from 'drizzle-orm';
-import { generateSummaryAndTags } from '../services/ai.service.js';
+import { classifyStoredArticleForArchive, generateSummaryAndTags } from '../services/ai.service.js';
+import { getCategoryById, getPendingCategory, moveArticlesToCategory } from '../services/category.service.js';
 import {
   COVER_IMAGE_PROCESSING_VERSION,
   ensureArticleMetadataContentHtmlMobileColumn,
@@ -45,6 +46,27 @@ function applyArchiveCategoryFilter(whereCondition: any, view: string, categoryF
     ? eq(articles.source, categoryFilters[0])
     : inArray(articles.source, categoryFilters);
   return and(whereCondition, sourceCondition);
+}
+
+function applyArchiveCategoryIdFilter(whereCondition: any, view: string, categoryId?: string) {
+  if (view !== 'archive' || !categoryId || categoryId === 'all') return whereCondition;
+  const id = Number(categoryId);
+  if (!Number.isInteger(id) || id <= 0) return and(whereCondition, sql`FALSE`);
+  return and(whereCondition, eq(articleMetadata.categoryId, id));
+}
+
+function categoryProjection() {
+  return {
+    id: categories.id,
+    name: categories.name,
+    color: categories.color,
+    isSystem: categories.isSystem,
+  };
+}
+
+function serializeCategory(category: { id: number | null; name: string | null; color: string | null; isSystem: boolean | null } | null) {
+  if (!category?.id || !category.name) return null;
+  return { id: category.id, name: category.name, color: category.color, isSystem: Boolean(category.isSystem) };
 }
 
 function getViewCondition(view: string) {
@@ -142,9 +164,17 @@ async function getArticleRecord(id: number, userId: number) {
       aiSummary: articleMetadata.aiSummary,
       aiCategory: articleMetadata.aiCategory,
       aiTags: articleMetadata.aiTags,
+      categoryId: articleMetadata.categoryId,
+      categorySource: articleMetadata.categorySource,
+      categoryConfidence: articleMetadata.categoryConfidence,
+      categoryReason: articleMetadata.categoryReason,
+      categoryReviewStatus: articleMetadata.categoryReviewStatus,
+      categoryModelVersion: articleMetadata.categoryModelVersion,
+      category: categoryProjection(),
     })
     .from(articles)
     .innerJoin(articleMetadata, metadataJoinCondition(userId))
+    .leftJoin(categories, and(eq(categories.id, articleMetadata.categoryId), eq(categories.userId, userId)))
     .where(eq(articles.id, id));
 
   return article ?? null;
@@ -156,6 +186,7 @@ function serializeArticleRecord(article: NonNullable<Awaited<ReturnType<typeof g
 
   return {
     ...rest,
+    category: serializeCategory(article.category),
     coverImage: metadataCoverImage || articleCoverImage,
     isFavorited: article.isFavorited ?? false,
     isArchived: article.isArchived ?? false,
@@ -271,6 +302,7 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
   const view = c.req.query('view') || 'inbox';
   const scope = c.req.query('scope');
   const categoryFilters = archiveCategoryFilters(c);
+  const categoryId = c.req.query('categoryId');
   const page = parseInt(c.req.query('page') || '1');
   const perPage = parseInt(c.req.query('perPage') || '8');
   const sort = normalizeArticleSort(view, c.req.query('sort'));
@@ -385,6 +417,7 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
   const userId = getCurrentUser(c).id as number;
   let whereCondition = getViewCondition(view);
   whereCondition = applyArchiveCategoryFilter(whereCondition, view, categoryFilters);
+  whereCondition = applyArchiveCategoryIdFilter(whereCondition, view, categoryId);
 
   const baseQuery = db
     .select({
@@ -411,9 +444,17 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
       aiSummary: articleMetadata.aiSummary,
       aiCategory: articleMetadata.aiCategory,
       aiTags: articleMetadata.aiTags,
+      categoryId: articleMetadata.categoryId,
+      categorySource: articleMetadata.categorySource,
+      categoryConfidence: articleMetadata.categoryConfidence,
+      categoryReason: articleMetadata.categoryReason,
+      categoryReviewStatus: articleMetadata.categoryReviewStatus,
+      categoryModelVersion: articleMetadata.categoryModelVersion,
+      category: categoryProjection(),
     })
     .from(articles)
-    .innerJoin(articleMetadata, metadataJoinCondition(userId));
+    .innerJoin(articleMetadata, metadataJoinCondition(userId))
+    .leftJoin(categories, and(eq(categories.id, articleMetadata.categoryId), eq(categories.userId, userId)));
 
   const [{ total }] = await db
     .select({ total: count() })
@@ -433,7 +474,7 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
   );
 
   return c.json({
-    articles: data.map(({ coverVersion: _coverVersion, ...article }) => ({
+    articles: data.map(({ coverVersion: _coverVersion, category, categoryId: _categoryId, categorySource, categoryConfidence, categoryReason, categoryReviewStatus, categoryModelVersion, ...article }) => ({
       ...article,
       coverImage: coverOverrides.get(article.id) ?? article.coverImage,
       publicUrl: article.isPublished && article.publicId ? `/p/${article.publicId}` : null,
@@ -441,6 +482,15 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
       isArchived: article.isArchived ?? false,
       isPublished: article.isPublished ?? false,
       aiTags: article.aiTags ?? [],
+      category: serializeCategory(category),
+      categoryResult: _categoryId ? {
+        categoryId: _categoryId,
+        source: categorySource ?? 'rule',
+        confidence: categoryConfidence === null ? null : Number(categoryConfidence),
+        reason: categoryReason,
+        reviewStatus: categoryReviewStatus ?? 'pending',
+        modelVersion: categoryModelVersion,
+      } : null,
     })),
     total,
     page,
@@ -554,11 +604,28 @@ articlesRoutes.post('/articles/:id/archive', requireAuth, async (c) => {
   const userId = getCurrentUser(c).id;
   const ownedArticle = await getArticleRecord(id, userId);
   if (!ownedArticle) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
+  const body = await c.req.json().catch(() => ({})) as { categoryId?: unknown };
+  const requestedCategoryId = typeof body.categoryId === 'number' ? body.categoryId : null;
+  if (requestedCategoryId !== null && (!Number.isInteger(requestedCategoryId) || requestedCategoryId <= 0)) {
+    return c.json({ error: { code: 'BAD_REQUEST', message: '分类 ID 无效' } }, 400);
+  }
   const now = new Date();
   const hasActionTimestamps = await hasMetadataTimestampColumns();
-  const updateValues = hasActionTimestamps
-    ? { isArchived: true, archivedAt: now, updatedAt: now }
-    : { isArchived: true, updatedAt: now };
+  const category = requestedCategoryId
+    ? await getCategoryById(userId, requestedCategoryId, { requireActive: true }).catch(() => null)
+    : ownedArticle.isArchived && (ownedArticle as any).categoryId ? null : await getPendingCategory(userId);
+  if (requestedCategoryId && !category) return c.json({ error: { code: 'CATEGORY_NOT_FOUND', message: '分类不存在、已停用或无权访问' } }, 404);
+  const updateValues = {
+    ...(hasActionTimestamps ? { isArchived: true, archivedAt: now, updatedAt: now } : { isArchived: true, updatedAt: now }),
+    ...(category ? {
+      categoryId: category.id,
+      categorySource: requestedCategoryId ? 'user' : 'rule',
+      categoryReviewStatus: requestedCategoryId ? 'confirmed' : 'needs_review',
+      categoryConfidence: null,
+      categoryReason: null,
+      categoryModelVersion: null,
+    } : {}),
+  };
 
   await db
     .update(articleMetadata)
@@ -568,8 +635,45 @@ articlesRoutes.post('/articles/:id/archive', requireAuth, async (c) => {
   // 异步触发 AI 摘要和标签生成、封面图处理
   generateSummaryAndTags(id, userId).catch((e) => console.error('AI summary/tags failed:', e.message));
   processCoverImage(id, userId).catch((e) => console.error('Cover image process failed:', e.message));
+  if (!requestedCategoryId && !(ownedArticle as any).categoryId) {
+    classifyStoredArticleForArchive(id, userId).catch((e) => console.error('AI category failed:', e.message));
+  }
 
-  return c.json({ articleId: id, isArchived: true });
+  return c.json({ articleId: id, isArchived: true, category: category ? { id: category.id, name: category.name } : null });
+});
+
+articlesRoutes.post('/articles/:id/classify', requireAuth, async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isInteger(id) || id <= 0) return c.json({ error: { code: 'BAD_REQUEST', message: '文章 ID 无效' } }, 400);
+  const userId = getCurrentUser(c).id as number;
+  const article = await getArticleRecord(id, userId);
+  if (!article) return c.json({ error: { code: 'NOT_FOUND', message: '文章不存在或无权访问' } }, 404);
+  if ((article as any).categorySource === 'user') return c.json({ error: { code: 'CATEGORY_USER_OVERRIDE', message: '文章分类已由用户确认，不能自动覆盖' } }, 409);
+  await classifyStoredArticleForArchive(id, userId);
+  return c.json({ articleId: id, ok: true });
+});
+
+articlesRoutes.patch('/articles/:id/category', requireAuth, async (c) => {
+  const id = Number(c.req.param('id'));
+  const body = await c.req.json().catch(() => null) as { categoryId?: unknown } | null;
+  if (!Number.isInteger(id) || id <= 0 || !body || typeof body.categoryId !== 'number') return c.json({ error: { code: 'BAD_REQUEST', message: '文章或分类 ID 无效' } }, 400);
+  try {
+    const result = await moveArticlesToCategory(getCurrentUser(c).id as number, [id], body.categoryId);
+    return c.json({ articleId: id, updatedCount: result.updatedCount });
+  } catch (error) {
+    return c.json({ error: { code: 'CATEGORY_UPDATE_FAILED', message: error instanceof Error ? error.message : '修改分类失败' } }, 400);
+  }
+});
+
+articlesRoutes.post('/articles/bulk-category', requireAuth, async (c) => {
+  const body = await c.req.json().catch(() => null) as { articleIds?: unknown; categoryId?: unknown } | null;
+  if (!body || !Array.isArray(body.articleIds) || typeof body.categoryId !== 'number') return c.json({ error: { code: 'BAD_REQUEST', message: '批量分类参数无效' } }, 400);
+  try {
+    const result = await moveArticlesToCategory(getCurrentUser(c).id as number, body.articleIds, body.categoryId);
+    return c.json(result);
+  } catch (error) {
+    return c.json({ error: { code: 'BULK_CATEGORY_FAILED', message: error instanceof Error ? error.message : '批量分类失败' } }, 400);
+  }
 });
 
 /**
@@ -627,9 +731,11 @@ articlesRoutes.post('/articles/:id/publish', requireAuth, async (c) => {
       return c.json({ error: { code: 'PUBLICATION_NOT_READY', message: '文章正文尚未准备完成，无法发布' } }, 422);
     }
 
+    const pendingCategory = await getPendingCategory(userId);
     await db.update(articleMetadata)
-      .set({ isArchived: true, archivedAt: now, updatedAt: now })
+      .set({ isArchived: true, archivedAt: now, categoryId: pendingCategory.id, categorySource: 'rule', categoryReviewStatus: 'needs_review', updatedAt: now })
       .where(metadataWhereCondition(id, userId));
+    classifyStoredArticleForArchive(id, userId).catch((error) => console.error('AI category failed during publish:', error.message));
     await processCoverImage(id, userId).catch((error) => console.error('Cover image process failed:', error.message));
   }
 

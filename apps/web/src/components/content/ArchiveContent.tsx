@@ -9,6 +9,7 @@ import { ArticleList } from '@/components/article/ArticleList';
 import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type ArticleSortOption } from '@/components/article/ArticleSortControl';
 import { SourceSidebar } from '@/components/archive/SourceSidebar';
 import { SourcePills } from '@/components/archive/SourcePills';
+import { CategoryNavigation } from '@/components/archive/CategoryNavigation';
 import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { api } from '@/lib/api';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
@@ -29,6 +30,8 @@ function ArchiveContentInner() {
   const { getBookmark, clearBookmark } = useBookmark();
 
   const [activeSource, setActiveSource] = useState('all');
+  const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
+  const [sidebarMode, setSidebarMode] = useState<'categories' | 'sources'>('categories');
   const [currentSort, setCurrentSort] = useState('count');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [articleSort, setArticleSort] = useState<ArticleSortKey>('archived');
@@ -60,16 +63,19 @@ function ArchiveContentInner() {
   }, [getBookmark]);
 
   const { data, error, isLoading, isValidating, mutate } = useSWR(
-    `articles:archive:${page}:${activeSource}:${articleSort}:${articleSortOrder}`,
-    () => api.getArticles('archive', page, activeSource, 8, articleSort, articleSortOrder),
+    `articles:archive:${page}:${activeSource}:${activeCategoryId ?? 'all'}:${articleSort}:${articleSortOrder}`,
+    () => api.getArticles('archive', page, activeSource, 8, articleSort, articleSortOrder, undefined, activeCategoryId),
     { revalidateOnFocus: false, errorRetryCount: 1 }
   );
 
   const { data: sourceData } = useSWR(`sources:${currentSort}:${sortOrder}`, () => api.getSources(currentSort, sortOrder), { revalidateOnFocus: false });
+  const { data: categoryData } = useSWR('categories', () => api.getCategories(), { revalidateOnFocus: false });
 
   const totalPages = data?.totalPages ?? 1;
   const sources = sourceData ?? [];
-  const totalCount = sources.reduce((sum: number, s: any) => sum + s.count, 0);
+  const categories = categoryData?.categories ?? [];
+  const categoryCounts = Object.fromEntries(Object.entries(categoryData?.counts ?? {}).map(([id, count]) => [Number(id), count]));
+  const totalCount = Object.values(categoryData?.counts ?? {}).reduce((sum, count) => sum + count, 0);
 
   useEffect(() => {
     if (data?.articles) {
@@ -101,6 +107,14 @@ function ArchiveContentInner() {
     removingIdsRef.current.clear();
     window.scrollTo(0, 0);
   }, [activeSource]);
+
+  const handleCategorySelect = useCallback((categoryId: number | null) => {
+    if (categoryId === activeCategoryId) return;
+    setActiveCategoryId(categoryId);
+    setPage(1);
+    removingIdsRef.current.clear();
+    window.scrollTo(0, 0);
+  }, [activeCategoryId]);
 
   const handleSortChange = useCallback((sort: string) => {
     setCurrentSort(sort);
@@ -334,24 +348,9 @@ function ArchiveContentInner() {
       )}
 
       {isMobile && (
-        <SourcePills
-          sources={sources}
-          activeSource={activeSource}
-          totalCount={totalCount}
-          onSelect={handleSourceSelect}
-          currentSort={currentSort}
-          onSortChange={handleSortChange}
-          sortOrder={sortOrder}
-          onSortOrderChange={handleSortOrderChange}
-        />
-      )}
-
-      {!isMobile && (
-        <div
-          className={`archive-desktop-layout${sourceSidebarCollapsed ? ' archive-desktop-layout--source-collapsed' : ''}`}
-          style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}
-        >
-          <SourceSidebar
+        <>
+          <CategoryNavigation categories={categories} activeCategoryId={activeCategoryId} counts={categoryCounts} totalCount={totalCount} onSelect={handleCategorySelect} compact />
+          <SourcePills
             sources={sources}
             activeSource={activeSource}
             totalCount={totalCount}
@@ -360,9 +359,37 @@ function ArchiveContentInner() {
             onSortChange={handleSortChange}
             sortOrder={sortOrder}
             onSortOrderChange={handleSortOrderChange}
-            collapsed={sourceSidebarCollapsed}
-            onToggleCollapsed={() => setSourceSidebarCollapsed((collapsed) => !collapsed)}
           />
+        </>
+      )}
+
+      {!isMobile && (
+        <div
+          className={`archive-desktop-layout${sourceSidebarCollapsed ? ' archive-desktop-layout--source-collapsed' : ''}`}
+          style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}
+        >
+          <aside className="archive-navigation-panel">
+            <div className="archive-navigation-tabs" role="tablist" aria-label="归档导航">
+              <button type="button" className={sidebarMode === 'categories' ? 'is-active' : ''} onClick={() => setSidebarMode('categories')} role="tab" aria-selected={sidebarMode === 'categories'}>分类</button>
+              <button type="button" className={sidebarMode === 'sources' ? 'is-active' : ''} onClick={() => setSidebarMode('sources')} role="tab" aria-selected={sidebarMode === 'sources'}>来源</button>
+            </div>
+            {sidebarMode === 'categories' ? (
+              <CategoryNavigation categories={categories} activeCategoryId={activeCategoryId} counts={categoryCounts} totalCount={totalCount} onSelect={handleCategorySelect} />
+            ) : (
+              <SourceSidebar
+                sources={sources}
+                activeSource={activeSource}
+                totalCount={totalCount}
+                onSelect={handleSourceSelect}
+                currentSort={currentSort}
+                onSortChange={handleSortChange}
+                sortOrder={sortOrder}
+                onSortOrderChange={handleSortOrderChange}
+                collapsed={sourceSidebarCollapsed}
+                onToggleCollapsed={() => setSourceSidebarCollapsed((collapsed) => !collapsed)}
+              />
+            )}
+          </aside>
           <div style={{ flex: 1, minWidth: 0 }}>{refreshableArticleListContent}</div>
         </div>
       )}

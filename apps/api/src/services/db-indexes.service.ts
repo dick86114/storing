@@ -19,6 +19,22 @@ const INDEXES: ReadonlyArray<{ name: string; create: string }> = [
     create: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_article_metadata_user_published ON article_metadata (user_id, is_published) WHERE is_published = true',
   },
   {
+    name: 'idx_categories_user_active_sort',
+    create: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_categories_user_active_sort ON categories (user_id, is_active, sort_order)',
+  },
+  {
+    name: 'categories_user_active_name_unique',
+    create: 'CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS categories_user_active_name_unique ON categories (user_id, name) WHERE is_active = true',
+  },
+  {
+    name: 'categories_user_pending_system_unique',
+    create: "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS categories_user_pending_system_unique ON categories (user_id) WHERE is_system = true AND name = '待整理'",
+  },
+  {
+    name: 'idx_article_metadata_user_category_archived',
+    create: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_article_metadata_user_category_archived ON article_metadata (user_id, category_id, is_archived)',
+  },
+  {
     name: 'idx_mcp_request_logs_client_created',
     create: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_mcp_request_logs_client_created ON mcp_request_logs (client_id, created_at DESC)',
   },
@@ -67,6 +83,8 @@ const INDEXES: ReadonlyArray<{ name: string; create: string }> = [
  *  - article_metadata(user_id, article_id)：列表/详情 JOIN 的核心条件
  *  - article_metadata(user_id, is_archived, is_favorited)：inbox/favorites/archive 视图过滤与 counts
  *  - article_metadata(user_id, is_published) WHERE is_published：published 部分索引（仅索引已发布行）
+ *  - categories(user_id, is_active, sort_order)：归档分类导航和管理列表
+ *  - article_metadata(user_id, category_id, is_archived)：分类归档列表和计数
  *  - mcp_request_logs(client_id, created_at DESC)：MCP 限流 COUNT 的时间窗口查询
  *  - collect_jobs(client_id, status)：MCP 并发采集数检查
  */

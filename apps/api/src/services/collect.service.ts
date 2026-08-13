@@ -2,7 +2,8 @@ import { JSDOM } from 'jsdom';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { articleMetadata, articles, collectJobs } from '../db/schema.js';
-import { buildArticleSummaryResult, generateSummaryAndTags } from './ai.service.js';
+import { buildArticleSummaryResult, classifyStoredArticleForArchive, generateSummaryAndTags } from './ai.service.js';
+import { getPendingCategory } from './category.service.js';
 import { assertSafeOutboundUrl, normalizeOutboundUrl } from './outbound-url-policy.service.js';
 import { ensureArticleMetadataContentHtmlMobileColumn, extractWechatCoverImage, fetchArticleContentFromSources, fetchWechatJson, getArticleContent, processCoverImage, uploadImage } from './reader.service.js';
 import {
@@ -207,6 +208,12 @@ async function upsertArticleFromCapture(input: {
     archivedAt: markArchived ? now : null,
     updatedAt: now,
   };
+  if (markArchived) {
+    const pendingCategory = await getPendingCategory(options.userId);
+    metadataValues.categoryId = pendingCategory.id;
+    metadataValues.categorySource = 'rule';
+    metadataValues.categoryReviewStatus = 'needs_review';
+  }
   if (input.contentHtml !== undefined) metadataValues.contentHtml = input.contentHtml;
   if (input.contentHtmlMobile !== undefined) metadataValues.contentHtmlMobile = input.contentHtmlMobile;
   if (input.contentMarkdown !== undefined) metadataValues.contentMd = input.contentMarkdown;
@@ -242,10 +249,13 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
   ]);
 }
 
-async function finishArticleSideEffects(jobId: number, articleId: number, options: { saveToInbox: boolean; userId?: number | null; coverProcessed?: boolean }) {
+async function finishArticleSideEffects(jobId: number, articleId: number, options: { saveToInbox: boolean; isArchived?: boolean; userId?: number | null; coverProcessed?: boolean }) {
   if (options.saveToInbox) {
     if (!options.userId) throw new Error('保存文章到收件箱需要用户归属');
     generateSummaryAndTags(articleId, options.userId).catch((e) => console.error('Collect AI summary/tags failed:', e.message));
+    if (options.isArchived) {
+      classifyStoredArticleForArchive(articleId, options.userId).catch((e) => console.error('Collect AI category failed:', e.message));
+    }
     if (!options.coverProcessed) {
       processCoverImage(articleId, options.userId).catch((e) => console.error('Collect cover image failed:', e.message));
     }
@@ -358,6 +368,7 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
     });
     await finishArticleSideEffects(jobId, articleId, {
       saveToInbox: true,
+      isArchived: shouldArchiveCollectedArticle(options.sourceType),
       userId: options.userId,
       coverProcessed: Boolean(coverImage),
     });
@@ -680,7 +691,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string, option
     captureStrategy: capture.strategy,
     finishedAt: new Date(),
   });
-  await finishArticleSideEffects(jobId, articleId, { saveToInbox: true, userId: options.userId });
+  await finishArticleSideEffects(jobId, articleId, { saveToInbox: true, isArchived: shouldArchiveCollectedArticle(options.sourceType), userId: options.userId });
 }
 
 export async function initCollectSchema() {
