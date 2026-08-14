@@ -31,6 +31,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,6 +68,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AddLink
 import androidx.compose.material.icons.outlined.Archive
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Brightness4
 import androidx.compose.material.icons.outlined.BrightnessAuto
 import androidx.compose.material.icons.outlined.DarkMode
@@ -160,6 +164,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -372,6 +377,31 @@ internal val libraryInteractionMetrics = LibraryInteractionMetrics(
   pagerBeyondViewportPageCount = 0,
   lightCardShadowElevation = 0.dp,
 )
+
+internal data class CategoryAssignmentPresentation(
+  val supportsQuickCreate: Boolean,
+  val usesCategoryColorIndicator: Boolean,
+)
+
+internal val categoryAssignmentPresentation = CategoryAssignmentPresentation(
+  supportsQuickCreate = true,
+  usesCategoryColorIndicator = true,
+)
+
+internal fun isLibraryPagerUserScrollEnabled(categoryStripPressed: Boolean): Boolean = !categoryStripPressed
+
+private fun Modifier.pauseLibraryPagerWhilePressed(onPressedChanged: (Boolean) -> Unit): Modifier =
+  pointerInput(onPressedChanged) {
+    awaitEachGesture {
+      awaitFirstDown(requireUnconsumed = false)
+      onPressedChanged(true)
+      try {
+        waitForUpOrCancellation()
+      } finally {
+        onPressedChanged(false)
+      }
+    }
+  }
 
 internal fun shimmerColors(isDark: Boolean): ShimmerColors = if (isDark) {
   ShimmerColors(baseAlpha = 0.14f, highlightAlpha = 0.28f, usesDarkSurfaceBase = true)
@@ -777,6 +807,7 @@ fun LibraryScreen(
   val lifecycleOwner = LocalLifecycleOwner.current
   var showTasks by remember { mutableStateOf(false) }
   var showManualCollect by remember { mutableStateOf(false) }
+  var categoryStripPressed by remember { mutableStateOf(false) }
   var manualCollectInitialUrl by rememberSaveable { mutableStateOf("") }
   var manualCollectSessionId by rememberSaveable { mutableStateOf(0) }
   var showReaderSettings by remember { mutableStateOf(false) }
@@ -1009,6 +1040,7 @@ fun LibraryScreen(
       },
       archiveCategories = state.archiveCategories,
       onMoveToCategory = { categoryId -> libraryViewModel.moveToCategory(detail, categoryId) },
+      onCreateCategory = libraryViewModel::createArchiveCategory,
       onReclassify = { libraryViewModel.reclassify(detail) },
       onPublication = { libraryViewModel.togglePublication(detail) },
       onOpenSharePoster = { showSharePoster = true },
@@ -1180,7 +1212,12 @@ fun LibraryScreen(
           LibraryView.entries.getOrNull(page)?.takeIf { it != state.view }?.let(libraryViewModel::select)
         }
       }
-      HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize(), beyondViewportPageCount = if (isDarkAppearance) 1 else libraryInteractionMetrics.pagerBeyondViewportPageCount) { page ->
+      HorizontalPager(
+        state = pagerState,
+        modifier = Modifier.fillMaxSize(),
+        userScrollEnabled = isLibraryPagerUserScrollEnabled(categoryStripPressed),
+        beyondViewportPageCount = if (isDarkAppearance) 1 else libraryInteractionMetrics.pagerBeyondViewportPageCount,
+      ) { page ->
         val renderedView = LibraryView.entries[page]
         val renderedState = tabContentStates[renderedView] ?: state.takeIf { renderedView == state.view }
           ?: state.copy(view = renderedView, articles = emptyList(), loading = false, refreshing = false, error = null)
@@ -1191,6 +1228,8 @@ fun LibraryScreen(
           onResetSort = libraryViewModel::resetSort, sortOrder = state.sortOrder, presentationMode = presentationMode,
           onPresentationModeChange = { presentationMode = it }, onArchiveSources = libraryViewModel::selectArchiveSources, onArchiveTags = libraryViewModel::selectArchiveTags, onArchiveCategory = libraryViewModel::selectArchiveCategory,
           onBatchMoveToCategory = { articleIds, categoryId, onComplete -> libraryViewModel.moveToCategory(articleIds, categoryId, onComplete) }, onBatchReclassify = { articleIds, onComplete -> libraryViewModel.reclassify(articleIds, onComplete) }, batchCategoryUpdating = state.batchCategoryUpdating,
+          onCreateCategory = libraryViewModel::createArchiveCategory,
+          onCategoryStripPressedChanged = { pressed -> categoryStripPressed = pressed },
           onRefresh = ::refreshListPreservingPosition, onLoadMore = libraryViewModel::loadMore, onOpen = libraryViewModel::open,
           onLongPress = { longPressedArticle = it }, onSelectCollectUrl = collectViewModel::select, onSubmitCollect = collectViewModel::submit,
           listState = listStateFor(renderedView), modifier = Modifier.padding(padding),
@@ -1247,6 +1286,7 @@ fun LibraryScreen(
           is ArchiveCategoryTarget.Detail -> libraryViewModel.toggleArchive(target.article, categoryId)
         }
       },
+      onCreateCategory = libraryViewModel::createArchiveCategory,
     )
   }
   if (showManualCollect) ManualCollectDialog(
@@ -1514,24 +1554,18 @@ private fun ArchiveCategoryPickerDialog(
   onDismiss: () -> Unit,
   onArchiveWithAi: () -> Unit,
   onArchiveInCategory: (Int) -> Unit,
+  onCreateCategory: (String, (ArticleCategory?, String?) -> Unit) -> Unit,
 ) {
-  QiankunjieAlertDialog(
+  CategoryAssignmentDialog(
     onDismissRequest = onDismiss,
-    icon = { Icon(Icons.AutoMirrored.Outlined.Label, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-    title = { Text("归档到哪里？") },
-    text = {
-      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        TextButton(onClick = onArchiveWithAi, modifier = Modifier.fillMaxWidth()) {
-          Text("采用 AI 推荐，低置信度进入待整理", modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurface)
-        }
-        categories.forEach { category ->
-          TextButton(onClick = { onArchiveInCategory(category.id) }, modifier = Modifier.fillMaxWidth()) {
-            Text(category.name, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurface)
-          }
-        }
-      }
-    },
-    confirmButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    title = "归档到哪里？",
+    subtitle = "选择预设分类，或让 AI 根据内容判断。",
+    categories = categories,
+    currentCategoryId = null,
+    loading = false,
+    onSelect = onArchiveInCategory,
+    onSelectAi = onArchiveWithAi,
+    onCreateCategory = onCreateCategory,
   )
 }
 
@@ -1544,7 +1578,10 @@ private fun CategoryAssignmentDialog(
   currentCategoryId: Int?,
   loading: Boolean,
   onSelect: (Int) -> Unit,
+  onSelectAi: (() -> Unit)? = null,
+  onCreateCategory: ((String, (ArticleCategory?, String?) -> Unit) -> Unit)? = null,
 ) {
+  var quickCreateOpen by remember { mutableStateOf(false) }
   QiankunjieAlertDialog(
     onDismissRequest = onDismissRequest,
     icon = { Icon(Icons.AutoMirrored.Outlined.Label, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
@@ -1552,39 +1589,136 @@ private fun CategoryAssignmentDialog(
     text = {
       Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-        if (categories.isEmpty()) {
-          Text("暂无可用分类，请先在分类管理中创建分类。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-          categories.forEach { category ->
-            val selected = category.id == currentCategoryId
-            Surface(
-              modifier = Modifier.fillMaxWidth().clickable(enabled = !loading && !selected) { onSelect(category.id) },
-              shape = RoundedCornerShape(10.dp),
-              color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-              border = androidx.compose.foundation.BorderStroke(
-                1.dp,
-                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.48f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
-              ),
-            ) {
-              Row(
-                modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-              ) {
-                Box(
-                  modifier = Modifier
-                    .size(10.dp)
-                    .background(category.color?.let { parseCategoryColor(it) } ?: MaterialTheme.colorScheme.primary, CircleShape),
-                )
-                Text(category.name, modifier = Modifier.weight(1f), color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-                if (selected) Text("当前", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-              }
-            }
+        onSelectAi?.let { selectAi ->
+          CategoryAssignmentRow(
+            label = "由 AI 判断",
+            detail = "低置信度会进入待整理",
+            icon = Icons.Outlined.AutoAwesome,
+            selected = false,
+            enabled = !loading,
+            onClick = selectAi,
+          )
+        }
+        categories.forEach { category ->
+          val selected = category.id == currentCategoryId
+          CategoryAssignmentRow(
+            label = category.name,
+            color = category.color?.let(::parseCategoryColor) ?: MaterialTheme.colorScheme.primary,
+            selected = selected,
+            enabled = !loading && !selected,
+            onClick = { onSelect(category.id) },
+          )
+        }
+        onCreateCategory?.let {
+          TextButton(
+            onClick = { quickCreateOpen = true },
+            enabled = !loading,
+            modifier = Modifier.fillMaxWidth(),
+          ) {
+            Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(17.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("新增分类")
           }
+        }
+        if (categories.isEmpty() && onCreateCategory == null) {
+          Text("暂无可用分类，请先在分类管理中创建分类。", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
       }
     },
     confirmButton = { TextButton(onClick = onDismissRequest, enabled = !loading) { Text("取消") } },
+  )
+  if (quickCreateOpen) {
+    QuickCreateCategoryDialog(
+      onDismiss = { quickCreateOpen = false },
+      onCreate = { name, onComplete ->
+        onCreateCategory?.invoke(name) { category, errorMessage ->
+          onComplete(category, errorMessage)
+          category?.let { onSelect(it.id) }
+        }
+      },
+    )
+  }
+}
+
+@Composable
+private fun CategoryAssignmentRow(
+  label: String,
+  selected: Boolean,
+  enabled: Boolean,
+  onClick: () -> Unit,
+  color: Color? = null,
+  icon: ImageVector? = null,
+  detail: String? = null,
+) {
+  Surface(
+    modifier = Modifier.fillMaxWidth().clickable(enabled = enabled) { onClick() },
+    shape = RoundedCornerShape(10.dp),
+    color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+    border = androidx.compose.foundation.BorderStroke(
+      1.dp,
+      if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.48f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
+    ),
+  ) {
+    Row(
+      modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp),
+      horizontalArrangement = Arrangement.spacedBy(10.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      when {
+        icon != null -> Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+        color != null -> Box(modifier = Modifier.size(10.dp).background(color, CircleShape))
+      }
+      Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+        detail?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall) }
+      }
+      if (selected) Text("当前", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+    }
+  }
+}
+
+@Composable
+private fun QuickCreateCategoryDialog(
+  onDismiss: () -> Unit,
+  onCreate: (String, (ArticleCategory?, String?) -> Unit) -> Unit,
+) {
+  var name by rememberSaveable { mutableStateOf("") }
+  var submitting by remember { mutableStateOf(false) }
+  var errorMessage by remember { mutableStateOf<String?>(null) }
+  QiankunjieAlertDialog(
+    onDismissRequest = { if (!submitting) onDismiss() },
+    icon = { Icon(Icons.Outlined.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+    title = { Text("新增分类") },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        OutlinedTextField(
+          value = name,
+          onValueChange = { name = it; errorMessage = null },
+          label = { Text("分类名称") },
+          placeholder = { Text("例如：编程开发") },
+          singleLine = true,
+          enabled = !submitting,
+          isError = errorMessage != null,
+          supportingText = errorMessage?.let { { Text(it) } },
+          modifier = Modifier.fillMaxWidth(),
+        )
+        Text("创建后会立刻用于当前文章。", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+      }
+    },
+    dismissButton = { TextButton(onClick = onDismiss, enabled = !submitting) { Text("取消") } },
+    confirmButton = {
+      Button(
+        onClick = {
+          submitting = true
+          errorMessage = null
+          onCreate(name) { category, error ->
+            submitting = false
+            if (category != null) onDismiss() else errorMessage = error
+          }
+        },
+        enabled = name.trim().isNotBlank() && !submitting,
+      ) { Text(if (submitting) "创建中…" else "创建并选择") }
+    },
   )
 }
 
@@ -1666,6 +1800,8 @@ private fun LibraryList(
   onBatchMoveToCategory: (Set<Int>, Int, (Boolean) -> Unit) -> Unit,
   onBatchReclassify: (Set<Int>, (Boolean) -> Unit) -> Unit,
   batchCategoryUpdating: Boolean,
+  onCreateCategory: (String, (ArticleCategory?, String?) -> Unit) -> Unit,
+  onCategoryStripPressedChanged: (Boolean) -> Unit,
   onRefresh: () -> Unit,
   onLoadMore: () -> Unit,
   onOpen: (Int) -> Unit,
@@ -1710,7 +1846,10 @@ private fun LibraryList(
         ) {
         if (ArchiveSourceFilter.isAvailableFor(state.view, state.searchQuery)) {
           Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            modifier = Modifier
+              .fillMaxWidth()
+              .pauseLibraryPagerWhilePressed(onCategoryStripPressedChanged)
+              .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
           ) {
             AssistChip(
@@ -1974,6 +2113,7 @@ private fun LibraryList(
         }
       }
     },
+    onCreateCategory = onCreateCategory,
   )
 }
 
@@ -2063,7 +2203,7 @@ internal fun ArticleDetailSkeleton() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, archiveCategories: List<ArticleCategory>, onMoveToCategory: (Int) -> Unit, onReclassify: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onSaveReadingPosition: (Float) -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, archiveCategories: List<ArticleCategory>, onMoveToCategory: (Int) -> Unit, onCreateCategory: (String, (ArticleCategory?, String?) -> Unit) -> Unit, onReclassify: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onSaveReadingPosition: (Float) -> Unit) {
   val context = LocalContext.current
   val isDarkAppearance = isQiankunjieDarkTheme()
   var confirmDelete by remember { mutableStateOf(false) }
@@ -2371,6 +2511,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
       categoryPickerOpen = false
       onMoveToCategory(categoryId)
     },
+    onCreateCategory = onCreateCategory,
   )
   confirmPublication?.let { action ->
     QiankunjieAlertDialog(

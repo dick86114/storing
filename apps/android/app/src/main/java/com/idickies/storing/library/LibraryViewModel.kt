@@ -228,6 +228,31 @@ class LibraryViewModel @Inject constructor(
 
   fun prepareArchiveCategories() = loadArchiveCategories(force = true)
 
+  fun createArchiveCategory(
+    rawName: String,
+    onComplete: (category: ArticleCategory?, errorMessage: String?) -> Unit,
+  ) {
+    val request = quickCreateCategoryRequest(rawName)
+    if (request.name.isNullOrBlank()) {
+      onComplete(null, "请输入分类名称")
+      return
+    }
+    viewModelScope.launch {
+      runCatching { repository.createCategory(request).category }
+        .onSuccess { category ->
+          mutableState.update { state ->
+            state.copy(
+              archiveCategories = (state.archiveCategories + category)
+                .distinctBy(ArticleCategory::id)
+                .sortedBy(ArticleCategory::sortOrder),
+            )
+          }
+          onComplete(category, null)
+        }
+        .onFailure { error -> onComplete(null, error.message ?: "新增分类失败") }
+    }
+  }
+
   fun toggleSortOrder() {
     val snapshot = mutableState.value
     mutableState.update {
