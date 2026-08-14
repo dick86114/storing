@@ -29,6 +29,9 @@ data class CategoryMutationRequest(
 @Serializable
 data class CategoryMutationResponse(val category: ArticleCategory)
 
+internal fun quickCreateCategoryRequest(rawName: String): CategoryMutationRequest =
+  CategoryMutationRequest(name = rawName.trim())
+
 @Serializable
 data class CategoryDeleteResponse(
   val ok: Boolean,

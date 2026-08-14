@@ -66,6 +66,15 @@ class ArticleCategoryAssignmentTest {
   }
 
   @Test
+  fun `快速新增分类只提交整理后的分类名称`() {
+    val request = quickCreateCategoryRequest("  编程开发  ")
+
+    assertEquals("编程开发", request.name)
+    assertEquals(null, request.description)
+    assertEquals(null, request.color)
+  }
+
+  @Test
   fun `分类管理会保留分类规则与启用状态`() {
     val category = Json.decodeFromString<ArticleCategory>(
       """{"id":12,"name":"技术","description":"技术实践","includeExamples":["Docker"],"excludeExamples":["产品新闻"],"color":"#2F6A4F","sortOrder":3,"isActive":false,"isSystem":false}""",

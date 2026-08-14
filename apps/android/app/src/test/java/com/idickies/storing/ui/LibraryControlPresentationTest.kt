@@ -36,6 +36,18 @@ class LibraryControlPresentationTest {
   }
 
   @Test
+  fun `归档和手动分类共用支持快速新建的分类选择样式`() {
+    assertTrue(categoryAssignmentPresentation.supportsQuickCreate)
+    assertTrue(categoryAssignmentPresentation.usesCategoryColorIndicator)
+  }
+
+  @Test
+  fun `拖动归档分类条时暂停外层 tab 滑动`() {
+    assertFalse(isLibraryPagerUserScrollEnabled(categoryStripPressed = true))
+    assertTrue(isLibraryPagerUserScrollEnabled(categoryStripPressed = false))
+  }
+
+  @Test
   fun `library menus use compact bordered widths`() {
     assertEquals(216.dp, libraryMenuMetrics.moreMenuWidth)
     assertEquals(216.dp, libraryMenuMetrics.sortMenuWidth)
