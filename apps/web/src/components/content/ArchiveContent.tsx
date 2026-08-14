@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import useSWR from 'swr';
+import { useSWRConfig } from 'swr';
 import { useToast } from '@/components/ui/Toast';
 import { useArticleContext, type ArticleListMutation } from '@/components/providers/ArticleContext';
 import { useAuth } from '@/components/providers/AuthContext';
@@ -26,6 +27,7 @@ const ARCHIVE_SORT_OPTIONS: ArticleSortOption[] = [
 function ArchiveContentInner() {
   const { isAuthenticated } = useAuth();
   const { showToast } = useToast();
+  const { mutate: globalMutate } = useSWRConfig();
   const { openArticle, highlightId, setMutateFn } = useArticleContext();
   const { unarchive, toggleFavorite } = useArticleOperations();
   const { getBookmark, clearBookmark } = useBookmark();
@@ -286,6 +288,18 @@ function ArchiveContentInner() {
     }
   }, [bulkSaving, categories, exitBulkMode, refreshList, selectedArticleIds, showToast]);
 
+  const handleCreateCategory = useCallback(async (name: string) => {
+    const created = await api.createCategory({
+      name,
+      description: null,
+      includeExamples: [],
+      excludeExamples: [],
+      color: null,
+    });
+    await globalMutate('categories');
+    return created;
+  }, [globalMutate]);
+
   const confirmBulkClassify = useCallback(async () => {
     if (selectedArticleIds.size === 0 || bulkSaving) return;
     setBulkSaving(true);
@@ -445,6 +459,7 @@ function ArchiveContentInner() {
           loading={bulkSaving}
           onClose={() => setBulkCategoryPickerOpen(false)}
           onSelect={handleBulkCategorySelect}
+          onCreateCategory={handleCreateCategory}
         />
       )}
 

@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useSWRConfig } from 'swr';
 import useSWR from 'swr';
 import QRCode from 'qrcode';
-import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, GlobalOutlined, DeleteOutlined, UpOutlined, DownOutlined, ExclamationCircleOutlined, CloseOutlined } from '@ant-design/icons';
+import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, GlobalOutlined, DeleteOutlined, UpOutlined, DownOutlined, ExclamationCircleOutlined, CloseOutlined, PlusOutlined } from '@ant-design/icons';
 import { useArticle, useArticleMeta } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/providers/AuthContext';
@@ -2241,40 +2241,58 @@ export function CategoryAssignmentDialog({
   loading,
   onClose,
   onSelect,
+  title = '修改分类',
+  subtitle = '选择一个预设分类。',
+  onSelectAi,
+  onCreateCategory,
 }: {
   categories: ArchiveCategory[];
   currentCategoryId: number | null;
   loading: boolean;
   onClose: () => void;
   onSelect: (categoryId: number) => void;
+  title?: string;
+  subtitle?: string;
+  onSelectAi?: () => void;
+  onCreateCategory?: (name: string) => Promise<{ category: ArchiveCategory }>;
 }) {
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
+  const [quickCreateName, setQuickCreateName] = useState('');
+  const [quickCreateError, setQuickCreateError] = useState<string | null>(null);
+  const [quickCreating, setQuickCreating] = useState(false);
+
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !loading) onClose();
+      if (event.key === 'Escape' && !loading && !quickCreating) onClose();
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [loading, onClose]);
+  }, [loading, onClose, quickCreating]);
 
   return createPortal(
     <div
       className="category-assignment-overlay"
       role="presentation"
       onClick={(event) => {
-        if (event.target === event.currentTarget && !loading) onClose();
+        if (event.target === event.currentTarget && !loading && !quickCreating) onClose();
       }}
     >
       <section className="category-assignment-panel" role="dialog" aria-modal="true" aria-labelledby="category-assignment-title">
         <div className="category-assignment-header">
           <div>
-            <h2 id="category-assignment-title">修改分类</h2>
-            <p>选择一个预设分类。</p>
+            <h2 id="category-assignment-title">{title}</h2>
+            <p>{subtitle}</p>
           </div>
-          <button className="category-assignment-close" type="button" onClick={onClose} disabled={loading} aria-label="关闭分类选择">
+          <button className="category-assignment-close" type="button" onClick={onClose} disabled={loading || quickCreating} aria-label="关闭分类选择">
             <CloseOutlined />
           </button>
         </div>
         <div className="category-assignment-list" role="list">
+          {onSelectAi && <button className="category-assignment-item category-assignment-item--ai" type="button" onClick={onSelectAi} disabled={loading || quickCreating} role="listitem">
+            <RobotOutlined aria-hidden="true" />
+            <span>由 AI 判断</span>
+            <small>低置信度进入待整理</small>
+          </button>}
           {categories.map((category) => {
             const selected = category.id === currentCategoryId;
             return (
@@ -2283,7 +2301,7 @@ export function CategoryAssignmentDialog({
                 className={`category-assignment-item${selected ? ' is-selected' : ''}`}
                 type="button"
                 onClick={() => onSelect(category.id)}
-                disabled={loading || selected}
+                disabled={loading || quickCreating || selected}
                 role="listitem"
               >
                 <span className="category-assignment-dot" style={{ background: category.color || 'var(--accent)' }} aria-hidden="true" />
@@ -2292,7 +2310,37 @@ export function CategoryAssignmentDialog({
               </button>
             );
           })}
+          {onCreateCategory && <button className="category-assignment-create" type="button" onClick={() => { setQuickCreateOpen(true); setQuickCreateError(null); }} disabled={loading || quickCreating}>
+            <PlusOutlined aria-hidden="true" />
+            新增分类
+          </button>}
         </div>
+        {quickCreateOpen && <form className="category-assignment-create-form" onSubmit={async (event) => {
+          event.preventDefault();
+          if (!onCreateCategory || !quickCreateName.trim() || quickCreating) return;
+          setQuickCreating(true);
+          setQuickCreateError(null);
+          try {
+            const created = await onCreateCategory(quickCreateName.trim());
+            setQuickCreateOpen(false);
+            setQuickCreateName('');
+            onSelect(created.category.id);
+          } catch (error) {
+            setQuickCreateError(error instanceof Error ? error.message : '新增分类失败');
+          } finally {
+            setQuickCreating(false);
+          }
+        }}>
+          <label>
+            <span>分类名称</span>
+            <input value={quickCreateName} onChange={(event) => { setQuickCreateName(event.target.value); setQuickCreateError(null); }} placeholder="例如：编程开发" maxLength={40} autoFocus disabled={quickCreating} />
+          </label>
+          {quickCreateError && <p className="category-assignment-create-error">{quickCreateError}</p>}
+          <div>
+            <button type="button" onClick={() => setQuickCreateOpen(false)} disabled={quickCreating}>取消</button>
+            <button type="submit" disabled={!quickCreateName.trim() || quickCreating}>{quickCreating ? '创建中…' : '创建并选择'}</button>
+          </div>
+        </form>}
       </section>
     </div>,
     document.body
@@ -2342,6 +2390,7 @@ function DetailContent({
   const [deleteConfirmMode, setDeleteConfirmMode] = useState<DeleteConfirmMode | null>(null);
   const [sharePoster, setSharePoster] = useState<SharePosterState | null>(null);
   const [categoryAssignmentOpen, setCategoryAssignmentOpen] = useState(false);
+  const [archiveCategoryAssignmentOpen, setArchiveCategoryAssignmentOpen] = useState(false);
   const [currentView, setCurrentView] = useState<ArticleView>('archive');
   const { data: categoryData, isLoading: categoriesLoading } = useSWR(
     isAuthenticated ? 'categories:detail-assignment' : null,
@@ -2536,6 +2585,36 @@ function DetailContent({
     }, '修改分类失败');
   }
 
+  async function handleCreateCategory(name: string) {
+    const created = await api.createCategory({
+      name,
+      description: null,
+      includeExamples: [],
+      excludeExamples: [],
+      color: null,
+    });
+    detailMutate('categories');
+    detailMutate('categories:archive-action');
+    detailMutate('categories:detail-assignment');
+    return created;
+  }
+
+  async function handleArchiveToCategory(categoryId?: number) {
+    if (!article) return;
+    await runArticleAction('archive', async () => {
+      await api.archive(article.id, categoryId);
+      setArchiveCategoryAssignmentOpen(false);
+      onMutate();
+      refreshCounts();
+      detailMutate('categories');
+      detailMutate('categories:archive-action');
+      detailMutate('categories:detail-assignment');
+      detailMutate((key) => typeof key === 'string' && key.startsWith('articles:archive:'), undefined, { revalidate: true });
+      showToast(categoryId ? '已归档到所选分类' : '已归档，正在生成分类建议');
+      onClose();
+    }, '归档失败');
+  }
+
   async function handleReclassifyCategory() {
     if (!article) return;
     await runArticleAction('classify', async () => {
@@ -2608,19 +2687,17 @@ function DetailContent({
   // 归档功能
   async function handleArchive() {
     if (!article) return;
-    const wasArchived = article.isArchived;
+    if (!article.isArchived) {
+      setArchiveCategoryAssignmentOpen(true);
+      return;
+    }
     await runArticleAction('archive', async () => {
-      if (wasArchived) {
         await api.unarchive(article.id);
         showToast('已移回收件箱');
-      } else {
-        await api.archive(article.id);
-        showToast('已归档');
-      }
       onMutate();
       refreshCounts();
       onClose();
-   }, wasArchived ? '移回收件箱失败' : '归档失败');
+   }, '移回收件箱失败');
  }
 
  // 发布功能
@@ -2768,6 +2845,21 @@ function DetailContent({
           loading={categoriesLoading || pendingAction === 'category'}
           onClose={() => setCategoryAssignmentOpen(false)}
           onSelect={handleMoveToCategory}
+          onCreateCategory={handleCreateCategory}
+        />
+      )}
+
+      {archiveCategoryAssignmentOpen && article && (
+        <CategoryAssignmentDialog
+          categories={categoryData?.categories ?? []}
+          currentCategoryId={null}
+          loading={categoriesLoading || pendingAction === 'archive'}
+          title="归档到哪里？"
+          subtitle="选择预设分类，或让 AI 根据内容判断。"
+          onClose={() => setArchiveCategoryAssignmentOpen(false)}
+          onSelect={(categoryId) => handleArchiveToCategory(categoryId)}
+          onSelectAi={() => handleArchiveToCategory()}
+          onCreateCategory={handleCreateCategory}
         />
       )}
 
