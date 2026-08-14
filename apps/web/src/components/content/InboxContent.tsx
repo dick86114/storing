@@ -12,6 +12,7 @@ import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { api } from '@/lib/api';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
+import { CategoryAssignmentDialog } from '@/components/article/WechatDetailPanel';
 import type { ArticleListItem } from '@storing/shared';
 
 const PER_PAGE = 18;
@@ -29,7 +30,6 @@ function InboxContentInner() {
   const { getBookmark, clearBookmark } = useBookmark();
   const [bookmarkPrompt, setBookmarkPrompt] = useState<ReadingBookmark | null>(null);
   const [archiveTargetId, setArchiveTargetId] = useState<number | null>(null);
-  const [archiveCategoryId, setArchiveCategoryId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.replace('/archive');
@@ -92,7 +92,7 @@ function InboxContentInner() {
   );
 
   const totalPages = data?.totalPages ?? 1;
-  const { data: categoryData } = useSWR(isAuthenticated ? 'categories:archive-action' : null, () => api.getCategories(), { revalidateOnFocus: false });
+  const { data: categoryData, mutate: mutateCategoryData } = useSWR(isAuthenticated ? 'categories:archive-action' : null, () => api.getCategories(), { revalidateOnFocus: false });
 
   useEffect(() => {
     if (data?.articles) {
@@ -169,25 +169,36 @@ function InboxContentInner() {
   const handleArchive = useCallback((id: number, e: React.MouseEvent) => {
     e.stopPropagation();
     setArchiveTargetId(id);
-    setArchiveCategoryId(null);
   }, []);
 
-  const confirmArchive = useCallback(async () => {
+  const confirmArchive = useCallback(async (categoryId?: number) => {
     if (!archiveTargetId) return;
     const id = archiveTargetId;
     setArchiveTargetId(null);
     removingIdsRef.current.add(id);
     setAllArticles((prev) => prev.filter((a) => a.id !== id));
-    const success = await archive(id, archiveCategoryId ?? undefined);
+    const success = await archive(id, categoryId);
     if (success) {
       removingIdsRef.current.delete(id);
-      showToast(archiveCategoryId ? '已归档到所选分类' : '已归档，正在生成分类建议');
+      showToast(categoryId ? '已归档到所选分类' : '已归档，正在生成分类建议');
     } else {
       removingIdsRef.current.delete(id);
       refreshList();
       showToast('归档失败，请重试');
     }
-  }, [archive, archiveCategoryId, archiveTargetId, showToast, refreshList]);
+  }, [archive, archiveTargetId, showToast, refreshList]);
+
+  const handleCreateCategory = useCallback(async (name: string) => {
+    const created = await api.createCategory({
+      name,
+      description: null,
+      includeExamples: [],
+      excludeExamples: [],
+      color: null,
+    });
+    await mutateCategoryData();
+    return created;
+  }, [mutateCategoryData]);
 
   return (
     <>
@@ -240,19 +251,17 @@ function InboxContentInner() {
         </div>
       )}
       {archiveTargetId && (
-        <div className="archive-category-confirm-overlay" role="presentation" onMouseDown={() => setArchiveTargetId(null)}>
-          <section className="archive-category-confirm" role="dialog" aria-modal="true" aria-labelledby="archive-category-confirm-title" onMouseDown={(event) => event.stopPropagation()}>
-            <h2 id="archive-category-confirm-title">归档到哪里？</h2>
-            <select value={archiveCategoryId ?? ''} onChange={(event) => setArchiveCategoryId(event.target.value ? Number(event.target.value) : null)} aria-label="选择归档分类">
-              <option value="">采用 AI 推荐，低置信度进入待整理</option>
-              {(categoryData?.categories ?? []).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-            </select>
-            <div className="archive-category-confirm-actions">
-              <button type="button" onClick={() => setArchiveTargetId(null)}>取消</button>
-              <button type="button" onClick={confirmArchive}>归档</button>
-            </div>
-          </section>
-        </div>
+        <CategoryAssignmentDialog
+          categories={categoryData?.categories ?? []}
+          currentCategoryId={null}
+          loading={false}
+          title="归档到哪里？"
+          subtitle="选择预设分类，或让 AI 根据内容判断。"
+          onClose={() => setArchiveTargetId(null)}
+          onSelect={(categoryId) => confirmArchive(categoryId)}
+          onSelectAi={() => confirmArchive()}
+          onCreateCategory={handleCreateCategory}
+        />
       )}
       <PullToRefresh
         onRefresh={async () => {

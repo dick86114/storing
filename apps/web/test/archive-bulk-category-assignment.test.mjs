@@ -13,6 +13,8 @@ test('归档支持勾选多篇文章后批量修改分类', () => {
   assert.match(archiveContent, /批量整理/);
   assert.match(archiveContent, /api\.bulkMoveArticlesToCategory/);
   assert.match(archiveContent, /api\.bulkClassifyArticles/);
+  assert.match(archiveContent, /api\.createCategory/);
+  assert.match(archiveContent, /onCreateCategory/);
   assert.match(articleList, /selectedArticleIds/);
   assert.match(articleCard, /aria-label="选择文章"/);
 });
