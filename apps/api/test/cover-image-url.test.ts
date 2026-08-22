@@ -52,11 +52,13 @@ test('prefers the WeChat Reader API cdn_url cover over a body picture', () => {
   );
 });
 
-test('解析微信 Reader HTML 前移除会触发 jsdom 异常的内联样式', () => {
-  const rawHtml = `<span style="display: block;background: none;height: 30px;background-color: #fafafa;background-image: url(&quot;https://mmbiz.qpic.cn/icon.svg&quot;);">代码块标题</span>`;
+test('解析微信 Reader HTML 时保留影响正文布局和代码块的安全内联样式', () => {
+  const rawHtml = `<p style="font-size:0;line-height:0;margin:0;background: none;background-image: url(&quot;https://mmbiz.qpic.cn/icon.svg&quot;);">&nbsp;</p><pre style="margin: 0; white-space: pre-wrap;"><code style="color: #333;">services:\n  octopus:</code></pre>`;
+  const normalized = normalizeWechatContentHtml(rawHtml);
 
-  assert.equal(
-    normalizeWechatContentHtml(rawHtml),
-    '<span>代码块标题</span>',
-  );
+  assert.match(normalized, /font-size:0/);
+  assert.match(normalized, /line-height:0/);
+  assert.match(normalized, /margin:0/);
+  assert.match(normalized, /<pre style="margin: 0; white-space: pre-wrap;">/);
+  assert.match(normalized, /<code style="color: #333;">/);
 });

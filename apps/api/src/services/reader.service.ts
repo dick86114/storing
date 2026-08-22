@@ -203,11 +203,14 @@ function normalizeRawHtmlFragment(html: string): string {
 }
 
 /**
- * 微信 Reader 返回的富文本偶尔会含有 jsdom 无法解析的 background 简写组合。
- * 正文样式不参与阅读器的内容语义，解析前移除内联样式以保留文本、结构和图片。
+ * 保留微信 Reader 的原始内联样式。
+ *
+ * 微信正文会用 `font-size: 0`、`line-height: 0` 和 `margin: 0` 表示布局占位，
+ * 代码块也依赖内联样式维持原文的背景、字号和空白处理。这里不能把 style
+ * 属性整体删除；安全属性会在 API 响应出口由 sanitizeCapturedHtml 处理。
  */
 export function normalizeWechatContentHtml(html: string): string {
-  return html.replace(/\sstyle=(['"])[\s\S]*?\1/gi, '');
+  return html;
 }
 
 function normalizeImageUrl(url: string): string {
