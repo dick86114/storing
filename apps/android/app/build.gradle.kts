@@ -39,7 +39,7 @@ android {
     versionName = appVersionName
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    buildConfigField("String", "API_BASE_URL", "\"https://storing.idickies.com/api/v1/\"")
+    buildConfigField("String", "API_BASE_URL", "\"https://storing.idickies.cc/api/v1/\"")
     // All build types must define this field; Debug overrides it below.
     buildConfigField("boolean", "ENABLE_NETWORK_LOGGING", "false")
   }

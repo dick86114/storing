@@ -76,8 +76,8 @@ class MainActivity : FragmentActivity() {
         val uri = intent.data ?: return
         when (uri.scheme) {
           "https" -> {
-            // App Link: https://storing.idickies.com/p/:publicId
-            if (uri.host == "storing.idickies.com" && uri.path?.startsWith("/p/") == true) {
+            // App Link: https://storing.idickies.cc/p/:publicId
+            if (uri.host == "storing.idickies.cc" && uri.path?.startsWith("/p/") == true) {
               val id = uri.path?.removePrefix("/p/")?.trim()
               if (!id.isNullOrBlank()) publicId.value = id
             }

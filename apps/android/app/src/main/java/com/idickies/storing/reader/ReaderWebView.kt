@@ -26,7 +26,7 @@ val safeReaderWebViewPolicy = ReaderWebViewPolicy(
 
 /** Shared, deliberately limited WebView configuration for server-sanitized captured articles. */
 object ReaderWebView {
-  private const val baseUrl = "https://storing.idickies.com"
+  private const val baseUrl = "https://storing.idickies.cc"
 
   fun configure(
     webView: WebView,

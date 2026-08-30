@@ -17,7 +17,7 @@ class OfflineAssetUrlTest {
 
   @Test
   fun `offline asset parsing rejects other origins and path traversal`() {
-    assertNull(parseOfflineAssetRequest("https://storing.idickies.com/articles/42/images/img.jpg"))
+    assertNull(parseOfflineAssetRequest("https://storing.idickies.cc/articles/42/images/img.jpg"))
     assertNull(parseOfflineAssetRequest("https://offline.storing.local/articles/42/images/../secret.txt"))
     assertNull(parseOfflineAssetRequest("https://offline.storing.local/articles/nope/images/img.jpg"))
   }

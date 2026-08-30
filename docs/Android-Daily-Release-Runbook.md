@@ -40,7 +40,7 @@ shasum -a 256 <apk>
 
 ## 部署更新包与清单
 
-1. 将 APK 上传到反向代理公开的 `https://storing.idickies.com/downloads/android/`；保留上一稳定 APK。
+1. 将 APK 上传到反向代理公开的 `https://storing.idickies.cc/downloads/android/`；保留上一稳定 APK。
 2. 在服务器仓库的 `releases/android/latest.json` 写入新版本字段，模板见 `releases/android/README.md`。
 3. `docker compose up -d --build` 后，API 的 `GET /api/v1/mobile/releases/latest?versionCode=<旧版本>` 会读取该清单。
 4. 使用已安装旧版的真机验证：发现更新、下载、SHA-256 校验、系统安装器、覆盖安装后登录与本地缓存仍在。

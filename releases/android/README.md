@@ -15,7 +15,7 @@
   "minimumSupportedVersionCode": 6,
   "mandatory": false,
   "releaseNotes": ["..."],
-  "apkUrl": "https://storing.idickies.com/downloads/android/qiankunjie-0.7.0.apk",
+  "apkUrl": "https://storing.idickies.cc/downloads/android/qiankunjie-0.7.0.apk",
   "sha256": "64 位小写 SHA-256",
   "publishedAt": "2026-07-23T00:00:00.000Z"
 }

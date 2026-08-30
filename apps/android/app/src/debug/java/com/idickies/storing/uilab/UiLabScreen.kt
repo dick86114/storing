@@ -131,7 +131,7 @@ internal fun UiLabScreen(
   if (scenario == UiLabScenario.Poster) {
     SharePosterScreen(
       article = UiLabFixtures.posterArticle,
-      publicUrl = "https://storing.idickies.com/p/240",
+      publicUrl = "https://storing.idickies.cc/p/240",
       onBack = onClose,
     )
     return
