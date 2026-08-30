@@ -7,7 +7,7 @@ class ApiConfigurationTest {
   @Test
   fun `production API endpoint is fixed to the approved HTTPS origin`() {
     assertEquals(
-      "https://storing.idickies.com/api/v1/",
+      "https://storing.idickies.cc/api/v1/",
       ApiConfiguration.baseUrl,
     )
   }

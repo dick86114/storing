@@ -11,7 +11,7 @@ class AndroidReleaseUpdatePolicyTest {
     minimumSupportedVersionCode = 7,
     mandatory = false,
     releaseNotes = emptyList(),
-    apkUrl = "https://storing.idickies.com/downloads/android/qiankunjie-0.8.0.apk",
+    apkUrl = "https://storing.idickies.cc/downloads/android/qiankunjie-0.8.0.apk",
     sha256 = "a".repeat(64),
     publishedAt = "2026-07-23T00:00:00Z",
   )

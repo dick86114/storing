@@ -10,7 +10,7 @@ class QRCodeGeneratorTest {
 
   @Test
   fun generateProducesSquareBitmapWithCorrectSize() {
-    val bitmap = QRCodeGenerator.generate("https://storing.idickies.com/p/abc123", sizePx = 256)
+    val bitmap = QRCodeGenerator.generate("https://storing.idickies.cc/p/abc123", sizePx = 256)
     assertNotNull(bitmap)
     assertEquals(256, bitmap.width)
     assertEquals(256, bitmap.height)
@@ -18,7 +18,7 @@ class QRCodeGeneratorTest {
 
   @Test
   fun generateEncodesContentIntoNonTrivialPattern() {
-    val bitmap = QRCodeGenerator.generate("https://storing.idickies.com/p/test-article-id", sizePx = 128)
+    val bitmap = QRCodeGenerator.generate("https://storing.idickies.cc/p/test-article-id", sizePx = 128)
     var blackPixels = 0
     var whitePixels = 0
     val pixels = IntArray(bitmap.width * bitmap.height)

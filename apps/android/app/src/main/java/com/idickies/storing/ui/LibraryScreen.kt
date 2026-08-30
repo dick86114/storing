@@ -975,7 +975,7 @@ fun LibraryScreen(
     showReaderSettings -> ReaderSettingsScreen(onBack = { showReaderSettings = false })
     showSharePoster && detail != null && detail.publicId != null -> SharePosterScreen(
       article = detail,
-      publicUrl = "https://storing.idickies.com/p/${detail.publicId}",
+      publicUrl = "https://storing.idickies.cc/p/${detail.publicId}",
       onBack = { showSharePoster = false },
     )
     showOfflineContent -> OfflineContentScreen(
@@ -2214,7 +2214,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
   var categoryPickerOpen by remember { mutableStateOf(false) }
   var showLibrarySearch by rememberSaveable { mutableStateOf(false) }
   BackHandler(onBack = onBack)
-  val publicUrl = article.publicId?.let { "https://storing.idickies.com/p/$it" }
+  val publicUrl = article.publicId?.let { "https://storing.idickies.cc/p/$it" }
 
   fun shareOriginalUrl() {
     article.originalUrl?.let { url ->
@@ -2428,7 +2428,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                       readerColorScheme,
                       readerPreferences,
                       headerHtml,
-                      documentBaseUrl = if (isReadingOffline) com.idickies.storing.offline.offlineDocumentBaseUrl(article.id) else "https://storing.idickies.com",
+                      documentBaseUrl = if (isReadingOffline) com.idickies.storing.offline.offlineDocumentBaseUrl(article.id) else "https://storing.idickies.cc",
                     )
                   }
                   SwipeRefreshLayout(webContext).apply {
