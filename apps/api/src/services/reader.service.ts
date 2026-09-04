@@ -16,10 +16,10 @@ import {
 } from './singlefile.service.js';
 
 // 文章抓取服务配置（从环境变量读取）
-const READER_API_BASE = process.env.READER_API_BASE || 'https://weixin.ali.idickies.com/api/public/v1/download';
+const READER_API_BASE = process.env.READER_API_BASE || 'https://weixin.ali.idickies.cc/api/public/v1/download';
 
 // 图床服务配置（从环境变量读取）
-const IMG_HOST = process.env.IMG_HOST || 'https://img.ali.idickies.com';
+const IMG_HOST = process.env.IMG_HOST || 'https://img.ali.idickies.cc';
 const IMG_API_KEY = process.env.IMG_API_KEY || '';
 
 let ensureMobileHtmlColumnPromise: Promise<void> | null = null;
