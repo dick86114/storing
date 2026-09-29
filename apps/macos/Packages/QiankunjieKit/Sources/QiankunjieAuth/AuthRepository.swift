@@ -121,12 +121,16 @@ public actor AuthRepository: TokenRefreshing {
         password: String,
         device: AuthDevice
     ) async throws -> AuthenticatedUser {
-        await clearSession()
+        let generation = await beginClearedSession()
         let response = try await client.login(
             username: username,
             password: password,
             device: device
         )
+        guard generation == sessionGeneration else {
+            throw AppError.authenticationRequired
+        }
+
         let nextTokens = SessionTokens(
             accessToken: response.accessToken,
             refreshToken: response.refreshToken
@@ -134,19 +138,39 @@ public actor AuthRepository: TokenRefreshing {
         try await store.save(
             SessionTokens(accessToken: "", refreshToken: response.refreshToken)
         )
+        guard generation == sessionGeneration else {
+            await reconcileStoredSession()
+            throw AppError.authenticationRequired
+        }
+
         tokens = nextTokens
         currentUser = response.user
         return response.user
     }
 
     public func restore() async throws -> AuthenticatedUser? {
+        let generation = sessionGeneration
         guard let storedTokens = try await store.read(), !storedTokens.refreshToken.isEmpty else {
+            guard generation == sessionGeneration else {
+                return nil
+            }
+            return nil
+        }
+
+        guard generation == sessionGeneration else {
             return nil
         }
 
         do {
             try await refreshTokens()
         } catch AppError.authenticationRequired {
+            guard generation == sessionGeneration else {
+                return nil
+            }
+            return nil
+        }
+
+        guard generation == sessionGeneration else {
             return nil
         }
 
@@ -156,9 +180,15 @@ public actor AuthRepository: TokenRefreshing {
 
         do {
             let user = try await client.session(accessToken: accessToken)
+            guard generation == sessionGeneration else {
+                return nil
+            }
             currentUser = user
             return user
         } catch AppError.authenticationRequired {
+            guard generation == sessionGeneration else {
+                return nil
+            }
             await clearSession()
             return nil
         }
@@ -170,16 +200,10 @@ public actor AuthRepository: TokenRefreshing {
             return
         }
 
-        guard let storedTokens = try await store.read(), !storedTokens.refreshToken.isEmpty else {
-            throw AppError.authenticationRequired
-        }
-
         let taskID = UUID()
         let generation = sessionGeneration
-        let refreshToken = storedTokens.refreshToken
         let task = Task { [device] in
             try await self.performRefresh(
-                refreshToken: refreshToken,
                 device: device,
                 generation: generation
             )
@@ -192,6 +216,9 @@ public actor AuthRepository: TokenRefreshing {
             clearRefreshTask(taskID)
         } catch {
             clearRefreshTask(taskID)
+            if error is StaleSessionError {
+                throw AppError.authenticationRequired
+            }
             if error as? AppError == .authenticationRequired {
                 await clearSession()
             }
@@ -208,21 +235,56 @@ public actor AuthRepository: TokenRefreshing {
     }
 
     public func logout() async {
+        let generation = sessionGeneration
         let refreshToken = try? await store.read()
+        guard generation == sessionGeneration else {
+            return
+        }
+
         if let refreshToken, !refreshToken.refreshToken.isEmpty {
             try? await client.logout(refreshToken: refreshToken.refreshToken)
+        }
+
+        guard generation == sessionGeneration else {
+            return
         }
         await clearSession()
     }
 
     private func performRefresh(
-        refreshToken: String,
         device: AuthDevice?,
         generation: Int
     ) async throws {
-        let response = try await client.refresh(refreshToken: refreshToken, device: device)
         guard generation == sessionGeneration else {
-            throw AppError.authenticationRequired
+            throw StaleSessionError()
+        }
+
+        guard let storedTokens = try await store.read(), !storedTokens.refreshToken.isEmpty else {
+            if generation == sessionGeneration {
+                throw AppError.authenticationRequired
+            }
+            throw StaleSessionError()
+        }
+
+        guard generation == sessionGeneration else {
+            throw StaleSessionError()
+        }
+
+        let response: AuthSessionResponse
+        do {
+            response = try await client.refresh(
+                refreshToken: storedTokens.refreshToken,
+                device: device
+            )
+        } catch {
+            guard generation == sessionGeneration else {
+                throw StaleSessionError()
+            }
+            throw error
+        }
+
+        guard generation == sessionGeneration else {
+            throw StaleSessionError()
         }
 
         let nextTokens = SessionTokens(
@@ -233,8 +295,8 @@ public actor AuthRepository: TokenRefreshing {
             SessionTokens(accessToken: "", refreshToken: response.refreshToken)
         )
         guard generation == sessionGeneration else {
-            try? await store.clear()
-            throw AppError.authenticationRequired
+            await reconcileStoredSession()
+            throw StaleSessionError()
         }
 
         tokens = nextTokens
@@ -249,15 +311,42 @@ public actor AuthRepository: TokenRefreshing {
         refreshTaskID = nil
     }
 
-    private func clearSession() async {
+    @discardableResult
+    private func beginClearedSession() async -> Int {
         sessionGeneration += 1
+        let generation = sessionGeneration
         refreshTask?.cancel()
         refreshTask = nil
         refreshTaskID = nil
         tokens = nil
         currentUser = nil
         try? await store.clear()
+        return generation
     }
+
+    private func clearSession() async {
+        _ = await beginClearedSession()
+    }
+
+    private func reconcileStoredSession() async {
+        while true {
+            let generationBeforeWrite = sessionGeneration
+            if let currentTokens = tokens {
+                try? await store.save(
+                    SessionTokens(accessToken: "", refreshToken: currentTokens.refreshToken)
+                )
+            } else {
+                try? await store.clear()
+            }
+
+            if generationBeforeWrite == sessionGeneration {
+                return
+            }
+        }
+    }
+}
+
+private struct StaleSessionError: Error {
 }
 
 private struct LoginRequest: Encodable {

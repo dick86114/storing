@@ -5,15 +5,21 @@ import Testing
 
 private actor 内存会话存储: SessionStore {
     private var 令牌: SessionTokens?
+    private let 读取延迟: Duration
     private(set) var 保存次数 = 0
     private(set) var 清理次数 = 0
 
-    init(tokens: SessionTokens? = nil) {
+    init(
+        tokens: SessionTokens? = nil,
+        readDelay: Duration = .zero
+    ) {
         令牌 = tokens
+        读取延迟 = readDelay
     }
 
     func read() async throws -> SessionTokens? {
-        令牌
+        try await Task.sleep(for: 读取延迟)
+        return 令牌
     }
 
     func save(_ tokens: SessionTokens) async throws {
@@ -79,6 +85,59 @@ private actor 计数刷新客户端: AuthClient {
     }
 }
 
+private actor 门控认证客户端: AuthClient {
+    private var 登录等待者: [CheckedContinuation<AuthSessionResponse, Error>] = []
+    private var 会话等待者: [CheckedContinuation<AuthenticatedUser, Error>] = []
+    private(set) var 等待登录数 = 0
+    private(set) var 等待会话数 = 0
+
+    func login(username: String, password: String, device: AuthDevice) async throws -> AuthSessionResponse {
+        等待登录数 += 1
+        defer { 等待登录数 -= 1 }
+        return try await withCheckedThrowingContinuation { continuation in
+            登录等待者.append(continuation)
+        }
+    }
+
+    func refresh(refreshToken: String, device: AuthDevice?) async throws -> AuthSessionResponse {
+        .fixture()
+    }
+
+    func logout(refreshToken: String) async throws {}
+
+    func session(accessToken: String) async throws -> AuthenticatedUser {
+        等待会话数 += 1
+        defer { 等待会话数 -= 1 }
+        return try await withCheckedThrowingContinuation { continuation in
+            会话等待者.append(continuation)
+        }
+    }
+
+    func 恢复首个登录(_ result: Result<AuthSessionResponse, Error>) {
+        guard let continuation = 登录等待者.first else {
+            return
+        }
+        登录等待者.removeFirst()
+        continuation.resume(with: result)
+    }
+
+    func 恢复最后一个登录(_ result: Result<AuthSessionResponse, Error>) {
+        guard let continuation = 登录等待者.last else {
+            return
+        }
+        登录等待者.removeLast()
+        continuation.resume(with: result)
+    }
+
+    func 恢复会话(_ result: Result<AuthenticatedUser, Error>) {
+        guard let continuation = 会话等待者.first else {
+            return
+        }
+        会话等待者.removeFirst()
+        continuation.resume(with: result)
+    }
+}
+
 private extension SessionTokens {
     static func fixture(access: String = "access", refresh: String = "refresh") -> Self {
         SessionTokens(accessToken: access, refreshToken: refresh)
@@ -92,11 +151,15 @@ private extension AuthenticatedUser {
 }
 
 private extension AuthSessionResponse {
-    static func fixture() -> Self {
+    static func fixture(
+        access: String = "new-access",
+        refresh: String = String(repeating: "r", count: 48),
+        user: AuthenticatedUser = .fixture()
+    ) -> Self {
         AuthSessionResponse(
-            accessToken: "new-access",
-            refreshToken: String(repeating: "r", count: 48),
-            user: .fixture(),
+            accessToken: access,
+            refreshToken: refresh,
+            user: user,
             session: AuthSession(id: UUID().uuidString, expiresAt: nil)
         )
     }
@@ -132,6 +195,20 @@ private extension AuthDevice {
     #expect(await client.刷新次数 == 1)
 }
 
+@Test func 存储读取延迟时并发刷新仍只执行一次() async throws {
+    let client = 计数刷新客户端()
+    let repository = AuthRepository(
+        client: client,
+        store: 内存会话存储(tokens: .fixture(), readDelay: .milliseconds(20))
+    )
+
+    async let first: Void = repository.refreshTokens()
+    async let second: Void = repository.refreshTokens()
+    _ = try await (first, second)
+
+    #expect(await client.刷新次数 == 1)
+}
+
 @Test func 登录成功只持久化刷新令牌并保留内存访问令牌() async throws {
     let store = 内存会话存储()
     let client = 模拟认证客户端()
@@ -150,6 +227,74 @@ private extension AuthDevice {
     #expect(await repository.currentAccessToken() == "new-access")
 }
 
+@Test func 登录等待期间退出后旧响应不会恢复会话() async throws {
+    let client = 门控认证客户端()
+    let store = 内存会话存储(tokens: .fixture())
+    let repository = AuthRepository(client: client, store: store)
+    let loginTask = Task {
+        try await repository.login(
+            username: "admin",
+            password: "test-only-password",
+            device: .fixture()
+        )
+    }
+
+    while await client.等待登录数 == 0 {
+        try await Task.sleep(for: .milliseconds(5))
+    }
+    await repository.logout()
+    await client.恢复首个登录(.success(.fixture()))
+
+    await #expect(throws: AppError.authenticationRequired) {
+        _ = try await loginTask.value
+    }
+    #expect(try await store.read() == nil)
+    #expect(await repository.currentAccessToken() == nil)
+    #expect(await repository.currentUser == nil)
+}
+
+@Test func 较慢的旧登录不会覆盖较新的登录() async throws {
+    let client = 门控认证客户端()
+    let store = 内存会话存储()
+    let repository = AuthRepository(client: client, store: store)
+    let oldLogin = Task {
+        try await repository.login(
+            username: "old",
+            password: "test-only-password",
+            device: .fixture()
+        )
+    }
+    while await client.等待登录数 != 1 {
+        try await Task.sleep(for: .milliseconds(5))
+    }
+    let newLogin = Task {
+        try await repository.login(
+            username: "new",
+            password: "test-only-password",
+            device: .fixture()
+        )
+    }
+    while await client.等待登录数 != 2 {
+        try await Task.sleep(for: .milliseconds(5))
+    }
+
+    await client.恢复最后一个登录(
+        .success(.fixture(access: "new-access", refresh: "new-refresh", user: .fixture(id: 2)))
+    )
+    let newUser = try await newLogin.value
+    await client.恢复首个登录(
+        .success(.fixture(access: "old-access", refresh: "old-refresh", user: .fixture(id: 1)))
+    )
+
+    await #expect(throws: AppError.authenticationRequired) {
+        _ = try await oldLogin.value
+    }
+    #expect(newUser == .fixture(id: 2))
+    #expect(await repository.currentUser == .fixture(id: 2))
+    #expect(await repository.currentAccessToken() == "new-access")
+    #expect(try await store.read()?.refreshToken == "new-refresh")
+}
+
 @Test func 恢复会话会轮换刷新令牌并验证当前会话() async throws {
     let oldRefresh = String(repeating: "o", count: 48)
     let store = 内存会话存储(tokens: .fixture(refresh: oldRefresh))
@@ -162,6 +307,28 @@ private extension AuthDevice {
     #expect(await client.刷新次数 == 1)
     #expect(await client.会话次数 == 1)
     #expect(await client.收到的会话访问令牌 == ["new-access"])
+}
+
+@Test func 恢复会话等待期间退出后不回写旧用户() async throws {
+    let client = 门控认证客户端()
+    let store = 内存会话存储(tokens: .fixture())
+    let repository = AuthRepository(client: client, store: store)
+    let restoreTask = Task {
+        try await repository.restore()
+    }
+
+    while await client.等待会话数 == 0 {
+        try await Task.sleep(for: .milliseconds(5))
+    }
+    await repository.logout()
+    await client.恢复会话(.success(.fixture(id: 3)))
+
+    let user = try await restoreTask.value
+
+    #expect(user == nil)
+    #expect(try await store.read() == nil)
+    #expect(await repository.currentAccessToken() == nil)
+    #expect(await repository.currentUser == nil)
 }
 
 @Test func 恢复时刷新令牌失效返回未登录并清理本地状态() async throws {
