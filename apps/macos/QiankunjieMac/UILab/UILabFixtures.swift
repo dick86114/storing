@@ -10,6 +10,10 @@ import QiankunjieCore
 /// UI Lab 的所有内容都在进程内固定；不会写入用户数据或请求生产服务。
 @MainActor
 enum UILabFixtures {
+    static let preferenceSuiteName = "com.idickies.storing.macos.uilab.preferences.\(UUID().uuidString)"
+    static let preferences = UserDefaults(suiteName: preferenceSuiteName)!
+    static let updateService = UILabFixtureUpdateService()
+
     static let user = AuthenticatedUser(
         id: 9001,
         username: "uilab-user",
@@ -87,7 +91,8 @@ enum UILabFixtures {
         authModel: authModel,
         libraryModel: libraryModel,
         collectRepository: FixtureCollectRepository(jobs: collectJobs),
-        readerPositionStore: MemoryReaderPositionStore()
+        shortcutDefaults: preferences,
+        readerPositionStore: MemoryReaderPositionStore(),
     )
 
     static func libraryModel(for state: FixtureLibraryState) -> LibraryModel {

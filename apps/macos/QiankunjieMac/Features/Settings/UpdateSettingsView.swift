@@ -227,12 +227,13 @@ struct UpdateSettingsView: View {
 
     init(
         currentVersion: String,
-        service: any UpdateServicing
+        service: any UpdateServicing,
+        defaults: UserDefaults
     ) {
         _model = State(initialValue: UpdateSettingsModel(
             currentVersion: currentVersion,
             service: service,
-            defaults: UserDefaults(suiteName: "com.idickies.storing.macos.uilab")!
+            defaults: defaults
         ))
     }
 

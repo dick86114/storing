@@ -7,13 +7,38 @@ struct SettingsWindow: View {
     @Bindable var model: SettingsModel
     @Bindable var shortcutSettings: GlobalShortcutSettings
     let menuBarController: MenuBarController?
+    private let updateService: (any UpdateServicing)?
+    private let updateDefaults: UserDefaults
     @State private var shortcutRegistrationMessage: String?
+
+    init(
+        model: SettingsModel,
+        shortcutSettings: GlobalShortcutSettings,
+        menuBarController: MenuBarController?,
+        updateService: (any UpdateServicing)? = nil,
+        updateDefaults: UserDefaults = .standard
+    ) {
+        self.model = model
+        self.shortcutSettings = shortcutSettings
+        self.menuBarController = menuBarController
+        self.updateService = updateService
+        self.updateDefaults = updateDefaults
+        _shortcutRegistrationMessage = State(initialValue: nil)
+    }
 
     var body: some View {
         Form {
             applicationSection
             Section("软件更新") {
-                UpdateSettingsView()
+                if let updateService {
+                    UpdateSettingsView(
+                        currentVersion: QiankunjieMacMetadata.appVersion,
+                        service: updateService,
+                        defaults: updateDefaults
+                    )
+                } else {
+                    UpdateSettingsView()
+                }
             }
             appearanceSection
             shortcutSection
