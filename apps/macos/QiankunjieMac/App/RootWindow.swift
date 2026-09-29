@@ -1,4 +1,5 @@
 import QiankunjieDesignSystem
+import QiankunjieCollect
 import SwiftUI
 
 struct RootWindow: View {
@@ -92,6 +93,16 @@ struct RootWindow: View {
                 selection: articleSelection
             )
             .id(libraryView)
+        } else if model.destination == .collect {
+            CollectView(
+                model: model.collectModel,
+                onOpenArticle: model.openCollectArticle
+            )
+        } else if model.destination == .tasks {
+            CollectTasksView(
+                model: model.collectModel,
+                onOpenArticle: model.openCollectArticle
+            )
         } else {
             LibraryPlaceholderView(destination: model.destination)
         }

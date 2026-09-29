@@ -1,5 +1,6 @@
 import Observation
 import QiankunjieAuth
+import QiankunjieCollect
 import QiankunjieCore
 import QiankunjieLibrary
 import QiankunjieNetworking
@@ -57,6 +58,7 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
 final class AppModel {
     let authModel: AuthModel
     private(set) var libraryModel: LibraryModel
+    private(set) var collectModel: CollectModel
 
     var user: AuthenticatedUser?
     var destination: AppDestination = .published
@@ -66,7 +68,8 @@ final class AppModel {
 
     init(
         authModel: AuthModel = AuthModel(repository: AuthRepository()),
-        libraryModel: LibraryModel? = nil
+        libraryModel: LibraryModel? = nil,
+        collectRepository: any CollectServicing = CollectRepository()
     ) {
         self.authModel = authModel
         if let libraryModel {
@@ -79,6 +82,10 @@ final class AppModel {
                 cache: (try? LibraryCache()) ?? EmptyLibraryCache()
             )
         }
+        self.collectModel = CollectModel(
+            repository: collectRepository,
+            userID: authModel.user?.id
+        )
     }
 
     var isAuthenticated: Bool {
@@ -114,7 +121,11 @@ final class AppModel {
 
         self.destination = destination
         selectArticle(nil)
-        if let view = destination.libraryView {
+        if destination == .collect || destination == .tasks {
+            Task {
+                await collectModel.refreshJobs()
+            }
+        } else if let view = destination.libraryView {
             libraryModel.select(view: view)
             Task {
                 await libraryModel.load(reset: true)
@@ -140,6 +151,22 @@ final class AppModel {
         selectArticle(nil)
     }
 
+    func openCollectArticle(_ job: CollectJob) {
+        guard
+            isAuthenticated,
+            let articleID = job.articleId
+        else {
+            return
+        }
+
+        selectedArticleID = articleID
+        selectedReaderSelection = ReaderSelection(
+            articleID: articleID,
+            publicID: nil,
+            isGuest: false
+        )
+    }
+
     private func synchronizeWithAuthentication() async {
         let previousLibraryUserID = libraryModel.userID
         user = authModel.user
@@ -149,6 +176,7 @@ final class AppModel {
             userID: user?.id,
             view: destination.libraryView ?? .published
         )
+        collectModel.prepareUser(userID: user?.id)
         if previousLibraryUserID != user?.id {
             await libraryModel.clearUserScope(userID: previousLibraryUserID)
         }
