@@ -46,6 +46,7 @@ final class AppModel {
     var user: AuthenticatedUser?
     var destination: AppDestination = .published
     var selectedArticleID: Int?
+    var isLoginPresented = false
 
     init(authModel: AuthModel = AuthModel(repository: AuthRepository())) {
         self.authModel = authModel
@@ -62,11 +63,17 @@ final class AppModel {
 
     func didAuthenticate() {
         synchronizeWithAuthentication()
+        isLoginPresented = false
     }
 
     func didLogout() async {
         await authModel.logout()
         synchronizeWithAuthentication()
+        isLoginPresented = false
+    }
+
+    func presentLogin() {
+        isLoginPresented = true
     }
 
     private func synchronizeWithAuthentication() {

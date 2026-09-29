@@ -6,10 +6,21 @@ import SwiftUI
 struct LoginView: View {
     let authModel: AuthModel
     let onAuthenticated: @MainActor () -> Void
+    private let deviceProvider: MacAuthDeviceProvider
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var username = ""
     @State private var password = ""
+
+    init(
+        authModel: AuthModel,
+        onAuthenticated: @escaping @MainActor () -> Void,
+        deviceProvider: MacAuthDeviceProvider = MacAuthDeviceProvider()
+    ) {
+        self.authModel = authModel
+        self.onAuthenticated = onAuthenticated
+        self.deviceProvider = deviceProvider
+    }
 
     private var canSubmit: Bool {
         !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -125,11 +136,7 @@ struct LoginView: View {
             let succeeded = await authModel.login(
                 username: username.trimmingCharacters(in: .whitespacesAndNewlines),
                 password: password,
-                device: AuthDevice(
-                    id: "com.idickies.storing.macos",
-                    name: "Mac",
-                    appVersion: "0.1.0"
-                )
+                device: deviceProvider.currentDevice
             )
             if succeeded {
                 onAuthenticated()

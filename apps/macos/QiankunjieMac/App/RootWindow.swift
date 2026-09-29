@@ -5,11 +5,12 @@ struct RootWindow: View {
     @Bindable var model: AppModel
     @Environment(\.colorScheme) private var colorScheme
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
+    @State private var availableWidth: CGFloat = 0
+    private let layoutPolicy = AppShellLayoutPolicy()
 
     var body: some View {
-        if model.isAuthenticated {
-            mainInterface
-        } else {
+        mainInterface
+            .sheet(isPresented: $model.isLoginPresented) {
             LoginView(
                 authModel: model.authModel,
                 onAuthenticated: model.didAuthenticate
@@ -18,6 +19,39 @@ struct RootWindow: View {
     }
 
     private var mainInterface: some View {
+        shell
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.width
+            } action: { newValue in
+                availableWidth = newValue
+            }
+            .onChange(of: layout) { _, newLayout in
+                updateColumnVisibility(for: newLayout)
+            }
+            .background(QiankunjieColors.background(for: colorScheme))
+            .toolbar {
+                authenticationToolbar
+            }
+    }
+
+    private var layout: AppShellLayout {
+        layoutPolicy.layout(
+            availableWidth: availableWidth,
+            selectedArticleID: model.selectedArticleID
+        )
+    }
+
+    @ViewBuilder
+    private var shell: some View {
+        switch layout {
+        case .threeColumns:
+            threeColumnShell
+        case .listDetail:
+            listDetailShell
+        }
+    }
+
+    private var threeColumnShell: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(model: model)
                 .navigationSplitViewColumnWidth(
@@ -26,7 +60,7 @@ struct RootWindow: View {
                     max: 280
                 )
         } content: {
-            LibraryPlaceholderView(destination: model.destination)
+            listColumn
                 .navigationSplitViewColumnWidth(
                     min: 280,
                     ideal: 400,
@@ -36,9 +70,25 @@ struct RootWindow: View {
             ReaderPlaceholderView(articleID: model.selectedArticleID)
         }
         .navigationSplitViewStyle(.balanced)
-        .background(QiankunjieColors.background(for: colorScheme))
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+    }
+
+    private var listDetailShell: some View {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            listColumn
+        } detail: {
+            ReaderPlaceholderView(articleID: model.selectedArticleID)
+        }
+        .navigationSplitViewStyle(.balanced)
+    }
+
+    private var listColumn: some View {
+        LibraryPlaceholderView(destination: model.destination)
+    }
+
+    @ToolbarContentBuilder
+    private var authenticationToolbar: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            if model.isAuthenticated {
                 Button {
                     Task {
                         await model.didLogout()
@@ -46,7 +96,22 @@ struct RootWindow: View {
                 } label: {
                     Label("退出登录", systemImage: "rectangle.portrait.and.arrow.right")
                 }
+            } else {
+                Button {
+                    model.presentLogin()
+                } label: {
+                    Label("登录", systemImage: "person.badge.key")
+                }
             }
+        }
+    }
+
+    private func updateColumnVisibility(for layout: AppShellLayout) {
+        switch layout {
+        case .threeColumns:
+            columnVisibility = .automatic
+        case .listDetail(let isReaderPrimary):
+            columnVisibility = isReaderPrimary ? .detailOnly : .all
         }
     }
 }
