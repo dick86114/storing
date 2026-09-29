@@ -253,10 +253,16 @@ final class SettingsModel {
             isLoggingOut = false
         }
 
-        sessionsRequestGeneration += 1
+        invalidateSessionRequests()
         await authState.logout()
         sessions = []
         currentSessionID = nil
         await onUserStateCleared?()
+    }
+
+    private func invalidateSessionRequests() {
+        sessionsRequestGeneration += 1
+        isLoadingSessions = false
+        sessionErrorMessage = nil
     }
 }

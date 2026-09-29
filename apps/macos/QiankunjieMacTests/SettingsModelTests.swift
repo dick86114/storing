@@ -183,8 +183,9 @@ struct SettingsModelTests {
 
     @Test func 退出登录会使进行中的会话加载失效() async throws {
         let authModel = 空认证模型()
+        let currentSession = 设备会话(id: "session-current", deviceID: "device-1")
         let service = 可门控会话服务(sessions: [
-            设备会话(id: "session-current", deviceID: "device-1")
+            currentSession
         ])
         let model = SettingsModel(
             authModel: authModel,
@@ -205,18 +206,21 @@ struct SettingsModelTests {
             await model.logout()
         }
         _ = await logoutTask.value
-        await service.resumeLoad()
+        await service.resumeLoad(with: .failure(AppError.network))
         await loadTask.value
 
         #expect(model.sessions.isEmpty)
         #expect(model.currentSessionID == nil)
         #expect(model.authState.user == nil)
+        #expect(!model.isLoadingSessions)
+        #expect(model.sessionErrorMessage == nil)
     }
 
     @Test func 撤销当前会话会使进行中的会话加载失效() async throws {
         let authModel = 空认证模型()
+        let currentSession = 设备会话(id: "session-current", deviceID: "device-1")
         let service = 可门控会话服务(sessions: [
-            设备会话(id: "session-current", deviceID: "device-1")
+            currentSession
         ])
         let model = SettingsModel(
             authModel: authModel,
@@ -237,7 +241,7 @@ struct SettingsModelTests {
             await model.loadSessions()
         }
         await service.waitForLoad()
-        await service.resumeLoad()
+        await service.resumeLoad(with: .success([currentSession]))
         await initialLoadTask.value
         #expect(model.currentSessionID == "session-current")
 
@@ -250,13 +254,15 @@ struct SettingsModelTests {
             await model.revokeSession(id: "session-current")
         }
         await revokeTask.value
-        await service.resumeLoad()
+        await service.resumeLoad(with: .failure(AppError.network))
         await loadTask.value
 
         #expect(model.sessions.isEmpty)
         #expect(model.currentSessionID == nil)
         #expect(model.authState.user == nil)
         #expect(clearedUserState)
+        #expect(!model.isLoadingSessions)
+        #expect(model.sessionErrorMessage == nil)
     }
 
     @Test func 退出登录清理令牌用户状态并通知外壳() async throws {
@@ -444,7 +450,7 @@ private actor 模拟会话服务: DeviceSessionServicing {
 
 private actor 可门控会话服务: DeviceSessionServicing {
     private let sessions: [DeviceSession]
-    private var loadContinuation: CheckedContinuation<[DeviceSession], Never>?
+    private var loadContinuation: CheckedContinuation<[DeviceSession], Error>?
     private(set) var loadCount = 0
     private(set) var revokeIDs: [String] = []
 
@@ -452,9 +458,9 @@ private actor 可门控会话服务: DeviceSessionServicing {
         self.sessions = sessions
     }
 
-    func sessions() async -> [DeviceSession] {
+    func sessions() async throws -> [DeviceSession] {
         loadCount += 1
-        return await withCheckedContinuation { continuation in
+        return try await withCheckedThrowingContinuation { continuation in
             loadContinuation = continuation
         }
     }
@@ -469,8 +475,8 @@ private actor 可门控会话服务: DeviceSessionServicing {
         }
     }
 
-    func resumeLoad() {
-        loadContinuation?.resume(returning: sessions)
+    func resumeLoad(with result: Result<[DeviceSession], Error>) {
+        loadContinuation?.resume(with: result)
         loadContinuation = nil
     }
 }
