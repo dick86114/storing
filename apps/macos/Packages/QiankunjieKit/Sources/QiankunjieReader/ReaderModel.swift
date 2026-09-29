@@ -40,6 +40,49 @@ private struct ReaderPublicArticleEnvelope: Decodable {
     let article: ArticleDetail
 }
 
+public struct ReaderActionAvailability: Equatable, Sendable {
+    public let allowsAccountActions: Bool
+    public let originalURL: URL?
+}
+
+public enum ReaderActionPolicy {
+    public static func availability(
+        articleID: Int?,
+        isGuest: Bool,
+        isPerformingAction: Bool,
+        originalURLText: String?
+    ) -> ReaderActionAvailability {
+        let allowsAccountActions = articleID != nil
+            && !isGuest
+            && !isPerformingAction
+        let originalURL = safeOriginalURL(
+            from: originalURLText,
+            isPerformingAction: isPerformingAction
+        )
+
+        return ReaderActionAvailability(
+            allowsAccountActions: allowsAccountActions,
+            originalURL: originalURL
+        )
+    }
+
+    private static func safeOriginalURL(
+        from text: String?,
+        isPerformingAction: Bool
+    ) -> URL? {
+        guard
+            !isPerformingAction,
+            let text,
+            let url = URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines)),
+            ReaderNavigationPolicy.decision(for: url) == .openExternally
+        else {
+            return nil
+        }
+
+        return url
+    }
+}
+
 public struct ReaderFavoriteResult: Decodable, Sendable {
     public let isFavorited: Bool
 
