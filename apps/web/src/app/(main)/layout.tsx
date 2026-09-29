@@ -10,7 +10,7 @@ import { SideNavSlotProvider } from '@/components/layout/SideNavSlot';
 import { SearchModal } from '@/components/search/SearchModal';
 import { WechatDetailPanel } from '@/components/article/WechatDetailPanel';
 import { ArticleProvider, useArticleContext } from '@/components/providers/ArticleContext';
-import { AuthProvider, useAuth } from '@/components/providers/AuthContext';
+import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { useCounts } from '@/hooks/useCounts';
 import { useDoubleBackExit } from '@/hooks/useDoubleBackExit';
@@ -180,10 +180,8 @@ function MainContent({ children }: { children: ReactNode }) {
 
 export default function MainLayout({ children }: { children: ReactNode }) {
   return (
-    <AuthProvider>
-      <ArticleProvider>
-        <MainContent>{children}</MainContent>
-      </ArticleProvider>
-    </AuthProvider>
+    <ArticleProvider>
+      <MainContent>{children}</MainContent>
+    </ArticleProvider>
   );
 }
