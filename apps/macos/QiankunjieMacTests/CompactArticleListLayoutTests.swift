@@ -26,4 +26,21 @@ struct CompactArticleListLayoutTests {
         #expect(displayedTags.first?.count == metrics.maximumTagCharacters)
         #expect(displayedTags.last == "离线")
     }
+
+    @Test func 相同截断前缀的不同标签保持独立身份() {
+        let metrics = CompactArticleListLayoutMetrics(centerWidth: 280)
+        let firstTag = String(repeating: "长", count: 80) + "一"
+        let secondTag = String(repeating: "长", count: 80) + "二"
+
+        let visibleTags = metrics.visibleTags([
+            firstTag,
+            secondTag,
+            "离线",
+        ])
+
+        #expect(visibleTags.map(\.id) == [firstTag, secondTag, "离线"])
+        #expect(visibleTags.map(\.text).count == 3)
+        #expect(visibleTags[0].text == visibleTags[1].text)
+        #expect(visibleTags[0].text.count == metrics.maximumTagCharacters)
+    }
 }
