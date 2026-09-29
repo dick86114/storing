@@ -27,7 +27,7 @@ test('mobile collection API has its own routes and never changes web collection 
 test('mobile collection jobs share the guarded first-party worker rather than running capture inline', () => {
   const service = read('src/services/collect.service.ts');
 
-  assert.match(service, /inArray\(collectJobs\.requestSource, \['web', 'android', 'android_share', 'browser_extension'\]\)/);
+  assert.match(service, /inArray\(collectJobs\.requestSource, \['web', 'android', 'android_share', 'browser_extension', 'macos'\]\)/);
   assert.match(service, /requestSource !== 'mcp'/);
-  assert.match(service, /inArray\(collectJobs\.requestSource, \['web', 'android', 'android_share', 'browser_extension', 'mcp'\]\)/);
+  assert.match(service, /inArray\(collectJobs\.requestSource, \['web', 'android', 'android_share', 'browser_extension', 'macos', 'mcp'\]\)/);
 });
