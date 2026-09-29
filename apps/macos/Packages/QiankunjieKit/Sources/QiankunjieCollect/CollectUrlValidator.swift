@@ -51,8 +51,13 @@ public enum CollectUrlValidator {
         let labels = host.split(separator: ".", omittingEmptySubsequences: false)
         guard !labels.isEmpty, labels.count <= 4 else { return false }
 
-        if labels.allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isNumber) }) {
+        let isAllDecimal = labels.allSatisfy { !$0.isEmpty && $0.allSatisfy(\.isNumber) }
+        if labels.count < 4, isAllDecimal {
             return true
+        }
+
+        if labels.count == 4 {
+            return isAllDecimal && IPv4Address(host) == nil
         }
 
         return labels.contains { label in
