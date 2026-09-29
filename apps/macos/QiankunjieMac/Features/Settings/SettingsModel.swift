@@ -78,7 +78,7 @@ protocol DeviceSessionServicing: Sendable {
     func revoke(id: String) async throws
 }
 
-private struct AuthRepositoryDeviceSessionService: DeviceSessionServicing {
+struct AuthRepositoryDeviceSessionService: DeviceSessionServicing {
     private let apiClient: APIClient
 
     init(repository: AuthRepository) {
@@ -94,14 +94,28 @@ private struct AuthRepositoryDeviceSessionService: DeviceSessionServicing {
     }
 
     func revoke(id: String) async throws {
-        guard !id.isEmpty else {
+        let path = try Self.encodedPath(for: id)
+
+        let _: RevokedSessionResponse = try await apiClient.send(
+            .delete(path),
+            authenticated: true
+        )
+    }
+
+    static func encodedPath(for id: String) throws -> String {
+        let allowedCharacters = CharacterSet(
+            charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-"
+        )
+        guard
+            !id.isEmpty,
+            id.unicodeScalars.allSatisfy({ allowedCharacters.contains($0) }),
+            let encodedID = id.addingPercentEncoding(withAllowedCharacters: allowedCharacters),
+            encodedID == id
+        else {
             throw AppError.invalidInput
         }
 
-        let _: RevokedSessionResponse = try await apiClient.send(
-            .delete("macos/auth/sessions/\(id)"),
-            authenticated: true
-        )
+        return "macos/auth/sessions/\(encodedID)"
     }
 }
 
@@ -119,7 +133,6 @@ final class SettingsModel {
     static let appearanceStorageKey = "appearance.preference"
 
     let authState: AuthModel
-    let sessionStore: any SessionStore
     let serviceAddress = APIClient.defaultBaseURL.absoluteString
     let environmentName = "生产环境"
 
@@ -133,23 +146,18 @@ final class SettingsModel {
     private(set) var sessionErrorMessage: String?
 
     private let sessionService: any DeviceSessionServicing
-    private let currentDeviceID: String
     private let appearanceDefaults: UserDefaults
     private var sessionsRequestGeneration = 0
 
     init(
         authModel: AuthModel,
-        sessionStore: any SessionStore,
         sessionService: (any DeviceSessionServicing)? = nil,
-        currentDeviceID: String? = nil,
         appearanceDefaults: UserDefaults = .standard
     ) {
         self.authState = authModel
-        self.sessionStore = sessionStore
         self.sessionService = sessionService ?? AuthRepositoryDeviceSessionService(
             repository: authModel.repository
         )
-        self.currentDeviceID = currentDeviceID ?? MacAuthDeviceProvider().currentDevice.id
         self.appearanceDefaults = appearanceDefaults
 
         if
@@ -188,10 +196,19 @@ final class SettingsModel {
             let loadedSessions = try await sessionService.sessions()
             guard generation == sessionsRequestGeneration else { return }
 
-            let repositorySessionID = await authState.repository.currentSessionID
+            var repositorySessionID = await authState.repository.currentSessionID
+            guard generation == sessionsRequestGeneration else { return }
+
+            if repositorySessionID == nil {
+                try await authState.repository.refreshTokens()
+                guard generation == sessionsRequestGeneration else { return }
+
+                repositorySessionID = await authState.repository.currentSessionID
+                guard generation == sessionsRequestGeneration else { return }
+            }
+
             sessions = loadedSessions
             currentSessionID = repositorySessionID
-                ?? loadedSessions.first { $0.deviceID == currentDeviceID }?.id
         } catch {
             guard generation == sessionsRequestGeneration else { return }
 
@@ -214,11 +231,11 @@ final class SettingsModel {
         }
 
         do {
+            let isCurrentSession = id == currentSessionID
             try await sessionService.revoke(id: id)
             sessionErrorMessage = nil
 
-            let isCurrentSession = sessions.first(where: { $0.id == id })?.deviceID == currentDeviceID
-            if id == currentSessionID || isCurrentSession {
+            if isCurrentSession {
                 await logout()
             } else {
                 sessions.removeAll { $0.id == id }
@@ -236,6 +253,7 @@ final class SettingsModel {
             isLoggingOut = false
         }
 
+        sessionsRequestGeneration += 1
         await authState.logout()
         sessions = []
         currentSessionID = nil
