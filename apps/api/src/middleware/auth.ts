@@ -8,6 +8,7 @@ import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { isAllowedBrowserExtensionOrigin } from '../services/browser-extension-origin.service.js';
+import type { ClientSessionType } from '../services/mobile-session.service.js';
 
 export function getRequiredJwtSecret() {
   const configured = process.env.JWT_SECRET?.trim();
@@ -179,11 +180,16 @@ export function generateToken(userId: number) {
 }
 
 /** Short-lived access token for a revocable client refresh session. */
-export function generateClientAccessToken(userId: number, sessionId: string, client: 'android' | 'browser_extension') {
+export function generateClientAccessToken(userId: number, sessionId: string, client: ClientSessionType) {
   return jwt.sign({ userId, sessionId, client }, JWT_SECRET, { expiresIn: '30m' });
 }
 
 /** Short-lived access token for a revocable native mobile refresh session. */
 export function generateMobileAccessToken(userId: number, sessionId: string) {
   return generateClientAccessToken(userId, sessionId, 'android');
+}
+
+/** 为 macOS 客户端生成短时访问令牌。 */
+export function generateMacOSAccessToken(userId: number, sessionId: string) {
+  return generateClientAccessToken(userId, sessionId, 'macos');
 }

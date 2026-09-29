@@ -11,6 +11,7 @@ test('mobile authentication uses a separately revocable session table and additi
   const index = read('src/index.ts');
 
   assert.match(schema, /export const mobileSessions = pgTable\('mobile_sessions'/);
+  assert.match(service, /type ClientSessionType = 'android' \| 'browser_extension' \| 'macos'/);
   assert.match(service, /CREATE TABLE IF NOT EXISTS mobile_sessions/);
   assert.match(service, /refresh_token_hash/);
   assert.match(service, /CREATE INDEX IF NOT EXISTS mobile_sessions_user_active_idx/);
@@ -44,5 +45,7 @@ test('changing a password revokes active mobile refresh sessions', () => {
   const changePassword = route.match(/authRoutes\.post\('\/change-password'[\s\S]*?(?=authRoutes\.)/)?.[0];
 
   assert.ok(changePassword, 'change password route should exist');
-  assert.match(changePassword, /revokeMobileSessionsForUser\(user\.id\)/);
+  assert.match(changePassword, /revokeMobileSessionsForUser\(user\.id, 'android'\)/);
+  assert.match(changePassword, /revokeMobileSessionsForUser\(user\.id, 'browser_extension'\)/);
+  assert.match(changePassword, /revokeMobileSessionsForUser\(user\.id, 'macos'\)/);
 });

@@ -5,7 +5,7 @@ import { adminAuditLogs, articleMetadata, articles, collectJobs, mcpClients, mcp
 import { and, count, desc, eq, gt, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
-import { requireAuth, requireAdmin, getCurrentUser, generateClientAccessToken, generateMobileAccessToken, generateToken } from '../middleware/auth.js';
+import { requireAuth, requireAdmin, getCurrentUser, generateClientAccessToken, generateMacOSAccessToken, generateMobileAccessToken, generateToken } from '../middleware/auth.js';
 import { getConfiguredAdminStatus, resetConfiguredAdminPassword } from '../services/admin-bootstrap.service.js';
 import { writeAdminAudit } from '../services/admin-audit.service.js';
 import { generateSummaryAndTags } from '../services/ai.service.js';
@@ -123,6 +123,20 @@ function mobileAuthResponse(user: { id: number; username: string; role: string; 
 function extensionAuthResponse(user: { id: number; username: string; role: string; status: string }, session: { id: string; expiresAt: Date }, refreshToken: string) {
   return {
     access_token: generateClientAccessToken(user.id, session.id, 'browser_extension'),
+    access_token_expires_in: 30 * 60,
+    refresh_token: refreshToken,
+    refresh_token_expires_in: 90 * 24 * 60 * 60,
+    user: serializeMobileUser(user),
+    session: {
+      id: session.id,
+      expires_at: timestampToIso(session.expiresAt),
+    },
+  };
+}
+
+function macosAuthResponse(user: { id: number; username: string; role: string; status: string }, session: { id: string; expiresAt: Date }, refreshToken: string) {
+  return {
+    access_token: generateMacOSAccessToken(user.id, session.id),
     access_token_expires_in: 30 * 60,
     refresh_token: refreshToken,
     refresh_token_expires_in: 90 * 24 * 60 * 60,
@@ -331,6 +345,95 @@ authRoutes.delete('/mobile/auth/sessions/:id', requireAuth, async (c) => {
   return c.json({ revoked: true });
 });
 
+/** POST /macos/auth/login. macOS 客户端复用登录限流与设备校验。 */
+authRoutes.post('/macos/auth/login', async (c) => {
+  const parsed = mobileLoginSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: { code: 'BAD_REQUEST', message: parsed.error.errors[0]?.message || '参数错误' } }, 400);
+
+  let device;
+  try {
+    device = validateMobileDevice(parsed.data.device);
+  } catch (error) {
+    return c.json({ error: { code: 'BAD_REQUEST', message: error instanceof Error ? error.message : '设备信息无效' } }, 400);
+  }
+
+  const rateLimitKey = getLoginRateLimitKey({
+    username: parsed.data.username,
+    forwardedFor: c.req.header('X-Forwarded-For'),
+    trustProxy: process.env.TRUST_PROXY === 'true',
+  });
+  const rateLimit = checkLoginRateLimit(rateLimitKey);
+  if (!rateLimit.allowed) {
+    c.header('Retry-After', String(rateLimit.retryAfterSeconds));
+    return c.json({ error: { code: 'LOGIN_RATE_LIMITED', message: '登录尝试过于频繁，请稍后再试' } }, 429);
+  }
+
+  const [user] = await db.select().from(users).where(eq(users.username, parsed.data.username)).limit(1);
+  if (!user || user.status !== 'active' || !(await bcrypt.compare(parsed.data.password, user.passwordHash))) {
+    recordLoginFailure(rateLimitKey);
+    return c.json({ error: { code: 'INVALID_CREDENTIALS', message: '用户名或密码错误' } }, 401);
+  }
+
+  clearLoginFailures(rateLimitKey);
+  await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+  const created = await createMobileSession({ userId: user.id, device, clientType: 'macos' });
+  return c.json(macosAuthResponse(user, created.session, created.refreshToken));
+});
+
+/** POST /macos/auth/refresh */
+authRoutes.post('/macos/auth/refresh', async (c) => {
+  const parsed = mobileRefreshSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: { code: 'BAD_REQUEST', message: parsed.error.errors[0]?.message || '参数错误' } }, 400);
+
+  let device;
+  try {
+    device = parsed.data.device ? validateMobileDevice(parsed.data.device) : undefined;
+  } catch (error) {
+    return c.json({ error: { code: 'BAD_REQUEST', message: error instanceof Error ? error.message : '设备信息无效' } }, 400);
+  }
+
+  const rotated = await rotateMobileSession(parsed.data.refresh_token, device, 'macos');
+  if (!rotated) return c.json({ error: { code: 'INVALID_REFRESH_TOKEN', message: '登录已失效，请重新登录' } }, 401);
+
+  const [user] = await db.select({ id: users.id, username: users.username, role: users.role, status: users.status }).from(users).where(eq(users.id, rotated.userId)).limit(1);
+  if (!user || user.status !== 'active') {
+    if (user) await revokeMobileSessionsForUser(user.id, 'macos');
+    return c.json({ error: { code: user ? 'USER_DISABLED' : 'INVALID_REFRESH_TOKEN', message: user ? '用户已禁用' : '登录已失效，请重新登录' } }, user ? 403 : 401);
+  }
+
+  return c.json(macosAuthResponse(user, rotated.session, rotated.refreshToken));
+});
+
+/** POST /macos/auth/logout */
+authRoutes.post('/macos/auth/logout', async (c) => {
+  const parsed = mobileLogoutSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: { code: 'BAD_REQUEST', message: parsed.error.errors[0]?.message || '参数错误' } }, 400);
+  await revokeMobileSessionByRefreshToken(parsed.data.refresh_token, 'macos');
+  return c.json({ revoked: true });
+});
+
+/** GET /macos/auth/session */
+authRoutes.get('/macos/auth/session', requireAuth, async (c) => {
+  const user = getCurrentUser(c);
+  return c.json({ user: serializeMobileUser(user) });
+});
+
+/** GET /macos/auth/sessions */
+authRoutes.get('/macos/auth/sessions', requireAuth, async (c) => {
+  const user = getCurrentUser(c);
+  return c.json({ sessions: (await listMobileSessions(user.id, 'macos')).map(serializeMobileSession) });
+});
+
+/** DELETE /macos/auth/sessions/:id */
+authRoutes.delete('/macos/auth/sessions/:id', requireAuth, async (c) => {
+  const user = getCurrentUser(c);
+  const id = c.req.param('id');
+  if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return c.json({ error: { code: 'BAD_REQUEST', message: '会话 ID 无效' } }, 400);
+  const revoked = await revokeMobileSession(id, user.id, 'macos');
+  if (!revoked) return c.json({ error: { code: 'NOT_FOUND', message: '会话不存在或已失效' } }, 404);
+  return c.json({ revoked: true });
+});
+
 /**
  * 登录
  * POST /auth/login
@@ -459,7 +562,9 @@ authRoutes.post('/change-password', requireAuth, async (c) => {
       .update(users)
       .set({ passwordHash: newPasswordHash, updatedAt: new Date() })
       .where(eq(users.id, user.id));
-    await revokeMobileSessionsForUser(user.id);
+    await revokeMobileSessionsForUser(user.id, 'android');
+    await revokeMobileSessionsForUser(user.id, 'browser_extension');
+    await revokeMobileSessionsForUser(user.id, 'macos');
 
     return c.json({ message: '密码已更新' });
   } catch (err) {
