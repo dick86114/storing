@@ -32,6 +32,8 @@ test('macOS UI Lab 固定全部核心验收场景', () => {
   assert.match(fixtureSource, /static let user/);
   assert.match(fixtureSource, /id: 9001/);
   assert.match(testSource, /uiLabCoversEveryCoreScenario/);
+  assert.match(testSource, /uiLabTaskFixturesCoverEveryActionState/);
+  assert.match(testSource, /uiLabTaskRowsExposeOnlyAllowedActions/);
 });
 
 test('macOS UI Lab 只在 Debug 路由且不触碰生产数据边界', () => {
@@ -52,6 +54,8 @@ test('macOS UI Lab 脚本和文档覆盖十个截图场景', () => {
   assert.match(script, /-configuration Debug/);
   assert.match(script, /CODE_SIGNING_ALLOWED=NO/);
   assert.match(script, /artifacts\/macos-ui-lab/);
+  assert.match(script, /open -n "\$\{app_path\}" --args --ui-lab "\$\{scenario\}"/);
+  assert.doesNotMatch(script, /open -n "\$\{binary_path\}"/);
 
   for (const scenario of scenarios) {
     assert.match(script, new RegExp(`"${scenario}"`));
@@ -62,4 +66,30 @@ test('macOS UI Lab 脚本和文档覆盖十个截图场景', () => {
   assert.match(guide, /Keychain/);
   assert.match(guide, /SwiftData/);
   assert.match(guide, /截图路径/);
+});
+
+test('macOS UI Lab 任务夹具显式解码并暴露允许的任务动作', () => {
+  const fixtureSource = read('apps/macos/QiankunjieMac/UILab/UILabFixtures.swift');
+  const scenarioSource = read('apps/macos/QiankunjieMac/UILab/UILabScenario.swift');
+  const guide = read('docs/MacOS-UI-Lab.md');
+
+  assert.doesNotMatch(fixtureSource, /try\?[\s\S]*\?\? \[\]/);
+  assert.match(fixtureSource, /fatalError\("UI Lab 采集任务夹具解码失败/);
+  assert.match(fixtureSource, /"pending"/);
+  assert.match(fixtureSource, /"running"/);
+  assert.match(fixtureSource, /"completed"/);
+  assert.match(fixtureSource, /"failed"/);
+  assert.match(scenarioSource, /struct UILabTaskActionAvailability/);
+  assert.match(scenarioSource, /static func taskActionAvailability/);
+  assert.match(scenarioSource, /onOpenArticle: availability\.canOpenArticle \? \{\} : nil/);
+  assert.match(scenarioSource, /onRetry: availability\.canRetry \? \{\} : nil/);
+  assert.match(scenarioSource, /onDelete: availability\.canDelete \? \{\} : nil/);
+
+  const taskRow = guide
+    .split('\n')
+    .find((line) => line.includes('| `tasks` |'));
+  assert.match(taskRow ?? '', /`pending`\/`running`\/`completed`\/`failed`/);
+  assert.match(taskRow ?? '', /打开文章/);
+  assert.match(taskRow ?? '', /重试/);
+  assert.match(taskRow ?? '', /删除任务/);
 });
