@@ -105,3 +105,15 @@ test('macOS UI Lab 通过固定仓储驱动生产视图', () => {
   assert.match(scenarioSource, /CollectTasksView\(/);
   assert.doesNotMatch(fixtureSource, /URLRequest|URLSession|KeychainSessionStore|UserDefaults\.standard/);
 });
+
+test('macOS UI Lab 设置和更新只使用注入套件与固定更新服务', () => {
+  const scenarioSource = read('apps/macos/QiankunjieMac/UILab/UILabScenario.swift');
+  const fixtureSource = read('apps/macos/QiankunjieMac/UILab/UILabFixtures.swift');
+
+  assert.match(scenarioSource, /SettingsWindow\(/);
+  assert.match(scenarioSource, /updateService: UILabFixtures\.updateService/);
+  assert.match(scenarioSource, /updateDefaults: UILabFixtures\.preferences/);
+  assert.doesNotMatch(scenarioSource, /SettingsView\(/);
+  assert.doesNotMatch(scenarioSource, /UpdateSettingsView\(\)/);
+  assert.doesNotMatch(fixtureSource, /UserDefaults\.standard|GitHubUpdateService|URLSession|KeychainSessionStore/);
+});

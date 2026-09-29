@@ -99,14 +99,20 @@ struct UILabRootView: View {
                     onOpenArticle: { _ in }
                 )
             case .settings:
-                SettingsView(
-                    model: UILabFixtures.appModel,
-                    menuBarController: nil
+                SettingsWindow(
+                    model: UILabFixtures.appModel.settingsModel,
+                    shortcutSettings: UILabFixtures.appModel.shortcutSettings,
+                    menuBarController: nil,
+                    updateService: UILabFixtures.updateService,
+                    updateDefaults: UILabFixtures.preferences
                 )
             case .update:
-                UpdateSettingsView(
-                    currentVersion: "0.1.0",
-                    service: UILabFixtureUpdateService()
+                SettingsWindow(
+                    model: UILabFixtures.appModel.settingsModel,
+                    shortcutSettings: UILabFixtures.appModel.shortcutSettings,
+                    menuBarController: nil,
+                    updateService: UILabFixtures.updateService,
+                    updateDefaults: UILabFixtures.preferences
                 )
             }
         }

@@ -198,9 +198,17 @@ public final class ReaderPositionStore: ReaderPositionStoring, @unchecked Sendab
 
     private func removeLegacyKeys(in defaults: UserDefaults) {
         let prefix = "qiankunjie.reader.readingPosition."
-        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
+        for key in defaults.dictionaryRepresentation().keys
+        where Self.isLegacyReadingPositionKey(key, prefix: prefix) {
             defaults.removeObject(forKey: key)
         }
+    }
+
+    private static func isLegacyReadingPositionKey(_ key: String, prefix: String) -> Bool {
+        guard key.hasPrefix(prefix) else { return false }
+
+        let articleID = key.dropFirst(prefix.count)
+        return !articleID.isEmpty && articleID.allSatisfy { ("0"..."9").contains($0) }
     }
 
     private static func scopePrefix(userID: Int?) -> String {

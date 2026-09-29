@@ -35,4 +35,10 @@ struct UILabTests {
         #expect(UILabScenario.commandLineScenario(arguments: ["/tmp/QiankunjieMac"]) == nil)
         #expect(UILabScenario.commandLineScenario(arguments: ["/tmp/QiankunjieMac", "--ui-lab", "demo"]) == nil)
     }
+
+    @Test func uiLabSettingsUseInjectedIsolatedPreferencesAndFixtureUpdateService() {
+        #expect(UILabFixtures.preferences != .standard)
+        #expect(UILabFixtures.preferenceSuiteName.hasPrefix("com.idickies.storing.macos.uilab."))
+        #expect(UILabFixtures.updateService is UILabFixtureUpdateService)
+    }
 }
