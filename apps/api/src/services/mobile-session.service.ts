@@ -13,7 +13,7 @@ export type MobileDevice = {
   appVersion: string;
 };
 
-export type ClientSessionType = 'android' | 'browser_extension';
+export type ClientSessionType = 'android' | 'browser_extension' | 'macos';
 
 export type MobileSessionSummary = {
   id: string;
