@@ -9,9 +9,15 @@ public enum CollectDisplayState: Equatable, Sendable {
     case error
 }
 
-private enum CollectListOperation {
-    case refresh
-    case loadMore
+private struct CollectListOperationToken: Equatable {
+    enum Kind {
+        case refresh
+        case loadMore
+        case clearFinished
+    }
+
+    let kind: Kind
+    let id = UUID()
 }
 
 @MainActor
@@ -29,6 +35,7 @@ public final class CollectModel {
     public private(set) var isLoadingJobs = true
     public private(set) var isRefreshingJobs = false
     public private(set) var isLoadingMoreJobs = false
+    public private(set) var isClearingFinishedJobs = false
     public private(set) var isSubmitting = false
     public private(set) var mutatingJobIDs: Set<Int> = []
     public private(set) var inputErrorMessage: String?
@@ -42,7 +49,8 @@ public final class CollectModel {
     private var pollGeneration = 0
     private let pageSize = 30
     private var nextPageOffset = 0
-    private var activeListOperation: CollectListOperation?
+    private var activeListOperation: CollectListOperationToken?
+    private var invalidatedListOperationIDs: Set<UUID> = []
 
     public init(
         repository: any CollectServicing = CollectRepository(),
@@ -117,27 +125,26 @@ public final class CollectModel {
     }
 
     public func refreshJobs() async {
-        guard
-            userID != nil,
-            activeListOperation == nil
-        else {
+        guard userID != nil else {
             isLoadingJobs = false
             isRefreshingJobs = false
             return
         }
 
-        activeListOperation = .refresh
+        guard
+            let token = beginListOperation(.refresh)
+        else {
+            return
+        }
+
         requestGeneration += 1
         pollGeneration += 1
         let generation = requestGeneration
         let operationUserID = userID
         defer {
-            if activeListOperation == .refresh {
-                activeListOperation = nil
-                if userID == operationUserID {
-                    isLoadingJobs = false
-                    isRefreshingJobs = false
-                }
+            finishListOperation(token) {
+                isLoadingJobs = false
+                isRefreshingJobs = false
             }
         }
 
@@ -150,7 +157,9 @@ public final class CollectModel {
 
         do {
             let page = try await repository.jobs(limit: pageSize, offset: 0)
-            guard requestGeneration == generation else { return }
+            guard canApplyListOperation(token, generation: generation, userID: operationUserID) else {
+                return
+            }
 
             jobs = page.jobs
             total = page.total
@@ -161,10 +170,15 @@ public final class CollectModel {
             }
             isLoadingJobs = false
             isRefreshingJobs = false
-            activeListOperation = nil
+            finishListOperation(token) {
+                isLoadingJobs = false
+                isRefreshingJobs = false
+            }
             await pollActiveJobs(generation: pollGeneration)
         } catch {
-            guard requestGeneration == generation else { return }
+            guard canApplyListOperation(token, generation: generation, userID: operationUserID) else {
+                return
+            }
             refreshErrorMessage = Self.message(for: error)
         }
 
@@ -234,30 +248,31 @@ public final class CollectModel {
             userID != nil,
             hasMore,
             !isLoadingMoreJobs,
-            !isLoadingJobs,
-            activeListOperation == nil
+            !isLoadingJobs
         else {
             return
         }
 
-        activeListOperation = .loadMore
+        guard let token = beginListOperation(.loadMore) else {
+            return
+        }
+
         requestGeneration += 1
         let generation = requestGeneration
         let offset = nextPageOffset
         let operationUserID = userID
         isLoadingMoreJobs = true
         defer {
-            if activeListOperation == .loadMore {
-                activeListOperation = nil
-                if userID == operationUserID {
-                    isLoadingMoreJobs = false
-                }
+            finishListOperation(token) {
+                isLoadingMoreJobs = false
             }
         }
 
         do {
             let page = try await repository.jobs(limit: pageSize, offset: offset)
-            guard requestGeneration == generation else { return }
+            guard canApplyListOperation(token, generation: generation, userID: operationUserID) else {
+                return
+            }
 
             let existingIDs = Set(jobs.map(\.id))
             for job in page.jobs where !existingIDs.contains(job.id) {
@@ -267,34 +282,63 @@ public final class CollectModel {
             hasMore = page.hasMore
             nextPageOffset = offset + pageSize
         } catch {
-            guard requestGeneration == generation else { return }
+            guard canApplyListOperation(token, generation: generation, userID: operationUserID) else {
+                return
+            }
             actionErrorMessage = Self.message(for: error)
-        }
-
-        if requestGeneration == generation {
-            isLoadingMoreJobs = false
         }
     }
 
     public func clearFinished() async {
-        guard userID != nil, !jobs.isEmpty else {
+        guard
+            userID != nil,
+            !jobs.isEmpty,
+            activeListOperation == nil
+        else {
             isClearConfirmationPresented = false
             return
         }
 
-        mutatingJobIDs.formUnion(Set(jobs.filter(\.isTerminal).map(\.id)))
+        let clearingJobIDs = Set(jobs.filter(\.isTerminal).map(\.id))
+        guard let token = beginListOperation(.clearFinished) else {
+            isClearConfirmationPresented = false
+            return
+        }
+
+        mutatingJobIDs.formUnion(clearingJobIDs)
+        isClearingFinishedJobs = true
         actionErrorMessage = nil
-        defer { mutatingJobIDs.removeAll() }
+        requestGeneration += 1
+        let generation = requestGeneration
+        let operationUserID = userID
+
+        defer {
+            finishListOperation(token) {
+                isClearingFinishedJobs = false
+                mutatingJobIDs.subtract(clearingJobIDs)
+            }
+        }
 
         do {
             let deletedCount = try await repository.clearFinished()
+            guard canApplyListOperation(token, generation: generation, userID: operationUserID) else {
+                return
+            }
+
             if deletedCount > 0 {
                 let oldCount = jobs.count
                 jobs.removeAll(where: \.isTerminal)
                 total = max(0, total - (oldCount - jobs.count))
             }
+            finishListOperation(token) {
+                isClearingFinishedJobs = false
+                mutatingJobIDs.subtract(clearingJobIDs)
+            }
             await refreshJobs()
         } catch {
+            guard canApplyListOperation(token, generation: generation, userID: operationUserID) else {
+                return
+            }
             actionErrorMessage = Self.message(for: error)
         }
 
@@ -317,6 +361,9 @@ public final class CollectModel {
         isRefreshingJobs = false
         isLoadingMoreJobs = false
         mutatingJobIDs = []
+        if let activeListOperation {
+            invalidatedListOperationIDs.insert(activeListOperation.id)
+        }
         activeListOperation = nil
         inputErrorMessage = nil
         submitErrorMessage = nil
@@ -377,6 +424,42 @@ public final class CollectModel {
         } else {
             jobs.insert(job, at: 0)
         }
+    }
+
+    private func beginListOperation(_ kind: CollectListOperationToken.Kind) -> CollectListOperationToken? {
+        guard activeListOperation == nil else {
+            return nil
+        }
+
+        let token = CollectListOperationToken(kind: kind)
+        activeListOperation = token
+        return token
+    }
+
+    private func canApplyListOperation(
+        _ token: CollectListOperationToken,
+        generation: Int,
+        userID: Int?
+    ) -> Bool {
+        activeListOperation == token
+            && !invalidatedListOperationIDs.contains(token.id)
+            && requestGeneration == generation
+            && self.userID == userID
+    }
+
+    private func finishListOperation(
+        _ token: CollectListOperationToken,
+        resetting: () -> Void
+    ) {
+        guard invalidatedListOperationIDs.remove(token.id) == nil else {
+            return
+        }
+        guard activeListOperation == token else {
+            return
+        }
+
+        activeListOperation = nil
+        resetting()
     }
 
     private static func message(for error: any Error) -> String {
