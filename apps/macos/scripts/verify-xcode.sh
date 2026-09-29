@@ -4,6 +4,9 @@ set -euo pipefail
 required_xcode_major="27"
 required_swift_version="6.4"
 required_xcodegen_version="2.46.0"
+required_sdk_major="27"
+
+# 构建产物固定使用 Xcode 27 提供的 macOS 27 SDK。
 
 xcodegen_bin="${XCODEGEN_BIN:-xcodegen}"
 if [[ ! -x "${xcodegen_bin}" && -x /opt/homebrew/bin/xcodegen ]]; then
@@ -41,8 +44,8 @@ if [[ "${xcodegen_version}" != "${required_xcodegen_version}" ]]; then
 fi
 
 sdk_version="$(xcrun --sdk macosx --show-sdk-version)"
-if [[ "${sdk_version%%.*}" != "${required_xcode_major}" ]]; then
-  echo "错误：需要 macOS ${required_xcode_major} SDK，当前为 ${sdk_version}。"
+if [[ "${sdk_version%%.*}" != "${required_sdk_major}" ]]; then
+  echo "错误：需要 macOS ${required_sdk_major} SDK，当前为 ${sdk_version}。"
   exit 1
 fi
 

@@ -11,6 +11,9 @@ architecture="arm64"
 app_path="${derived_data}/Build/Products/${configuration}/QiankunjieMac.app"
 versioned_dmg="${output_dir}/Qiankunjie-${version}-${architecture}.dmg"
 generic_dmg="${output_dir}/Qiankunjie.dmg"
+binary_path="${app_path}/Contents/MacOS/QiankunjieMac"
+versioned_checksum="${versioned_dmg}.sha256"
+generic_checksum="${generic_dmg}.sha256"
 
 "${script_dir}/verify-xcode.sh"
 
@@ -50,5 +53,26 @@ hdiutil create \
   "${versioned_dmg}"
 cp "${versioned_dmg}" "${generic_dmg}"
 
+actual_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "${app_path}/Contents/Info.plist")"
+if [[ "${actual_version}" != "${version}" ]]; then
+  echo "错误：应用版本为 ${actual_version}，预期为 ${version}。"
+  exit 1
+fi
+
+binary_archs="$(lipo -archs "${binary_path}")"
+if [[ " ${binary_archs} " != *" arm64 "* ]]; then
+  echo "错误：应用可执行文件缺少 arm64 架构，实际为：${binary_archs:-未知}。"
+  exit 1
+fi
+
+hdiutil verify "${versioned_dmg}"
+
+(
+  cd "${output_dir}"
+  shasum -a 256 "$(basename "${versioned_dmg}")" > "$(basename "${versioned_checksum}")"
+  shasum -a 256 "$(basename "${generic_dmg}")" > "$(basename "${generic_checksum}")"
+)
+
 echo "DMG 已生成：${versioned_dmg}"
 echo "通用 DMG 已生成：${generic_dmg}"
+echo "校验文件已生成：${versioned_checksum} 和 ${generic_checksum}"
