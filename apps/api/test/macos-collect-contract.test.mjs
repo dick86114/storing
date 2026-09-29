@@ -5,7 +5,7 @@ import test from 'node:test';
 const apiRoot = new URL('../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, apiRoot), 'utf8');
 
-test('macOS collection has isolated routes and uses the shared guarded worker', () => {
+test('macOS 采集使用隔离路由和共享受保护 worker', () => {
   const route = read('src/routes/collect.ts');
   const service = read('src/services/collect.service.ts');
 
