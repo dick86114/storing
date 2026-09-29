@@ -31,7 +31,7 @@ test('browser extension collection has a dedicated source while using the first-
   assert.match(collectRoutes, /saveToInbox: true/);
   assert.match(collectService, /'browser_extension'/);
   assert.match(collectService, /FIRST_PARTY_COLLECT_SOURCES/);
-  assert.match(collectService, /\['web', 'android', 'android_share', 'browser_extension'\]/);
+  assert.match(collectService, /\['web', 'android', 'android_share', 'browser_extension', 'macos'\]/);
 });
 
 test('only configured extension origins receive cross-origin API access', () => {
