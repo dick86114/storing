@@ -1,0 +1,9 @@
+# 本地生成的 Xcode 工程和构建产物
+.derivedData/
+dist/
+Qiankunjie.xcodeproj/
+xcuserdata/
+
+# Swift Package Manager 本地缓存
+Packages/QiankunjieKit/.build/
+Packages/QiankunjieKit/.swiftpm/

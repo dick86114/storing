@@ -1,0 +1,68 @@
+name: Qiankunjie
+
+options:
+  bundleIdPrefix: com.idickies.storing
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "27.0"
+  developmentLanguage: zh-Hans
+  minimumXcodeGenVersion: "2.46.0"
+  xcodeVersion: "27.0"
+
+settings:
+  base:
+    ARCHS: arm64
+    MACOSX_DEPLOYMENT_TARGET: "27.0"
+    ONLY_ACTIVE_ARCH: YES
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_VERSION: "6.0"
+
+packages:
+  QiankunjieKit:
+    path: Packages/QiankunjieKit
+
+targets:
+  QiankunjieMac:
+    type: application
+    platform: macOS
+    deploymentTarget: "27.0"
+    sources:
+      - path: QiankunjieMac
+    dependencies:
+      - package: QiankunjieKit
+        product: QiankunjieKit
+    settings:
+      base:
+        CURRENT_PROJECT_VERSION: 1
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: NO
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: 乾坤戒
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        MARKETING_VERSION: 0.1.0
+        PRODUCT_BUNDLE_IDENTIFIER: com.idickies.storing.macos
+
+  QiankunjieMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "27.0"
+    sources:
+      - path: QiankunjieMacTests
+    dependencies:
+      - target: QiankunjieMac
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.idickies.storing.macos.tests
+
+schemes:
+  QiankunjieMac:
+    build:
+      targets:
+        QiankunjieMac: all
+        QiankunjieMacTests: [test]
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - QiankunjieMacTests
