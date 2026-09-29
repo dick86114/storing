@@ -4,6 +4,8 @@ import SwiftUI
 
 struct RootWindow: View {
     @Bindable var model: AppModel
+    @Binding var menuBarController: MenuBarController?
+    @Environment(\.openWindow) private var openWindow
     @Environment(\.colorScheme) private var colorScheme
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     @State private var availableWidth: CGFloat = 0
@@ -32,6 +34,9 @@ struct RootWindow: View {
             .background(QiankunjieColors.background(for: colorScheme))
             .toolbar {
                 authenticationToolbar
+            }
+            .onAppear {
+                installMenuBarIfNeeded()
             }
     }
 
@@ -157,6 +162,21 @@ struct RootWindow: View {
         case .listDetail(let isReaderPrimary):
             columnVisibility = isReaderPrimary ? .detailOnly : .all
         }
+    }
+
+    private func installMenuBarIfNeeded() {
+        guard menuBarController == nil else { return }
+
+        let controller = MenuBarController(
+            appModel: model,
+            shortcut: .default,
+            onShowMainWindow: {
+                openWindow(id: "main")
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        )
+        controller.start()
+        menuBarController = controller
     }
 
     private var destinationSelection: Binding<AppDestination> {
