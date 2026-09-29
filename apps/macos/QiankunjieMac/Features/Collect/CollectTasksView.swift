@@ -100,7 +100,12 @@ struct CollectTasksView: View {
                 }
             }
             .buttonStyle(.borderless)
-            .disabled(model.isRefreshingJobs || model.userID == nil)
+            .disabled(
+                model.isRefreshingJobs
+                    || model.isLoadingMoreJobs
+                    || model.isClearingFinishedJobs
+                    || model.userID == nil
+            )
             .help("刷新任务")
 
             Button {
@@ -109,7 +114,13 @@ struct CollectTasksView: View {
                 Image(systemName: "trash.slash")
             }
             .buttonStyle(.borderless)
-            .disabled(model.userID == nil || model.jobs.isEmpty)
+            .disabled(
+                model.userID == nil
+                    || model.jobs.isEmpty
+                    || model.isRefreshingJobs
+                    || model.isLoadingMoreJobs
+                    || model.isClearingFinishedJobs
+            )
             .help("清理已完成和失败的任务")
         }
         .padding(.horizontal, 18)
@@ -172,7 +183,11 @@ struct CollectTasksView: View {
                         }
                     }
                     .buttonStyle(.bordered)
-                    .disabled(model.isLoadingMoreJobs || model.userID == nil)
+                    .disabled(
+                        model.isLoadingMoreJobs
+                            || model.isClearingFinishedJobs
+                            || model.userID == nil
+                    )
                     .padding(.top, 4)
                 }
             }

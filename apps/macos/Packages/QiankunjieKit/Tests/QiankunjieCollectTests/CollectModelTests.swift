@@ -438,6 +438,207 @@ struct CollectModelTests {
         #expect(model.displayState == .loading)
         #expect(model.userID == 10)
     }
+
+    @Test func 账号切换后旧响应不能抢走新列表操作所有权() async throws {
+        let repository = 模拟采集仓库(
+            page: CollectJobPage(
+                jobs: [.fixture(id: 9, status: "completed")],
+                total: 1,
+                hasMore: false
+            )
+        )
+        await repository.holdNextJobs()
+        let model = CollectModel(repository: repository, userID: 9)
+
+        let oldRequest = Task {
+            await model.refreshJobs()
+        }
+        await repository.waitForJobsRequest(1)
+
+        model.prepareUser(userID: 10)
+        #expect(model.isLoadingJobs)
+        await repository.holdNextJobs()
+
+        let newRequest = Task {
+            await model.refreshJobs()
+        }
+        await repository.waitForJobsRequest(2)
+        #expect(model.isLoadingJobs)
+
+        await repository.resumeJobsRequest(at: 0, with: .success(
+            CollectJobPage(
+                jobs: [.fixture(id: 9, status: "completed")],
+                total: 1,
+                hasMore: false
+            )
+        ))
+        await oldRequest.value
+
+        #expect(model.userID == 10)
+        #expect(model.isLoadingJobs)
+        #expect(model.jobs.isEmpty)
+
+        await repository.resumeJobsRequest(at: 0, with: .success(
+            CollectJobPage(
+                jobs: [.fixture(id: 10, status: "completed")],
+                total: 1,
+                hasMore: false
+            )
+        ))
+        await newRequest.value
+
+        #expect(model.jobs.map(\.id) == [10])
+        #expect(!model.isLoadingJobs)
+        #expect(!model.isRefreshingJobs)
+    }
+
+    @Test func 同账号重置后旧响应不能抢走新列表操作所有权() async throws {
+        let repository = 模拟采集仓库(
+            page: CollectJobPage(
+                jobs: [.fixture(id: 9, status: "completed")],
+                total: 1,
+                hasMore: false
+            )
+        )
+        await repository.holdNextJobs()
+        let model = CollectModel(repository: repository, userID: 9)
+
+        let oldRequest = Task {
+            await model.refreshJobs()
+        }
+        await repository.waitForJobsRequest(1)
+        model.prepareUser(userID: 9)
+        await repository.holdNextJobs()
+
+        let newRequest = Task {
+            await model.refreshJobs()
+        }
+        await repository.waitForJobsRequest(2)
+        #expect(model.isLoadingJobs)
+
+        await repository.resumeJobsRequest(at: 0, with: .success(
+            CollectJobPage(
+                jobs: [.fixture(id: 9, status: "completed")],
+                total: 1,
+                hasMore: false
+            )
+        ))
+        await oldRequest.value
+
+        #expect(model.userID == 9)
+        #expect(model.isLoadingJobs)
+        #expect(model.jobs.isEmpty)
+
+        await repository.resumeJobsRequest(at: 0, with: .success(
+            CollectJobPage(
+                jobs: [.fixture(id: 10, status: "completed")],
+                total: 1,
+                hasMore: false
+            )
+        ))
+        await newRequest.value
+
+        #expect(model.jobs.map(\.id) == [10])
+        #expect(!model.isLoadingJobs)
+        #expect(!model.isRefreshingJobs)
+    }
+
+    @Test func 清理进行中时加载更多保持互斥并完成对账() async throws {
+        let active = CollectJob.fixture(id: 12, status: "running")
+        let repository = 模拟采集仓库(
+            pagesByOffset: [
+                0: CollectJobPage(
+                    jobs: [.fixture(id: 11, status: "completed"), active],
+                    total: 3,
+                    hasMore: true
+                ),
+                30: CollectJobPage(
+                    jobs: [.fixture(id: 13, status: "completed")],
+                    total: 3,
+                    hasMore: false
+                ),
+            ],
+            clearedCount: 2,
+            clearedFirstPage: CollectJobPage(
+                jobs: [active],
+                total: 1,
+                hasMore: false
+            )
+        )
+        let model = CollectModel(repository: repository, userID: 9)
+        await model.refreshJobs()
+        await repository.holdNextClear()
+
+        let clearing = Task {
+            await model.clearFinished()
+        }
+        await repository.waitForClearRequest()
+        #expect(model.isClearingFinishedJobs)
+
+        await model.loadMoreJobs()
+
+        #expect(!model.isLoadingMoreJobs)
+        #expect(model.jobs.map(\.id) == [11, 12])
+        #expect(await repository.jobsRequestCount == 1)
+        #expect(await repository.requestedOffsets == [0])
+
+        await repository.resumeClear(with: .success(2))
+        await clearing.value
+
+        #expect(model.jobs.map(\.id) == [12])
+        #expect(model.total == 1)
+        #expect(!model.hasMore)
+        #expect(!model.isClearingFinishedJobs)
+        #expect(!model.isLoadingMoreJobs)
+        #expect(!model.isRefreshingJobs)
+        #expect(await repository.clearFinishedCount == 1)
+        #expect(await repository.jobsRequestCount == 2)
+        #expect(await repository.requestedOffsets == [0, 0])
+    }
+
+    @Test func 清理进行中时刷新保持互斥并完成对账() async throws {
+        let active = CollectJob.fixture(id: 12, status: "running")
+        let repository = 模拟采集仓库(
+            page: CollectJobPage(
+                jobs: [.fixture(id: 11, status: "completed"), active],
+                total: 3,
+                hasMore: true
+            ),
+            clearedCount: 2,
+            clearedFirstPage: CollectJobPage(
+                jobs: [active],
+                total: 1,
+                hasMore: false
+            )
+        )
+        let model = CollectModel(repository: repository, userID: 9)
+        await model.refreshJobs()
+        await repository.holdNextClear()
+
+        let clearing = Task {
+            await model.clearFinished()
+        }
+        await repository.waitForClearRequest()
+        #expect(model.isClearingFinishedJobs)
+
+        await model.refreshJobs()
+
+        #expect(!model.isRefreshingJobs)
+        #expect(model.jobs.map(\.id) == [11, 12])
+        #expect(await repository.jobsRequestCount == 1)
+
+        await repository.resumeClear(with: .success(2))
+        await clearing.value
+
+        #expect(model.jobs.map(\.id) == [12])
+        #expect(model.total == 1)
+        #expect(!model.hasMore)
+        #expect(!model.isClearingFinishedJobs)
+        #expect(!model.isRefreshingJobs)
+        #expect(await repository.clearFinishedCount == 1)
+        #expect(await repository.jobsRequestCount == 2)
+        #expect(await repository.requestedOffsets == [0, 0])
+    }
 }
 
 private actor 模拟采集仓库: CollectServicing {
@@ -450,11 +651,13 @@ private actor 模拟采集仓库: CollectServicing {
     private let clearedFirstPage: CollectJobPage?
     private(set) var requestedOffsets: [Int] = []
     private var shouldHoldNextJobs = false
-    private var heldJobsContinuation: CheckedContinuation<CollectJobPage, Error>?
+    private var heldJobsRequests: [CheckedContinuation<CollectJobPage, Error>] = []
     private var shouldHoldNextJob = false
     private var heldJobContinuation: CheckedContinuation<CollectJob, Error>?
     private var pauseJobPollsAfterRequestCount: Int?
     private var pausedJobContinuation: CheckedContinuation<CollectJob, Error>?
+    private var shouldHoldNextClear = false
+    private var heldClearContinuation: CheckedContinuation<Int, Error>?
 
     private(set) var submitCount = 0
     private(set) var jobsRequestCount = 0
@@ -508,7 +711,7 @@ private actor 模拟采集仓库: CollectServicing {
                 self.page = page
             }
             return try await withCheckedThrowingContinuation { continuation in
-                heldJobsContinuation = continuation
+                heldJobsRequests.append(continuation)
             }
         }
         if let page = pagesByOffset[offset] {
@@ -556,6 +759,12 @@ private actor 模拟采集仓库: CollectServicing {
 
     func clearFinished() async throws -> Int {
         clearFinishedCount += 1
+        if shouldHoldNextClear {
+            shouldHoldNextClear = false
+            return try await withCheckedThrowingContinuation { continuation in
+                heldClearContinuation = continuation
+            }
+        }
         if let clearedFirstPage {
             pagesByOffset[0] = clearedFirstPage
             page = clearedFirstPage
@@ -576,14 +785,24 @@ private actor 模拟采集仓库: CollectServicing {
     }
 
     func waitForJobsRequest() async {
-        while heldJobsContinuation == nil {
+        while heldJobsRequests.isEmpty {
+            await Task.yield()
+        }
+    }
+
+    func waitForJobsRequest(_ count: Int) async {
+        while heldJobsRequests.count < count {
             await Task.yield()
         }
     }
 
     func resumeHeldJobs(with result: Result<CollectJobPage, Error>) {
-        guard let continuation = heldJobsContinuation else { return }
-        heldJobsContinuation = nil
+        resumeJobsRequest(at: 0, with: result)
+    }
+
+    func resumeJobsRequest(at index: Int, with result: Result<CollectJobPage, Error>) {
+        guard heldJobsRequests.indices.contains(index) else { return }
+        let continuation = heldJobsRequests.remove(at: index)
         continuation.resume(with: result)
     }
 
@@ -609,6 +828,26 @@ private actor 模拟采集仓库: CollectServicing {
         while submitCount < count {
             await Task.yield()
         }
+    }
+
+    func holdNextClear() {
+        shouldHoldNextClear = true
+    }
+
+    func waitForClearRequest() async {
+        while heldClearContinuation == nil {
+            await Task.yield()
+        }
+    }
+
+    func resumeClear(with result: Result<Int, Error>) {
+        guard let continuation = heldClearContinuation else { return }
+        heldClearContinuation = nil
+        if let clearedFirstPage {
+            pagesByOffset[0] = clearedFirstPage
+            page = clearedFirstPage
+        }
+        continuation.resume(with: result)
     }
 
     func resumePausedJobPoll(with result: Result<CollectJob, Error>) {
