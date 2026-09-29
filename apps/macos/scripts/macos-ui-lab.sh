@@ -41,9 +41,8 @@ xcodebuild \
   build
 
 app_path="${derived_data}/Build/Products/Debug/QiankunjieMac.app"
-binary_path="${app_path}/Contents/MacOS/QiankunjieMac"
 mkdir -p "${screenshot_dir}"
-open -n "${binary_path}" --args --ui-lab "${scenario}"
+open -n "${app_path}" --args --ui-lab "${scenario}"
 
 echo "UI Lab 场景已启动：${scenario}"
 echo "浅色截图路径：${screenshot_dir}/light.png"

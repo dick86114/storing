@@ -3,6 +3,13 @@ import QiankunjieCore
 import QiankunjieDesignSystem
 import SwiftUI
 
+/// 任务行的可用动作只由固定夹具状态推导，UI Lab 中的按钮不会访问真实仓储。
+struct UILabTaskActionAvailability: Equatable, Sendable {
+    let canOpenArticle: Bool
+    let canRetry: Bool
+    let canDelete: Bool
+}
+
 /// UI Lab 仅服务 Debug 视觉验收；Release 构建不包含这些类型和入口。
 enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
     case login
@@ -44,6 +51,14 @@ enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
 
     static func fromCommandLine(arguments: [String] = CommandLine.arguments) -> UILabScenario? {
         commandLineScenario(arguments: arguments)
+    }
+
+    static func taskActionAvailability(for job: CollectJob) -> UILabTaskActionAvailability {
+        UILabTaskActionAvailability(
+            canOpenArticle: job.status == "completed" && job.articleId != nil,
+            canRetry: job.status == "failed",
+            canDelete: job.isTerminal
+        )
     }
 }
 
@@ -213,7 +228,7 @@ struct UILabRootView: View {
 
             ScrollView {
                 VStack(spacing: 8) {
-                    CollectJobRow(job: UILabFixtures.collectJobs[0], onOpenArticle: nil, onRetry: nil, onDelete: nil)
+                    CollectJobRow(job: UILabFixtures.runningCollectJob, onOpenArticle: nil, onRetry: nil, onDelete: nil)
                 }
                 .padding(16)
             }
@@ -224,7 +239,14 @@ struct UILabRootView: View {
         ScrollView {
             LazyVStack(spacing: 8) {
                 ForEach(UILabFixtures.collectJobs, id: \.id) { job in
-                    CollectJobRow(job: job, onOpenArticle: nil, onRetry: nil, onDelete: nil)
+                    let availability = UILabScenario.taskActionAvailability(for: job)
+
+                    CollectJobRow(
+                        job: job,
+                        onOpenArticle: availability.canOpenArticle ? {} : nil,
+                        onRetry: availability.canRetry ? {} : nil,
+                        onDelete: availability.canDelete ? {} : nil
+                    )
                 }
             }
             .padding(16)

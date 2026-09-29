@@ -68,14 +68,28 @@ enum UILabFixtures {
     static let collectJobs: [CollectJob] = {
         let payload = """
         [
-          {"id":7001,"url":"https://example.com/collect-running","normalized_url":"https://example.com/collect-running","status":"running","stage":"正在提取正文","article_id":null,"title":"运行中的固定采集任务"},
-          {"id":7002,"url":"https://example.com/collect-complete","normalized_url":"https://example.com/collect-complete","status":"completed","stage":"finished","article_id":1001,"title":"已完成的固定采集任务"},
-          {"id":7003,"url":"https://example.com/collect-failed","normalized_url":"https://example.com/collect-failed","status":"failed","stage":"failed","article_id":null,"title":"失败的固定采集任务","error":"fixture timeout","error_summary":"内容提取超时","error_hint":"重试时使用同一个固定夹具"}
+          {"id":7000,"url":"https://example.com/collect-queued","normalized_url":"https://example.com/collect-queued","status":"pending","stage":"排队等待抓取","article_id":null,"title":"排队中的固定采集任务","error_details":[]},
+          {"id":7001,"url":"https://example.com/collect-running","normalized_url":"https://example.com/collect-running","status":"running","stage":"正在提取正文","article_id":null,"title":"运行中的固定采集任务","error_details":[]},
+          {"id":7002,"url":"https://example.com/collect-complete","normalized_url":"https://example.com/collect-complete","status":"completed","stage":"finished","article_id":1001,"title":"已完成的固定采集任务","error_details":[]},
+          {"id":7003,"url":"https://example.com/collect-failed","normalized_url":"https://example.com/collect-failed","status":"failed","stage":"failed","article_id":null,"title":"失败的固定采集任务","error":"fixture timeout","error_summary":"内容提取超时","error_details":["fixture timeout"],"error_hint":"重试时使用同一个固定夹具"}
         ]
         """
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return (try? decoder.decode([CollectJob].self, from: Data(payload.utf8))) ?? []
+        do {
+            let jobs = try decoder.decode([CollectJob].self, from: Data(payload.utf8))
+            precondition(!jobs.isEmpty, "UI Lab 采集任务夹具不能为空")
+            return jobs
+        } catch {
+            fatalError("UI Lab 采集任务夹具解码失败：\(error)")
+        }
     }()
+
+    static var runningCollectJob: CollectJob {
+        guard let job = collectJobs.first(where: { $0.status == "running" }) else {
+            fatalError("UI Lab 采集任务夹具缺少运行中任务")
+        }
+        return job
+    }
 }
 #endif
