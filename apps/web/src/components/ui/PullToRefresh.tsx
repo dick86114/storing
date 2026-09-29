@@ -17,7 +17,8 @@ const MAX_DISTANCE = 118;
 
 function getMainScrollTop() {
   const main = document.querySelector('main');
-  return Math.max(main?.scrollTop ?? 0, window.scrollY);
+  const listScroller = document.querySelector('[data-scroll-container="list"]');
+  return Math.max(main?.scrollTop ?? 0, listScroller?.scrollTop ?? 0, window.scrollY);
 }
 
 export function PullToRefresh({ children, onRefresh, disabled = false, className }: PullToRefreshProps) {

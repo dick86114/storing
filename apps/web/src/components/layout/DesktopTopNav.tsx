@@ -3,23 +3,17 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, PlusCircleOutlined, AppstoreOutlined, HeartOutlined, FolderOutlined, ExportOutlined, SunOutlined, MoonOutlined, DesktopOutlined, CloudUploadOutlined, SettingOutlined, MoreOutlined } from '@ant-design/icons';
+import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, PlusCircleOutlined, HeartOutlined, FolderOutlined, SunOutlined, MoonOutlined, DesktopOutlined, CloudUploadOutlined, SettingOutlined, MoreOutlined } from '@ant-design/icons';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { LoginModal } from '@/components/auth/LoginModal';
 import { ChangePasswordModal } from '@/components/auth/ChangePasswordModal';
 import { LogoutConfirmDialog } from '@/components/auth/LogoutConfirmDialog';
 import { ThemeStyleMenu } from '@/components/layout/ThemeStyleMenu';
+import { LayoutStyleMenu } from '@/components/layout/LayoutStyleMenu';
+import { NAV_ICONS } from '@/components/layout/navIcons';
 import { useToast } from '@/components/ui/Toast';
 import { APP_NAV_ITEMS, PRIMARY_NAV_KEYS, SECONDARY_NAV_KEYS, isSecondaryNavKey, type AppNavKey } from '@/lib/navigation';
-
-const NAV_ICONS = {
-  inbox: AppstoreOutlined,
-  favorites: HeartOutlined,
-  archive: FolderOutlined,
-  published: ExportOutlined,
-  collect: CloudUploadOutlined,
-} satisfies Record<AppNavKey, React.ComponentType<{ className?: string; style?: React.CSSProperties }>>;
 
 interface DesktopTopNavProps {
   onSearchOpen: () => void;
@@ -132,7 +126,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
   return (
     <>
       <header
-        className="app-top-nav desktop-top-nav"
+        className={`app-top-nav desktop-top-nav${menuOpen || navMoreOpen ? ' nav-dropdown-open' : ''}`}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -251,7 +245,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
         </div>
 
         {/* 右侧：采集操作 + 搜索 + 用户菜单 */}
-        <div className="desktop-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+        <div className="desktop-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, marginLeft: 'auto' }}>
           {isAuthenticated && (
             <button className="desktop-collect-trigger" onClick={() => navigateTo('collect')} type="button" aria-label="采集文章" title="采集文章">
               <CloudUploadOutlined />
@@ -362,6 +356,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
                   </div>
                   <div className="app-menu-divider" />
                   <ThemeStyleMenu onSelect={() => setMenuOpen(false)} />
+                  <LayoutStyleMenu onSelect={() => setMenuOpen(false)} />
                   <div className="app-menu-divider" />
                   <div className="app-menu-section-label">操作</div>
                   <div className="user-menu-option-grid user-menu-action-grid">

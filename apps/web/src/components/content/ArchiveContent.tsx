@@ -6,7 +6,10 @@ import { useSWRConfig } from 'swr';
 import { useToast } from '@/components/ui/Toast';
 import { useArticleContext, type ArticleListMutation } from '@/components/providers/ArticleContext';
 import { useAuth } from '@/components/providers/AuthContext';
+import { useTheme } from '@/components/providers/ThemeProvider';
+import { SideNavPortal } from '@/components/layout/SideNavSlot';
 import { ArticleList } from '@/components/article/ArticleList';
+import { ListToolbar } from '@/components/article/ListToolbar';
 import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type ArticleSortOption } from '@/components/article/ArticleSortControl';
 import { SourceSidebar } from '@/components/archive/SourceSidebar';
 import { SourcePills } from '@/components/archive/SourcePills';
@@ -14,6 +17,7 @@ import { CategoryNavigation } from '@/components/archive/CategoryNavigation';
 import { CategoryAssignmentDialog } from '@/components/article/WechatDetailPanel';
 import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { api, type ArchiveTag } from '@/lib/api';
+import { scrollListToTop, setListScrollTop } from '@/lib/listScroll';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
 import type { ArticleListItem } from '@storing/shared';
@@ -26,6 +30,8 @@ const ARCHIVE_SORT_OPTIONS: ArticleSortOption[] = [
 
 function ArchiveContentInner() {
   const { isAuthenticated } = useAuth();
+  const { layout } = useTheme();
+  const isListLayout = layout === 'list';
   const { showToast } = useToast();
   const { mutate: globalMutate } = useSWRConfig();
   const { openArticle, highlightId, setMutateFn } = useArticleContext();
@@ -116,7 +122,7 @@ function ArchiveContentInner() {
     setActiveSource(source);
     setPage(1);
     removingIdsRef.current.clear();
-    window.scrollTo(0, 0);
+    scrollListToTop();
   }, [activeSource]);
 
   const handleCategorySelect = useCallback((categoryId: number | null) => {
@@ -124,21 +130,21 @@ function ArchiveContentInner() {
     setActiveCategoryId(categoryId);
     setPage(1);
     removingIdsRef.current.clear();
-    window.scrollTo(0, 0);
+    scrollListToTop();
   }, [activeCategoryId]);
 
   const toggleTag = useCallback((tag: string) => {
     setActiveTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]);
     setPage(1);
     removingIdsRef.current.clear();
-    window.scrollTo(0, 0);
+    scrollListToTop();
   }, []);
 
   const clearTags = useCallback(() => {
     setActiveTags([]);
     setPage(1);
     removingIdsRef.current.clear();
-    window.scrollTo(0, 0);
+    scrollListToTop();
   }, []);
 
   const handleSortChange = useCallback((sort: string) => {
@@ -154,7 +160,7 @@ function ArchiveContentInner() {
     setArticleSort(sort);
     setPage(1);
     removingIdsRef.current.clear();
-    window.scrollTo(0, 0);
+    scrollListToTop();
   }, [articleSort]);
 
   const handleArticleSortOrderChange = useCallback((order: ArticleSortOrder) => {
@@ -162,7 +168,7 @@ function ArchiveContentInner() {
     setArticleSortOrder(order);
     setPage(1);
     removingIdsRef.current.clear();
-    window.scrollTo(0, 0);
+    scrollListToTop();
   }, [articleSortOrder]);
 
   const refreshList = useCallback(async (mutation?: ArticleListMutation) => {
@@ -188,10 +194,7 @@ function ArchiveContentInner() {
 
     // 先恢复列表滚动位置
     if (bookmarkPrompt.listScrollPosition) {
-      const mainElement = document.querySelector('main');
-      if (mainElement) {
-        mainElement.scrollTop = bookmarkPrompt.listScrollPosition;
-      }
+      setListScrollTop(bookmarkPrompt.listScrollPosition);
     }
 
     openArticle(bookmarkPrompt.articleId);
@@ -338,27 +341,31 @@ function ArchiveContentInner() {
     <div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>
   ) : (
     <>
-      <ArticleSortControl
-        options={ARCHIVE_SORT_OPTIONS}
-        value={articleSort}
-        order={articleSortOrder}
-        onChange={handleArticleSortChange}
-        onOrderChange={handleArticleSortOrderChange}
+      <ListToolbar
+        start={isAuthenticated ? (
+          <div className="archive-bulk-toolbar">
+            {bulkMode ? (
+              <>
+                <span>已选择 {selectedArticleIds.size} 篇</span>
+                <button type="button" onClick={() => setBulkCategoryPickerOpen(true)} disabled={selectedArticleIds.size === 0}>修改分类</button>
+                <button type="button" onClick={confirmBulkClassify} disabled={selectedArticleIds.size === 0 || bulkSaving}>重新判断分类</button>
+                <button type="button" onClick={exitBulkMode}>取消</button>
+              </>
+            ) : (
+              <button type="button" onClick={() => setBulkMode(true)}>批量整理</button>
+            )}
+          </div>
+        ) : null}
+        end={(
+          <ArticleSortControl
+            options={ARCHIVE_SORT_OPTIONS}
+            value={articleSort}
+            order={articleSortOrder}
+            onChange={handleArticleSortChange}
+            onOrderChange={handleArticleSortOrderChange}
+          />
+        )}
       />
-      {isAuthenticated && (
-        <div className="archive-bulk-toolbar">
-          {bulkMode ? (
-            <>
-              <span>已选择 {selectedArticleIds.size} 篇</span>
-              <button type="button" onClick={() => setBulkCategoryPickerOpen(true)} disabled={selectedArticleIds.size === 0}>修改分类</button>
-              <button type="button" onClick={confirmBulkClassify} disabled={selectedArticleIds.size === 0 || bulkSaving}>重新判断分类</button>
-              <button type="button" onClick={exitBulkMode}>取消</button>
-            </>
-          ) : (
-            <button type="button" onClick={() => setBulkMode(true)}>批量整理</button>
-          )}
-        </div>
-      )}
       <ArticleList
         articles={allArticles}
         hasMore={page < totalPages}
@@ -387,6 +394,35 @@ function ArchiveContentInner() {
     >
       {articleListContent}
     </PullToRefresh>
+  );
+
+  // 分类 / 来源 / 标签筛选：网格排版下是自己的左栏，列表排版下投递到全局左栏
+  const archiveNavigationPanelContent = (
+    <>
+      <div className="archive-navigation-tabs" role="tablist" aria-label="归档导航">
+        <button type="button" className={sidebarMode === 'categories' ? 'is-active' : ''} onClick={() => setSidebarMode('categories')} role="tab" aria-selected={sidebarMode === 'categories'}>分类</button>
+        <button type="button" className={sidebarMode === 'sources' ? 'is-active' : ''} onClick={() => setSidebarMode('sources')} role="tab" aria-selected={sidebarMode === 'sources'}>来源</button>
+      </div>
+      <button type="button" className={`archive-tag-filter-trigger archive-tag-filter-trigger--desktop${activeTags.length ? ' is-active' : ''}`} onClick={() => setTagFilterOpen(true)} aria-haspopup="dialog">
+        标签筛选{activeTags.length ? ` (${activeTags.length})` : ''}
+      </button>
+      {sidebarMode === 'categories' ? (
+        <CategoryNavigation categories={categories} activeCategoryId={activeCategoryId} counts={categoryCounts} totalCount={totalCount} onSelect={handleCategorySelect} />
+      ) : (
+        <SourceSidebar
+          sources={sources}
+          activeSource={activeSource}
+          totalCount={totalCount}
+          onSelect={handleSourceSelect}
+          currentSort={currentSort}
+          onSortChange={handleSortChange}
+          sortOrder={sortOrder}
+          onSortOrderChange={handleSortOrderChange}
+          collapsed={sourceSidebarCollapsed}
+          onToggleCollapsed={() => setSourceSidebarCollapsed((collapsed) => !collapsed)}
+        />
+      )}
+    </>
   );
 
   return (
@@ -507,38 +543,24 @@ function ArchiveContentInner() {
         </>
       )}
 
-      {!isMobile && (
+      {!isMobile && isListLayout && (
+        <SideNavPortal>
+          <div className="archive-navigation-panel archive-navigation-panel--slot">{archiveNavigationPanelContent}</div>
+        </SideNavPortal>
+      )}
+
+      {!isMobile && !isListLayout && (
         <div
           className={`archive-desktop-layout${sourceSidebarCollapsed ? ' archive-desktop-layout--source-collapsed' : ''}`}
           style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}
         >
-          <aside className="archive-navigation-panel">
-            <div className="archive-navigation-tabs" role="tablist" aria-label="归档导航">
-              <button type="button" className={sidebarMode === 'categories' ? 'is-active' : ''} onClick={() => setSidebarMode('categories')} role="tab" aria-selected={sidebarMode === 'categories'}>分类</button>
-              <button type="button" className={sidebarMode === 'sources' ? 'is-active' : ''} onClick={() => setSidebarMode('sources')} role="tab" aria-selected={sidebarMode === 'sources'}>来源</button>
-            </div>
-            <button type="button" className={`archive-tag-filter-trigger archive-tag-filter-trigger--desktop${activeTags.length ? ' is-active' : ''}`} onClick={() => setTagFilterOpen(true)} aria-haspopup="dialog">
-              标签筛选{activeTags.length ? ` (${activeTags.length})` : ''}
-            </button>
-            {sidebarMode === 'categories' ? (
-              <CategoryNavigation categories={categories} activeCategoryId={activeCategoryId} counts={categoryCounts} totalCount={totalCount} onSelect={handleCategorySelect} />
-            ) : (
-              <SourceSidebar
-                sources={sources}
-                activeSource={activeSource}
-                totalCount={totalCount}
-                onSelect={handleSourceSelect}
-                currentSort={currentSort}
-                onSortChange={handleSortChange}
-                sortOrder={sortOrder}
-                onSortOrderChange={handleSortOrderChange}
-                collapsed={sourceSidebarCollapsed}
-                onToggleCollapsed={() => setSourceSidebarCollapsed((collapsed) => !collapsed)}
-              />
-            )}
-          </aside>
+          <aside className="archive-navigation-panel">{archiveNavigationPanelContent}</aside>
           <div style={{ flex: 1, minWidth: 0 }}>{refreshableArticleListContent}</div>
         </div>
+      )}
+
+      {!isMobile && isListLayout && (
+        <div className="archive-list-column">{refreshableArticleListContent}</div>
       )}
 
       {isMobile && <div className="mobile-content-frame" style={{ padding: '8px 16px' }}>{refreshableArticleListContent}</div>}

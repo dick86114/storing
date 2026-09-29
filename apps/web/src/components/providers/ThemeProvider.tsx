@@ -4,6 +4,12 @@ import { createContext, useContext, useEffect, useState, useCallback, useMemo, t
 
 type ThemeMode = 'light' | 'dark' | 'system';
 export type ColorScheme = 'wechat' | 'glass' | 'aurora' | 'magazine' | 'xianxia';
+/** 排版维度：grid = 卡片网格（默认），list = 左栏导航 + 单列横向行 */
+export type LayoutMode = 'grid' | 'list';
+
+const COLOR_SCHEMES: readonly ColorScheme[] = ['wechat', 'glass', 'aurora', 'magazine', 'xianxia'];
+const LAYOUT_MODES: readonly LayoutMode[] = ['grid', 'list'];
+const LAYOUT_STORAGE_KEY = 'storing:layout';
 
 interface ThemeContextValue {
   theme: ThemeMode;
@@ -12,6 +18,8 @@ interface ThemeContextValue {
   toggle: () => void;
   colorScheme: ColorScheme;
   setColorScheme: (c: ColorScheme) => void;
+  layout: LayoutMode;
+  setLayout: (l: LayoutMode) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -35,22 +43,37 @@ function readInitialColorScheme(): ColorScheme {
   const sharedScheme = params.get('scheme') || params.get('style');
   const savedScheme = localStorage.getItem('colorScheme');
 
-  if (sharedScheme === 'wechat' || sharedScheme === 'glass' || sharedScheme === 'aurora' || sharedScheme === 'magazine' || sharedScheme === 'xianxia') return sharedScheme;
-  if (savedScheme === 'wechat' || savedScheme === 'glass' || savedScheme === 'aurora' || savedScheme === 'magazine' || savedScheme === 'xianxia') return savedScheme;
+  if (COLOR_SCHEMES.includes(sharedScheme as ColorScheme)) return sharedScheme as ColorScheme;
+  if (COLOR_SCHEMES.includes(savedScheme as ColorScheme)) return savedScheme as ColorScheme;
   return 'wechat';
+}
+
+function readInitialLayout(): LayoutMode {
+  if (typeof window === 'undefined') return 'grid';
+
+  const params = new URLSearchParams(window.location.search);
+  const sharedLayout = params.get('layout');
+  const savedLayout = localStorage.getItem(LAYOUT_STORAGE_KEY);
+
+  if (LAYOUT_MODES.includes(sharedLayout as LayoutMode)) return sharedLayout as LayoutMode;
+  if (LAYOUT_MODES.includes(savedLayout as LayoutMode)) return savedLayout as LayoutMode;
+  return 'grid';
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>(readInitialTheme);
   const [colorScheme, setColorSchemeState] = useState<ColorScheme>(readInitialColorScheme);
+  const [layout, setLayoutState] = useState<LayoutMode>(readInitialLayout);
   const [resolved, setResolved] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sharedTheme = params.get('theme') as ThemeMode | null;
     const sharedScheme = params.get('scheme') || params.get('style');
+    const sharedLayout = params.get('layout');
     const savedTheme = localStorage.getItem('theme') as ThemeMode | null;
     const savedScheme = localStorage.getItem('colorScheme');
+    const savedLayout = localStorage.getItem(LAYOUT_STORAGE_KEY);
 
     if (sharedTheme === 'light' || sharedTheme === 'dark' || sharedTheme === 'system') {
       setThemeState(sharedTheme);
@@ -59,15 +82,22 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       setThemeState(savedTheme);
     }
 
-    if (sharedScheme === 'wechat' || sharedScheme === 'glass' || sharedScheme === 'aurora' || sharedScheme === 'magazine' || sharedScheme === 'xianxia') {
-      setColorSchemeState(sharedScheme);
-      localStorage.setItem('colorScheme', sharedScheme);
-    } else if (savedScheme === 'wechat' || savedScheme === 'glass' || savedScheme === 'aurora' || savedScheme === 'magazine' || savedScheme === 'xianxia') {
-      setColorSchemeState(savedScheme);
+    if (COLOR_SCHEMES.includes(sharedScheme as ColorScheme)) {
+      setColorSchemeState(sharedScheme as ColorScheme);
+      localStorage.setItem('colorScheme', sharedScheme as string);
+    } else if (COLOR_SCHEMES.includes(savedScheme as ColorScheme)) {
+      setColorSchemeState(savedScheme as ColorScheme);
     } else if (savedScheme) {
       // 旧主题（default/spring/summer/autumn/winter 等）统一迁移到微信主题。
       setColorSchemeState('wechat');
       localStorage.setItem('colorScheme', 'wechat');
+    }
+
+    if (LAYOUT_MODES.includes(sharedLayout as LayoutMode)) {
+      setLayoutState(sharedLayout as LayoutMode);
+      localStorage.setItem(LAYOUT_STORAGE_KEY, sharedLayout as string);
+    } else if (LAYOUT_MODES.includes(savedLayout as LayoutMode)) {
+      setLayoutState(savedLayout as LayoutMode);
     }
   }, []);
 
@@ -76,15 +106,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const update = () => {
       const r = theme === 'system' ? (mq.matches ? 'dark' : 'light') : theme;
       setResolved(r);
-      // 同时设置 theme 和 colorScheme
+      // 同时设置 theme、colorScheme 和 layout
       document.documentElement.setAttribute('data-theme', r);
       document.documentElement.setAttribute('data-color-scheme', colorScheme);
+      document.documentElement.setAttribute('data-layout', layout);
       document.documentElement.style.colorScheme = r;
     };
     update();
     mq.addEventListener('change', update);
     return () => mq.removeEventListener('change', update);
-  }, [theme, colorScheme]);
+  }, [theme, colorScheme, layout]);
 
   const setTheme = useCallback((t: ThemeMode) => {
     setThemeState(t);
@@ -95,6 +126,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setColorSchemeState(c);
     localStorage.setItem('colorScheme', c);
     document.documentElement.setAttribute('data-color-scheme', c);
+  }, []);
+
+  const setLayout = useCallback((l: LayoutMode) => {
+    setLayoutState(l);
+    localStorage.setItem(LAYOUT_STORAGE_KEY, l);
+    document.documentElement.setAttribute('data-layout', l);
   }, []);
 
   const toggle = useCallback(() => {
@@ -110,7 +147,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     toggle,
     colorScheme,
     setColorScheme,
-  }), [theme, resolved, setTheme, toggle, colorScheme, setColorScheme]);
+    layout,
+    setLayout,
+  }), [theme, resolved, setTheme, toggle, colorScheme, setColorScheme, layout, setLayout]);
 
   return (
     <ThemeContext.Provider value={value}>

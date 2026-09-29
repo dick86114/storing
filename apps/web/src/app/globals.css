@@ -1364,8 +1364,8 @@ h4 {
   --bg: #ededed;
   --card-bg: #fff;
   --nav-bg: #f7f7f7;
-  --menu-bg: #4d4d4d;
-  --menu-text: #fff;
+  --menu-bg: #ffffff;
+  --menu-text: #1f1f1f;
   --surface: #fff;
   --surface-alt: #f5f5f5;
   --fg: #000;
@@ -1431,8 +1431,8 @@ h4 {
   --bg: oklch(96.8% 0.012 112);
   --card-bg: color-mix(in oklch, oklch(99% 0.005 120) 88%, transparent);
   --nav-bg: color-mix(in oklch, oklch(99% 0.006 120) 82%, transparent);
-  --menu-bg: color-mix(in oklch, oklch(25% 0.018 145) 82%, transparent);
-  --menu-text: oklch(97% 0.006 120);
+  --menu-bg: color-mix(in oklch, oklch(99% 0.006 120) 88%, transparent);
+  --menu-text: oklch(21% 0.018 145);
   --surface: oklch(99% 0.006 120);
   --surface-alt: oklch(94% 0.018 118);
   --fg: oklch(21% 0.018 145);
@@ -1597,8 +1597,8 @@ h4 {
   --bg: oklch(94.8% 0.018 88);
   --card-bg: oklch(98.4% 0.012 86);
   --nav-bg: color-mix(in oklch, oklch(98% 0.012 86) 92%, transparent);
-  --menu-bg: oklch(16% 0.022 34);
-  --menu-text: oklch(96% 0.012 86);
+  --menu-bg: oklch(99% 0.008 88);
+  --menu-text: oklch(18% 0.018 36);
   --surface: oklch(99% 0.008 88);
   --surface-alt: oklch(90.5% 0.018 83);
   --fg: oklch(18% 0.018 36);
@@ -5569,7 +5569,7 @@ body.detail-panel-open .bottom-tab-bar {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: #fff;
+  color: var(--menu-text);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -16217,3 +16217,456 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
 }
 .user-admin-delete-warning svg { flex: 0 0 auto; margin-top: 2px; }
 .user-admin-delete-modal .user-admin-modal-fields strong { color: var(--fg); }
+
+/* ==========================================================================
+   列表排版：html[data-layout='list']
+   左栏主导航 + 右栏单列横向行 + 右栏独立滚动 + 推挤式三列阅读态
+   只作用于桌面端（>= 810px）；网格排版（默认）不受影响。
+   ========================================================================== */
+
+/* 各风格顶栏在文档流里实际占用的高度 */
+:root {
+  --app-top-nav-h: 56px;
+  --app-side-nav-w: 244px;
+}
+[data-color-scheme='aurora'] { --app-top-nav-h: 76px; }
+[data-color-scheme='xianxia'] { --app-top-nav-h: 74px; }
+[data-color-scheme='magazine'] { --app-top-nav-h: 98px; }
+
+@media (min-width: 810px) {
+  /* ---------- 顶栏：主导航已移到左栏，隐藏顶部中间 tab ---------- */
+  [data-layout='list'] .desktop-top-nav .desktop-nav-tabs {
+    display: none !important;
+  }
+
+  /* 顶部中间 tab 隐藏后，杂志风格的 logo 块不再需要固定宽度和右分隔线 */
+  [data-layout='list'][data-color-scheme='magazine'] .desktop-top-nav .desktop-nav-brand {
+    flex: 0 0 auto;
+    width: auto;
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  /* ---------- 外壳：铺满视口，右栏独立滚动 ---------- */
+  [data-layout='list'] .desktop-workbench {
+    height: calc(100dvh - var(--app-top-nav-h));
+    min-height: 0 !important;
+    padding: 0 !important;
+    overflow: hidden;
+  }
+
+  /* magazine 的顶栏是 fixed 悬浮条，需要保留上方留白 */
+  [data-layout='list'][data-color-scheme='magazine'] .desktop-workbench {
+    height: 100dvh;
+    padding-top: var(--app-top-nav-h) !important;
+  }
+
+  [data-layout='list'][data-color-scheme] .desktop-main-shell--list {
+    height: 100%;
+    min-height: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    overflow: visible !important;
+  }
+
+  /* 杂志风格外壳底色是给它自己的深色侧栏用的，列表排版下改为透明 */
+  [data-layout='list'][data-color-scheme='magazine'] .desktop-main-shell--list {
+    background: transparent !important;
+  }
+
+  [data-layout='list'][data-color-scheme] .desktop-main-shell--list::before,
+  [data-layout='list'][data-color-scheme] .desktop-main-shell--list::after,
+  [data-layout='list'][data-color-scheme] .desktop-shell-grid::before,
+  [data-layout='list'][data-color-scheme] .desktop-shell-grid::after {
+    content: none !important;
+    display: none !important;
+    background: none !important;
+  }
+
+  [data-layout='list'][data-color-scheme] .desktop-shell-grid {
+    display: grid;
+    grid-template-columns: var(--app-side-nav-w) minmax(0, 1fr);
+    height: 100%;
+    min-height: 0;
+    /* 推挤式三列：面板打开时在右侧预留出面板宽度（!important 覆盖杂志风格的 padding: 0） */
+    padding-right: var(--detail-panel-current-width, 0px) !important;
+    transition: padding-right 0.28s cubic-bezier(0.4, 0, 0.2, 1), grid-template-columns 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* ---------- 左栏：主导航 ---------- */
+  [data-layout='list'] .app-side-nav {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    height: 100%;
+    border-right: 1px solid var(--divider);
+    background: color-mix(in oklch, var(--surface) 46%, transparent);
+  }
+
+  [data-layout='list'] .app-side-nav-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 14px 10px 22px;
+  }
+
+  [data-layout='list'] .app-side-nav-group {
+    display: grid;
+    gap: 2px;
+  }
+
+  [data-layout='list'] .app-side-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+    padding: 9px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 13.5px;
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition);
+  }
+
+  [data-layout='list'] .app-side-nav-item:hover {
+    color: var(--text);
+    background: var(--tag-bg);
+  }
+
+  [data-layout='list'] .app-side-nav-item.is-active {
+    color: var(--accent);
+    font-weight: 600;
+    background: var(--accent-soft);
+  }
+
+  [data-layout='list'] .app-side-nav-icon {
+    flex: 0 0 auto;
+    font-size: 16px;
+  }
+
+  [data-layout='list'] .app-side-nav-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  [data-layout='list'] .app-side-nav-count {
+    flex: 0 0 auto;
+    padding: 1px 7px;
+    border-radius: 10px;
+    background: var(--tag-bg);
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+
+  [data-layout='list'] .app-side-nav-item.is-active .app-side-nav-count {
+    background: color-mix(in oklch, var(--accent) 16%, transparent);
+    color: var(--accent);
+  }
+
+  /* 页面注入的二级筛选（归档的分类 / 来源 / 标签） */
+  [data-layout='list'] .app-side-nav-slot:not(:empty) {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--divider);
+  }
+
+  [data-layout='list'] .archive-navigation-panel--slot {
+    position: static;
+    width: auto;
+    flex: none;
+  }
+
+  /* ---------- 右栏：文章列表（独立滚动） ---------- */
+  [data-layout='list'] .desktop-shell-content {
+    height: 100%;
+    min-width: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    padding: 18px 20px 0;
+    container-type: inline-size;
+    container-name: list-column;
+  }
+
+  [data-layout='list'] .desktop-shell-content .mobile-content-frame {
+    padding: 0 0 28px !important;
+  }
+
+  /* ---------- 推挤式三列阅读态 ---------- */
+  /* 顶栏与右上角操作区保持可见 */
+  [data-layout='list'] body.detail-panel-open .app-top-nav {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  /* 顶栏自身 z-index 1200 会形成层叠上下文，下拉打开时整体提到面板之上（仍需低于各类弹窗） */
+  [data-layout='list'] body.detail-panel-open .app-top-nav.nav-dropdown-open {
+    z-index: 2100 !important;
+  }
+
+  /* 面板贴齐视口右边、从顶栏下方开始；覆盖杂志/极光的悬浮内缩与固定宽度 */
+  [data-layout='list'] body.detail-panel-open .detail-panel.wechat-detail-panel:not(.mobile-detail-panel) {
+    top: var(--app-top-nav-h) !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: var(--detail-panel-current-width) !important;
+    max-width: none !important;
+    max-height: none !important;
+    height: calc(100dvh - var(--app-top-nav-h)) !important;
+    border-radius: 0 !important;
+  }
+
+  [data-layout='list'] body.detail-panel-open .detail-panel-resize-handle {
+    top: var(--app-top-nav-h) !important;
+    height: calc(100dvh - var(--app-top-nav-h)) !important;
+  }
+
+  /* 阅读时左栏自动折叠成图标条（64px），把宽度让给中栏列表 */
+  [data-layout='list'][data-color-scheme] body.detail-panel-open .desktop-shell-grid {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  [data-layout='list'] body.detail-panel-open .app-side-nav-label,
+  [data-layout='list'] body.detail-panel-open .app-side-nav-count,
+  [data-layout='list'] body.detail-panel-open .app-side-nav-slot {
+    display: none;
+  }
+
+  [data-layout='list'] body.detail-panel-open .app-side-nav-item {
+    justify-content: center;
+    padding: 10px 0;
+  }
+
+  [data-layout='list'] body.detail-panel-open .app-side-nav-scroll {
+    padding: 14px 8px 22px;
+  }
+}
+
+/* 推挤式三列里中栏被压窄时，横向行自动降级（容器查询，按内容盒宽度判定） */
+@container list-column (max-width: 380px) {
+  [data-layout='list'] .article-card--row .article-card-row-thumb {
+    display: none;
+  }
+
+  [data-layout='list'] .article-card--row .article-card-insight {
+    display: none;
+  }
+
+  [data-layout='list'] .article-card--row .article-card-row {
+    padding: 11px 13px;
+  }
+}
+
+@container list-column (max-width: 300px) {
+  [data-layout='list'] .article-card--row .article-card-tags {
+    display: none;
+  }
+}
+
+/* 单列横向行卡片：桌面与移动端共用（移动端选列表排版时同样生效） */
+/* ---------- 单列横向行卡片 ---------- */
+[data-layout='list'] .article-card--row {
+  border-radius: 10px !important;
+  box-shadow: var(--shadow-sm);
+}
+
+/* 覆盖配色给网格卡片设的最小高度与弹性布局（例如极光的 268px） */
+[data-layout='list'] .article-card--row,
+[data-layout='list'] .article-card--row > .article-card-inner {
+  display: block;
+  min-height: 0 !important;
+}
+
+[data-layout='list'] .article-card--row:hover {
+  transform: none;
+  border-color: color-mix(in oklch, var(--accent) 34%, var(--border));
+}
+
+[data-layout='list'] .article-card--row .article-card-inner {
+  padding: 0 !important;
+}
+
+[data-layout='list'] .article-card--row .article-card-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 14px;
+}
+
+[data-layout='list'] .article-card--row .article-card-row-thumb {
+  position: relative;
+  flex: 0 0 132px;
+  width: 132px;
+  height: 92px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--tag-bg);
+}
+
+[data-layout='list'] .article-card--row .article-card-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+[data-layout='list'] .article-card--row .article-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+[data-layout='list'] .article-card--row .article-card-title {
+  display: -webkit-box;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+[data-layout='list'] .article-card--row .article-card-insight {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+[data-layout='list'] .article-card--row .article-card-insight-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+[data-layout='list'] .article-card--row .article-card-insight-icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 13px;
+}
+
+[data-layout='list'] .article-card--row .article-card-tags {
+  margin-top: 7px;
+  margin-bottom: 0;
+}
+
+[data-layout='list'] .article-card--row .article-card-footer {
+  flex-wrap: nowrap;
+  margin-top: 8px;
+}
+
+[data-layout='list'] .article-card--row .article-card-category-line {
+  margin-bottom: 0;
+}
+
+/* ==========================================================================
+   列表顶部工具条：排序 + 页面级操作合并一行，并在滚动容器顶部吸附
+   网格排版与列表排版共用（吸附偏移按各风格顶栏高度 --app-top-nav-h 适配）
+   ========================================================================== */
+.list-toolbar {
+  position: sticky;
+  top: var(--app-top-nav-h, 56px);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  margin: 0 0 10px;
+  padding: 3px 0;
+  background: color-mix(in oklch, var(--bg) 93%, transparent);
+  backdrop-filter: blur(10px) saturate(1.05);
+  -webkit-backdrop-filter: blur(10px) saturate(1.05);
+}
+
+/* 列表排版下右栏本身就是滚动容器，其顶边已在顶栏下方，不需要再叠加顶栏高度。
+   同时把上留白从滚动容器挪到工具条自身：sticky 无法移出父容器顶部，
+   留白在容器上会让吸附位置下移一截（卡片会从缝隙里透出来）。 */
+[data-layout='list'] .desktop-shell-content:has(.list-toolbar) {
+  padding-top: 0;
+}
+
+[data-layout='list'] .list-toolbar {
+  top: 0;
+  padding-top: 18px;
+}
+
+.list-toolbar-start {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.list-toolbar-end {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 控件自身的行内边距在这里交给工具条统一处理 */
+.list-toolbar .article-sort-toolbar {
+  margin: 0;
+}
+
+.list-toolbar .archive-bulk-toolbar {
+  justify-content: flex-start;
+  min-height: 0;
+  margin: 0;
+}
+
+/* 中栏被压窄时工具条收敛：隐藏「排序」前缀并压缩控件宽度 */
+@container list-column (max-width: 380px) {
+  .list-toolbar {
+    gap: 8px;
+  }
+
+  .list-toolbar .article-sort-prefix {
+    display: none;
+  }
+
+  .list-toolbar .article-sort-trigger {
+    min-width: 116px;
+    padding: 0 9px 0 11px;
+  }
+}
+
+/* 弹层菜单内的正文统一跟随菜单前景色（浅色模式下菜单已是浅底） */
+.app-menu .detail-more-menu-item {
+  color: var(--menu-text);
+}
