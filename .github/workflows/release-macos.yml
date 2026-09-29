@@ -1,0 +1,172 @@
+name: Release macOS DMG
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "macOS 版本号，例如 1.2.3"
+        required: true
+        type: string
+      release_notes:
+        description: "更新说明，可输入多行"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build unsigned arm64 DMG
+    runs-on: macos-26
+    permissions:
+      contents: read
+    steps:
+      - name: Require master as selected workflow branch
+        if: ${{ github.ref_name != 'master' }}
+        run: |
+          echo "请从 master 分支运行 macOS 发布工作流；当前分支为 ${{ github.ref_name }}。" >&2
+          exit 1
+
+      - name: Validate version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "版本号必须是稳定的 X.Y.Z 格式，例如 1.2.3。" >&2
+            exit 1
+          }
+
+      - uses: actions/checkout@v5
+        with:
+          ref: master
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install pinned XcodeGen
+        run: |
+          XCODEGEN_DIR="$RUNNER_TEMP/xcodegen-2.46.0"
+          rm -rf "$XCODEGEN_DIR"
+          mkdir -p "$XCODEGEN_DIR"
+          curl --fail --location --retry 3 --silent \
+            --output "$RUNNER_TEMP/xcodegen.zip" \
+            "https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip"
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$XCODEGEN_DIR"
+          rm "$RUNNER_TEMP/xcodegen.zip"
+          echo "XCODEGEN_BIN=$XCODEGEN_DIR/xcodegen/bin/xcodegen" >> "$GITHUB_ENV"
+          "$XCODEGEN_DIR/xcodegen/bin/xcodegen" --version
+
+      - name: Verify Xcode 27 and macOS SDK
+        run: bash apps/macos/scripts/verify-xcode.sh
+
+      - name: Update project version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          python3 - "$VERSION" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          version = sys.argv[1]
+          path = Path("apps/macos/project.yml")
+          text = path.read_text(encoding="utf-8")
+          updated, count = re.subn(
+              r"(?m)^(\s*MARKETING_VERSION:\s*)[0-9]+\.[0-9]+\.[0-9]+$",
+              rf"\g<1>{version}",
+              text,
+          )
+          if count != 1:
+              raise SystemExit(f"project.yml 中 MARKETING_VERSION 数量异常：{count}")
+          path.write_text(updated, encoding="utf-8")
+          PY
+
+      - name: Build and verify DMG
+        env:
+          MACOS_VERSION: ${{ inputs.version }}
+          XCODEGEN_BIN: ${{ env.XCODEGEN_BIN }}
+        run: bash apps/macos/scripts/build-dmg.sh
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: macos-release
+          path: |
+            apps/macos/dist/*.dmg
+            apps/macos/dist/*.dmg.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish macos-v release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      VERSION: ${{ inputs.version }}
+      TAG: macos-v${{ inputs.version }}
+      NOTES: ${{ inputs.release_notes }}
+    steps:
+      - name: Validate release inputs
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "版本号必须是稳定的 X.Y.Z 格式，例如 1.2.3。" >&2
+            exit 1
+          }
+          test -n "$NOTES" || {
+            echo "更新说明不能为空。" >&2
+            exit 1
+          }
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: macos-release
+          path: macos-release
+
+      - name: Verify release assets
+        working-directory: macos-release
+        run: |
+          EXPECTED=(
+            "Qiankunjie.dmg"
+            "Qiankunjie-${VERSION}-arm64.dmg"
+            "Qiankunjie.dmg.sha256"
+            "Qiankunjie-${VERSION}-arm64.dmg.sha256"
+          )
+          for asset in "${EXPECTED[@]}"; do
+            test -f "$asset" || {
+              echo "缺少发布资产：$asset" >&2
+              exit 1
+            }
+          done
+          ACTUAL_COUNT=0
+          for asset in *.dmg *.sha256; do
+            ACTUAL_COUNT=$((ACTUAL_COUNT + 1))
+          done
+          (( ACTUAL_COUNT == 4 )) || {
+            echo "发布资产数量为 $ACTUAL_COUNT，预期为 4。" >&2
+            exit 1
+          }
+          sha256sum -c ./*.sha256
+
+      - name: Create release
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG 已存在。" >&2
+            exit 1
+          fi
+          printf '%s\n' "$NOTES" > "$RUNNER_TEMP/release-notes.md"
+          gh release create "$TAG" \
+            "Qiankunjie.dmg" \
+            "Qiankunjie-${VERSION}-arm64.dmg" \
+            "Qiankunjie.dmg.sha256" \
+            "Qiankunjie-${VERSION}-arm64.dmg.sha256" \
+            --target "$GITHUB_SHA" \
+            --title "乾坤戒 macOS v${VERSION}" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            --latest
