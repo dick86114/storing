@@ -11,6 +11,7 @@ import { LoginModal } from '@/components/auth/LoginModal';
 import { ChangePasswordModal } from '@/components/auth/ChangePasswordModal';
 import { LogoutConfirmDialog } from '@/components/auth/LogoutConfirmDialog';
 import { ThemeStyleMenu } from '@/components/layout/ThemeStyleMenu';
+import { LayoutStyleMenu } from '@/components/layout/LayoutStyleMenu';
 import { useToast } from '@/components/ui/Toast';
 import { APP_NAV_ITEMS, type AppNavKey } from '@/lib/navigation';
 
@@ -249,6 +250,7 @@ export function MobileTopNav({ onAddClick, onNavigate }: MobileTopNavProps) {
 
                 <div className="app-menu-divider" />
                 <ThemeStyleMenu onSelect={() => setMenuOpen(false)} />
+                <LayoutStyleMenu onSelect={() => setMenuOpen(false)} />
                 <div className="app-menu-divider" />
                 <div className="app-menu-section-label">操作</div>
 

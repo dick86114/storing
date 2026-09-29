@@ -7,9 +7,11 @@ import { useToast } from '@/components/ui/Toast';
 import { useArticleContext, type ArticleListMutation } from '@/components/providers/ArticleContext';
 import { useAuth } from '@/components/providers/AuthContext';
 import { ArticleList } from '@/components/article/ArticleList';
+import { ListToolbar } from '@/components/article/ListToolbar';
 import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type ArticleSortOption } from '@/components/article/ArticleSortControl';
 import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { api } from '@/lib/api';
+import { scrollListToTop, setListScrollTop } from '@/lib/listScroll';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
 import { CategoryAssignmentDialog } from '@/components/article/WechatDetailPanel';
@@ -54,10 +56,7 @@ function InboxContentInner() {
 
     // 先恢复列表滚动位置
     if (bookmarkPrompt.listScrollPosition) {
-      const mainElement = document.querySelector('main');
-      if (mainElement) {
-        mainElement.scrollTop = bookmarkPrompt.listScrollPosition;
-      }
+      setListScrollTop(bookmarkPrompt.listScrollPosition);
     }
 
     openArticle(bookmarkPrompt.articleId);
@@ -134,7 +133,7 @@ function InboxContentInner() {
     setArticleSort(sort);
     setPage(1);
     removingIdsRef.current.clear();
-    window.scrollTo(0, 0);
+    scrollListToTop();
   }, [articleSort]);
 
   const handleSortOrderChange = useCallback((order: ArticleSortOrder) => {
@@ -142,7 +141,7 @@ function InboxContentInner() {
     setArticleSortOrder(order);
     setPage(1);
     removingIdsRef.current.clear();
-    window.scrollTo(0, 0);
+    scrollListToTop();
   }, [articleSortOrder]);
 
   useEffect(() => { setMutateFn(refreshList); }, [setMutateFn, refreshList]);
@@ -295,12 +294,16 @@ function InboxContentInner() {
           <div style={{ color: 'var(--text-muted)', padding: '48px 0', textAlign: 'center' }}>加载中...</div>
         ) : (
           <>
-            <ArticleSortControl
-              options={INBOX_SORT_OPTIONS}
-              value={articleSort}
-              order={articleSortOrder}
-              onChange={handleSortChange}
-              onOrderChange={handleSortOrderChange}
+            <ListToolbar
+              end={(
+                <ArticleSortControl
+                  options={INBOX_SORT_OPTIONS}
+                  value={articleSort}
+                  order={articleSortOrder}
+                  onChange={handleSortChange}
+                  onOrderChange={handleSortOrderChange}
+                />
+              )}
             />
             <ArticleList
               articles={allArticles}

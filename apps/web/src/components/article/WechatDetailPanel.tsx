@@ -19,6 +19,9 @@ import type { ArticleListMutation } from '@/components/providers/ArticleContext'
 
 const DETAIL_PANEL_DEFAULT_WIDTH = 750;
 const DETAIL_PANEL_MIN_WIDTH = 560;
+/** 列表排版（推挤式三列）下面板可以更窄：折叠左栏 64 + 列表最小宽 420 + 边距 40 */
+const DETAIL_PANEL_MIN_WIDTH_PUSH = 480;
+const DETAIL_PUSH_RESERVED_WIDTH = 64 + 420 + 40;
 const DETAIL_PANEL_WIDTH_STORAGE_KEY = 'storing:detail-panel-width';
 
 interface WechatDetailPanelProps {
@@ -541,6 +544,9 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   const { showToast } = useToast();
   const { isAuthenticated } = useAuth();
   const { saveBookmark } = useBookmark();
+  const { layout } = useTheme();
+  // 列表排版为推挤式三列：去掉遮罩、保留顶栏、内容区预留右侧空间
+  const isPushMode = isDesktop === true && layout === 'list';
 
   // 滚动位置追踪
   const scrollPositionRef = useRef(0);
@@ -560,6 +566,12 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   );
   const cachedArticle = useMemo(() => findCachedArticleListItem(cache, articleId), [cache, articleId]);
   const fallbackArticle = articleMeta || cachedArticle;
+
+  // 列表排版下左栏会自动折叠成图标条，这里按「折叠左栏 + 列表最小宽 + 边距」夹取面板宽度
+  const detailPanelMinWidth = isPushMode ? DETAIL_PANEL_MIN_WIDTH_PUSH : DETAIL_PANEL_MIN_WIDTH;
+  const getDetailPanelMaxWidth = useCallback(() => (isPushMode
+    ? Math.max(DETAIL_PANEL_MIN_WIDTH_PUSH, window.innerWidth - DETAIL_PUSH_RESERVED_WIDTH)
+    : Math.max(DETAIL_PANEL_MIN_WIDTH, window.innerWidth - 96)), [isPushMode]);
 
   // 监听滚动位置
   useEffect(() => {
@@ -666,22 +678,24 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
     if (typeof window === 'undefined' || !isDesktop) return;
 
     const savedWidth = Number(window.localStorage.getItem(DETAIL_PANEL_WIDTH_STORAGE_KEY));
-    const maxWidth = Math.max(DETAIL_PANEL_MIN_WIDTH, window.innerWidth - 96);
-    if (Number.isFinite(savedWidth) && savedWidth > 0) {
-      setDetailPanelWidth(Math.min(Math.max(savedWidth, DETAIL_PANEL_MIN_WIDTH), maxWidth));
-    }
-  }, [isDesktop]);
+    const maxWidth = getDetailPanelMaxWidth();
+    // 没有存过宽度时也要按当前排版夹取一次，否则推挤式三列里中栏会被压没
+    setDetailPanelWidth((current) => {
+      const base = Number.isFinite(savedWidth) && savedWidth > 0 ? savedWidth : current;
+      return Math.min(Math.max(base, detailPanelMinWidth), maxWidth);
+    });
+  }, [isDesktop, detailPanelMinWidth, getDetailPanelMaxWidth]);
 
   useEffect(() => {
     if (!isDesktop) return;
 
     const handleResize = () => {
-      setDetailPanelWidth((width) => Math.min(width, Math.max(DETAIL_PANEL_MIN_WIDTH, window.innerWidth - 96)));
+      setDetailPanelWidth((width) => Math.min(width, getDetailPanelMaxWidth()));
     };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [isDesktop]);
+  }, [isDesktop, getDetailPanelMaxWidth]);
 
   useEffect(() => {
     return () => cleanupResizeDragRef.current?.();
@@ -690,6 +704,28 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   const currentDetailPanelWidth = isDetailPanelFullscreen
     ? (typeof window === 'undefined' ? '100vw' : `${window.innerWidth}px`)
     : `${detailPanelWidth}px`;
+
+  // 推挤式三列：把面板宽度暴露到 body 上，让内容区预留出右侧空间
+  useEffect(() => {
+    if (!isPushMode || !articleId) return;
+    document.body.style.setProperty('--detail-panel-current-width', currentDetailPanelWidth);
+    return () => {
+      document.body.style.removeProperty('--detail-panel-current-width');
+    };
+  }, [isPushMode, articleId, currentDetailPanelWidth]);
+
+  // 推挤式三列没有可点的遮罩，用 Esc 关闭；弹窗/图集打开时让它们自己处理
+  useEffect(() => {
+    if (!isPushMode || !articleId) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (galleryIndex !== null) return;
+      if (document.querySelector('[aria-modal="true"], .image-gallery-lightbox')) return;
+      onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isPushMode, articleId, galleryIndex, onClose]);
 
   const handleResizePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (!isDesktop) return;
@@ -717,10 +753,10 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
       if (!state) return;
       if (moveEvent.pointerId !== state.pointerId) return;
 
-      const maxWidth = Math.max(DETAIL_PANEL_MIN_WIDTH, window.innerWidth - 96);
+      const maxWidth = getDetailPanelMaxWidth();
       const nextWidth = state.startWidth + (state.startX - moveEvent.clientX);
       if (isDetailPanelFullscreen) setIsDetailPanelFullscreen(false);
-      setDetailPanelWidth(Math.min(Math.max(nextWidth, DETAIL_PANEL_MIN_WIDTH), maxWidth));
+      setDetailPanelWidth(Math.min(Math.max(nextWidth, detailPanelMinWidth), maxWidth));
     };
 
     const finishResize = (finishEvent?: Event) => {
@@ -786,21 +822,23 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   if (isDesktop) {
     return (
       <>
-        {/* 遮罩层 */}
-        <div
-          className="detail-panel-overlay"
-          onClick={onClose}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: currentDetailPanelWidth,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.3)',
-            backdropFilter: 'blur(2px)',
-            zIndex: 1400,
-          }}
-        />
+        {/* 遮罩层：列表排版是推挤式三列，不加遮罩 */}
+        {!isPushMode && (
+          <div
+            className="detail-panel-overlay"
+            onClick={onClose}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: currentDetailPanelWidth,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.3)',
+              backdropFilter: 'blur(2px)',
+              zIndex: 1400,
+            }}
+          />
+        )}
         {/* 详情面板 */}
         <div
           ref={contentRef}

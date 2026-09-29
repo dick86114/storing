@@ -2,6 +2,8 @@
 
 import { useRef, useEffect } from 'react';
 import { WechatArticleCard } from '@/components/article/WechatArticleCard';
+import { useTheme } from '@/components/providers/ThemeProvider';
+import { useListScrollRoot } from '@/lib/listScroll';
 import type { ArticleListItem } from '@storing/shared';
 
 interface ArticleListProps {
@@ -29,7 +31,7 @@ export function ArticleList({
   emptyTitle = '暂无文章',
   onArticleClick,
   onToggleFavorite,
- onArchive,
+  onArchive,
  onPublish,
  showMenu = true,
   highlightId,
@@ -38,8 +40,11 @@ export function ArticleList({
   onSelectionChange,
 }: ArticleListProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const { layout } = useTheme();
+  const scrollRoot = useListScrollRoot();
+  const isListLayout = layout === 'list';
 
-  // IntersectionObserver 监听哨兵元素
+  // IntersectionObserver 监听哨兵元素（列表排版下以右栏滚动容器为 root）
   useEffect(() => {
     if (!hasMore || loadingMore) return;
     const sentinel = sentinelRef.current;
@@ -51,11 +56,11 @@ export function ArticleList({
           onLoadMore();
         }
       },
-      { rootMargin: '200px' }
+      { root: scrollRoot, rootMargin: '200px' }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, loadingMore, onLoadMore, articles.length]);
+  }, [hasMore, loadingMore, onLoadMore, articles.length, scrollRoot]);
 
   if (articles.length === 0 && !loadingMore) {
     return (
@@ -67,14 +72,16 @@ export function ArticleList({
 
   return (
     <>
-      {/* 响应式网格布局 */}
+      {/* 响应式网格布局 / 单列横向行布局 */}
       <div
-        className="article-grid article-stream"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-          gap: '16px',
-        }}
+        className={isListLayout ? 'article-list-rows' : 'article-grid article-stream'}
+        style={isListLayout
+          ? { display: 'flex', flexDirection: 'column', gap: '10px' }
+          : {
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+              gap: '16px',
+            }}
       >
         {articles.map((article, index) => (
           <WechatArticleCard
@@ -89,7 +96,8 @@ export function ArticleList({
             selected={selectedArticleIds.has(article.id)}
             onSelectionChange={onSelectionChange}
             highlight={highlightId === article.id}
-            featured={index === 0}
+            variant={isListLayout ? 'row' : 'grid'}
+            featured={!isListLayout && index === 0}
           />
         ))}
       </div>

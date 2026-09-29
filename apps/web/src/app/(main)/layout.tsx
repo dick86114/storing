@@ -5,12 +5,16 @@ import { usePathname } from 'next/navigation';
 import { MobileTopNav } from '@/components/layout/MobileTopNav';
 import { MobileBottomTab } from '@/components/layout/MobileBottomTab';
 import { DesktopTopNav } from '@/components/layout/DesktopTopNav';
+import { AppSideNav } from '@/components/layout/AppSideNav';
+import { SideNavSlotProvider } from '@/components/layout/SideNavSlot';
 import { SearchModal } from '@/components/search/SearchModal';
 import { WechatDetailPanel } from '@/components/article/WechatDetailPanel';
 import { ArticleProvider, useArticleContext } from '@/components/providers/ArticleContext';
 import { AuthProvider, useAuth } from '@/components/providers/AuthContext';
+import { useTheme } from '@/components/providers/ThemeProvider';
 import { useCounts } from '@/hooks/useCounts';
 import { useDoubleBackExit } from '@/hooks/useDoubleBackExit';
+import { ListScrollRootContext } from '@/lib/listScroll';
 import { InboxContent } from '@/components/content/InboxContent';
 import { FavoritesContent } from '@/components/content/FavoritesContent';
 import { ArchiveContent } from '@/components/content/ArchiveContent';
@@ -48,6 +52,7 @@ function MainContent({ children }: { children: ReactNode }) {
   const counts = useCounts();
   const { selectedId, closeArticle, mutateList } = useArticleContext();
   const { isLoading, isAuthenticated } = useAuth();
+  const { layout } = useTheme();
   const pathname = usePathname();
 
   useDoubleBackExit();
@@ -56,6 +61,11 @@ function MainContent({ children }: { children: ReactNode }) {
   const [pendingNavKey, setPendingNavKey] = useState<AppNavKey | null>(null);
   const isRouteSwitching = pendingNavKey !== null && pendingNavKey !== activeNavKey;
   const pendingTabLabel = pendingNavKey ? APP_NAV_ITEMS[pendingNavKey].label : '页面';
+
+  // 列表排版：桌面端左栏导航 + 右栏独立滚动容器
+  const isListLayout = layout === 'list';
+  const [sideNavSlotEl, setSideNavSlotEl] = useState<HTMLDivElement | null>(null);
+  const [listScrollEl, setListScrollEl] = useState<HTMLDivElement | null>(null);
 
   // 检测是否为移动端
   const [isMobile, setIsMobile] = useState(false);
@@ -128,10 +138,36 @@ function MainContent({ children }: { children: ReactNode }) {
       {!isMobile && (
         <>
           <DesktopTopNav onSearchOpen={() => setSearchOpen(true)} counts={counts} activeKey={activeNavKey} onNavigate={setPendingNavKey} />
-          <main className="app-main desktop-main desktop-workbench" style={{ minHeight: 'calc(100vh - 56px)', background: 'var(--bg)' }}>
-            <div className="desktop-main-shell" style={{ margin: '0 auto', padding: '0 24px' }}>
-              {isRouteSwitching ? <RouteSwitchLoading label={pendingTabLabel} /> : children}
-            </div>
+          <main
+            className={`app-main desktop-main desktop-workbench${isListLayout ? ' app-shell--list' : ''}`}
+            style={{ minHeight: 'calc(100vh - 56px)', background: 'var(--bg)' }}
+          >
+            {isListLayout ? (
+              <div
+                className="desktop-main-shell desktop-main-shell--list"
+                style={{ margin: 0, padding: 0, width: '100%', maxWidth: 'none' }}
+              >
+                <SideNavSlotProvider value={sideNavSlotEl}>
+                  <ListScrollRootContext.Provider value={listScrollEl}>
+                    <div className="desktop-shell-grid">
+                      <AppSideNav
+                        counts={counts}
+                        activeKey={activeNavKey}
+                        onNavigate={setPendingNavKey}
+                        slotRef={setSideNavSlotEl}
+                      />
+                      <div className="desktop-shell-content" ref={setListScrollEl} data-scroll-container="list">
+                        {isRouteSwitching ? <RouteSwitchLoading label={pendingTabLabel} /> : children}
+                      </div>
+                    </div>
+                  </ListScrollRootContext.Provider>
+                </SideNavSlotProvider>
+              </div>
+            ) : (
+              <div className="desktop-main-shell" style={{ margin: '0 auto', padding: '0 24px' }}>
+                {isRouteSwitching ? <RouteSwitchLoading label={pendingTabLabel} /> : children}
+              </div>
+            )}
           </main>
         </>
       )}

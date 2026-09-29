@@ -13,6 +13,9 @@ export const MOBILE_NAV_BREAKPOINT = 810;
 export const PRIMARY_NAV_KEYS = ['inbox', 'favorites', 'archive'] as const satisfies readonly AppNavKey[];
 export const SECONDARY_NAV_KEYS = ['published'] as const satisfies readonly AppNavKey[];
 
+/** 列表排版的左栏导航顺序（采集仍在右上角操作区）。 */
+export const SIDE_NAV_KEYS = ['inbox', 'favorites', 'archive', 'published'] as const satisfies readonly AppNavKey[];
+
 export function getAppNavKey(pathname: string): AppNavKey | null {
   const key = (Object.keys(APP_NAV_ITEMS) as AppNavKey[]).find(
     (candidate) => pathname === APP_NAV_ITEMS[candidate].href || pathname.startsWith(`${APP_NAV_ITEMS[candidate].href}/`),
