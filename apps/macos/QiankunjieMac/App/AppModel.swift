@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 import QiankunjieAuth
 import QiankunjieCollect
@@ -58,6 +59,7 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
 final class AppModel {
     let authModel: AuthModel
     let collectAPIClient: APIClient
+    let shortcutSettings: GlobalShortcutSettings
     private(set) var libraryModel: LibraryModel
     private(set) var collectModel: CollectModel
 
@@ -70,7 +72,8 @@ final class AppModel {
     init(
         authModel: AuthModel = AuthModel(repository: AuthRepository()),
         libraryModel: LibraryModel? = nil,
-        collectRepository: (any CollectServicing)? = nil
+        collectRepository: (any CollectServicing)? = nil,
+        shortcutDefaults: UserDefaults = .standard
     ) {
         self.authModel = authModel
         if let libraryModel {
@@ -85,6 +88,7 @@ final class AppModel {
         }
         let collectAPIClient = APIClient(tokenProvider: authModel.repository)
         self.collectAPIClient = collectAPIClient
+        self.shortcutSettings = GlobalShortcutSettings(defaults: shortcutDefaults)
         self.collectModel = CollectModel(
             repository: collectRepository ?? CollectRepository(
                 apiClient: collectAPIClient

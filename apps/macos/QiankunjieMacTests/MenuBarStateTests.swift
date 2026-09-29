@@ -57,6 +57,33 @@ struct MenuBarStateTests {
         #expect(hotKeys.registeredShortcuts == [.default])
     }
 
+    @Test func 切换快捷键会先注销旧组合再注册新组合() {
+        let collectModel = CollectModel(userID: 7)
+        let panel = QuickCollectPanelSpy(model: collectModel)
+        let hotKeys = HotKeyRegistrarSpy()
+        let lifecycle = ObserverCenterSpy()
+        let controller = MenuBarController(
+            model: collectModel,
+            panel: panel,
+            hotKeys: hotKeys,
+            observerCenter: lifecycle,
+            shortcut: .default
+        )
+
+        controller.start()
+        controller.updateShortcut(.default)
+        controller.updateShortcut(.shiftCommandS)
+
+        #expect(
+            hotKeys.events == [
+                .register(.default),
+                .unregister,
+                .register(.shiftCommandS),
+            ]
+        )
+        #expect(hotKeys.registeredShortcuts == [.shiftCommandS])
+    }
+
     @Test func 停止菜单栏会关闭面板并释放快捷键和观察者() {
         let collectModel = CollectModel(userID: 7)
         let panel = QuickCollectPanelSpy(model: collectModel)
@@ -110,7 +137,7 @@ struct MenuBarStateTests {
         #expect(!form.canSubmit)
     }
 
-    @Test func 终端任务通知只发送一次并按点击结果路由() async throws {
+    @Test func 终端任务通知只发送一次并按点击结果路由() async {
         let delivery = NotificationDeliverySpy()
         let routes = NotificationRouteSpy()
         let service = CollectNotificationService(
@@ -125,14 +152,14 @@ struct MenuBarStateTests {
         let existing = CollectJob.fixture(status: "completed")
         let finished = CollectJob.fixture(id: 12, status: "completed")
 
-        await service.prepareExistingJobs([existing])
+        service.prepareExistingJobs([existing])
         await service.synchronizeJobs([existing, finished])
         await service.synchronizeJobs([finished])
-        try await service.notify(job: CollectJob.fixture(status: "running"))
+        await service.notify(job: CollectJob.fixture(status: "running"))
 
         let requests = await delivery.requests
         #expect(requests.count == 1)
-        #expect(requests[0].identifier == "collect-job-12")
+        #expect(requests[0].identifier == "collect-job-12-completed")
         #expect(requests[0].title == "采集完成")
         #expect(requests[0].categoryIdentifier == "collect.completed")
         #expect(await delivery.authorizationCount == 1)
@@ -144,8 +171,111 @@ struct MenuBarStateTests {
         #expect(routes.taskListOpenCount == 1)
     }
 
+    @Test func 失败任务重试后完成会再次通知() async {
+        let delivery = NotificationDeliverySpy()
+        let service = CollectNotificationService(
+            delivery: delivery,
+            onOpenArticle: { _ in },
+            onOpenTaskList: {}
+        )
+        let retriedJob = CollectJob.fixture(id: 21, status: "failed")
+
+        await service.synchronizeJobs([retriedJob])
+        await service.synchronizeJobs([
+            CollectJob.fixture(id: 21, status: "pending")
+        ])
+        await service.synchronizeJobs([
+            CollectJob.fixture(id: 21, status: "running")
+        ])
+        await service.synchronizeJobs([
+            CollectJob.fixture(id: 21, status: "completed")
+        ])
+
+        let requests = await delivery.requests
+        #expect(requests.map(\.categoryIdentifier) == [
+            "collect.failed",
+            "collect.completed",
+        ])
+    }
+
+    @Test func 旧账号已送达通知不会打开当前账号内容() async {
+        let routes = NotificationRouteSpy()
+        let service = CollectNotificationService(
+            delivery: NotificationDeliverySpy(),
+            currentUserID: 7,
+            onOpenArticle: { _ in
+                routes.openedArticleIDs.append(88)
+            },
+            onOpenTaskList: {
+                routes.taskListOpenCount += 1
+            }
+        )
+
+        await service.handleNotificationActivation(
+            job: CollectJob.fixture(status: "completed"),
+            userID: 8
+        )
+        await service.handleNotificationActivation(
+            job: CollectJob.fixture(status: "failed"),
+            userID: 7
+        )
+
+        #expect(routes.openedArticleIDs.isEmpty)
+        #expect(routes.taskListOpenCount == 1)
+    }
+
+    @Test func 开始观察采集模型时立即记录当前账号() async {
+        let model = CollectModel(userID: 8)
+        let routes = NotificationRouteSpy()
+        let service = CollectNotificationService(
+            delivery: NotificationDeliverySpy(),
+            onOpenArticle: { _ in
+                routes.openedArticleIDs.append(88)
+            },
+            onOpenTaskList: {}
+        )
+
+        service.startObserving(model: model)
+        await service.handleNotificationActivation(
+            job: CollectJob.fixture(status: "completed"),
+            userID: 8
+        )
+        service.stopObserving()
+
+        #expect(routes.openedArticleIDs == [88])
+    }
+
+    @Test func 账号切换后立即点击旧通知不会路由() async {
+        let model = CollectModel(userID: 8)
+        let routes = NotificationRouteSpy()
+        let service = CollectNotificationService(
+            delivery: NotificationDeliverySpy(),
+            onOpenArticle: { _ in
+                routes.openedArticleIDs.append(88)
+            },
+            onOpenTaskList: {
+                routes.taskListOpenCount += 1
+            }
+        )
+
+        service.startObserving(model: model)
+        model.prepareUser(userID: 7)
+        await service.handleNotificationActivation(
+            job: CollectJob.fixture(status: "completed"),
+            userID: 8
+        )
+        service.stopObserving()
+
+        #expect(routes.openedArticleIDs.isEmpty)
+        #expect(routes.taskListOpenCount == 0)
+    }
+
     @Test func 关闭主窗口不会退出应用() {
-        #expect(!AppDelegate().applicationShouldTerminateAfterLastWindowClosed(nil))
+        #expect(
+            !AppDelegate().applicationShouldTerminateAfterLastWindowClosed(
+                NSApplication.shared
+            )
+        )
     }
 
     @Test func 应用前台仍展示采集通知() {
@@ -181,14 +311,22 @@ private final class QuickCollectPanelSpy: QuickCollectPresenting {
 }
 
 private final class HotKeyRegistrarSpy: HotKeyRegistering {
+    enum Event: Equatable {
+        case register(GlobalShortcut)
+        case unregister
+    }
+
     private(set) var registeredShortcuts: [GlobalShortcut] = []
+    private(set) var events: [Event] = []
 
     func register(_ shortcut: GlobalShortcut) {
         registeredShortcuts.append(shortcut)
+        events.append(.register(shortcut))
     }
 
     func unregister() {
         registeredShortcuts.removeAll()
+        events.append(.unregister)
     }
 }
 
