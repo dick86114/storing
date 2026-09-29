@@ -122,6 +122,13 @@ let package = Package(
             path: "Tests/QiankunjieCollectTests"
         ),
         .testTarget(
+            name: "QiankunjieUpdatingTests",
+            dependencies: [
+                "QiankunjieUpdating",
+            ],
+            path: "Tests/QiankunjieUpdatingTests"
+        ),
+        .testTarget(
             name: "QiankunjieKitTests",
             dependencies: [
                 "QiankunjieCore",
