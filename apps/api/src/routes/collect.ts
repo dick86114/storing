@@ -152,6 +152,67 @@ collectRoutes.delete('/mobile/collect/jobs/:id', requireAuth, async (c) => {
   return c.json({ deleted: true });
 });
 
+/** macOS 原生客户端使用独立来源命名空间，任务仍复用共享采集队列。 */
+collectRoutes.post('/macos/collect', requireAuth, async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = collectSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: { code: 'BAD_REQUEST', message: parsed.error.errors[0]?.message || '参数错误' } }, 400);
+  }
+
+  try {
+    const user = getCurrentUser(c);
+    const job = await createCollectJob(parsed.data.url, { userId: user.id, requestSource: 'macos', saveToInbox: true });
+    return c.json({ job: serializeJob(job) }, 202);
+  } catch (error) {
+    console.error('Create macOS collect job failed:', error instanceof Error ? error.message : String(error));
+    return c.json({ error: { code: 'COLLECT_FAILED', message: '创建采集任务失败' } }, 400);
+  }
+});
+
+collectRoutes.get('/macos/collect/jobs', requireAuth, async (c) => {
+  const limit = Math.min(30, Math.max(1, Number(c.req.query('limit') || 12)));
+  const offset = Math.max(0, Number(c.req.query('offset') || 0));
+  const user = getCurrentUser(c);
+  const result = await listCollectJobs(limit, offset, { userId: user.id, requestSource: 'macos' });
+  return c.json({ jobs: result.jobs.map(serializeJob), total: result.total, hasMore: result.hasMore });
+});
+
+collectRoutes.get('/macos/collect/jobs/:id', requireAuth, async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: { code: 'BAD_REQUEST', message: '任务 ID 无效' } }, 400);
+  const user = getCurrentUser(c);
+  const job = await getCollectJob(id, { userId: user.id, requestSource: 'macos' });
+  if (!job) return c.json({ error: { code: 'NOT_FOUND', message: '任务不存在' } }, 404);
+  return c.json({ job: serializeJob(job) });
+});
+
+collectRoutes.post('/macos/collect/jobs/:id/retry', requireAuth, async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: { code: 'BAD_REQUEST', message: '任务 ID 无效' } }, 400);
+  const user = getCurrentUser(c);
+  const job = await getCollectJob(id, { userId: user.id, requestSource: 'macos' });
+  if (!job) return c.json({ error: { code: 'NOT_FOUND', message: '任务不存在' } }, 404);
+  if (job.status === 'running') return c.json({ job: serializeJob(job) });
+  await retryCollectJob(id);
+  return c.json({ job: serializeJob({ ...job, status: 'pending', stage: 'queued', error: null }) });
+});
+
+collectRoutes.delete('/macos/collect/jobs', requireAuth, async (c) => {
+  const user = getCurrentUser(c);
+  return c.json(await clearFinishedCollectJobs({ userId: user.id, requestSource: 'macos' }));
+});
+
+collectRoutes.delete('/macos/collect/jobs/:id', requireAuth, async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: { code: 'BAD_REQUEST', message: '任务 ID 无效' } }, 400);
+  const user = getCurrentUser(c);
+  const result = await deleteCollectJob(id, { userId: user.id, requestSource: 'macos' });
+  if (!result.deleted && result.reason === 'not_found') return c.json({ error: { code: 'NOT_FOUND', message: '任务不存在' } }, 404);
+  if (!result.deleted && result.reason === 'running') return c.json({ error: { code: 'JOB_RUNNING', message: '运行中的采集任务暂不能删除' } }, 409);
+  return c.json({ deleted: true });
+});
+
 collectRoutes.post('/collect', requireAuth, async (c) => {
   const body = await c.req.json().catch(() => null);
   const parsed = collectSchema.safeParse(body);

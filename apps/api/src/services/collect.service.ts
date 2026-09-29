@@ -39,8 +39,8 @@ const COLLECT_TABLE_SQL = `
 
 type CollectJobStatus = 'pending' | 'running' | 'completed' | 'failed';
 type CollectMethod = 'reader' | 'singlefile';
-type CollectRequestSource = 'web' | 'android' | 'android_share' | 'browser_extension' | 'mcp' | 'api' | 'system';
-const FIRST_PARTY_COLLECT_SOURCES: CollectRequestSource[] = ['web', 'android', 'android_share', 'browser_extension'];
+type CollectRequestSource = 'web' | 'android' | 'android_share' | 'browser_extension' | 'macos' | 'mcp' | 'api' | 'system';
+const FIRST_PARTY_COLLECT_SOURCES: CollectRequestSource[] = ['web', 'android', 'android_share', 'browser_extension', 'macos'];
 
 // Web collection historically enters Archive. MCP and native Android collection are
 // explicit inbox saves, so they must not be auto-archived after capture completes.
@@ -794,7 +794,7 @@ async function runNextWebCollectJob() {
     .select()
     .from(collectJobs)
     .where(and(
-      inArray(collectJobs.requestSource, ['web', 'android', 'android_share', 'browser_extension']),
+      inArray(collectJobs.requestSource, ['web', 'android', 'android_share', 'browser_extension', 'macos']),
       eq(collectJobs.status, 'pending'),
       eq(collectJobs.ownerDeleted, false),
     ))
@@ -853,7 +853,7 @@ export async function resumePendingCollectJobs() {
     .update(collectJobs)
     .set({ status: 'pending', stage: 'queued', startedAt: null, updatedAt: new Date() })
     .where(and(
-      inArray(collectJobs.requestSource, ['web', 'android', 'android_share', 'browser_extension', 'mcp']),
+      inArray(collectJobs.requestSource, ['web', 'android', 'android_share', 'browser_extension', 'macos', 'mcp']),
       eq(collectJobs.status, 'running'),
       eq(collectJobs.ownerDeleted, false),
     ));
