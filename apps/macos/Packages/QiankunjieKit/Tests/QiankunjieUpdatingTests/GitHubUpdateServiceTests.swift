@@ -143,7 +143,7 @@ extension AppRelease {
     #expect(release?.version == "1.3.0")
 }
 
-@Test func atomIDsAndTitlesRejectPrereleaseTagsAndAcceptOnlyStableTags() async throws {
+@Test func atomStableIDsAreAcceptedAndPrereleaseIDsRejected() async throws {
     let atom = """
     <feed xmlns="http://www.w3.org/2005/Atom">
       <entry>
@@ -151,6 +151,27 @@ extension AppRelease {
         <title>乾坤戒 macos-v1.4.0-rc.1</title>
         <content type="html">&lt;code&gt;rc.dmg&lt;/code&gt;</content>
       </entry>
+      <entry>
+        <id>tag:github.com,2008:Repository/1/macos-v1.3.0</id>
+        <title>乾坤戒 1.3.0</title>
+        <content type="html">&lt;code&gt;Qiankunjie-1.3.0-arm64.dmg&lt;/code&gt;</content>
+      </entry>
+    </feed>
+    """
+    let network = MockUpdateNetwork([
+        .data(statusCode: 403, body: Data("{}".utf8)),
+        .data(statusCode: 200, body: Data(atom.utf8)),
+    ])
+    let service = GitHubUpdateService.fixture(currentVersion: "1.2.0", network: network)
+
+    let release = try await service.checkForUpdate()
+
+    #expect(release?.version == "1.3.0")
+}
+
+@Test func atomTagMustBeInIDEvenWhenTitleLooksEligible() async throws {
+    let atom = """
+    <feed xmlns="http://www.w3.org/2005/Atom">
       <entry>
         <id>tag:github.com,2008:Repository/1/release-unknown</id>
         <title>乾坤戒 macos-v1.3.0</title>
@@ -166,7 +187,7 @@ extension AppRelease {
 
     let release = try await service.checkForUpdate()
 
-    #expect(release?.version == "1.3.0")
+    #expect(release == nil)
 }
 
 @Test func downloadResumesWithRangeAndRetriesAfterTimeout() async throws {

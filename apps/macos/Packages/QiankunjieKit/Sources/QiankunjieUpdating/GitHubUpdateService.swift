@@ -171,7 +171,7 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading {
         let entries = AtomFeedParser().parse(response.data)
         let releases = entries.compactMap { entry -> AppRelease? in
             guard
-                let tag = Self.tagName(inAtomEntryID: entry.id, title: entry.title),
+                let tag = Self.tagName(inAtomID: entry.id),
                 let version = Self.version(fromTag: tag),
                 let assetName = Self.dmgName(inText: entry.content)
             else {
@@ -346,15 +346,8 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading {
         return "\(match.1).\(match.2).\(match.3)"
     }
 
-    private static func tagName(inAtomEntryID id: String, title: String) -> String? {
-        [id, title]
-            .lazy
-            .compactMap { Self.stableTagName(inText: $0) }
-            .first
-    }
-
-    private static func stableTagName(inText text: String) -> String? {
-        text
+    private static func tagName(inAtomID id: String) -> String? {
+        id
             .split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "." && $0 != "-" && $0 != "_" })
             .first { $0.firstMatch(of: /^macos-v([0-9]+)\.([0-9]+)\.([0-9]+)$/) != nil }
             .map(String.init)
