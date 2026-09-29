@@ -5,8 +5,7 @@ import QiankunjieNetworking
 
 public protocol ReaderNetworkClient: Sendable {
     func articleDetail(
-        articleID: Int,
-        htmlVariant: String
+        _ selection: ReaderSelection
     ) async throws -> ArticleDetail
     func toggleFavorite(articleID: Int) async throws -> ReaderFavoriteResult
     func archive(articleID: Int) async throws -> ReaderArchiveResult
@@ -16,6 +15,29 @@ public protocol ReaderNetworkClient: Sendable {
     func refetch(articleID: Int) async throws -> ReaderRefetchResult
     func regenerateAI(articleID: Int) async throws -> ReaderAIResult
     func delete(articleID: Int) async throws -> ReaderDeleteResult
+}
+
+/// 列表选择同时保留内部 ID 和公开令牌，避免游客公开阅读丢失路由。
+public struct ReaderSelection: Hashable, Sendable {
+    public let articleID: Int
+    public let publicID: String?
+    public let isGuest: Bool
+
+    public init(
+        articleID: Int,
+        publicID: String?,
+        isGuest: Bool
+    ) {
+        let normalizedPublicID = publicID?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        self.articleID = articleID
+        self.publicID = normalizedPublicID?.isEmpty == false ? normalizedPublicID : nil
+        self.isGuest = isGuest
+    }
+}
+
+private struct ReaderPublicArticleEnvelope: Decodable {
+    let article: ArticleDetail
 }
 
 public struct ReaderFavoriteResult: Decodable, Sendable {
@@ -151,6 +173,7 @@ public struct ReaderArticle: Sendable {
 public final class ReaderModel {
     public private(set) var article: ReaderArticle?
     public private(set) var articleID: Int?
+    public private(set) var selection: ReaderSelection?
     public private(set) var isLoading = false
     public private(set) var isPerformingAction = false
     public private(set) var isDeleted = false
@@ -163,6 +186,7 @@ public final class ReaderModel {
     private let client: any ReaderNetworkClient
     private let positionStore: any ReaderPositionStoring
     private var requestGeneration = 0
+    private var actionGeneration = 0
 
     public init(
         client: any ReaderNetworkClient = APIClient(),
@@ -185,21 +209,38 @@ public final class ReaderModel {
         return ReaderHTMLDocument.fallback(for: article.detail)
     }
 
-    public func open(articleID: Int) async {
+    public func open(_ selection: ReaderSelection) async {
+        actionGeneration += 1
         requestGeneration += 1
-        let generation = requestGeneration
-        self.articleID = articleID
+        await load(selection, requestGeneration: requestGeneration)
+    }
+
+    public func open(articleID: Int) async {
+        await open(
+            ReaderSelection(
+                articleID: articleID,
+                publicID: nil,
+                isGuest: false
+            )
+        )
+    }
+
+    private func load(
+        _ selection: ReaderSelection,
+        requestGeneration generation: Int
+    ) async {
+        self.articleID = selection.articleID
+        self.selection = selection
         isDeleted = false
         isLoading = true
         errorMessage = nil
         actionErrorMessage = nil
-        savedReadingState = positionStore.readingState(articleID: articleID)
+        savedReadingState = positionStore.readingState(
+            articleID: selection.articleID
+        )
 
         do {
-            let detail = try await client.articleDetail(
-                articleID: articleID,
-                htmlVariant: "desktop"
-            )
+            let detail = try await client.articleDetail(selection)
             guard requestGeneration == generation else {
                 return
             }
@@ -219,8 +260,14 @@ public final class ReaderModel {
         }
     }
 
-    public func updateReadingState(_ state: Data) {
+    public func updateReadingState(
+        _ state: Data,
+        contentToken: String? = nil
+    ) {
         guard let articleID else {
+            return
+        }
+        guard contentToken == nil || contentToken == self.contentToken else {
             return
         }
 
@@ -229,58 +276,73 @@ public final class ReaderModel {
     }
 
     public func toggleFavorite() async {
-        await performAction { articleID in
+        await performAction { articleID, actionGeneration in
             let result = try await self.client.toggleFavorite(articleID: articleID)
+            guard self.isCurrentAction(actionGeneration) else {
+                return
+            }
             self.article?.isFavorited = result.isFavorited
         }
     }
 
     public func archive() async {
-        await performAction { articleID in
+        await performAction { articleID, actionGeneration in
             let result = try await self.client.archive(articleID: articleID)
+            guard self.isCurrentAction(actionGeneration) else {
+                return
+            }
             self.article?.isArchived = result.isArchived
         }
     }
 
     public func moveToInbox() async {
-        await performAction { articleID in
+        await performAction { articleID, actionGeneration in
             let result = try await self.client.unarchive(articleID: articleID)
+            guard self.isCurrentAction(actionGeneration) else {
+                return
+            }
             self.article?.isArchived = result.isArchived
         }
     }
 
     public func publish() async {
-        await performAction { articleID in
+        await performAction { articleID, actionGeneration in
             let result = try await self.client.publish(articleID: articleID)
+            guard self.isCurrentAction(actionGeneration) else {
+                return
+            }
             self.applyPublication(result, published: true)
         }
     }
 
     public func unpublish() async {
-        await performAction { articleID in
+        await performAction { articleID, actionGeneration in
             let result = try await self.client.unpublish(articleID: articleID)
+            guard self.isCurrentAction(actionGeneration) else {
+                return
+            }
             self.applyPublication(result, published: false)
         }
     }
 
     public func refetch() async {
-        await performAction { articleID in
+        await performAction { articleID, _ in
             _ = try await self.client.refetch(articleID: articleID)
-            await self.open(articleID: articleID)
+            await self.reloadCurrentArticle()
         }
     }
 
     public func regenerateAI() async {
-        await performAction { articleID in
+        await performAction { articleID, _ in
             _ = try await self.client.regenerateAI(articleID: articleID)
-            await self.open(articleID: articleID)
+            await self.reloadCurrentArticle()
         }
     }
 
     public func delete() async {
-        await performAction { articleID in
+        await performAction { articleID, actionGeneration in
             let result = try await self.client.delete(articleID: articleID)
-            if result.deleted {
+            if result.deleted, isCurrentAction(actionGeneration) {
                 self.isDeleted = true
                 self.positionStore.remove(articleID: articleID)
                 self.onDeleted?()
@@ -296,12 +358,15 @@ public final class ReaderModel {
     }
 
     private func performAction(
-        _ action: (Int) async throws -> Void
+        _ action: (Int, Int) async throws -> Void
     ) async {
-        guard let articleID, !isPerformingAction else {
+        guard let selection, !isPerformingAction else {
             return
         }
 
+        let articleID = selection.articleID
+        actionGeneration += 1
+        let generation = actionGeneration
         isPerformingAction = true
         actionErrorMessage = nil
         defer {
@@ -309,10 +374,26 @@ public final class ReaderModel {
         }
 
         do {
-            try await action(articleID)
+            try await action(articleID, generation)
         } catch {
+            guard isCurrentAction(generation) else {
+                return
+            }
             actionErrorMessage = Self.message(for: error)
         }
+    }
+
+    private func reloadCurrentArticle() async {
+        guard let selection else {
+            return
+        }
+
+        requestGeneration += 1
+        await load(selection, requestGeneration: requestGeneration)
+    }
+
+    private func isCurrentAction(_ generation: Int) -> Bool {
+        actionGeneration == generation
     }
 
     private static func message(for error: any Error) -> String {
@@ -437,15 +518,28 @@ enum ReaderHTMLDocument {
 
 extension APIClient: ReaderNetworkClient {
     public func articleDetail(
-        articleID: Int,
-        htmlVariant: String
+        _ selection: ReaderSelection
     ) async throws -> ArticleDetail {
-        try await send(
+        if
+            selection.isGuest,
+            let publicID = selection.publicID
+        {
+            let encodedPublicID = publicID.addingPercentEncoding(
+                withAllowedCharacters: .urlPathAllowed
+            ) ?? publicID
+            let publication: ReaderPublicArticleEnvelope = try await send(
+                .get("publications/\(encodedPublicID)"),
+                authenticated: false
+            )
+            return publication.article
+        }
+
+        return try await send(
             .get(
-                "articles/\(articleID)",
+                "articles/\(selection.articleID)",
                 queryItems: [
                     URLQueryItem(name: "format", value: "html"),
-                    URLQueryItem(name: "htmlVariant", value: htmlVariant),
+                    URLQueryItem(name: "htmlVariant", value: "desktop"),
                 ]
             ),
             authenticated: true

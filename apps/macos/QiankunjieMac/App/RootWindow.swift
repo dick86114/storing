@@ -89,7 +89,7 @@ struct RootWindow: View {
         if let libraryView = model.destination.libraryView {
             CompactArticleListView(
                 model: model.libraryModel,
-                selection: $model.selectedArticleID
+                selection: articleSelection
             )
             .id(libraryView)
         } else {
@@ -97,11 +97,18 @@ struct RootWindow: View {
         }
     }
 
+    private var articleSelection: Binding<Int?> {
+        Binding(
+            get: { model.selectedArticleID },
+            set: { model.selectArticle($0) }
+        )
+    }
+
     private var readerPane: some View {
         ReaderPaneView(
-            articleID: model.selectedArticleID,
+            selection: model.selectedReaderSelection,
             onClose: {
-                model.selectedArticleID = nil
+                model.closeArticle()
             },
             onLibraryDidChange: {
                 Task {

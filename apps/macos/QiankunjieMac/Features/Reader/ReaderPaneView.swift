@@ -4,7 +4,7 @@ import QiankunjieReader
 import SwiftUI
 
 struct ReaderPaneView: View {
-    let articleID: Int?
+    let selection: ReaderSelection?
     let onClose: () -> Void
     let onLibraryDidChange: () -> Void
 
@@ -14,23 +14,23 @@ struct ReaderPaneView: View {
 
     var body: some View {
         Group {
-            if let articleID, let article = model.article, article.id == articleID {
+            if let selection, let article = model.article, article.id == selection.articleID {
                 reader(article)
-            } else if articleID != nil, model.isLoading {
+            } else if selection != nil, model.isLoading {
                 stateView(title: "正在加载文章", systemImage: "doc.text")
-            } else if articleID != nil, let errorMessage = model.errorMessage {
+            } else if selection != nil, let errorMessage = model.errorMessage {
                 errorView(errorMessage)
             } else {
                 stateView(
-                    title: articleID == nil ? "未选择文章" : "文章不可用",
+                    title: selection == nil ? "未选择文章" : "文章不可用",
                     systemImage: "doc.text"
                 )
             }
         }
         .background(QiankunjieColors.background(for: colorScheme))
-        .task(id: articleID) {
-            if let articleID {
-                await model.open(articleID: articleID)
+        .task(id: selection) {
+            if let selection {
+                await model.open(selection)
             }
         }
     }
@@ -39,7 +39,7 @@ struct ReaderPaneView: View {
         VStack(spacing: 0) {
             header(article)
             Divider()
-            ArticleActionBar(model: model) { action in
+            ArticleActionBar(model: model, isGuest: selection?.isGuest == true) { action in
                 requestAction(action)
             }
             Divider()
@@ -63,8 +63,8 @@ struct ReaderPaneView: View {
                 html: model.displayHTML,
                 contentToken: model.contentToken,
                 savedReadingState: model.savedReadingState
-            ) { state in
-                model.updateReadingState(state)
+            ) { state, contentToken in
+                model.updateReadingState(state, contentToken: contentToken)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -151,11 +151,11 @@ struct ReaderPaneView: View {
                 .font(QiankunjieTypography.bodyMedium)
                 .multilineTextAlignment(.center)
             Button("重试") {
-                guard let articleID else {
+                guard let selection else {
                     return
                 }
                 Task {
-                    await model.open(articleID: articleID)
+                    await model.open(selection)
                 }
             }
             .buttonStyle(.borderedProminent)
