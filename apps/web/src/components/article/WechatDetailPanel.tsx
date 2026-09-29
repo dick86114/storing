@@ -1923,7 +1923,7 @@ async function createSelectionShareScreenshot(subject: Extract<SharePosterSubjec
 
   ctx.fillStyle = palette.muted;
   ctx.font = `400 22px ${fontFamily}`;
-  const source = String(article?.source || article?.author || '今天藏什么');
+  const source = String(article?.source || article?.author || '乾坤戒');
   ctx.fillText(source, padding, height - 42, width - padding * 2);
 
   return canvas;
@@ -2101,7 +2101,7 @@ async function createSharePoster({
   const footerTextY = footerTop + 50;
   ctx.fillStyle = palette.title;
   ctx.font = `680 32px ${getPosterFontFamily(theme.scheme)}`;
-  ctx.fillText('今天藏什么', footerTextX, footerTextY);
+  ctx.fillText('乾坤戒', footerTextX, footerTextY);
 
   ctx.fillStyle = palette.muted;
   ctx.font = `400 23px ${getPosterFontFamily(theme.scheme)}`;

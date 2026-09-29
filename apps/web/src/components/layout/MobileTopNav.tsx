@@ -130,7 +130,7 @@ export function MobileTopNav({ onAddClick, onNavigate }: MobileTopNavProps) {
               objectFit: 'cover',
             }}
           />
-          <span className="app-brand-title">今天藏什么</span>
+          <span className="app-brand-title">乾坤戒</span>
         </div>
 
         {/* 中间：空 */}
@@ -161,13 +161,14 @@ export function MobileTopNav({ onAddClick, onNavigate }: MobileTopNavProps) {
               <PlusCircleOutlined style={{ fontSize: '22px', color: 'var(--text)' }} />
             </button>
           ) : (
+            // 游客态：这个位置就是登录入口，直接弹登录框，省掉「开菜单 → 再点登录」这一层
             <button
               className="mobile-top-action"
-              onClick={() => setMenuOpen(!menuOpen)}
+              onClick={() => setLoginOpen(true)}
               type="button"
-              aria-label="菜单"
+              aria-label="登录"
             >
-              <PlusCircleOutlined style={{ fontSize: '22px', color: 'var(--text)' }} />
+              <UserOutlined style={{ fontSize: '22px', color: 'var(--text)' }} />
             </button>
           )}
 

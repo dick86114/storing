@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { ToastProvider } from '@/components/ui/Toast';
+import { AuthProvider } from '@/components/providers/AuthContext';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -16,11 +17,11 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: '今天藏什么',
-    template: '%s | 今天藏什么',
+    default: '乾坤戒',
+    template: '%s | 乾坤戒',
   },
   description: 'AI 驱动的个人稍后阅读平台，让你的文章收藏变成真正的知识资产',
-  applicationName: '今天藏什么',
+  applicationName: '乾坤戒',
   manifest: '/manifest.json',
   icons: {
     icon: [
@@ -32,15 +33,15 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: '今天藏什么',
+    title: '乾坤戒',
   },
   formatDetection: {
     telephone: false,
   },
   openGraph: {
     type: 'website',
-    siteName: '今天藏什么',
-    title: '今天藏什么',
+    siteName: '乾坤戒',
+    title: '乾坤戒',
     description: 'AI 驱动的个人稍后阅读平台，让你的文章收藏变成真正的知识资产',
   },
 };
@@ -50,7 +51,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="zh-CN" suppressHydrationWarning>
       <body suppressHydrationWarning>
         <ThemeProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider>
+            {/* AuthProvider 放在根层：/login 与公开分享页 /p/[publicId] 也要读取登录状态 */}
+            <AuthProvider>{children}</AuthProvider>
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

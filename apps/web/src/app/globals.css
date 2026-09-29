@@ -16670,3 +16670,416 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
 .app-menu .detail-more-menu-item {
   color: var(--menu-text);
 }
+
+/* ─────────────────────────────────────────────────────────────
+   /login 独立登录页
+   左侧品牌价值主张 + 右侧表单，配色/深浅全部走 CSS 变量，
+   因此 5 套配色与浅色深色模式自动适配，无需额外分支。
+   ───────────────────────────────────────────────────────────── */
+
+.auth-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 32px 20px;
+  background: var(--bg);
+}
+
+.auth-page-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: min(880px, 100%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--glass);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+/* 左侧品牌区 */
+.auth-page-brand {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 20px;
+  padding: 44px 38px;
+  border-right: 1px solid var(--glass-border);
+  background: var(--surface-glow);
+}
+
+.auth-page-brand-mark {
+  display: flex;
+}
+
+.auth-page-brand .app-brand-title {
+  font-size: 26px;
+}
+
+.auth-page-tagline {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.auth-page-features {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.auth-page-features li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 12px;
+  border-left: 2px solid color-mix(in oklch, var(--accent) 55%, transparent);
+}
+
+.auth-page-features strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.auth-page-features span {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+/* 右侧表单区 */
+.auth-page-form {
+  display: flex;
+  flex-direction: column;
+  padding: 44px 38px;
+}
+
+.auth-page-title {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.auth-page-subtitle {
+  margin: 0 0 26px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.auth-page-field {
+  margin-bottom: 16px;
+}
+
+.auth-page-field label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.auth-page-field input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 10px);
+  background: var(--surface);
+  color: var(--text);
+  -webkit-text-fill-color: var(--text);
+  caret-color: var(--accent);
+  font-size: 15px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.auth-page-field input:focus {
+  border-color: color-mix(in oklch, var(--accent) 60%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 16%, transparent);
+}
+
+.auth-page-password {
+  position: relative;
+}
+
+.auth-page-password input {
+  padding-right: 44px;
+}
+
+.auth-page-eye {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.auth-page-eye svg {
+  width: 20px;
+  height: 20px;
+}
+
+.auth-page-error {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: #ef4444;
+}
+
+.auth-page-submit {
+  width: 100%;
+  height: 44px;
+  border: none;
+  border-radius: var(--radius, 10px);
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.auth-page-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-page-guest {
+  align-self: center;
+  margin-top: 18px;
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-page-guest:hover {
+  color: var(--text);
+}
+
+/* 900px：单列，品牌区收为顶部横排 */
+@media (max-width: 900px) {
+  .auth-page-card {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-page-brand {
+    gap: 14px;
+    padding: 30px 28px 24px;
+    border-right: none;
+    border-bottom: 1px solid var(--glass-border);
+  }
+
+  .auth-page-brand .app-brand-title {
+    font-size: 22px;
+  }
+
+  .auth-page-features {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    margin-top: 4px;
+  }
+
+  .auth-page-form {
+    padding: 30px 28px 32px;
+  }
+}
+
+/* 640px：隐藏特性描述，保留标题，避免表单被挤到屏幕外 */
+@media (max-width: 640px) {
+  .auth-page {
+    padding: 0;
+    align-items: flex-start;
+  }
+
+  .auth-page-card {
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .auth-page-features span {
+    display: none;
+  }
+
+  .auth-page-brand {
+    padding: 26px 22px 20px;
+  }
+
+  .auth-page-form {
+    padding: 26px 22px 34px;
+  }
+}
+
+/* 公开分享页 /p/[publicId] 的游客转化条
+   放在正文末尾，只在未登录时出现，样式刻意压低存在感。 */
+.public-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 28px;
+  padding: 18px 20px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--glass);
+  backdrop-filter: blur(12px) saturate(1.3);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+  box-shadow: var(--shadow-sm);
+}
+
+.public-cta-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.public-cta-text strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.public-cta-text span {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.public-cta-action {
+  flex: none;
+  height: 34px;
+  padding: 0 20px;
+  border: none;
+  border-radius: var(--radius, 10px);
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.public-cta-action:hover {
+  opacity: 0.88;
+}
+
+@media (max-width: 640px) {
+  .public-cta {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .public-cta-action {
+    width: 100%;
+  }
+}
+
+/* /published 游客落地引导条
+   刻意做成一条横幅而不是大 hero：游客来这里主要是看公开文章，
+   引导不能挡住内容。 */
+.published-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--glass);
+  backdrop-filter: blur(12px) saturate(1.3);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+  box-shadow: var(--shadow-sm);
+}
+
+.published-hero-text {
+  min-width: 0;
+}
+
+.published-hero-title {
+  margin: 0 0 4px;
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.published-hero-desc {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.published-hero-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.published-hero-points li {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.published-hero-cta {
+  flex: none;
+  height: 38px;
+  padding: 0 22px;
+  border: none;
+  border-radius: var(--radius, 10px);
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.published-hero-cta:hover {
+  opacity: 0.88;
+}
+
+@media (max-width: 900px) {
+  .published-hero {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .published-hero-cta {
+    width: 100%;
+    height: 42px;
+  }
+}

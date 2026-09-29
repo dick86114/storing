@@ -34,7 +34,9 @@ function InboxContentInner() {
   const [archiveTargetId, setArchiveTargetId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) router.replace('/archive');
+    // 游客统一落 /published：原先这里 replace 到 /archive，会被 (main)/layout 的私有路由守卫
+    // 再 window.location.href 弹一次，形成 /inbox → /archive → /published 的双重跳转。
+    if (!authLoading && !isAuthenticated) router.replace('/published');
   }, [isAuthenticated, authLoading, router]);
 
   useEffect(() => {

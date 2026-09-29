@@ -139,7 +139,7 @@ export function SearchModal({ onClose }: { onClose: () => void }) {
             ref={inputRef}
             className="flex-1 outline-none"
             style={{ border: 'none', background: 'none', font: 'inherit', fontSize: 16, color: 'var(--fg)' }}
-            placeholder={isAuthenticated ? '搜索文章标题、标签、来源…' : '搜索归档文章标题、标签、来源…'}
+            placeholder={isAuthenticated ? '搜索文章标题、标签、来源…' : '搜索公开文章标题、来源…'}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onCompositionStart={() => { isComposing.current = true; }}

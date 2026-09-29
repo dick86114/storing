@@ -6,6 +6,7 @@ import { LeftOutlined, ShareAltOutlined, UpOutlined, DownOutlined, MoreOutlined,
 import { api } from '@/lib/api';
 import { getArticleSourceIcon, getArticleSourceText } from '@/components/article/articleSourceIcon';
 import { DateText } from '@/lib/formatDate';
+import { useAuth } from '@/components/providers/AuthContext';
 
 function tryCopyText(text: string): Promise<boolean> {
   if (navigator.clipboard?.writeText) {
@@ -25,6 +26,7 @@ export default function PublicPublicationPage({ params }: { params: Promise<{ pu
   const contentRef = useRef<HTMLDivElement>(null);
   const moreWrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     params
@@ -262,6 +264,26 @@ export default function PublicPublicationPage({ params }: { params: Promise<{ pu
             )}
           </div>
         </div>
+
+        {/* 游客转化条：放在正文末尾而非顶部，让读者读完再转化，不打断阅读 */}
+        {!isAuthenticated && (
+          <div className="public-cta">
+            <div className="public-cta-text">
+              <strong>这是你的私人阅读空间</strong>
+              <span>登录后可收藏同步</span>
+            </div>
+            <button
+              type="button"
+              className="public-cta-action"
+              onClick={() =>
+                router.push(`/login?next=${encodeURIComponent(`/p/${article?.publicId || ''}`)}`)
+              }
+            >
+              登录
+            </button>
+          </div>
+        )}
+
         <div style={{ height: 66 }} />
       </main>
 

@@ -29,6 +29,30 @@ export function PublishedContent() {
 
   return (
     <section className="published-content" style={{ padding: '20px', maxWidth: 1320, margin: '0 auto' }}>
+      {/* 游客落地引导：只在未登录时出现，讲清「登录能得到什么」而不是空喊请登录 */}
+      {!isAuthenticated && (
+        <div className="published-hero">
+          <div className="published-hero-text">
+            <h1 className="published-hero-title">收藏不再只是堆积</h1>
+            <p className="published-hero-desc">
+              乾坤戒替你读完、归类、打标签，让存过的文章真正能被找回。
+            </p>
+            <ul className="published-hero-points">
+              <li>AI 摘要</li>
+              <li>智能分类</li>
+              <li>自动标签</li>
+            </ul>
+          </div>
+          <button
+            type="button"
+            className="published-hero-cta"
+            onClick={() => router.push(`/login?next=${encodeURIComponent('/inbox')}`)}
+          >
+            登录开始使用
+          </button>
+        </div>
+      )}
+
       <ArticleList
         articles={articles}
         hasMore={false}

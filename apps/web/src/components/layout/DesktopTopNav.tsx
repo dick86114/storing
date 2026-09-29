@@ -145,7 +145,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
             height={28}
             style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'cover' }}
           />
-          <span className="app-brand-title">今天藏什么</span>
+          <span className="app-brand-title">乾坤戒</span>
         </div>
 
         {/* 竖线分隔 */}
@@ -262,7 +262,7 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
           <div className="desktop-user-menu-wrap" ref={menuWrapRef} onBlurCapture={handleMenuBlur} style={{ position: 'relative' }}>
             <button
               className="desktop-user-trigger"
-              onClick={() => setMenuOpen(!menuOpen)}
+              onClick={() => (isAuthenticated ? setMenuOpen(!menuOpen) : setLoginOpen(true))}
               type="button"
               style={{
                 display: 'flex',
@@ -282,7 +282,8 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
                   <DownOutlined style={{ fontSize: '12px', color: 'var(--text-muted)' }} />
                 </>
               ) : (
-                <PlusCircleOutlined style={{ fontSize: '22px', color: 'var(--text)' }} />
+                // 游客态用「人像」而非「加号」：加号会被读成新建/添加，语义上完全指不到登录
+                <UserOutlined style={{ fontSize: '22px', color: 'var(--text)' }} />
               )}
             </button>
 
