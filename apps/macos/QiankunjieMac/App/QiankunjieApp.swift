@@ -22,6 +22,7 @@ struct QiankunjieMacApp: App {
                 menuBarController: $menuBarController
             )
                 .environment(model)
+                .environment(model.settingsModel)
                 .navigationTitle(QiankunjieMacMetadata.displayName)
                 .task {
                     await model.start()
