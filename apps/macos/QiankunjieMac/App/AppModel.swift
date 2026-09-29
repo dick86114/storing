@@ -1,5 +1,8 @@
 import Observation
 import QiankunjieAuth
+import QiankunjieCore
+import QiankunjieLibrary
+import QiankunjieNetworking
 
 enum AppDestination: String, CaseIterable, Hashable, Sendable {
     case inbox
@@ -36,20 +39,44 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
         case .settings: "gearshape"
         }
     }
+
+    var libraryView: LibraryView? {
+        switch self {
+        case .inbox: .inbox
+        case .favorites: .favorites
+        case .archive: .archive
+        case .published: .published
+        case .collect, .tasks, .search, .settings: nil
+        }
+    }
 }
 
 @MainActor
 @Observable
 final class AppModel {
     let authModel: AuthModel
+    private(set) var libraryModel: LibraryModel
 
     var user: AuthenticatedUser?
     var destination: AppDestination = .published
     var selectedArticleID: Int?
     var isLoginPresented = false
 
-    init(authModel: AuthModel = AuthModel(repository: AuthRepository())) {
+    init(
+        authModel: AuthModel = AuthModel(repository: AuthRepository()),
+        libraryModel: LibraryModel? = nil
+    ) {
         self.authModel = authModel
+        if let libraryModel {
+            self.libraryModel = libraryModel
+        } else {
+            self.libraryModel = LibraryModel(
+                repository: LibraryRepository(
+                    apiClient: APIClient(tokenProvider: authModel.repository)
+                ),
+                cache: (try? LibraryCache()) ?? EmptyLibraryCache()
+            )
+        }
     }
 
     var isAuthenticated: Bool {
@@ -58,17 +85,17 @@ final class AppModel {
 
     func start() async {
         await authModel.restore()
-        synchronizeWithAuthentication()
+        await synchronizeWithAuthentication()
     }
 
-    func didAuthenticate() {
-        synchronizeWithAuthentication()
+    func didAuthenticate() async {
+        await synchronizeWithAuthentication()
         isLoginPresented = false
     }
 
     func didLogout() async {
         await authModel.logout()
-        synchronizeWithAuthentication()
+        await synchronizeWithAuthentication()
         isLoginPresented = false
     }
 
@@ -76,9 +103,33 @@ final class AppModel {
         isLoginPresented = true
     }
 
-    private func synchronizeWithAuthentication() {
+    func selectDestination(_ destination: AppDestination) {
+        guard destination != self.destination else {
+            return
+        }
+
+        self.destination = destination
+        selectedArticleID = nil
+        if let view = destination.libraryView {
+            libraryModel.select(view: view)
+            Task {
+                await libraryModel.load(reset: true)
+            }
+        }
+    }
+
+    private func synchronizeWithAuthentication() async {
+        let previousLibraryUserID = libraryModel.userID
         user = authModel.user
         selectedArticleID = nil
         destination = user == nil ? .published : .inbox
+        libraryModel.prepareUser(
+            userID: user?.id,
+            view: destination.libraryView ?? .published
+        )
+        if previousLibraryUserID != user?.id {
+            await libraryModel.clearUserScope(userID: previousLibraryUserID)
+        }
+        await libraryModel.load(reset: true)
     }
 }
