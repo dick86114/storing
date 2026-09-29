@@ -1,0 +1,224 @@
+import QiankunjieCore
+import Testing
+@testable import QiankunjieLibrary
+
+@MainActor
+struct LibraryModelTests {
+    @Test func 加载更多使用已保存页码并在末页停止() async {
+        let repository = 模拟资料库仓库(
+            pages: [
+                1: .fixture(ids: [1, 2], page: 1, totalPages: 2),
+                2: .fixture(ids: [3], page: 2, totalPages: 2),
+            ]
+        )
+        let model = LibraryModel(repository: repository, cache: EmptyLibraryCache())
+
+        await model.load(reset: true)
+        await model.loadMore()
+        await model.loadMore()
+
+        #expect(model.articles.map(\.id) == [1, 2, 3])
+        #expect(await repository.requestedPages == [1, 2])
+        #expect(!model.canLoadMore)
+    }
+
+    @Test func 搜索会提交并重置归档来源和页码() async throws {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [7], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(repository: repository, cache: EmptyLibraryCache())
+        model.select(view: .archive)
+        model.selectSource("少数派")
+        model.selectSort(.published)
+        model.toggleOrder()
+        model.searchDraft = " 乾坤戒 "
+        model.submitSearch()
+
+        await model.load(reset: true)
+
+        let query = try #require(await repository.lastQuery)
+        #expect(query.view == .archive)
+        #expect(query.searchText == "乾坤戒")
+        #expect(query.source == nil)
+        #expect(query.sort == .published)
+        #expect(query.order == .asc)
+        #expect(query.page == 1)
+    }
+
+    @Test func 无网络时优先显示同作用域缓存并保留文章() async throws {
+        let cache = 内存资料库缓存()
+        try await cache.save(
+            .fixture(ids: [11], page: 1, totalPages: 1),
+            scope: .fixture(userID: 7, view: .inbox)
+        )
+        let repository = 模拟资料库仓库(error: AppError.network)
+        let model = LibraryModel(
+            repository: repository,
+            cache: cache,
+            userID: 7,
+            view: .inbox
+        )
+
+        await model.load(reset: true)
+
+        #expect(model.articles.map(\.id) == [11])
+        #expect(model.isShowingCache)
+        #expect(model.errorMessage == nil)
+
+        await repository.setResult(
+            .fixture(ids: [12, 13], page: 1, totalPages: 1)
+        )
+        await model.retry()
+
+        #expect(model.articles.map(\.id) == [12, 13])
+        #expect(!model.isShowingCache)
+    }
+
+    @Test func 请求失败且无缓存时进入错误状态并支持重试() async {
+        let repository = 模拟资料库仓库(error: AppError.network)
+        let model = LibraryModel(repository: repository, cache: EmptyLibraryCache())
+
+        await model.load(reset: true)
+
+        #expect(model.articles.isEmpty)
+        #expect(model.errorMessage == "网络连接失败，请稍后重试")
+        #expect(model.displayState == .error)
+
+        await repository.setResult(.fixture(ids: [], page: 1, totalPages: 0))
+        await model.retry()
+
+        #expect(model.errorMessage == nil)
+        #expect(model.displayState == .empty)
+    }
+
+    @Test func 切换账号清理旧用户内存状态并重新加载() async throws {
+        let cache = 内存资料库缓存()
+        try await cache.save(
+            .fixture(ids: [21], page: 1, totalPages: 1),
+            scope: .fixture(userID: 7, view: .inbox)
+        )
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [31], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            cache: cache,
+            userID: 7,
+            view: .inbox
+        )
+        model.selectSort(.published)
+
+        await model.switchUser(userID: 8, view: .favorites)
+
+        #expect(model.userID == 8)
+        #expect(model.view == .favorites)
+        #expect(model.sort == .favorited)
+        #expect(model.articles.map(\.id) == [31])
+        #expect(try await cache.load(scope: .fixture(userID: 7, view: .inbox)) == nil)
+    }
+
+    @Test func 同步列表重载不会清除当前选择() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [41], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(repository: repository, cache: EmptyLibraryCache())
+        await model.load(reset: true)
+
+        model.selectedArticleID = 41
+        await model.load(reset: true)
+
+        #expect(model.selectedArticleID == 41)
+        #expect(model.articles.map(\.id) == [41])
+    }
+}
+
+private actor 模拟资料库仓库: LibraryLoading {
+    private var pages: [Int: ArticleListPage]
+    private var currentError: AppError?
+    private(set) var requestedPages: [Int] = []
+    private(set) var lastQuery: LibraryQuery?
+
+    init(pages: [Int: ArticleListPage] = [:], error: AppError? = nil) {
+        self.pages = pages
+        self.currentError = error
+    }
+
+    func load(_ query: LibraryQuery) async throws -> ArticleListPage {
+        requestedPages.append(query.page)
+        lastQuery = query
+        if let currentError {
+            throw currentError
+        }
+        return pages[query.page] ?? .fixture(ids: [], page: query.page, totalPages: 0)
+    }
+
+    func loadCounts(userID: Int?) async throws -> ArticleCounts {
+        ArticleCounts(inbox: 1, favorites: 2, archive: 3, published: 4)
+    }
+
+    func loadSources(userID: Int?) async throws -> [LibrarySource] {
+        [LibrarySource(source: "少数派", count: 2, latestCreatedAt: nil)]
+    }
+
+    func setResult(_ page: ArticleListPage) {
+        currentError = nil
+        pages[page.page] = page
+    }
+}
+
+private actor 内存资料库缓存: LibraryCaching {
+    private var pages: [LibraryCacheScope: ArticleListPage] = [:]
+
+    func load(scope: LibraryCacheScope) async throws -> ArticleListPage? {
+        pages[scope]
+    }
+
+    func save(_ page: ArticleListPage, scope: LibraryCacheScope) async throws {
+        pages[scope] = page
+    }
+
+    func clear(userID: Int?) async throws {
+        pages = pages.filter { $0.key.userID != userID }
+    }
+}
+
+private extension LibraryCacheScope {
+    static func fixture(userID: Int?, view: LibraryView) -> Self {
+        LibraryCacheScope(
+            userID: userID,
+            view: view,
+            searchText: "",
+            sort: ArticleSort.default(for: view),
+            order: .desc,
+            source: nil,
+            categoryId: nil,
+            page: 1,
+            perPage: 20
+        )
+    }
+}
+
+private extension ArticleSort {
+    static func `default`(for view: LibraryView) -> Self {
+        switch view {
+        case .favorites: .favorited
+        case .archive: .archived
+        case .published: .published
+        case .inbox: .collected
+        }
+    }
+}
+
+private extension ArticleListPage {
+    static func fixture(ids: [Int], page: Int = 1, totalPages: Int) -> Self {
+        ArticleListPage(
+            articles: ids.map {
+                ArticleCard(id: $0, title: "文章 \($0)", source: "测试来源")
+            },
+            total: ids.count + max(0, totalPages - page) * ids.count,
+            page: page,
+            perPage: 20,
+            totalPages: totalPages
+        )
+    }
+}

@@ -187,6 +187,20 @@ public struct ArticleListPage: Codable, Hashable, Sendable {
     public let perPage: Int
     public let totalPages: Int
 
+    public init(
+        articles: [ArticleCard],
+        total: Int,
+        page: Int,
+        perPage: Int,
+        totalPages: Int
+    ) {
+        self.articles = articles
+        self.total = total
+        self.page = page
+        self.perPage = perPage
+        self.totalPages = totalPages
+    }
+
     enum CodingKeys: String, CodingKey {
         case articles
         case total
@@ -312,6 +326,18 @@ public struct ArticleCounts: Codable, Hashable, Sendable {
     public let favorites: Int
     public let archive: Int
     public let published: Int
+
+    public init(
+        inbox: Int,
+        favorites: Int,
+        archive: Int,
+        published: Int
+    ) {
+        self.inbox = inbox
+        self.favorites = favorites
+        self.archive = archive
+        self.published = published
+    }
 }
 
 public extension JSONDecoder {

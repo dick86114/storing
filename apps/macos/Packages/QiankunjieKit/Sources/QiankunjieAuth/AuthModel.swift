@@ -9,7 +9,7 @@ public final class AuthModel {
     public private(set) var isSubmitting = false
     public private(set) var errorMessage: String?
 
-    private let repository: AuthRepository
+    public let repository: AuthRepository
 
     public init(repository: AuthRepository) {
         self.repository = repository

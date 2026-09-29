@@ -38,7 +38,14 @@ let package = Package(
             ],
             path: "Sources/QiankunjieAuth"
         ),
-        .target(name: "QiankunjieLibrary", path: "Sources/QiankunjieLibrary"),
+        .target(
+            name: "QiankunjieLibrary",
+            dependencies: [
+                "QiankunjieCore",
+                "QiankunjieNetworking",
+            ],
+            path: "Sources/QiankunjieLibrary"
+        ),
         .target(name: "QiankunjieCollect", path: "Sources/QiankunjieCollect"),
         .target(name: "QiankunjieReader", path: "Sources/QiankunjieReader"),
         .target(name: "QiankunjieDesignSystem", path: "Sources/QiankunjieDesignSystem"),
@@ -73,6 +80,15 @@ let package = Package(
                 "QiankunjieAuth",
             ],
             path: "Tests/QiankunjieAuthTests"
+        ),
+        .testTarget(
+            name: "QiankunjieLibraryTests",
+            dependencies: [
+                "QiankunjieCore",
+                "QiankunjieNetworking",
+                "QiankunjieLibrary",
+            ],
+            path: "Tests/QiankunjieLibraryTests"
         ),
         .testTarget(
             name: "QiankunjieKitTests",

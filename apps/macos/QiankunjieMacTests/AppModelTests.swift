@@ -1,6 +1,7 @@
 import Foundation
-import QiankunjieCore
 import QiankunjieAuth
+import QiankunjieCore
+import QiankunjieLibrary
 import Testing
 @testable import QiankunjieMac
 
@@ -36,7 +37,7 @@ struct AppModelTests {
             password: "test-only-password",
             device: .fixture()
         )
-        model.didAuthenticate()
+        await model.didAuthenticate()
 
         #expect(succeeded)
         #expect(!model.isLoginPresented)
@@ -65,26 +66,145 @@ struct AppModelTests {
             ]
         )
     }
+
+    @Test func 资料库目的地同步筛选状态并重置文章选择() {
+        let model = AppModel.fixture(
+            user: .fixture(id: 9),
+            destination: .inbox,
+            selectedArticleID: 42,
+            libraryRepository: 模拟资料库仓库(),
+            libraryCache: EmptyLibraryCache()
+        )
+
+        model.selectDestination(.archive)
+
+        #expect(model.libraryModel.view == .archive)
+        #expect(model.libraryModel.sort == .archived)
+        #expect(model.libraryModel.userID == 9)
+        #expect(model.selectedArticleID == nil)
+    }
+
+    @Test func 退出登录清理用户缓存并切换游客资料库() async throws {
+        let cache = 内存资料库缓存()
+        try await cache.save(
+            ArticleListPage(
+                articles: [ArticleCard(id: 42)],
+                total: 1,
+                page: 1,
+                perPage: 20,
+                totalPages: 1
+            ),
+            scope: LibraryCacheScope(
+                userID: 9,
+                view: .inbox,
+                searchText: "",
+                sort: .collected,
+                order: .desc,
+                source: nil,
+                categoryId: nil,
+                page: 1,
+                perPage: 20
+            )
+        )
+        let model = AppModel.fixture(
+            user: .fixture(id: 9),
+            destination: .inbox,
+            selectedArticleID: 42,
+            libraryRepository: 模拟资料库仓库(),
+            libraryCache: cache
+        )
+
+        await model.didLogout()
+
+        #expect(model.user == nil)
+        #expect(model.destination == .published)
+        #expect(model.libraryModel.userID == nil)
+        #expect(model.libraryModel.view == .published)
+        #expect(try await cache.load(
+            scope: LibraryCacheScope(
+                userID: 9,
+                view: .inbox,
+                searchText: "",
+                sort: .collected,
+                order: .desc,
+                source: nil,
+                categoryId: nil,
+                page: 1,
+                perPage: 20
+            )
+        ) == nil)
+    }
 }
 
 private extension AppModel {
     static func fixture(
         user: AuthenticatedUser?,
         destination: AppDestination,
-        selectedArticleID: Int?
+        selectedArticleID: Int?,
+        libraryRepository: any LibraryLoading = 模拟资料库仓库(),
+        libraryCache: any LibraryCaching = EmptyLibraryCache()
     ) -> AppModel {
+        let authModel = AuthModel(
+            repository: AuthRepository(
+                client: 无操作认证客户端(),
+                store: 空会话存储()
+            )
+        )
         let model = AppModel(
-            authModel: AuthModel(
-                repository: AuthRepository(
-                    client: 无操作认证客户端(),
-                    store: 空会话存储()
-                )
+            authModel: authModel,
+            libraryModel: LibraryModel(
+                repository: libraryRepository,
+                cache: libraryCache,
+                userID: user?.id,
+                view: destination.libraryView ?? .inbox
             )
         )
         model.user = user
         model.destination = destination
         model.selectedArticleID = selectedArticleID
         return model
+    }
+}
+
+private extension AppDestination {
+    var libraryView: LibraryView? {
+        switch self {
+        case .inbox: .inbox
+        case .favorites: .favorites
+        case .archive: .archive
+        case .published: .published
+        default: nil
+        }
+    }
+}
+
+private actor 模拟资料库仓库: LibraryLoading {
+    func load(_ query: LibraryQuery) async throws -> ArticleListPage {
+        ArticleListPage(articles: [], total: 0, page: 1, perPage: 20, totalPages: 0)
+    }
+
+    func loadCounts(userID: Int?) async throws -> ArticleCounts {
+        ArticleCounts(inbox: 0, favorites: 0, archive: 0, published: 0)
+    }
+
+    func loadSources(userID: Int?) async throws -> [LibrarySource] {
+        []
+    }
+}
+
+private actor 内存资料库缓存: LibraryCaching {
+    private var pages: [LibraryCacheScope: ArticleListPage] = [:]
+
+    func load(scope: LibraryCacheScope) async throws -> ArticleListPage? {
+        pages[scope]
+    }
+
+    func save(_ page: ArticleListPage, scope: LibraryCacheScope) async throws {
+        pages[scope] = page
+    }
+
+    func clear(userID: Int?) async throws {
+        pages = pages.filter { $0.key.userID != userID }
     }
 }
 

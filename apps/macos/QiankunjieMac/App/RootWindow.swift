@@ -53,7 +53,10 @@ struct RootWindow: View {
 
     private var threeColumnShell: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            SidebarView(model: model)
+            SidebarView(
+                model: model,
+                destinationSelection: destinationSelection
+            )
                 .navigationSplitViewColumnWidth(
                     min: 180,
                     ideal: 220,
@@ -81,8 +84,17 @@ struct RootWindow: View {
         .navigationSplitViewStyle(.balanced)
     }
 
+    @ViewBuilder
     private var listColumn: some View {
-        LibraryPlaceholderView(destination: model.destination)
+        if let libraryView = model.destination.libraryView {
+            CompactArticleListView(
+                model: model.libraryModel,
+                selection: $model.selectedArticleID
+            )
+            .id(libraryView)
+        } else {
+            LibraryPlaceholderView(destination: model.destination)
+        }
     }
 
     @ToolbarContentBuilder
@@ -113,6 +125,13 @@ struct RootWindow: View {
         case .listDetail(let isReaderPrimary):
             columnVisibility = isReaderPrimary ? .detailOnly : .all
         }
+    }
+
+    private var destinationSelection: Binding<AppDestination> {
+        Binding(
+            get: { model.destination },
+            set: { model.selectDestination($0) }
+        )
     }
 }
 

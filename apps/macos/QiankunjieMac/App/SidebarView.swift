@@ -3,10 +3,11 @@ import SwiftUI
 
 struct SidebarView: View {
     @Bindable var model: AppModel
+    let destinationSelection: Binding<AppDestination>
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        List(selection: $model.destination) {
+        List(selection: destinationSelection) {
             Section("资料库") {
                 ForEach(AppDestination.allCases, id: \.self) { destination in
                     Label(destination.title, systemImage: destination.systemImage)

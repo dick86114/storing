@@ -5,7 +5,7 @@ import SwiftUI
 @MainActor
 struct LoginView: View {
     let authModel: AuthModel
-    let onAuthenticated: @MainActor () -> Void
+    let onAuthenticated: @MainActor () async -> Void
     private let deviceProvider: MacAuthDeviceProvider
 
     @Environment(\.colorScheme) private var colorScheme
@@ -14,7 +14,7 @@ struct LoginView: View {
 
     init(
         authModel: AuthModel,
-        onAuthenticated: @escaping @MainActor () -> Void,
+        onAuthenticated: @escaping @MainActor () async -> Void,
         deviceProvider: MacAuthDeviceProvider = MacAuthDeviceProvider()
     ) {
         self.authModel = authModel
@@ -139,7 +139,7 @@ struct LoginView: View {
                 device: deviceProvider.currentDevice
             )
             if succeeded {
-                onAuthenticated()
+                await onAuthenticated()
             }
         }
     }
