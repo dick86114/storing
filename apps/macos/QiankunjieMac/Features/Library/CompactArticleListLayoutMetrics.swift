@@ -28,10 +28,24 @@ struct CompactArticleListLayoutMetrics: Equatable, Sendable {
         tags.prefix(3).map(truncatedTag)
     }
 
+    func visibleTags(_ tags: [String]) -> [CompactArticleTagDisplay] {
+        tags.prefix(3).map { tag in
+            CompactArticleTagDisplay(
+                id: tag,
+                text: truncatedTag(tag)
+            )
+        }
+    }
+
     private func truncatedTag(_ tag: String) -> String {
         guard tag.count > maximumTagCharacters else {
             return tag
         }
         return String(tag.prefix(maximumTagCharacters - 1)) + "…"
     }
+}
+
+struct CompactArticleTagDisplay: Identifiable, Equatable, Sendable {
+    let id: String
+    let text: String
 }

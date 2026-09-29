@@ -174,8 +174,8 @@ struct CompactArticleListView: View {
 
     private func tags(_ article: ArticleCard) -> some View {
         HStack(spacing: 5) {
-            ForEach(layoutMetrics.displayTags(article.aiTags), id: \.self) { tag in
-                Text(tag)
+            ForEach(layoutMetrics.visibleTags(article.aiTags)) { tag in
+                Text(tag.text)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(
