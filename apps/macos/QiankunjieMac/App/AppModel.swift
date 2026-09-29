@@ -88,9 +88,11 @@ final class AppModel {
         await synchronizeWithAuthentication()
     }
 
-    func didAuthenticate() async {
-        await synchronizeWithAuthentication()
+    func didAuthenticate() {
         isLoginPresented = false
+        Task {
+            await synchronizeWithAuthentication()
+        }
     }
 
     func didLogout() async {
