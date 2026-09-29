@@ -1,5 +1,6 @@
 import QiankunjieCollect
 import QiankunjieNetworking
+import QiankunjieUpdating
 import SwiftUI
 
 struct SettingsWindow: View {
@@ -10,6 +11,9 @@ struct SettingsWindow: View {
     var body: some View {
         Form {
             applicationSection
+            Section("软件更新") {
+                UpdateSettingsView()
+            }
             appearanceSection
             shortcutSection
             DeviceSessionsView(model: model)
