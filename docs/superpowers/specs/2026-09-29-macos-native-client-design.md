@@ -64,6 +64,73 @@
 - 首版不为低版本兼容牺牲架构，也不提前引入后续模块的复杂度。
 - 无证书分发的限制只影响系统扩展能力，不影响主应用核心闭环。
 
+## 视觉系统
+
+### 视觉方向
+
+- 采用 Android 客户端“澄明书斋”方案：浅色为暖珍珠玻璃，深色为深墨绿金。
+- 主界面保持安静、克制和高信息密度，不使用装饰性光球、无序渐变背景或强紫色调。
+- macOS 原生材质只用于导航、工具栏、弹窗和临时浮层；文章列表和阅读正文使用稳定的实底以保证可读性。
+- 品牌资产和装饰元素优先复用 Android 客户端资源，不重新设计另一套视觉符号。
+
+### 色彩令牌
+
+浅色模式直接延续 Android `LightColors` 与 `liquidGlassBackdropBrush`：
+
+| 角色 | 色值 |
+| --- | --- |
+| 页面背景 | `#F3F7F3` |
+| 玻璃背景渐变 | `#F8FBF8`、`#F2F6F2`、`#F7F4EC` |
+| 主表面 | `#FFFFFF` |
+| 主强调色 | `#B86F54` |
+| 深墨色 | `#0D2B1E` |
+| 辅助绿 | `#60786B` |
+| 主文字 | `#1A2E24` |
+| 次级表面 | `#EAF0EB` |
+| 描边 | `#D5DED7` |
+
+深色模式直接延续 Android `DarkColors`：
+
+| 角色 | 色值 |
+| --- | --- |
+| 页面背景 | `#071A12` |
+| 主表面 | `#0E2419` |
+| 主强调色 | `#C9A84C` |
+| 辅助绿 | `#8BAA94` |
+| 次级文字 | `#9CA89F` |
+| 主文字 | `#E8E4DC` |
+| 次级表面 | `#0D2B1E` |
+| 描边 | `#1C3A2B` |
+
+### 材质与层级
+
+- 使用 Android `LiquidGlassRole` 的四级语义：`Panel`、`Chrome`、`Control`、`Accent`。
+- 浅色模式使用轻量半透明、顶部亮边和弱阴影；深色模式使用不透明表面与清晰描边，避免发灰。
+- 三栏导航和工具栏可以复用 macOS Vibrancy；文章卡片与正文底板不叠加多层材质。
+- 正文阅读区域必须保持稳定背景，不随窗口背景或滚动位置改变透明度。
+
+### 文字与形状
+
+- 原生界面使用 San Francisco 系统字体和 SwiftUI 语义字号，不引入自定义品牌字体。
+- 阅读正文完全由服务端 HTML 控制，客户端不覆盖正文字体或排版。
+- 延续 Android 圆角令牌：控件 `8pt`、分组与面板 `12pt`、弹窗和重点容器 `16pt`。
+- 紧凑列表以分隔线和排版层级为主，不使用大面积卡片嵌套。
+
+### 品牌资产来源
+
+- 品牌图形取自 `apps/android/app/src/main/res/drawable/ic_qiankunjie_mark.xml` 和 `apps/android/app/src/main/res/drawable-nodpi/brand_logo.png`。
+- 微信来源图标取自 `apps/android/app/src/main/res/drawable/ic_source_wechat.xml`。
+- 空状态插图取自 `apps/android/app/src/main/res/drawable-nodpi/empty_library_light.png` 和 `empty_library_dark.png`。
+- 文章无封面时的占位渐变沿用 Android `ArticleVisualPalettes` 的四组配色。
+- Android Vector Drawable 在 macOS 资源目录中转换为 SVG 或 PDF 矢量资源，保持原始比例、含义和明暗模式差异。
+- 系统动作统一使用 SF Symbols；只有品牌和内容来源图形复用 Android 资产，不复制 Android 导航图标。
+
+### 交互与可达性
+
+- 交互反馈以 macOS 的悬停、按下、焦点和键盘导航为主，动画保持短促克制。
+- 支持系统减少动态效果、提高对比度和键盘全流程操作。
+- 所有强调色、文字和状态颜色在浅色与深色模式下必须满足可读性要求。
+
 ## 信息架构
 
 ### 主窗口
