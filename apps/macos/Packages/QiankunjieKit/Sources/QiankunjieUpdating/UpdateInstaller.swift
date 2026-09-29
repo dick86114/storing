@@ -35,12 +35,7 @@ public struct UpdateInstaller: Sendable {
                 throw UpdateServiceError.invalidRelease
             }
 
-            let script = Self.makeScript(
-                source: mountURL.appendingPathComponent(appDirectoryName).path,
-                destination: destination.path,
-                pid: Int(currentProcessID),
-                version: update.version
-            )
+            let script = Self.installScript()
             let scriptURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent("qiankunjie-install-\(UUID().uuidString).sh")
             try script.data(using: .utf8)?.write(to: scriptURL)
@@ -48,7 +43,12 @@ public struct UpdateInstaller: Sendable {
 
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/bin/sh")
-            process.arguments = [scriptURL.path]
+            process.arguments = [scriptURL.path] + Self.makeArguments(
+                source: mountURL.appendingPathComponent(appDirectoryName).path,
+                destination: destination.path,
+                pid: Int(currentProcessID),
+                version: update.version
+            )
             process.standardOutput = FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
             try process.run()
@@ -58,22 +58,36 @@ public struct UpdateInstaller: Sendable {
         }
     }
 
-    static func makeScript(source: String, destination: String, pid: Int, version: String) -> String {
-        let safePID = max(pid, 0)
-        return """
+    static func makeArguments(source: String, destination: String, pid: Int, version: String) -> [String] {
+        [
+            source,
+            destination,
+            String(max(pid, 0)),
+            version,
+        ]
+    }
+
+    static func installScript() -> String {
+        """
         #!/bin/sh
         set -eu
 
-        shell_quote() {
-          printf '%s' "$1" | sed "s/'/'\\\\''/g; 1s/^/'/; \\$s/\\$/'/"
-        }
+        if [ "$#" -ne 4 ]; then
+          exit 10
+        fi
 
-        eval "APP=$(shell_quote "\(destination)")"
-        eval "SOURCE=$(shell_quote "\(source)")"
-        CURRENT_PID=\(safePID)
-        eval "BACKUP=$(shell_quote "\(destination).backup-\(safePID)")"
-        eval "STAGING=$(shell_quote "/tmp/qiankunjie-update-\(safePID)")"
-        eval "EXPECTED=$(shell_quote "\(version)")"
+        APP="$1"
+        SOURCE="$2"
+        CURRENT_PID="$3"
+        EXPECTED="$4"
+        case "$CURRENT_PID" in
+          ''|*[!0-9]*)
+            exit 11
+            ;;
+        esac
+        BACKUP="${APP}.backup-$$"
+        STAGING="${TMPDIR:-/tmp}/qiankunjie-update-$$"
+        NEW_APP="$STAGING/乾坤戒.app"
         RESTORE_NEEDED=0
 
         restore_backup() {
@@ -107,8 +121,8 @@ public struct UpdateInstaller: Sendable {
           mv "$APP" "$BACKUP"
           RESTORE_NEEDED=1
         fi
-        ditto "$SOURCE" "$STAGING/乾坤戒.app"
-        mv "$STAGING/乾坤戒.app" "$APP"
+        ditto "$SOURCE" "$NEW_APP"
+        mv "$NEW_APP" "$APP"
 
         ACTUAL=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
         if [ "$ACTUAL" != "$EXPECTED" ]; then

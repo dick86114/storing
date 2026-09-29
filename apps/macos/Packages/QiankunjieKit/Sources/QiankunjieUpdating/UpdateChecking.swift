@@ -7,7 +7,7 @@ public protocol UpdateChecking: Sendable {
 public protocol UpdateDownloading: Sendable {
     func download(
         _ release: AppRelease,
-        progress: @Sendable (Double?) -> Void
+        progress: @escaping @Sendable (Double?) -> Void
     ) async throws -> DownloadedUpdate
 }
 

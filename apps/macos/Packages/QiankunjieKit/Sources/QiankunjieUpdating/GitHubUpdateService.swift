@@ -171,7 +171,7 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading {
         let entries = AtomFeedParser().parse(response.data)
         let releases = entries.compactMap { entry -> AppRelease? in
             guard
-                let tag = Self.tagName(inAtomID: entry.id),
+                let tag = Self.tagName(inAtomEntryID: entry.id, title: entry.title),
                 let version = Self.version(fromTag: tag),
                 let assetName = Self.dmgName(inText: entry.content)
             else {
@@ -217,7 +217,26 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading {
             throw UpdateServiceError.invalidResponse
         }
 
-        let canResume = response.statusCode == 206 && resumeOffset > 0
+        let normalizedHeaders = Dictionary(uniqueKeysWithValues: response.headers.map {
+            ($0.key.lowercased(), $0.value)
+        })
+        let acceptedContentRange: (start: Int64, total: Int64?)?
+        if response.statusCode == 206, resumeOffset > 0 {
+            acceptedContentRange = normalizedHeaders["content-range"].flatMap(Self.contentRange)
+        } else {
+            acceptedContentRange = nil
+        }
+        let canResume = acceptedContentRange?.start == resumeOffset
+        if response.statusCode == 206, resumeOffset > 0, !canResume {
+            FileManager.default.createFile(atPath: partialURL.path, contents: nil)
+            return try await performDownload(
+                release,
+                partialURL: partialURL,
+                expectedChecksum: expectedChecksum,
+                mirror: mirror,
+                progress: progress
+            )
+        }
         let startOffset = canResume ? resumeOffset : 0
         if !canResume {
             FileManager.default.createFile(atPath: partialURL.path, contents: nil)
@@ -228,11 +247,12 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading {
         }
         defer { try? fileHandle.close() }
 
-        let total = Self.totalByteCount(
-            headers: response.headers,
-            statusCode: response.statusCode,
-            existingSize: resumeOffset
-        )
+        let total: Int64?
+        if canResume {
+            total = acceptedContentRange?.total
+        } else {
+            total = normalizedHeaders["content-length"].flatMap(Int64.init)
+        }
         var hasher = SHA256()
         var received = Int64(0)
         var writeBuffer = Data()
@@ -320,14 +340,24 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading {
     }
 
     private static func version(fromTag tag: String) -> String? {
-        guard let match = tag.firstMatch(of: /macos-v([0-9]+)\.([0-9]+)\.([0-9]+)/) else {
+        guard let match = tag.firstMatch(of: /^macos-v([0-9]+)\.([0-9]+)\.([0-9]+)$/) else {
             return nil
         }
         return "\(match.1).\(match.2).\(match.3)"
     }
 
-    private static func tagName(inAtomID id: String) -> String? {
-        id.firstMatch(of: /macos-v[0-9]+\.[0-9]+\.[0-9]+/).map { String($0.output) }
+    private static func tagName(inAtomEntryID id: String, title: String) -> String? {
+        [id, title]
+            .lazy
+            .compactMap { Self.stableTagName(inText: $0) }
+            .first
+    }
+
+    private static func stableTagName(inText text: String) -> String? {
+        text
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "." && $0 != "-" && $0 != "_" })
+            .first { $0.firstMatch(of: /^macos-v([0-9]+)\.([0-9]+)\.([0-9]+)$/) != nil }
+            .map(String.init)
     }
 
     private static func isDMGName(_ name: String) -> Bool {
@@ -368,26 +398,20 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading {
         return URL(string: "\(prefix)\(url.absoluteString)") ?? url
     }
 
-    private static func totalByteCount(
-        headers: [String: String],
-        statusCode: Int,
-        existingSize: Int64
-    ) -> Int64? {
-        let normalizedHeaders = Dictionary(uniqueKeysWithValues: headers.map {
-            ($0.key.lowercased(), $0.value)
-        })
-        if
-            statusCode == 206,
-            let contentRange = normalizedHeaders["content-range"],
-            let match = contentRange.firstMatch(of: /\/([0-9]+)/),
-            let total = Int64(match.1)
-        {
-            return total
+    private static func contentRange(_ value: String) -> (start: Int64, total: Int64?)? {
+        guard
+            let match = value.firstMatch(
+                of: /^bytes[ ]+([0-9]+)-([0-9]+)\/([0-9]+)$/
+            ),
+            let start = Int64(match.1),
+            let end = Int64(match.2),
+            let total = Int64(match.3),
+            start <= end,
+            end + 1 == total
+        else {
+            return nil
         }
-        if let contentLength = normalizedHeaders["content-length"], let length = Int64(contentLength) {
-            return statusCode == 206 ? existingSize + length : length
-        }
-        return nil
+        return (start, total)
     }
 
     private static func isRetryableTimeout(_ error: URLError) -> Bool {
