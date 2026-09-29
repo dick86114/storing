@@ -9,6 +9,11 @@ public enum CollectDisplayState: Equatable, Sendable {
     case error
 }
 
+private enum CollectListOperation {
+    case refresh
+    case loadMore
+}
+
 @MainActor
 @Observable
 public final class CollectModel {
@@ -37,6 +42,7 @@ public final class CollectModel {
     private var pollGeneration = 0
     private let pageSize = 30
     private var nextPageOffset = 0
+    private var activeListOperation: CollectListOperation?
 
     public init(
         repository: any CollectServicing = CollectRepository(),
@@ -111,15 +117,30 @@ public final class CollectModel {
     }
 
     public func refreshJobs() async {
-        guard userID != nil else {
+        guard
+            userID != nil,
+            activeListOperation == nil
+        else {
             isLoadingJobs = false
             isRefreshingJobs = false
             return
         }
 
+        activeListOperation = .refresh
         requestGeneration += 1
         pollGeneration += 1
         let generation = requestGeneration
+        let operationUserID = userID
+        defer {
+            if activeListOperation == .refresh {
+                activeListOperation = nil
+                if userID == operationUserID {
+                    isLoadingJobs = false
+                    isRefreshingJobs = false
+                }
+            }
+        }
+
         if jobs.isEmpty {
             isLoadingJobs = true
         } else {
@@ -140,16 +161,13 @@ public final class CollectModel {
             }
             isLoadingJobs = false
             isRefreshingJobs = false
+            activeListOperation = nil
             await pollActiveJobs(generation: pollGeneration)
         } catch {
             guard requestGeneration == generation else { return }
             refreshErrorMessage = Self.message(for: error)
         }
 
-        if requestGeneration == generation {
-            isLoadingJobs = false
-            isRefreshingJobs = false
-        }
     }
 
     public func retry(jobID: Int) async {
@@ -216,15 +234,26 @@ public final class CollectModel {
             userID != nil,
             hasMore,
             !isLoadingMoreJobs,
-            !isLoadingJobs
+            !isLoadingJobs,
+            activeListOperation == nil
         else {
             return
         }
 
+        activeListOperation = .loadMore
         requestGeneration += 1
         let generation = requestGeneration
         let offset = nextPageOffset
+        let operationUserID = userID
         isLoadingMoreJobs = true
+        defer {
+            if activeListOperation == .loadMore {
+                activeListOperation = nil
+                if userID == operationUserID {
+                    isLoadingMoreJobs = false
+                }
+            }
+        }
 
         do {
             let page = try await repository.jobs(limit: pageSize, offset: offset)
@@ -288,6 +317,7 @@ public final class CollectModel {
         isRefreshingJobs = false
         isLoadingMoreJobs = false
         mutatingJobIDs = []
+        activeListOperation = nil
         inputErrorMessage = nil
         submitErrorMessage = nil
         refreshErrorMessage = nil

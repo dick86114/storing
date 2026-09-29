@@ -13,6 +13,7 @@ struct CollectUrlValidatorTests {
             "http://127.1/a",
             "http://0x7f.1/a",
             "http://2130706433/a",
+            "http://8.08.8.8/a",
             "http://localhost/a",
             "http://192.168.1.5/a",
             "http://10.0.0.8/a",
@@ -32,6 +33,7 @@ struct CollectUrlValidatorTests {
     }
 
     @Test func 公开HTTP和HTTPS地址通过校验() throws {
+        #expect(try CollectUrlValidator.validate("http://8.8.8.8/a") == URL(string: "http://8.8.8.8/a"))
         #expect(try CollectUrlValidator.validate("https://example.com/article") == URL(string: "https://example.com/article"))
         #expect(try CollectUrlValidator.validate(" http://example.com/article ") == URL(string: "http://example.com/article"))
     }

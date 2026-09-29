@@ -230,6 +230,96 @@ struct CollectModelTests {
         #expect(await repository.jobsRequestCount == 2)
     }
 
+    @Test func 加载更多进行中时刷新不会推进列表代际() async throws {
+        let repository = 模拟采集仓库(
+            pagesByOffset: [
+                0: CollectJobPage(
+                    jobs: [.fixture(id: 3, status: "completed")],
+                    total: 4,
+                    hasMore: true
+                ),
+                30: CollectJobPage(
+                    jobs: [.fixture(id: 2, status: "completed")],
+                    total: 4,
+                    hasMore: true
+                ),
+            ]
+        )
+        let model = CollectModel(repository: repository, userID: 9)
+        await model.refreshJobs()
+        await repository.holdNextJobs()
+
+        let loading = Task {
+            await model.loadMoreJobs()
+        }
+        await repository.waitForJobsRequest()
+        #expect(model.isLoadingMoreJobs)
+
+        await model.refreshJobs()
+
+        #expect(!model.isRefreshingJobs)
+        #expect(model.jobs.map(\.id) == [3])
+        #expect(await repository.jobsRequestCount == 2)
+        #expect(await repository.requestedOffsets == [0, 30])
+
+        await repository.resumeHeldJobs(with: .success(
+            CollectJobPage(
+                jobs: [.fixture(id: 2, status: "completed")],
+                total: 4,
+                hasMore: true
+            )
+        ))
+        await loading.value
+
+        #expect(model.jobs.map(\.id) == [3, 2])
+        #expect(!model.isLoadingMoreJobs)
+        #expect(!model.isRefreshingJobs)
+    }
+
+    @Test func 刷新进行中时加载更多不会推进列表代际() async throws {
+        let repository = 模拟采集仓库(
+            pagesByOffset: [
+                0: CollectJobPage(
+                    jobs: [.fixture(id: 3, status: "completed")],
+                    total: 2,
+                    hasMore: true
+                ),
+                30: CollectJobPage(
+                    jobs: [.fixture(id: 1, status: "completed")],
+                    total: 2,
+                    hasMore: false
+                ),
+            ]
+        )
+        let model = CollectModel(repository: repository, userID: 9)
+        await model.refreshJobs()
+        await repository.holdNextJobs()
+
+        let refreshing = Task {
+            await model.refreshJobs()
+        }
+        await repository.waitForJobsRequest()
+        #expect(model.isRefreshingJobs)
+
+        await model.loadMoreJobs()
+
+        #expect(!model.isLoadingMoreJobs)
+        #expect(await repository.jobsRequestCount == 2)
+        #expect(await repository.requestedOffsets == [0, 0])
+
+        await repository.resumeHeldJobs(with: .success(
+            CollectJobPage(
+                jobs: [.fixture(id: 3, status: "completed")],
+                total: 2,
+                hasMore: true
+            )
+        ))
+        await refreshing.value
+
+        #expect(!model.isRefreshingJobs)
+        #expect(!model.isLoadingMoreJobs)
+    }
+
     @Test func 加载最后一页后停止加载更多() async {
         let repository = 模拟采集仓库(
             pagesByOffset: [
@@ -277,6 +367,7 @@ struct CollectModelTests {
         await repository.waitForJobsRequest()
 
         model.prepareUser(userID: 10)
+        #expect(!model.isLoadingMoreJobs)
         await repository.resumeHeldJobs(with: .success(
             CollectJobPage(
                 jobs: [.fixture(id: 99, status: "completed")],
@@ -289,6 +380,7 @@ struct CollectModelTests {
         #expect(model.jobs.isEmpty)
         #expect(model.total == 0)
         #expect(!model.hasMore)
+        #expect(!model.isLoadingMoreJobs)
         #expect(model.userID == 10)
     }
 
