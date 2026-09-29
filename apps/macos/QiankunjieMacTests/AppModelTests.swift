@@ -29,7 +29,13 @@ struct AppModelTests {
                 store: 空会话存储()
             )
         )
-        let model = AppModel(authModel: authModel)
+        let model = AppModel(
+            authModel: authModel,
+            libraryModel: LibraryModel(
+                repository: 模拟资料库仓库(),
+                cache: EmptyLibraryCache()
+            )
+        )
 
         model.presentLogin()
         let succeeded = await authModel.login(
@@ -37,7 +43,10 @@ struct AppModelTests {
             password: "test-only-password",
             device: .fixture()
         )
-        await model.didAuthenticate()
+        model.didAuthenticate()
+        while model.libraryModel.isLoading {
+            await Task.yield()
+        }
 
         #expect(succeeded)
         #expect(!model.isLoginPresented)
@@ -134,6 +143,96 @@ struct AppModelTests {
             )
         ) == nil)
     }
+
+    @Test func 登录回调立即关闭流程不等待资料库请求() async throws {
+        let authModel = AuthModel(
+            repository: AuthRepository(
+                client: 无操作认证客户端(loginUser: .fixture(id: 9)),
+                store: 空会话存储()
+            )
+        )
+        let repository = 模拟资料库仓库()
+        let model = AppModel(
+            authModel: authModel,
+            libraryModel: LibraryModel(
+                repository: repository,
+                cache: EmptyLibraryCache()
+            )
+        )
+        let succeeded = await authModel.login(
+            username: "admin",
+            password: "test-only-password",
+            device: .fixture()
+        )
+        await repository.holdNextLoad()
+        model.presentLogin()
+
+        model.didAuthenticate()
+
+        #expect(succeeded)
+        #expect(!model.isLoginPresented)
+        await repository.waitForRequests(count: 1)
+        #expect(!model.isLoginPresented)
+
+        await repository.resumeHeldLoad(
+            with: .success(
+                ArticleListPage(
+                    articles: [ArticleCard(id: 91)],
+                    total: 1,
+                    page: 1,
+                    perPage: 20,
+                    totalPages: 1
+                )
+            )
+        )
+        while model.libraryModel.isLoading {
+            await Task.yield()
+        }
+        #expect(model.libraryModel.articles.map(\.id) == [91])
+    }
+
+    @Test func 退出登录等待清理时旧请求不能写回游客界面() async throws {
+        let cache = 可阻塞资料库缓存()
+        let repository = 模拟资料库仓库()
+        let model = AppModel.fixture(
+            user: .fixture(id: 9),
+            destination: .inbox,
+            selectedArticleID: 42,
+            libraryRepository: repository,
+            libraryCache: cache
+        )
+        await repository.holdNextLoad()
+        let oldLoad = Task {
+            await model.libraryModel.load(reset: true)
+        }
+        await repository.waitForRequests(count: 1)
+
+        let logout = Task {
+            await model.didLogout()
+        }
+        await cache.waitForClearRequest()
+        await repository.resumeHeldLoad(
+            with: .success(
+                ArticleListPage(
+                    articles: [ArticleCard(id: 90)],
+                    total: 1,
+                    page: 1,
+                    perPage: 20,
+                    totalPages: 1
+                )
+            )
+        )
+        _ = await oldLoad.value
+
+        #expect(model.libraryModel.articles.isEmpty)
+
+        await cache.finishClear()
+        await logout.value
+
+        #expect(model.user == nil)
+        #expect(model.libraryModel.userID == nil)
+        #expect(model.libraryModel.view == .published)
+    }
 }
 
 private extension AppModel {
@@ -179,8 +278,20 @@ private extension AppDestination {
 }
 
 private actor 模拟资料库仓库: LibraryLoading {
+    private var shouldHoldNextLoad = false
+    private var heldContinuations: [Int: CheckedContinuation<ArticleListPage, Error>] = [:]
+    private var requestedPageCount = 0
+
     func load(_ query: LibraryQuery) async throws -> ArticleListPage {
-        ArticleListPage(articles: [], total: 0, page: 1, perPage: 20, totalPages: 0)
+        let requestIndex = requestedPageCount
+        requestedPageCount += 1
+        if shouldHoldNextLoad {
+            shouldHoldNextLoad = false
+            return try await withCheckedThrowingContinuation { continuation in
+                heldContinuations[requestIndex] = continuation
+            }
+        }
+        return ArticleListPage(articles: [], total: 0, page: 1, perPage: 20, totalPages: 0)
     }
 
     func loadCounts(userID: Int?) async throws -> ArticleCounts {
@@ -189,6 +300,29 @@ private actor 模拟资料库仓库: LibraryLoading {
 
     func loadSources(userID: Int?) async throws -> [LibrarySource] {
         []
+    }
+
+    func holdNextLoad() {
+        shouldHoldNextLoad = true
+    }
+
+    func resumeHeldLoad(with result: Result<ArticleListPage, Error>) {
+        let requestIndex = heldContinuations.keys.min() ?? -1
+        guard let continuation = heldContinuations.removeValue(forKey: requestIndex) else {
+            return
+        }
+        switch result {
+        case .success(let page):
+            continuation.resume(returning: page)
+        case .failure(let error):
+            continuation.resume(throwing: error)
+        }
+    }
+
+    func waitForRequests(count: Int) async {
+        while requestedPageCount < count {
+            await Task.yield()
+        }
     }
 }
 
@@ -205,6 +339,36 @@ private actor 内存资料库缓存: LibraryCaching {
 
     func clear(userID: Int?) async throws {
         pages = pages.filter { $0.key.userID != userID }
+    }
+}
+
+private actor 可阻塞资料库缓存: LibraryCaching {
+    private var clearContinuations: [CheckedContinuation<Void, Never>] = []
+    private(set) var clearRequestCount = 0
+
+    func load(scope: LibraryCacheScope) async throws -> ArticleListPage? {
+        nil
+    }
+
+    func save(_ page: ArticleListPage, scope: LibraryCacheScope) async throws {}
+
+    func clear(userID: Int?) async throws {
+        clearRequestCount += 1
+        await withCheckedContinuation { continuation in
+            clearContinuations.append(continuation)
+        }
+    }
+
+    func waitForClearRequest() async {
+        while clearRequestCount == 0 {
+            await Task.yield()
+        }
+    }
+
+    func finishClear() {
+        let continuations = clearContinuations
+        clearContinuations = []
+        continuations.forEach { $0.resume() }
     }
 }
 

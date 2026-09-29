@@ -91,6 +91,58 @@ struct LibraryModelTests {
         #expect(model.displayState == .empty)
     }
 
+    @Test func 手动刷新失败时恢复非空缓存并显示缓存标签() async throws {
+        let cache = 内存资料库缓存()
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [12], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            cache: cache,
+            userID: 7,
+            view: .inbox
+        )
+        await model.load(reset: true)
+        try await cache.save(
+            .fixture(ids: [11], page: 1, totalPages: 1),
+            scope: .fixture(userID: 7, view: .inbox)
+        )
+        await repository.setError(AppError.network)
+
+        await model.load(reset: false)
+
+        #expect(model.articles.map(\.id) == [11])
+        #expect(model.isShowingCache)
+        #expect(model.errorMessage == nil)
+        #expect(model.displayState == .content)
+    }
+
+    @Test func 手动刷新失败时保留有效空缓存页() async throws {
+        let cache = 内存资料库缓存()
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [12], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            cache: cache,
+            userID: 7,
+            view: .inbox
+        )
+        await model.load(reset: true)
+        try await cache.save(
+            .fixture(ids: [], page: 1, totalPages: 0),
+            scope: .fixture(userID: 7, view: .inbox)
+        )
+        await repository.setError(AppError.network)
+
+        await model.load(reset: false)
+
+        #expect(model.articles.isEmpty)
+        #expect(model.isShowingCache)
+        #expect(model.errorMessage == nil)
+        #expect(model.displayState == .empty)
+    }
+
     @Test func 切换账号清理旧用户内存状态并重新加载() async throws {
         let cache = 内存资料库缓存()
         try await cache.save(
@@ -117,6 +169,63 @@ struct LibraryModelTests {
         #expect(try await cache.load(scope: .fixture(userID: 7, view: .inbox)) == nil)
     }
 
+    @Test func 准备新账号时清理用户作用域筛选和辅助状态() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [51], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+        model.selectSource("少数派")
+        model.selectCategory(3)
+        model.selectedArticleID = 51
+        await model.load(reset: true)
+
+        model.prepareUser(userID: 8, view: .favorites)
+
+        #expect(model.source == nil)
+        #expect(model.categoryId == nil)
+        #expect(model.counts == nil)
+        #expect(model.availableSources.isEmpty)
+        #expect(model.selectedArticleID == nil)
+    }
+
+    @Test func 账号切换等待清理时旧请求不能写回界面() async throws {
+        let cache = 可阻塞资料库缓存()
+        let repository = 模拟资料库仓库()
+        let model = LibraryModel(
+            repository: repository,
+            cache: cache,
+            userID: 7,
+            view: .inbox
+        )
+        await repository.holdNextLoad()
+        let oldLoad = Task {
+            await model.load(reset: true)
+        }
+        await repository.waitForRequests(count: 1)
+
+        let userSwitch = Task {
+            await model.switchUser(userID: 8, view: .favorites)
+        }
+        await cache.waitForClearRequest()
+        await repository.resumeHeldLoad(
+            with: .success(.fixture(ids: [71], page: 1, totalPages: 1))
+        )
+        _ = await oldLoad.value
+
+        #expect(model.articles.isEmpty)
+
+        await cache.finishClear()
+        await userSwitch.value
+
+        #expect(model.userID == 8)
+        #expect(model.articles.isEmpty)
+    }
+
     @Test func 同步列表重载不会清除当前选择() async {
         let repository = 模拟资料库仓库(
             pages: [1: .fixture(ids: [41], page: 1, totalPages: 1)]
@@ -135,6 +244,8 @@ struct LibraryModelTests {
 private actor 模拟资料库仓库: LibraryLoading {
     private var pages: [Int: ArticleListPage]
     private var currentError: AppError?
+    private var shouldHoldNextLoad = false
+    private var heldContinuations: [Int: CheckedContinuation<ArticleListPage, Error>] = [:]
     private(set) var requestedPages: [Int] = []
     private(set) var lastQuery: LibraryQuery?
 
@@ -144,8 +255,15 @@ private actor 模拟资料库仓库: LibraryLoading {
     }
 
     func load(_ query: LibraryQuery) async throws -> ArticleListPage {
+        let requestIndex = requestedPages.count
         requestedPages.append(query.page)
         lastQuery = query
+        if shouldHoldNextLoad {
+            shouldHoldNextLoad = false
+            return try await withCheckedThrowingContinuation { continuation in
+                heldContinuations[requestIndex] = continuation
+            }
+        }
         if let currentError {
             throw currentError
         }
@@ -164,6 +282,33 @@ private actor 模拟资料库仓库: LibraryLoading {
         currentError = nil
         pages[page.page] = page
     }
+
+    func setError(_ error: AppError?) {
+        currentError = error
+    }
+
+    func holdNextLoad() {
+        shouldHoldNextLoad = true
+    }
+
+    func resumeHeldLoad(with result: Result<ArticleListPage, Error>) {
+        let requestIndex = heldContinuations.keys.min() ?? -1
+        guard let continuation = heldContinuations.removeValue(forKey: requestIndex) else {
+            return
+        }
+        switch result {
+        case .success(let page):
+            continuation.resume(returning: page)
+        case .failure(let error):
+            continuation.resume(throwing: error)
+        }
+    }
+
+    func waitForRequests(count: Int) async {
+        while requestedPages.count < count {
+            await Task.yield()
+        }
+    }
 }
 
 private actor 内存资料库缓存: LibraryCaching {
@@ -179,6 +324,40 @@ private actor 内存资料库缓存: LibraryCaching {
 
     func clear(userID: Int?) async throws {
         pages = pages.filter { $0.key.userID != userID }
+    }
+}
+
+private actor 可阻塞资料库缓存: LibraryCaching {
+    private var pages: [LibraryCacheScope: ArticleListPage] = [:]
+    private var clearContinuations: [CheckedContinuation<Void, Never>] = []
+    private(set) var clearRequestCount = 0
+
+    func load(scope: LibraryCacheScope) async throws -> ArticleListPage? {
+        pages[scope]
+    }
+
+    func save(_ page: ArticleListPage, scope: LibraryCacheScope) async throws {
+        pages[scope] = page
+    }
+
+    func clear(userID: Int?) async throws {
+        clearRequestCount += 1
+        await withCheckedContinuation { continuation in
+            clearContinuations.append(continuation)
+        }
+        pages = pages.filter { $0.key.userID != userID }
+    }
+
+    func waitForClearRequest() async {
+        while clearRequestCount == 0 {
+            await Task.yield()
+        }
+    }
+
+    func finishClear() {
+        let continuations = clearContinuations
+        clearContinuations = []
+        continuations.forEach { $0.resume() }
     }
 }
 

@@ -9,6 +9,7 @@ struct CompactArticleListView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     private let paginationPreviewCount = 6
+    private let layoutMetrics = CompactArticleListLayoutMetrics(centerWidth: 280)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -109,7 +110,7 @@ struct CompactArticleListView: View {
                 Spacer(minLength: 0)
             }
             .padding(10)
-            .frame(minHeight: 92, alignment: .leading)
+            .frame(height: layoutMetrics.rowHeight, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -149,7 +150,10 @@ struct CompactArticleListView: View {
                 fallbackCover(article)
             }
         }
-        .frame(width: 56, height: 56)
+        .frame(
+            width: layoutMetrics.coverSize,
+            height: layoutMetrics.coverSize
+        )
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .accessibilityLabel("文章封面")
     }
@@ -170,8 +174,14 @@ struct CompactArticleListView: View {
 
     private func tags(_ article: ArticleCard) -> some View {
         HStack(spacing: 5) {
-            ForEach(prefix(article.aiTags, count: 3), id: \.self) { tag in
+            ForEach(layoutMetrics.displayTags(article.aiTags), id: \.self) { tag in
                 Text(tag)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(
+                        maxWidth: layoutMetrics.maximumTagWidth,
+                        alignment: .leading
+                    )
                     .font(QiankunjieTypography.labelMedium)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
@@ -244,7 +254,4 @@ struct CompactArticleListView: View {
         source == "微信公众号" ? "person.2" : "doc.text"
     }
 
-    private func prefix(_ values: [String], count: Int) -> [String] {
-        Array(values.prefix(count))
-    }
 }

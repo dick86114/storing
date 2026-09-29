@@ -33,6 +33,7 @@ public final class LibraryModel {
     public private(set) var isShowingCache = false
     public private(set) var errorMessage: String?
     public private(set) var loadMoreErrorMessage: String?
+    public private(set) var refreshErrorMessage: String?
 
     private let repository: any LibraryLoading
     private let cache: any LibraryCaching
@@ -166,15 +167,18 @@ public final class LibraryModel {
         } else {
             generation = requestGeneration
             isRefreshing = true
+            refreshErrorMessage = nil
         }
 
-        let query = currentQuery()
+        let query = currentQuery(page: reset ? page : 1)
         let scope = LibraryCache.scope(for: query, userId: userID)
-        if reset, userID != nil, let cached = try? await cache.load(scope: scope) {
-            guard requestGeneration == generation else {
-                return
-            }
-            apply(cached, fromCache: true)
+        let cachedPage = await loadCachedPage(scope: scope)
+        guard requestGeneration == generation else {
+            return
+        }
+
+        if reset, let cachedPage {
+            apply(cachedPage, fromCache: true)
         }
 
         do {
@@ -186,6 +190,10 @@ public final class LibraryModel {
             if userID != nil {
                 try? await cache.save(freshPage, scope: scope)
             }
+            guard requestGeneration == generation else {
+                return
+            }
+            refreshErrorMessage = nil
             apply(freshPage, fromCache: false)
             await loadAuxiliaryData(generation: generation)
         } catch {
@@ -193,8 +201,12 @@ public final class LibraryModel {
                 return
             }
 
-            if isShowingCache, !articles.isEmpty {
+            if let cachedPage {
+                apply(cachedPage, fromCache: true)
                 errorMessage = nil
+            } else if !articles.isEmpty {
+                errorMessage = nil
+                refreshErrorMessage = Self.message(for: error)
             } else {
                 errorMessage = Self.message(for: error)
                 articles = []
@@ -261,9 +273,19 @@ public final class LibraryModel {
     }
 
     public func prepareUser(userID: Int?, view: LibraryView) {
+        requestGeneration += 1
         self.userID = userID
         searchDraft = ""
-        select(view: view)
+        appliedSearchText = ""
+        self.view = view
+        sort = ArticleSort.defaultSort(for: view)
+        order = .desc
+        source = nil
+        categoryId = nil
+        counts = nil
+        availableSources = []
+        selectedArticleID = nil
+        resetLoadedState()
     }
 
     public func clearUserScope(userID: Int?) async {
@@ -272,13 +294,10 @@ public final class LibraryModel {
 
     public func switchUser(userID: Int?, view: LibraryView) async {
         let previousUserID = self.userID
+        prepareUser(userID: userID, view: view)
         if previousUserID != userID {
             try? await cache.clear(userID: previousUserID)
         }
-
-        self.userID = userID
-        searchDraft = ""
-        select(view: view)
         await load(reset: true)
     }
 
@@ -292,9 +311,14 @@ public final class LibraryModel {
         isShowingCache = false
         errorMessage = nil
         loadMoreErrorMessage = nil
+        refreshErrorMessage = nil
     }
 
     private func currentQuery() -> LibraryQuery {
+        currentQuery(page: page)
+    }
+
+    private func currentQuery(page: Int) -> LibraryQuery {
         LibraryQuery(
             userId: userID,
             view: view,
@@ -314,7 +338,15 @@ public final class LibraryModel {
         totalPages = pageResult.totalPages
         isShowingCache = fromCache
         errorMessage = nil
+        refreshErrorMessage = nil
         isLoading = false
+    }
+
+    private func loadCachedPage(scope: LibraryCacheScope) async -> ArticleListPage? {
+        guard userID != nil else {
+            return nil
+        }
+        return try? await cache.load(scope: scope)
     }
 
     private func loadAuxiliaryData(generation: Int) async {
