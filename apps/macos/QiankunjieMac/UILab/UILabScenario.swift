@@ -1,6 +1,8 @@
 #if DEBUG
+import QiankunjieLibrary
 import QiankunjieCore
 import QiankunjieDesignSystem
+import QiankunjieReader
 import SwiftUI
 
 /// 任务行的可用动作只由固定夹具状态推导，UI Lab 中的按钮不会访问真实仓储。
@@ -65,21 +67,47 @@ enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
 @MainActor
 struct UILabRootView: View {
     let scenario: UILabScenario
+    @State private var stateLibraryModel: LibraryModel?
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Group {
             switch scenario {
-            case .login: login
-            case .library: library
-            case .empty: stateView("暂无文章", systemImage: "tray", detail: "收件箱为空时保持稳定留白。")
-            case .loading: loading
-            case .offline: offline
-            case .reader: reader
-            case .collect: collect
-            case .tasks: tasks
-            case .settings: settings
-            case .update: update
+            case .login:
+                LoginView(
+                    authModel: UILabFixtures.authModel,
+                    onAuthenticated: {}
+                )
+            case .library:
+                library
+            case .empty:
+                productionLibrary(.empty)
+            case .loading:
+                productionLibrary(.loading)
+            case .offline:
+                productionLibrary(.offline)
+            case .reader:
+                reader
+            case .collect:
+                CollectView(
+                    model: UILabFixtures.collectModel,
+                    onOpenArticle: { _ in }
+                )
+            case .tasks:
+                CollectTasksView(
+                    model: UILabFixtures.collectModel,
+                    onOpenArticle: { _ in }
+                )
+            case .settings:
+                SettingsView(
+                    model: UILabFixtures.appModel,
+                    menuBarController: nil
+                )
+            case .update:
+                UpdateSettingsView(
+                    currentVersion: "0.1.0",
+                    service: UILabFixtureUpdateService()
+                )
             }
         }
         .frame(minWidth: 960, minHeight: 620)
@@ -88,222 +116,59 @@ struct UILabRootView: View {
         .navigationTitle("UI Lab · \(scenario.displayName)")
     }
 
-    private var login: some View {
-        VStack(spacing: 18) {
-            Text("登录乾坤戒")
-                .font(QiankunjieTypography.headlineSmall)
-            VStack(alignment: .leading, spacing: 16) {
-                LabeledContent("用户名") {
-                    TextField("用户名", text: .constant("uilab-user"))
-                        .textFieldStyle(.roundedBorder)
-                }
-                LabeledContent("密码") {
-                    SecureField("密码", text: .constant("uilab-only-password"))
-                        .textFieldStyle(.roundedBorder)
-                }
-                Button("登录") {}
-                    .buttonStyle(.borderedProminent)
-            }
-            .padding(24)
-            .frame(width: 400)
-            .background {
-                RoundedRectangle(cornerRadius: QiankunjieRadius.panel, style: .continuous)
-                    .fill(QiankunjieColors.surface(for: colorScheme))
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
     private var library: some View {
         NavigationSplitView {
-            List(selection: .constant("inbox")) {
-                Label("收件箱", systemImage: "tray").tag("inbox")
-                Label("收藏", systemImage: "star").tag("favorites")
-                Label("归档", systemImage: "archivebox").tag("archive")
-                Label("已发布", systemImage: "globe").tag("published")
-            }
+            SidebarView(
+                model: UILabFixtures.appModel,
+                destinationSelection: .constant(.inbox)
+            )
             .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
         } content: {
-            VStack(spacing: 0) {
-                TextField("搜索文章", text: .constant("产品设计"))
-                    .textFieldStyle(.roundedBorder)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                Divider()
-                List(
-                    UILabFixtures.articles,
-                    id: \.id,
-                    selection: .constant(UILabFixtures.article.id)
-                ) { article in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(article.title ?? "未命名文章")
-                            .font(QiankunjieTypography.titleMedium)
-                            .lineLimit(2)
-                        Text(article.aiSummary ?? "暂无摘要")
-                            .font(QiankunjieTypography.bodyMedium)
-                            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                            .lineLimit(2)
-                        Text(article.source ?? "未知来源")
-                            .font(QiankunjieTypography.labelMedium)
-                            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                    }
-                    .padding(.vertical, 4)
-                    .tag(article.id)
-                }
+            CompactArticleListView(
+                model: UILabFixtures.libraryModel,
+                selection: .constant(UILabFixtures.article.id)
+            )
+            .task {
+                await UILabFixtures.libraryModel.load(reset: true)
             }
             .navigationSplitViewColumnWidth(min: 280, ideal: 390, max: .infinity)
         } detail: {
-            readerContent
+            reader
         }
         .navigationSplitViewStyle(.balanced)
     }
 
-    private var loading: some View {
-        VStack(spacing: 14) {
-            ProgressView()
-            Text("正在加载资料库")
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var offline: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "wifi.slash")
-                .font(.title)
-            Text("网络连接失败，请稍后重试")
-            Button("重试") {}
-                .buttonStyle(.borderedProminent)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
     private var reader: some View {
-        readerContent
-    }
-
-    private var readerContent: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(UILabFixtures.article.title ?? "")
-                        .font(QiankunjieTypography.headlineSmall)
-                    Text("\(UILabFixtures.article.source ?? "") · 固定阅读夹具")
-                        .font(QiankunjieTypography.labelMedium)
-                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                }
-                Spacer()
-                Button {
-                } label: {
-                    Image(systemName: "xmark")
-                }
-                .buttonStyle(.borderless)
-                .help("关闭文章")
-            }
-            .padding(14)
-            .background(QiankunjieColors.surfaceVariant(for: colorScheme))
-            Divider()
-
-            ReaderWebView(
-                html: UILabFixtures.readerHTML,
-                contentToken: "uilab-reader",
-                savedReadingState: nil,
-                onReadingStateChange: { _, _ in }
-            )
-        }
-    }
-
-    private var collect: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("新建采集").font(QiankunjieTypography.headlineSmall)
-                HStack {
-                    TextField("粘贴公开网页链接", text: .constant("https://example.com/ui-lab"))
-                        .textFieldStyle(.roundedBorder)
-                    Button("采集") {}
-                        .buttonStyle(.borderedProminent)
-                }
-            }
-            .padding(18)
-            Divider()
-
-            ScrollView {
-                VStack(spacing: 8) {
-                    CollectJobRow(job: UILabFixtures.runningCollectJob, onOpenArticle: nil, onRetry: nil, onDelete: nil)
-                }
-                .padding(16)
-            }
-        }
-    }
-
-    private var tasks: some View {
-        ScrollView {
-            LazyVStack(spacing: 8) {
-                ForEach(UILabFixtures.collectJobs, id: \.id) { job in
-                    let availability = UILabScenario.taskActionAvailability(for: job)
-
-                    CollectJobRow(
-                        job: job,
-                        onOpenArticle: availability.canOpenArticle ? {} : nil,
-                        onRetry: availability.canRetry ? {} : nil,
-                        onDelete: availability.canDelete ? {} : nil
-                    )
-                }
-            }
-            .padding(16)
-        }
-    }
-
-    private var settings: some View {
-        Form {
-            Section("应用信息") {
-                LabeledContent("版本", value: "0.1.0-ui-lab")
-                LabeledContent("服务地址", value: "UILab 固定夹具")
-                LabeledContent("环境", value: "Debug UI Lab")
-            }
-            Section("外观") {
-                Picker("外观", selection: .constant("system")) {
-                    Text("跟随系统").tag("system")
-                    Text("浅色").tag("light")
-                    Text("深色").tag("dark")
-                }
-                .pickerStyle(.segmented)
-            }
-            Section("全局采集快捷键") {
-                LabeledContent("快捷键", value: "⌥⇧C")
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    private var update: some View {
-        Form {
-            Section("软件更新") {
-                LabeledContent("当前版本", value: "0.1.0")
-                LabeledContent("更新源", value: "直连")
-                LabeledContent("新版本", value: "0.2.0")
-                Text("更新日志由 UI Lab 固定提供，用于检查排版。")
-                    .font(QiankunjieTypography.bodyMedium)
-                HStack {
-                    Button("检查更新") {}
-                    Button("下载更新") {}
-                        .buttonStyle(.borderedProminent)
-                }
-                LabeledContent("校验", value: "SHA-256 校验通过")
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    private func stateView(
-        _ title: String,
-        systemImage: String,
-        detail: String
-    ) -> some View {
-        ContentUnavailableView(
-            title,
-            systemImage: systemImage,
-            description: Text(detail)
+        ReaderPaneView(
+            selection: ReaderSelection(
+                articleID: UILabFixtures.article.id,
+                publicID: nil,
+                isGuest: false
+            ),
+            userID: UILabFixtures.user.id,
+            positionStore: UILabFixtures.appModel.readerPositionStore,
+            networkClient: UILabFixtures.readerClient,
+            onClose: {},
+            onLibraryDidChange: {}
         )
+    }
+
+    private func productionLibrary(_ state: FixtureLibraryState) -> some View {
+        Group {
+            if let model = stateLibraryModel {
+                CompactArticleListView(model: model, selection: .constant(nil))
+            } else {
+                let model = UILabFixtures.libraryModel(for: state)
+                CompactArticleListView(model: model, selection: .constant(nil))
+                    .onAppear { stateLibraryModel = model }
+            }
+        }
+        .task {
+            if stateLibraryModel == nil {
+                stateLibraryModel = UILabFixtures.libraryModel(for: state)
+            }
+            await stateLibraryModel?.load(reset: true)
+        }
     }
 }
 #endif

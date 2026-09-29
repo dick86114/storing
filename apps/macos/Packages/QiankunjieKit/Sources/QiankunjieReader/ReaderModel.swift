@@ -157,30 +157,58 @@ public protocol ReaderPositionStoring: Sendable {
     func readingState(articleID: Int) -> Data?
     func save(_ state: Data, articleID: Int)
     func remove(articleID: Int)
+    func prepareUser(userID: Int?)
 }
 
 /// UserDefaults 自身线程安全；这里只保存文章独立的阅读状态。
 public final class ReaderPositionStore: ReaderPositionStoring, @unchecked Sendable {
     private let defaults: UserDefaults
+    private var userID: Int?
 
-    public init(defaults: UserDefaults = .standard) {
+    public init(defaults: UserDefaults = .standard, userID: Int? = nil) {
         self.defaults = defaults
+        self.userID = userID
+        removeLegacyKeys(in: defaults)
     }
 
     public func readingState(articleID: Int) -> Data? {
-        defaults.data(forKey: Self.key(articleID))
+        defaults.data(forKey: Self.key(articleID, userID: userID))
     }
 
     public func save(_ state: Data, articleID: Int) {
-        defaults.set(state, forKey: Self.key(articleID))
+        defaults.set(state, forKey: Self.key(articleID, userID: userID))
     }
 
     public func remove(articleID: Int) {
-        defaults.removeObject(forKey: Self.key(articleID))
+        defaults.removeObject(forKey: Self.key(articleID, userID: userID))
     }
 
-    private static func key(_ articleID: Int) -> String {
-        "qiankunjie.reader.readingPosition.\(articleID)"
+    public func prepareUser(userID: Int?) {
+        guard self.userID != userID else { return }
+        clear(userID: self.userID)
+        self.userID = userID
+    }
+
+    private func clear(userID: Int?) {
+        let prefix = Self.scopePrefix(userID: userID)
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    private func removeLegacyKeys(in defaults: UserDefaults) {
+        let prefix = "qiankunjie.reader.readingPosition."
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    private static func scopePrefix(userID: Int?) -> String {
+        "qiankunjie.reader.readingPosition.user.\(userID ?? -1)."
+    }
+
+    private static func key(_ articleID: Int, userID: Int?) -> String {
+        "\(scopePrefix(userID: userID))article.\(articleID)"
     }
 }
 
@@ -207,6 +235,7 @@ public struct ReaderArticle: Sendable {
     public var aiSummary: String? { detail.aiSummary }
     public var aiCategory: String? { detail.aiCategory }
     public var aiTags: [String] { detail.aiTags }
+    public var category: ArticleCategory? { detail.category }
     public var contentHTML: String? { detail.contentHTML }
     public var contentMarkdown: String? { detail.contentMarkdown }
 }
@@ -228,15 +257,29 @@ public final class ReaderModel {
 
     private let client: any ReaderNetworkClient
     private let positionStore: any ReaderPositionStoring
+    public private(set) var userID: Int?
     private var requestGeneration = 0
     private var actionGeneration = 0
 
     public init(
         client: any ReaderNetworkClient = APIClient(),
-        positionStore: any ReaderPositionStoring = ReaderPositionStore()
+        positionStore: any ReaderPositionStoring = ReaderPositionStore(),
+        userID: Int? = nil
     ) {
         self.client = client
         self.positionStore = positionStore
+        self.userID = userID
+        positionStore.prepareUser(userID: userID)
+    }
+
+    public func prepareUser(userID: Int?) {
+        guard self.userID != userID else { return }
+        positionStore.prepareUser(userID: userID)
+        self.userID = userID
+        article = nil
+        articleID = nil
+        selection = nil
+        savedReadingState = nil
     }
 
     public var displayHTML: String {

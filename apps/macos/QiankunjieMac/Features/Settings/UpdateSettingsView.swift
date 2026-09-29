@@ -225,6 +225,17 @@ struct UpdateSettingsView: View {
         _model = State(initialValue: UpdateSettingsModel(currentVersion: currentVersion))
     }
 
+    init(
+        currentVersion: String,
+        service: any UpdateServicing
+    ) {
+        _model = State(initialValue: UpdateSettingsModel(
+            currentVersion: currentVersion,
+            service: service,
+            defaults: UserDefaults(suiteName: "com.idickies.storing.macos.uilab")!
+        ))
+    }
+
     var body: some View {
         LabeledContent("当前版本", value: QiankunjieMacMetadata.appVersion)
 

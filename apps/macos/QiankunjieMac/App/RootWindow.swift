@@ -1,5 +1,6 @@
 import QiankunjieDesignSystem
 import QiankunjieCollect
+import QiankunjieLibrary
 import SwiftUI
 
 struct RootWindow: View {
@@ -116,6 +117,11 @@ struct RootWindow: View {
                 model: model,
                 menuBarController: menuBarController
             )
+        } else if model.destination == .search {
+            LibrarySearchView(
+                model: model.libraryModel,
+                selection: articleSelection
+            )
         } else {
             LibraryPlaceholderView(destination: model.destination)
         }
@@ -131,6 +137,8 @@ struct RootWindow: View {
     private var readerPane: some View {
         ReaderPaneView(
             selection: model.selectedReaderSelection,
+            userID: model.user?.id,
+            positionStore: model.readerPositionStore,
             onClose: {
                 model.closeArticle()
             },
@@ -191,6 +199,18 @@ struct RootWindow: View {
         Binding(
             get: { model.destination },
             set: { model.selectDestination($0) }
+        )
+    }
+}
+
+private struct LibrarySearchView: View {
+    let model: LibraryModel
+    let selection: Binding<Int?>
+
+    var body: some View {
+        CompactArticleListView(
+            model: model,
+            selection: selection
         )
     }
 }

@@ -15,11 +15,11 @@ binary_path="${app_path}/Contents/MacOS/QiankunjieMac"
 versioned_checksum="${versioned_dmg}.sha256"
 generic_checksum="${generic_dmg}.sha256"
 
-"${script_dir}/verify-xcode.sh"
+xcodegen_bin="$("${script_dir}/verify-xcode.sh" --print-xcodegen-bin)"
 
 if [[ "${MACOS_DMG_DRY_RUN:-0}" == "1" ]]; then
   echo "[dry-run] 清理 ${output_dir}"
-  echo "[dry-run] cd ${macos_dir} && xcodegen generate"
+  echo "[dry-run] cd ${macos_dir} && \"${xcodegen_bin}\" generate"
   echo "[dry-run] xcodebuild -project Qiankunjie.xcodeproj -scheme QiankunjieMac -configuration ${configuration} -destination platform=macOS,arch=${architecture} CODE_SIGNING_ALLOWED=NO build"
   echo "[dry-run] 打包 ${app_path} 并执行 hdiutil create 生成 ${versioned_dmg} 和 ${generic_dmg}"
   exit 0
@@ -29,7 +29,7 @@ rm -rf "${output_dir}"
 mkdir -p "${output_dir}"
 
 cd "${macos_dir}"
-xcodegen generate
+"${xcodegen_bin}" generate
 xcodebuild \
   -project Qiankunjie.xcodeproj \
   -scheme QiankunjieMac \
@@ -44,6 +44,24 @@ trap 'rm -rf "${staging_dir}"' EXIT
 
 cp -R "${app_path}" "${staging_dir}/乾坤戒.app"
 ln -s /Applications "${staging_dir}/Applications"
+
+cat > "${staging_dir}/首次运行说明.txt" <<'EOF'
+乾坤戒 macOS 首次运行说明
+
+系统要求：Apple Silicon Mac 和 macOS 27 或更高版本。
+
+Gatekeeper：当前应用未使用 Developer ID 证书和公证。首次打开如果提示无法验证开发者，
+请先确认安装包来自本仓库 GitHub Release，然后在终端执行：
+
+  xattr -dr com.apple.quarantine /Applications/乾坤戒.app
+
+应用更新：请在应用内检查更新、下载并校验 SHA-256，然后选择退出并安装。
+更新失败时，请保留提示中的备份目录，并按恢复命令把备份恢复到：
+
+  /Applications/乾坤戒.app
+
+不要删除备份目录，也不要手动删除当前应用，除非已经确认有可用的备份。
+EOF
 
 hdiutil create \
   -volname "乾坤戒" \

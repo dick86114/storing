@@ -44,12 +44,13 @@ public final class MenuBarController: NSObject {
     private let hotKeys: any HotKeyRegistering
     private let observerCenter: any ObserverCentering
     private let notifications: (any CollectNotificationObserving)?
-    private var shortcut: GlobalShortcut
+    private(set) var shortcut: GlobalShortcut
     private var statusItem: NSStatusItem?
     private var observerToken: NSObjectProtocol?
     private var terminationObserverToken: NSObjectProtocol?
     private var isStarted = false
     private(set) var state: MenuBarState = .guest
+    private(set) var hotKeyRegistrationMessage: String?
 
     init(
         model: CollectModel,
@@ -137,7 +138,9 @@ public final class MenuBarController: NSObject {
             selector: #selector(appWillTerminate),
             forName: NSApplication.willTerminateNotification
         )
-        hotKeys.register(shortcut)
+        if !hotKeys.register(shortcut) {
+            hotKeyRegistrationMessage = "全局快捷键注册失败，快捷键当前不可用。"
+        }
         notifications?.startObserving(model: model)
         refreshState()
     }
@@ -171,15 +174,24 @@ public final class MenuBarController: NSObject {
         }
     }
 
-    func updateShortcut(_ shortcut: GlobalShortcut) {
-        guard shortcut != self.shortcut else { return }
+    @discardableResult
+    func updateShortcut(_ shortcut: GlobalShortcut) -> Bool {
+        guard shortcut != self.shortcut else { return true }
 
         if isStarted {
             hotKeys.unregister()
-            hotKeys.register(shortcut)
+            let previousShortcut = self.shortcut
+            if hotKeys.register(shortcut) {
+                hotKeyRegistrationMessage = nil
+            } else {
+                hotKeys.register(previousShortcut)
+                hotKeyRegistrationMessage = "全局快捷键注册失败，已保留原快捷键。"
+                return false
+            }
         }
         self.shortcut = shortcut
         refreshState()
+        return true
     }
 
     func handleAppDidBecomeActive() {

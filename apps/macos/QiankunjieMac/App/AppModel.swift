@@ -61,6 +61,7 @@ final class AppModel {
     let collectAPIClient: APIClient
     let settingsModel: SettingsModel
     let shortcutSettings: GlobalShortcutSettings
+    let readerPositionStore: any ReaderPositionStoring
     private(set) var libraryModel: LibraryModel
     private(set) var collectModel: CollectModel
 
@@ -74,7 +75,8 @@ final class AppModel {
         authModel: AuthModel = AuthModel(repository: AuthRepository()),
         libraryModel: LibraryModel? = nil,
         collectRepository: (any CollectServicing)? = nil,
-        shortcutDefaults: UserDefaults = .standard
+        shortcutDefaults: UserDefaults = .standard,
+        readerPositionStore: any ReaderPositionStoring = ReaderPositionStore()
     ) {
         self.authModel = authModel
         if let libraryModel {
@@ -90,6 +92,7 @@ final class AppModel {
         let collectAPIClient = APIClient(tokenProvider: authModel.repository)
         self.collectAPIClient = collectAPIClient
         self.shortcutSettings = GlobalShortcutSettings(defaults: shortcutDefaults)
+        self.readerPositionStore = readerPositionStore
         let settingsModel = SettingsModel(
             authModel: authModel,
             appearanceDefaults: shortcutDefaults
@@ -189,6 +192,7 @@ final class AppModel {
         let previousLibraryUserID = libraryModel.userID
         user = authModel.user
         selectArticle(nil)
+        readerPositionStore.prepareUser(userID: user?.id)
         destination = user == nil ? .published : .inbox
         libraryModel.prepareUser(
             userID: user?.id,

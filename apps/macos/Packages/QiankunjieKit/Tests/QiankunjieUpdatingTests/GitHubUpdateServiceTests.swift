@@ -290,3 +290,26 @@ extension AppRelease {
         try? FileManager.default.removeItem(at: cacheDirectory)
     }
 }
+
+@Test func mirrorOnlyPrefixesDMGAndKeepsChecksumOnGitHub() async throws {
+    let payload = Data("dmg".utf8)
+    let checksumPayload = Data("\(SHA256HexCalculator.hex(payload))  Qiankunjie.dmg\n".utf8)
+    let network = MockUpdateNetwork([
+        .data(statusCode: 200, body: checksumPayload),
+        .stream(statusCode: 200, headers: ["Content-Length": "3"], bytes: Array(payload)),
+    ])
+    let service = GitHubUpdateService.fixture(
+        currentVersion: "1.2.0",
+        network: network,
+        mirrorBase: "https://ghfast.top"
+    )
+
+    _ = try await service.download(.fixture(sha256: nil)) { _ in }
+    let requests = await network.requests
+
+    #expect(requests.count == 2)
+    #expect(requests[0].url?.host == "github.com")
+    #expect(requests[0].url?.absoluteString.hasSuffix(".sha256") == true)
+    #expect(requests[1].url?.host == "ghfast.top")
+    #expect(requests[1].url?.absoluteString.hasSuffix(".dmg") == true)
+}

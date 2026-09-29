@@ -2,6 +2,7 @@ import Foundation
 import QiankunjieAuth
 import QiankunjieCore
 import QiankunjieLibrary
+import QiankunjieReader
 import Testing
 @testable import QiankunjieMac
 
@@ -94,6 +95,11 @@ struct AppModelTests {
     }
 
     @Test func 退出登录清理用户缓存并切换游客资料库() async throws {
+        let suiteName = "reader-position-app-model-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let readerPositionStore = ReaderPositionStore(defaults: defaults, userID: 9)
+        readerPositionStore.save(Data("old-user".utf8), articleID: 42)
         let cache = 内存资料库缓存()
         try await cache.save(
             ArticleListPage(
@@ -120,7 +126,8 @@ struct AppModelTests {
             destination: .inbox,
             selectedArticleID: 42,
             libraryRepository: 模拟资料库仓库(),
-            libraryCache: cache
+            libraryCache: cache,
+            readerPositionStore: readerPositionStore
         )
 
         await model.didLogout()
@@ -129,6 +136,7 @@ struct AppModelTests {
         #expect(model.destination == .published)
         #expect(model.libraryModel.userID == nil)
         #expect(model.libraryModel.view == .published)
+        #expect(readerPositionStore.readingState(articleID: 42) == nil)
         #expect(try await cache.load(
             scope: LibraryCacheScope(
                 userID: 9,
@@ -241,7 +249,8 @@ private extension AppModel {
         destination: AppDestination,
         selectedArticleID: Int?,
         libraryRepository: any LibraryLoading = 模拟资料库仓库(),
-        libraryCache: any LibraryCaching = EmptyLibraryCache()
+        libraryCache: any LibraryCaching = EmptyLibraryCache(),
+        readerPositionStore: any ReaderPositionStoring = ReaderPositionStore()
     ) -> AppModel {
         let authModel = AuthModel(
             repository: AuthRepository(
@@ -256,7 +265,8 @@ private extension AppModel {
                 cache: libraryCache,
                 userID: user?.id,
                 view: destination.libraryView ?? .inbox
-            )
+            ),
+            readerPositionStore: readerPositionStore
         )
         model.user = user
         model.destination = destination

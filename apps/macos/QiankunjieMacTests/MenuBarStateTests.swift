@@ -84,6 +84,26 @@ struct MenuBarStateTests {
         #expect(hotKeys.registeredShortcuts == [.shiftCommandS])
     }
 
+    @Test func 快捷键注册失败保留旧组合并给出提示() {
+        let collectModel = CollectModel(userID: 7)
+        let hotKeys = HotKeyRegistrarSpy(failingShortcut: .shiftCommandS)
+        let controller = MenuBarController(
+            model: collectModel,
+            panel: QuickCollectPanelSpy(model: collectModel),
+            hotKeys: hotKeys,
+            observerCenter: ObserverCenterSpy(),
+            shortcut: .default
+        )
+
+        controller.start()
+        let changed = controller.updateShortcut(.shiftCommandS)
+
+        #expect(!changed)
+        #expect(controller.shortcut == .default)
+        #expect(hotKeys.registeredShortcuts == [.default])
+        #expect(controller.hotKeyRegistrationMessage == "全局快捷键注册失败，已保留原快捷键。")
+    }
+
     @Test func 停止菜单栏会关闭面板并释放快捷键和观察者() {
         let collectModel = CollectModel(userID: 7)
         let panel = QuickCollectPanelSpy(model: collectModel)
@@ -318,10 +338,20 @@ private final class HotKeyRegistrarSpy: HotKeyRegistering {
 
     private(set) var registeredShortcuts: [GlobalShortcut] = []
     private(set) var events: [Event] = []
+    private let failingShortcut: GlobalShortcut?
 
-    func register(_ shortcut: GlobalShortcut) {
-        registeredShortcuts.append(shortcut)
+    init(failingShortcut: GlobalShortcut? = nil) {
+        self.failingShortcut = failingShortcut
+    }
+
+    @discardableResult
+    func register(_ shortcut: GlobalShortcut) -> Bool {
         events.append(.register(shortcut))
+        let succeeded = shortcut != failingShortcut
+        if succeeded {
+            registeredShortcuts.append(shortcut)
+        }
+        return succeeded
     }
 
     func unregister() {

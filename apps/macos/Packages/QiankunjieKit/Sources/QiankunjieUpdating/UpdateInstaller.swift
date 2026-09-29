@@ -93,8 +93,14 @@ public struct UpdateInstaller: Sendable {
         restore_backup() {
           rm -rf "$APP"
           if [ -d "$BACKUP" ]; then
-            mv "$BACKUP" "$APP"
+            ditto "$BACKUP" "$APP"
           fi
+        }
+
+        show_recovery_prompt() {
+          RECOVERY_COMMAND="rm -rf \"$APP\" && ditto \"$BACKUP\" \"$APP\""
+          RECOVERY_MESSAGE="更新安装或启动失败，旧版本已恢复。备份位置：${BACKUP}\n如需手动恢复，请在终端执行：${RECOVERY_COMMAND}"
+          /usr/bin/osascript -e "display dialog \"$RECOVERY_MESSAGE\" with title \"乾坤戒更新恢复\" buttons {\"好的\"} default button 1 with icon caution" >/dev/null 2>&1 || true
         }
 
         cleanup_mount() {
@@ -105,6 +111,7 @@ public struct UpdateInstaller: Sendable {
         restore_on_exit() {
           if [ "$RESTORE_NEEDED" -ne 0 ]; then
             restore_backup
+            show_recovery_prompt
           fi
           cleanup_mount
         }

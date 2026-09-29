@@ -44,6 +44,37 @@ struct ShortcutSettingsTests {
             defaults.string(forKey: GlobalShortcutSettings.storageKey) == nil
         )
     }
+
+    @Test func 注册失败不改变快捷键且保留原因() throws {
+        let (defaults, suiteName) = try 临时偏好存储()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let settings = GlobalShortcutSettings(defaults: defaults)
+        let result = settings.select(.shiftCommandS) { _ in false }
+
+        #expect(result == false)
+        #expect(settings.shortcut == .default)
+        #expect(settings.registrationMessage == "全局快捷键注册失败，已保留原快捷键。")
+        #expect(defaults.string(forKey: GlobalShortcutSettings.storageKey) == nil)
+    }
+
+    @Test func 注册成功才应用并持久化快捷键() throws {
+        let (defaults, suiteName) = try 临时偏好存储()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let settings = GlobalShortcutSettings(defaults: defaults)
+        var requested: GlobalShortcut?
+        let result = settings.select(.shiftCommandS) { shortcut in
+            requested = shortcut
+            return true
+        }
+
+        #expect(result)
+        #expect(requested == .shiftCommandS)
+        #expect(settings.shortcut == .shiftCommandS)
+        #expect(settings.registrationMessage == nil)
+        #expect(defaults.string(forKey: GlobalShortcutSettings.storageKey) == GlobalShortcut.shiftCommandS.rawValue)
+    }
 }
 
 private func 临时偏好存储() throws -> (defaults: UserDefaults, suiteName: String) {

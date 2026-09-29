@@ -7,6 +7,7 @@ struct SettingsWindow: View {
     @Bindable var model: SettingsModel
     @Bindable var shortcutSettings: GlobalShortcutSettings
     let menuBarController: MenuBarController?
+    @State private var shortcutRegistrationMessage: String?
 
     var body: some View {
         Form {
@@ -53,6 +54,11 @@ struct SettingsWindow: View {
                 _, newValue in
                 menuBarController?.updateShortcut(newValue)
             }
+            if let message = shortcutRegistrationMessage ?? menuBarController?.hotKeyRegistrationMessage {
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
         }
     }
 
@@ -81,7 +87,13 @@ struct SettingsWindow: View {
         Binding(
             get: { shortcutSettings.shortcut },
             set: { newValue in
-                shortcutSettings.select(newValue)
+                if shortcutSettings.select(newValue, register: { shortcut in
+                    menuBarController?.updateShortcut(shortcut) ?? true
+                }) {
+                    shortcutRegistrationMessage = nil
+                } else {
+                    shortcutRegistrationMessage = shortcutSettings.registrationMessage
+                }
             }
         )
     }

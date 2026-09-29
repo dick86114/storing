@@ -4,7 +4,8 @@ import QiankunjieCollect
 
 @MainActor
 protocol HotKeyRegistering: AnyObject {
-    func register(_ shortcut: GlobalShortcut)
+    @discardableResult
+    func register(_ shortcut: GlobalShortcut) -> Bool
     func unregister()
 }
 
@@ -47,8 +48,9 @@ public final class GlobalHotKeyManager: HotKeyRegistering, @unchecked Sendable {
         self.callbackPointer = Unmanaged.passRetained(box).toOpaque()
     }
 
-    func register(_ shortcut: GlobalShortcut) {
-        guard currentShortcut != shortcut else { return }
+    @discardableResult
+    func register(_ shortcut: GlobalShortcut) -> Bool {
+        guard currentShortcut != shortcut else { return true }
         unregister()
 
         var eventType = EventTypeSpec(
@@ -64,7 +66,7 @@ public final class GlobalHotKeyManager: HotKeyRegistering, @unchecked Sendable {
             callbackPointer,
             &handlerRef
         )
-        guard installResult == noErr else { return }
+        guard installResult == noErr else { return false }
 
         var keyRef: EventHotKeyRef?
         let registerResult = RegisterEventHotKey(
@@ -79,12 +81,13 @@ public final class GlobalHotKeyManager: HotKeyRegistering, @unchecked Sendable {
             if let handlerRef {
                 RemoveEventHandler(handlerRef)
             }
-            return
+            return false
         }
 
         eventHandlerRef = handlerRef
         hotKeyRef = keyRef
         currentShortcut = shortcut
+        return true
     }
 
     func unregister() {

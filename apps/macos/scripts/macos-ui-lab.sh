@@ -27,9 +27,9 @@ repo_dir="$(cd "${macos_dir}/../.." && pwd)"
 derived_data="${MACOS_DERIVED_DATA:-${macos_dir}/.derivedData}"
 screenshot_dir="${repo_dir}/artifacts/macos-ui-lab/${scenario}"
 
-"${script_dir}/verify-xcode.sh"
+xcodegen_bin="$("${script_dir}/verify-xcode.sh" --print-xcodegen-bin)"
 cd "${macos_dir}"
-xcodegen generate
+"${xcodegen_bin}" generate
 
 xcodebuild \
   -project Qiankunjie.xcodeproj \

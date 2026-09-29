@@ -304,8 +304,7 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading {
             throw UpdateServiceError.checksumUnavailable
         }
 
-        let mirror = await mirrorBaseProvider()
-        var request = URLRequest(url: Self.applyMirror(checksumURL, mirror: mirror))
+        var request = URLRequest(url: checksumURL)
         request.timeoutInterval = 30
         request.setValue("Qiankunjie-macOS-updater", forHTTPHeaderField: "User-Agent")
         let response = try await network.data(for: request)
