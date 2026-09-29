@@ -10,7 +10,10 @@
     "android:lint": "cd apps/android && ./gradlew lint",
     "android:test": "cd apps/android && ./gradlew testDebugUnitTest",
     "android:assembleDebug": "cd apps/android && ./gradlew assembleDebug",
-    "android:assembleRelease": "cd apps/android && ./gradlew assembleRelease"
+    "android:assembleRelease": "cd apps/android && ./gradlew assembleRelease",
+    "macos:generate": "bash apps/macos/scripts/verify-xcode.sh && cd apps/macos && xcodegen generate",
+    "macos:test": "bash apps/macos/scripts/test.sh",
+    "macos:build": "bash apps/macos/scripts/build-dmg.sh"
   },
   "devDependencies": {
     "turbo": "^2.10.5"
