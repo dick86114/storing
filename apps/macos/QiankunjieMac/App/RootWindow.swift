@@ -108,6 +108,11 @@ struct RootWindow: View {
                 model: model.collectModel,
                 onOpenArticle: model.openCollectArticle
             )
+        } else if model.destination == .settings {
+            SettingsView(
+                model: model,
+                menuBarController: menuBarController
+            )
         } else {
             LibraryPlaceholderView(destination: model.destination)
         }
@@ -169,7 +174,7 @@ struct RootWindow: View {
 
         let controller = MenuBarController(
             appModel: model,
-            shortcut: .default,
+            shortcut: model.shortcutSettings.shortcut,
             onShowMainWindow: {
                 openWindow(id: "main")
                 NSApp.activate(ignoringOtherApps: true)

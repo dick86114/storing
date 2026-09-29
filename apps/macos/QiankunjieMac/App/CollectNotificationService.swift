@@ -3,7 +3,7 @@ import QiankunjieCollect
 import QiankunjieCore
 import UserNotifications
 
-enum CollectNotificationEvent: Equatable, Sendable {
+enum CollectNotificationEvent: String, Equatable, Hashable, Sendable {
     case completed
     case failed
 
@@ -24,6 +24,7 @@ struct CollectNotificationRequest: Equatable, Sendable {
     let title: String
     let body: String
     let categoryIdentifier: String
+    let userID: Int?
     let jobData: Data
 }
 
@@ -49,7 +50,10 @@ private final class UserNotificationDelivery: CollectNotificationDelivering, @un
         content.body = request.body
         content.sound = .default
         content.categoryIdentifier = request.categoryIdentifier
-        content.userInfo = ["job": request.jobData]
+        content.userInfo = [
+            "job": request.jobData,
+            "userID": request.userID ?? NSNull(),
+        ]
 
         try await UNUserNotificationCenter.current().add(
             UNNotificationRequest(
@@ -66,15 +70,24 @@ final class CollectNotificationService: NSObject, CollectNotificationObserving, 
     private let delivery: any CollectNotificationDelivering
     private let onOpenArticle: @MainActor (CollectJob) -> Void
     private let onOpenTaskList: @MainActor () -> Void
-    private var announcedJobIDs = Set<Int>()
+    private var announcedNotifications = Set<AnnouncedNotification>()
     private var observationTask: Task<Void, Never>?
+    private var currentUserID: Int?
+    private weak var observedModel: CollectModel?
+
+    private struct AnnouncedNotification: Hashable, Sendable {
+        let jobID: Int
+        let event: CollectNotificationEvent
+    }
 
     init(
         delivery: any CollectNotificationDelivering = UserNotificationDelivery(),
+        currentUserID: Int? = nil,
         onOpenArticle: @escaping @MainActor (CollectJob) -> Void,
         onOpenTaskList: @escaping @MainActor () -> Void
     ) {
         self.delivery = delivery
+        self.currentUserID = currentUserID
         self.onOpenArticle = onOpenArticle
         self.onOpenTaskList = onOpenTaskList
         super.init()
@@ -83,21 +96,24 @@ final class CollectNotificationService: NSObject, CollectNotificationObserving, 
 
     func startObserving(model: CollectModel) {
         stopObserving()
+        observedModel = model
         var hasBaseline = false
         var observedUserID = model.userID
+        currentUserID = model.userID
 
         observationTask = Task { [weak model] in
             while !Task.isCancelled {
                 if let model, observedUserID != model.userID {
                     observedUserID = model.userID
+                    currentUserID = model.userID
                     hasBaseline = false
-                    announcedJobIDs.removeAll()
+                    announcedNotifications.removeAll()
                 }
 
                 if let model, !model.isLoadingJobs {
                     let jobs = [model.currentJob].compactMap { $0 } + model.jobs
                     if hasBaseline {
-                        await synchronizeJobs(jobs)
+                        await synchronizeJobs(jobs, userID: model.userID)
                     } else {
                         prepareExistingJobs(jobs)
                         hasBaseline = true
@@ -111,33 +127,60 @@ final class CollectNotificationService: NSObject, CollectNotificationObserving, 
     func stopObserving() {
         observationTask?.cancel()
         observationTask = nil
+        observedModel = nil
+        currentUserID = nil
     }
 
     func prepareExistingJobs(_ jobs: [CollectJob]) {
-        for job in jobs where job.isTerminal {
-            announcedJobIDs.insert(job.id)
+        for job in jobs {
+            if let event = CollectNotificationEvent(job: job) {
+                announcedNotifications.insert(
+                    AnnouncedNotification(jobID: job.id, event: event)
+                )
+            } else {
+                removeAnnouncedNotifications(jobID: job.id)
+            }
         }
     }
 
-    func synchronizeJobs(_ jobs: [CollectJob]) async {
-        for job in jobs where job.isTerminal && !announcedJobIDs.contains(job.id) {
-            await notify(job: job)
-            announcedJobIDs.insert(job.id)
+    func synchronizeJobs(
+        _ jobs: [CollectJob],
+        userID: Int? = nil
+    ) async {
+        for job in jobs {
+            guard let event = CollectNotificationEvent(job: job) else {
+                removeAnnouncedNotifications(jobID: job.id)
+                continue
+            }
+
+            let key = AnnouncedNotification(jobID: job.id, event: event)
+            guard !announcedNotifications.contains(key) else { continue }
+
+            await notify(job: job, userID: userID)
+            announcedNotifications.insert(key)
         }
     }
 
-    func notify(job: CollectJob) async {
+    func notify(job: CollectJob, userID: Int? = nil) async {
         guard let event = CollectNotificationEvent(job: job) else { return }
 
         do {
             try await delivery.requestAuthorization()
-            try await delivery.add(Self.request(job: job, event: event))
+            try await delivery.add(
+                Self.request(job: job, event: event, userID: userID)
+            )
         } catch {
             // 通知权限或系统投递失败不阻断任务轮询。
         }
     }
 
-    func handleNotificationActivation(job: CollectJob) {
+    func handleNotificationActivation(
+        job: CollectJob,
+        userID: Int? = nil
+    ) async {
+        let activeUserID = observedModel?.userID ?? currentUserID
+        guard userID == activeUserID else { return }
+
         switch CollectNotificationEvent(job: job) {
         case .completed:
             onOpenArticle(job)
@@ -161,29 +204,41 @@ final class CollectNotificationService: NSObject, CollectNotificationObserving, 
             let jobData = userInfo["job"] as? Data,
             let job = try? JSONDecoder.qiankunjie.decode(CollectJob.self, from: jobData)
         else { return }
+        let notificationUserID = userInfo["userID"] as? Int
 
-        await handleNotificationActivation(job: job)
+        await handleNotificationActivation(
+            job: job,
+            userID: notificationUserID
+        )
     }
 
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        await foregroundPresentationOptions()
+        foregroundPresentationOptions()
     }
 
     private static func request(
         job: CollectJob,
-        event: CollectNotificationEvent
+        event: CollectNotificationEvent,
+        userID: Int?
     ) -> CollectNotificationRequest {
         CollectNotificationRequest(
-            identifier: "collect-job-\(job.id)",
+            identifier: "collect-job-\(job.id)-\(event.rawValue)",
             title: event == .completed ? "采集完成" : "采集失败",
             body: event == .completed
                 ? job.title ?? job.url
                 : job.errorSummary ?? job.error ?? "请查看任务详情",
             categoryIdentifier: event == .completed ? "collect.completed" : "collect.failed",
+            userID: userID,
             jobData: (try? Self.encoded(job)) ?? Data()
+        )
+    }
+
+    private func removeAnnouncedNotifications(jobID: Int) {
+        announcedNotifications = Set(
+            announcedNotifications.filter { $0.jobID != jobID }
         )
     }
 

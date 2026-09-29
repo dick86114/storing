@@ -44,7 +44,7 @@ public final class MenuBarController: NSObject {
     private let hotKeys: any HotKeyRegistering
     private let observerCenter: any ObserverCentering
     private let notifications: (any CollectNotificationObserving)?
-    private let shortcut: GlobalShortcut
+    private var shortcut: GlobalShortcut
     private var statusItem: NSStatusItem?
     private var observerToken: NSObjectProtocol?
     private var terminationObserverToken: NSObjectProtocol?
@@ -169,6 +169,17 @@ public final class MenuBarController: NSObject {
         } else {
             panel.present(from: statusItem?.button)
         }
+    }
+
+    func updateShortcut(_ shortcut: GlobalShortcut) {
+        guard shortcut != self.shortcut else { return }
+
+        if isStarted {
+            hotKeys.unregister()
+            hotKeys.register(shortcut)
+        }
+        self.shortcut = shortcut
+        refreshState()
     }
 
     func handleAppDidBecomeActive() {
