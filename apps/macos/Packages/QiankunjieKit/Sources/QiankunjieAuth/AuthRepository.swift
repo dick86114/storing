@@ -152,7 +152,7 @@ public actor AuthRepository: TokenRefreshing {
 
         tokens = nextTokens
         currentUser = response.user
-        currentSessionID = response.session.id
+        setCurrentSessionID(response.session.id)
         return response.user
     }
 
@@ -314,7 +314,7 @@ public actor AuthRepository: TokenRefreshing {
 
         tokens = nextTokens
         currentUser = response.user
-        currentSessionID = response.session.id
+        setCurrentSessionID(response.session.id)
     }
 
     private func clearRefreshTask(_ taskID: UUID) {
@@ -323,6 +323,10 @@ public actor AuthRepository: TokenRefreshing {
         }
         refreshTask = nil
         refreshTaskID = nil
+    }
+
+    private func setCurrentSessionID(_ id: String) {
+        currentSessionID = id.isEmpty ? nil : id
     }
 
     @discardableResult

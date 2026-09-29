@@ -92,8 +92,6 @@ final class AppModel {
         self.shortcutSettings = GlobalShortcutSettings(defaults: shortcutDefaults)
         let settingsModel = SettingsModel(
             authModel: authModel,
-            sessionStore: KeychainSessionStore(),
-            currentDeviceID: MacAuthDeviceProvider().currentDevice.id,
             appearanceDefaults: shortcutDefaults
         )
         self.settingsModel = settingsModel
