@@ -38,6 +38,13 @@ let package = Package(
             path: "Tests/QiankunjieCoreTests"
         ),
         .testTarget(
+            name: "QiankunjieDesignSystemTests",
+            dependencies: [
+                "QiankunjieDesignSystem",
+            ],
+            path: "Tests/QiankunjieDesignSystemTests"
+        ),
+        .testTarget(
             name: "QiankunjieKitTests",
             dependencies: [
                 "QiankunjieCore",
