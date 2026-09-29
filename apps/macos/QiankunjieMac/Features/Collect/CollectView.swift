@@ -83,6 +83,16 @@ struct CollectView: View {
                     )
             }
 
+            if let message = model.refreshErrorMessage {
+                Text(message)
+                    .font(QiankunjieTypography.bodyMedium)
+                    .foregroundStyle(
+                        colorScheme == .dark
+                            ? QiankunjieColors.darkError
+                            : QiankunjieColors.lightError
+                    )
+            }
+
             if let message = model.actionErrorMessage {
                 Text(message)
                     .font(QiankunjieTypography.bodyMedium)

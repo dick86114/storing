@@ -24,6 +24,15 @@ public struct APIClient: @unchecked Sendable {
         self.tokenProvider = tokenProvider
     }
 
+    public func usesTokenProvider(_ provider: any TokenRefreshing) -> Bool {
+        guard let tokenProvider else {
+            return false
+        }
+
+        return ObjectIdentifier(tokenProvider as AnyObject)
+            == ObjectIdentifier(provider as AnyObject)
+    }
+
     public func send<T: Decodable & Sendable>(
         _ request: APIRequest,
         authenticated: Bool
