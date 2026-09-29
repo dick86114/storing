@@ -90,6 +90,7 @@ public struct DefaultAuthClient: AuthClient {
 
 public actor AuthRepository: TokenRefreshing {
     public private(set) var currentUser: AuthenticatedUser?
+    public private(set) var currentSessionID: String?
 
     private let client: any AuthClient
     private let store: any SessionStore
@@ -151,6 +152,7 @@ public actor AuthRepository: TokenRefreshing {
 
         tokens = nextTokens
         currentUser = response.user
+        currentSessionID = response.session.id
         return response.user
     }
 
@@ -312,6 +314,7 @@ public actor AuthRepository: TokenRefreshing {
 
         tokens = nextTokens
         currentUser = response.user
+        currentSessionID = response.session.id
     }
 
     private func clearRefreshTask(_ taskID: UUID) {
@@ -331,6 +334,7 @@ public actor AuthRepository: TokenRefreshing {
         refreshTaskID = nil
         tokens = nil
         currentUser = nil
+        currentSessionID = nil
         persistedSessionClaim = nil
         try? await store.clear()
         return generation

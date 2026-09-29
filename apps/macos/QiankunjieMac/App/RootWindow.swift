@@ -13,6 +13,9 @@ struct RootWindow: View {
 
     var body: some View {
         mainInterface
+            .preferredColorScheme(
+                model.settingsModel.appearance.resolvedColorScheme(system: colorScheme)
+            )
             .sheet(isPresented: $model.isLoginPresented) {
             LoginView(
                 authModel: model.authModel,

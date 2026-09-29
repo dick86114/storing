@@ -59,6 +59,7 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
 final class AppModel {
     let authModel: AuthModel
     let collectAPIClient: APIClient
+    let settingsModel: SettingsModel
     let shortcutSettings: GlobalShortcutSettings
     private(set) var libraryModel: LibraryModel
     private(set) var collectModel: CollectModel
@@ -89,12 +90,23 @@ final class AppModel {
         let collectAPIClient = APIClient(tokenProvider: authModel.repository)
         self.collectAPIClient = collectAPIClient
         self.shortcutSettings = GlobalShortcutSettings(defaults: shortcutDefaults)
+        let settingsModel = SettingsModel(
+            authModel: authModel,
+            sessionStore: KeychainSessionStore(),
+            currentDeviceID: MacAuthDeviceProvider().currentDevice.id,
+            appearanceDefaults: shortcutDefaults
+        )
+        self.settingsModel = settingsModel
         self.collectModel = CollectModel(
             repository: collectRepository ?? CollectRepository(
                 apiClient: collectAPIClient
             ),
             userID: authModel.user?.id
         )
+
+        settingsModel.onUserStateCleared = { [weak self] in
+            await self?.synchronizeWithAuthentication()
+        }
     }
 
     var isAuthenticated: Bool {
@@ -114,8 +126,7 @@ final class AppModel {
     }
 
     func didLogout() async {
-        await authModel.logout()
-        await synchronizeWithAuthentication()
+        await settingsModel.logout()
         isLoginPresented = false
     }
 
