@@ -70,7 +70,7 @@ struct RootWindow: View {
                     max: .infinity
                 )
         } detail: {
-            ReaderPlaceholderView(articleID: model.selectedArticleID)
+            readerPane
         }
         .navigationSplitViewStyle(.balanced)
     }
@@ -79,7 +79,7 @@ struct RootWindow: View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             listColumn
         } detail: {
-            ReaderPlaceholderView(articleID: model.selectedArticleID)
+            readerPane
         }
         .navigationSplitViewStyle(.balanced)
     }
@@ -95,6 +95,20 @@ struct RootWindow: View {
         } else {
             LibraryPlaceholderView(destination: model.destination)
         }
+    }
+
+    private var readerPane: some View {
+        ReaderPaneView(
+            articleID: model.selectedArticleID,
+            onClose: {
+                model.selectedArticleID = nil
+            },
+            onLibraryDidChange: {
+                Task {
+                    await model.libraryModel.load(reset: true)
+                }
+            }
+        )
     }
 
     @ToolbarContentBuilder
@@ -144,23 +158,5 @@ private struct LibraryPlaceholderView: View {
             systemImage: "list.bullet.rectangle",
             description: Text(destination.title)
         )
-    }
-}
-
-private struct ReaderPlaceholderView: View {
-    let articleID: Int?
-
-    var body: some View {
-        if let articleID {
-            ContentUnavailableView(
-                "文章 \(articleID)",
-                systemImage: "doc.text"
-            )
-        } else {
-            ContentUnavailableView(
-                "未选择文章",
-                systemImage: "doc.text"
-            )
-        }
     }
 }
