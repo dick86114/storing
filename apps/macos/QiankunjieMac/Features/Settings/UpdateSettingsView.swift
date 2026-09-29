@@ -27,6 +27,10 @@ enum UpdateMirrorMode: String, CaseIterable, Identifiable {
     }
 }
 
+protocol UpdateServicing: UpdateChecking, UpdateDownloading, Sendable {}
+
+extension GitHubUpdateService: UpdateServicing {}
+
 @MainActor
 @Observable
 final class UpdateSettingsModel {
@@ -36,30 +40,52 @@ final class UpdateSettingsModel {
     private(set) var release: AppRelease?
     private(set) var downloadedUpdate: DownloadedUpdate?
     private(set) var progress: Double?
-    private(set) var mirrorBase = UserDefaults.standard.string(forKey: UpdateSettingsModel.mirrorStorageKey) ?? ""
+    private(set) var mirrorBase: String
 
-    private let service: GitHubUpdateService
+    private let service: any UpdateServicing
+    private let defaults: UserDefaults
     private let installer = UpdateInstaller()
+    private var downloadGeneration = 0
 
-    init(currentVersion: String) {
-        service = GitHubUpdateService(
+    convenience init(currentVersion: String) {
+        self.init(
             currentVersion: currentVersion,
-            mirrorBaseProvider: {
-                let storedMirror = UserDefaults.standard.string(forKey: UpdateSettingsModel.mirrorStorageKey)
-                return storedMirror?.isEmpty == false ? storedMirror : nil
-            }
+            service: GitHubUpdateService(
+                currentVersion: currentVersion,
+                mirrorBaseProvider: {
+                    let storedMirror = UserDefaults.standard.string(forKey: UpdateSettingsModel.mirrorStorageKey)
+                    return storedMirror?.isEmpty == false ? storedMirror : nil
+                }
+            ),
+            defaults: .standard
         )
+    }
+
+    init(
+        currentVersion: String,
+        service: any UpdateServicing,
+        defaults: UserDefaults
+    ) {
+        self.service = service
+        self.defaults = defaults
+        mirrorBase = defaults.string(forKey: Self.mirrorStorageKey) ?? ""
+    }
+
+    var canModifyMirror: Bool {
+        !isBusy
     }
 
     var mirrorMode: Binding<UpdateMirrorMode> {
         Binding {
             self.mirrorBase.isEmpty ? .direct : .custom
         } set: { newValue in
-            self.applyMirrorMode(newValue)
+            self.selectMirrorMode(newValue)
         }
     }
 
-    private func applyMirrorMode(_ mode: UpdateMirrorMode) {
+    func selectMirrorMode(_ mode: UpdateMirrorMode) {
+        guard canModifyMirror else { return }
+
         switch mode {
         case .direct:
             mirrorBase = ""
@@ -73,15 +99,17 @@ final class UpdateSettingsModel {
     }
 
     func saveMirror() {
+        guard canModifyMirror else { return }
+
         let trimmedMirror = mirrorBase.trimmingCharacters(in: .whitespacesAndNewlines)
         mirrorBase = trimmedMirror
         if trimmedMirror.isEmpty {
-            UserDefaults.standard.removeObject(forKey: Self.mirrorStorageKey)
+            defaults.removeObject(forKey: Self.mirrorStorageKey)
             return
         }
 
         if Self.isValidMirrorBase(trimmedMirror) {
-            UserDefaults.standard.set(trimmedMirror, forKey: Self.mirrorStorageKey)
+            defaults.set(trimmedMirror, forKey: Self.mirrorStorageKey)
             phase = .idle
         } else {
             phase = .failed("镜像地址必须是 HTTPS 根地址")
@@ -89,6 +117,8 @@ final class UpdateSettingsModel {
     }
 
     func updateMirrorDraft(_ value: String) {
+        guard canModifyMirror else { return }
+
         mirrorBase = value
     }
 
@@ -106,16 +136,25 @@ final class UpdateSettingsModel {
 
     func download() async {
         guard let release, !isBusy else { return }
+
+        downloadGeneration += 1
+        let generation = downloadGeneration
         phase = .downloading
         progress = nil
+
         do {
             downloadedUpdate = try await service.download(release) { value in
                 Task { @MainActor in
-                    progress = value
+                    guard self.downloadGeneration == generation else { return }
+                    self.progress = value
                 }
             }
+            guard downloadGeneration == generation else { return }
+            downloadGeneration += 1
             phase = .downloaded
         } catch {
+            guard downloadGeneration == generation else { return }
+            downloadGeneration += 1
             downloadedUpdate = nil
             progress = nil
             phase = .failed(Self.failureMessage(error))
@@ -124,6 +163,7 @@ final class UpdateSettingsModel {
 
     func install() {
         guard let downloadedUpdate else { return }
+
         do {
             try installer.install(downloadedUpdate)
             phase = .readyToRelaunch
@@ -169,6 +209,13 @@ final class UpdateSettingsModel {
             "更新服务暂不可用，请稍后重试"
         }
     }
+
+    var failureText: String? {
+        if case let .failed(message) = phase {
+            return message
+        }
+        return nil
+    }
 }
 
 struct UpdateSettingsView: View {
@@ -187,6 +234,7 @@ struct UpdateSettingsView: View {
             }
         }
         .pickerStyle(.segmented)
+        .disabled(!model.canModifyMirror)
 
         if model.mirrorMode.wrappedValue == .custom {
             TextField("HTTPS 镜像根地址", text: Binding(
@@ -194,10 +242,12 @@ struct UpdateSettingsView: View {
                 set: { model.updateMirrorDraft($0) }
             ))
             .textFieldStyle(.roundedBorder)
+            .disabled(!model.canModifyMirror)
 
             Button("保存镜像") {
                 model.saveMirror()
             }
+            .disabled(!model.canModifyMirror)
         }
 
         updateContent
@@ -270,14 +320,5 @@ struct UpdateSettingsView: View {
         case .idle, .failed:
             EmptyView()
         }
-    }
-}
-
-private extension UpdateSettingsModel {
-    var failureText: String? {
-        if case let .failed(message) = phase {
-            return message
-        }
-        return nil
     }
 }

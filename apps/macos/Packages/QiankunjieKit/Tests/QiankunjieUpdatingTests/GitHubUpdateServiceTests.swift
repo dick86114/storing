@@ -123,6 +123,52 @@ extension AppRelease {
     #expect(release?.checksumURL?.absoluteString.hasSuffix(".sha256") == true)
 }
 
+@Test func prereleaseAndMalformedMacOSReleaseTagsAreRejected() async throws {
+    let network = MockUpdateNetwork([
+        .data(
+            statusCode: 200,
+            body: Data("""
+            [
+              {"tag_name":"macos-v1.4.0-rc.1","assets":[{"name":"rc.dmg","browser_download_url":"https://github.com/dick86114/storing/releases/download/macos-v1.4.0-rc.1/rc.dmg"}]},
+              {"tag_name":"macos-v1.4.0-extra","assets":[{"name":"bad.dmg","browser_download_url":"https://github.com/dick86114/storing/releases/download/macos-v1.4.0-extra/bad.dmg"}]},
+              {"tag_name":"macos-v1.3.0","assets":[{"name":"Qiankunjie-1.3.0-arm64.dmg","browser_download_url":"https://github.com/dick86114/storing/releases/download/macos-v1.3.0/Qiankunjie-1.3.0-arm64.dmg"}]}
+            ]
+            """.utf8)
+        ),
+    ])
+    let service = GitHubUpdateService.fixture(currentVersion: "1.2.0", network: network)
+
+    let release = try await service.checkForUpdate()
+
+    #expect(release?.version == "1.3.0")
+}
+
+@Test func atomIDsAndTitlesRejectPrereleaseTagsAndAcceptOnlyStableTags() async throws {
+    let atom = """
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>tag:github.com,2008:Repository/1/macos-v1.4.0-rc.1</id>
+        <title>乾坤戒 macos-v1.4.0-rc.1</title>
+        <content type="html">&lt;code&gt;rc.dmg&lt;/code&gt;</content>
+      </entry>
+      <entry>
+        <id>tag:github.com,2008:Repository/1/release-unknown</id>
+        <title>乾坤戒 macos-v1.3.0</title>
+        <content type="html">&lt;code&gt;Qiankunjie-1.3.0-arm64.dmg&lt;/code&gt;</content>
+      </entry>
+    </feed>
+    """
+    let network = MockUpdateNetwork([
+        .data(statusCode: 403, body: Data("{}".utf8)),
+        .data(statusCode: 200, body: Data(atom.utf8)),
+    ])
+    let service = GitHubUpdateService.fixture(currentVersion: "1.2.0", network: network)
+
+    let release = try await service.checkForUpdate()
+
+    #expect(release?.version == "1.3.0")
+}
+
 @Test func downloadResumesWithRangeAndRetriesAfterTimeout() async throws {
     let payload = Data((0..<64).map { UInt8($0 % 251) })
     let expectedSHA256 = SHA256HexCalculator.hex(payload)
@@ -184,4 +230,42 @@ extension AppRelease {
     #expect(FileManager.default.fileExists(atPath: finalURL.path) == false)
     #expect(FileManager.default.fileExists(atPath: partialURL.path) == false)
     try? FileManager.default.removeItem(at: cacheDirectory)
+}
+
+@Test func invalidOrMissingContentRangeRestartsFromByteZero() async throws {
+    let payload = Data((0..<64).map { UInt8(($0 + 17) % 251) })
+    let expectedSHA256 = SHA256HexCalculator.hex(payload)
+    let headerCases: [[String: String]] = [
+        ["Content-Range": "bytes 8-63/64"],
+        ["Content-Range": "not-a-content-range"],
+        [:],
+    ]
+
+    for headers in headerCases {
+        let cacheDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("qiankunjie-invalid-range-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        try payload.prefix(32).write(
+            to: cacheDirectory.appendingPathComponent("Qiankunjie-1.3.0-arm64.dmg.part")
+        )
+        let network = MockUpdateNetwork([
+            .stream(statusCode: 206, headers: headers, bytes: Array(payload.suffix(32))),
+            .stream(statusCode: 200, headers: ["Content-Length": "64"], bytes: Array(payload)),
+        ])
+        let service = GitHubUpdateService.fixture(
+            currentVersion: "1.2.0",
+            network: network,
+            cacheDirectory: cacheDirectory,
+            retryDelay: .zero
+        )
+
+        let update = try await service.download(.fixture(sha256: expectedSHA256)) { _ in }
+
+        #expect(try Data(contentsOf: update.fileURL) == payload)
+        let requests = await network.requests
+        #expect(requests.count == 2)
+        #expect(requests[0].value(forHTTPHeaderField: "Range") == "bytes=32-")
+        #expect(requests[1].value(forHTTPHeaderField: "Range") == nil)
+        try? FileManager.default.removeItem(at: cacheDirectory)
+    }
 }
