@@ -83,59 +83,77 @@ struct ArticleActionBar: View {
     let isGuest: Bool
     let onAction: (ReaderArticleAction) -> Void
 
+    private var availability: ReaderActionAvailability {
+        ReaderActionPolicy.availability(
+            articleID: model.articleID,
+            isGuest: isGuest,
+            isPerformingAction: model.isPerformingAction,
+            originalURLText: model.article?.originalURL
+        )
+    }
+
     var body: some View {
+        let actionAvailability = availability
         HStack(spacing: 8) {
+            let accountActionsDisabled = !actionAvailability.allowsAccountActions
+
             actionButton(
                 model.article?.isFavorited == true ? "star.fill" : "star",
                 model.article?.isFavorited == true ? "取消收藏" : "收藏"
             ) {
                 onAction(.favorite)
             }
+            .disabled(accountActionsDisabled)
 
             if model.article?.isArchived == true {
                 actionButton("tray.and.arrow.down", "移回收件箱") {
                     onAction(.inbox)
                 }
+                .disabled(accountActionsDisabled)
             } else {
                 actionButton("archivebox", "归档") {
                     onAction(.archive)
                 }
+                .disabled(accountActionsDisabled)
             }
 
             if model.article?.isPublished == true {
                 actionButton("globe.badge.chevron.backward", "取消公开") {
                     onAction(.unpublish)
                 }
+                .disabled(accountActionsDisabled)
             } else {
                 actionButton("globe", "公开") {
                     onAction(.publish)
                 }
+                .disabled(accountActionsDisabled)
             }
 
             actionButton("arrow.clockwise", "重新抓取正文") {
                 onAction(.refetch)
             }
+            .disabled(accountActionsDisabled)
             actionButton("sparkles", "重新生成 AI 摘要和标签") {
                 onAction(.regenerateAI)
             }
+            .disabled(accountActionsDisabled)
 
             Spacer(minLength: 8)
 
-            if let originalURL = model.article?.originalURL,
-               let url = URL(string: originalURL),
-               ReaderNavigationPolicy.decision(for: url) == .openExternally {
+            if let url = actionAvailability.originalURL {
                 actionButton("safari", "打开原始网页") {
                     onAction(.openOriginal(url))
                 }
+                .disabled(model.isPerformingAction)
             }
 
             actionButton("trash", "删除文章", role: .destructive) {
                 onAction(.delete)
             }
+            .disabled(accountActionsDisabled)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .disabled(model.isPerformingAction || model.article == nil || isGuest)
     }
 
     private func actionButton(

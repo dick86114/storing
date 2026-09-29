@@ -171,6 +171,46 @@ struct ReaderModelTests {
         #expect(nextModel.savedReadingState == nil)
     }
 
+    @Test func 游客账户动作禁用但安全原文链接可用() {
+        let guest = ReaderActionPolicy.availability(
+            articleID: 96,
+            isGuest: true,
+            isPerformingAction: false,
+            originalURLText: "  https://example.com/article  "
+        )
+
+        #expect(!guest.allowsAccountActions)
+        #expect(guest.originalURL?.absoluteString == "https://example.com/article")
+
+        let unsafeGuestURL = ReaderActionPolicy.availability(
+            articleID: 96,
+            isGuest: true,
+            isPerformingAction: false,
+            originalURLText: "file:///etc/passwd"
+        )
+        let performingGuestURL = ReaderActionPolicy.availability(
+            articleID: 96,
+            isGuest: true,
+            isPerformingAction: true,
+            originalURLText: "https://example.com/article"
+        )
+
+        #expect(unsafeGuestURL.originalURL == nil)
+        #expect(performingGuestURL.originalURL == nil)
+    }
+
+    @Test func 登录用户在文章就绪时启用账户动作() {
+        let authenticated = ReaderActionPolicy.availability(
+            articleID: 97,
+            isGuest: false,
+            isPerformingAction: false,
+            originalURLText: nil
+        )
+
+        #expect(authenticated.allowsAccountActions)
+        #expect(authenticated.originalURL == nil)
+    }
+
     @Test func 缺少服务端HTML时用文章信息生成中文回退正文() async {
         let client = 模拟阅读客户端(
             detail: 文章详情(
