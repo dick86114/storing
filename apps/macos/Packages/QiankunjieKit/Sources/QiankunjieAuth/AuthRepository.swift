@@ -98,6 +98,7 @@ public actor AuthRepository: TokenRefreshing {
     private var refreshTask: Task<Void, Error>?
     private var refreshTaskID: UUID?
     private var sessionGeneration = 0
+    private var persistedSessionClaim: PersistedSessionClaim?
 
     public init(
         client: any AuthClient = DefaultAuthClient(),
@@ -135,11 +136,16 @@ public actor AuthRepository: TokenRefreshing {
             accessToken: response.accessToken,
             refreshToken: response.refreshToken
         )
+        let storageClaim = PersistedSessionClaim(
+            generation: generation,
+            refreshToken: response.refreshToken
+        )
+        persistedSessionClaim = storageClaim
         try await store.save(
             SessionTokens(accessToken: "", refreshToken: response.refreshToken)
         )
         guard generation == sessionGeneration else {
-            await reconcileStoredSession()
+            await reconcileStoredSession(staleClaim: storageClaim)
             throw AppError.authenticationRequired
         }
 
@@ -291,11 +297,16 @@ public actor AuthRepository: TokenRefreshing {
             accessToken: response.accessToken,
             refreshToken: response.refreshToken
         )
+        let storageClaim = PersistedSessionClaim(
+            generation: generation,
+            refreshToken: response.refreshToken
+        )
+        persistedSessionClaim = storageClaim
         try await store.save(
             SessionTokens(accessToken: "", refreshToken: response.refreshToken)
         )
         guard generation == sessionGeneration else {
-            await reconcileStoredSession()
+            await reconcileStoredSession(staleClaim: storageClaim)
             throw StaleSessionError()
         }
 
@@ -320,6 +331,7 @@ public actor AuthRepository: TokenRefreshing {
         refreshTaskID = nil
         tokens = nil
         currentUser = nil
+        persistedSessionClaim = nil
         try? await store.clear()
         return generation
     }
@@ -328,18 +340,22 @@ public actor AuthRepository: TokenRefreshing {
         _ = await beginClearedSession()
     }
 
-    private func reconcileStoredSession() async {
-        while true {
-            let generationBeforeWrite = sessionGeneration
-            if let currentTokens = tokens {
-                try? await store.save(
-                    SessionTokens(accessToken: "", refreshToken: currentTokens.refreshToken)
-                )
-            } else {
-                try? await store.clear()
-            }
+    private func reconcileStoredSession(staleClaim: PersistedSessionClaim) async {
+        if let currentClaim = persistedSessionClaim,
+           currentClaim != staleClaim,
+           currentClaim.generation == sessionGeneration {
+            return
+        }
 
-            if generationBeforeWrite == sessionGeneration {
+        persistedSessionClaim = nil
+        try? await store.clear()
+
+        while let currentClaim = persistedSessionClaim,
+              currentClaim.generation == sessionGeneration {
+            try? await store.save(
+                SessionTokens(accessToken: "", refreshToken: currentClaim.refreshToken)
+            )
+            if currentClaim == persistedSessionClaim {
                 return
             }
         }
@@ -347,6 +363,11 @@ public actor AuthRepository: TokenRefreshing {
 }
 
 private struct StaleSessionError: Error {
+}
+
+private struct PersistedSessionClaim: Equatable {
+    let generation: Int
+    let refreshToken: String
 }
 
 private struct LoginRequest: Encodable {

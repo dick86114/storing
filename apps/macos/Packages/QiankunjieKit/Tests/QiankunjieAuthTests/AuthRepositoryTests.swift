@@ -138,6 +138,57 @@ private actor 门控认证客户端: AuthClient {
     }
 }
 
+private actor 保存返回前门控会话存储: SessionStore {
+    private var 令牌: SessionTokens?
+    private var 旧保存返回等待: CheckedContinuation<Void, Never>?
+    private var 新保存返回等待: CheckedContinuation<Void, Never>?
+    private(set) var 旧刷新令牌保存已到达 = false
+    private(set) var 新刷新令牌已保存 = false
+    private(set) var 清理次数 = 0
+    private(set) var 新令牌保存后清理次数 = 0
+
+    init(tokens: SessionTokens? = nil) {
+        令牌 = tokens
+    }
+
+    func read() async throws -> SessionTokens? {
+        令牌
+    }
+
+    func save(_ tokens: SessionTokens) async throws {
+        令牌 = tokens
+        if tokens.refreshToken == "old-refresh" {
+            旧刷新令牌保存已到达 = true
+            await withCheckedContinuation { continuation in
+                旧保存返回等待 = continuation
+            }
+        } else if tokens.refreshToken == "new-refresh" {
+            新刷新令牌已保存 = true
+            await withCheckedContinuation { continuation in
+                新保存返回等待 = continuation
+            }
+        }
+    }
+
+    func clear() async throws {
+        if 新刷新令牌已保存 {
+            新令牌保存后清理次数 += 1
+        }
+        令牌 = nil
+        清理次数 += 1
+    }
+
+    func 允许旧保存返回() {
+        旧保存返回等待?.resume()
+        旧保存返回等待 = nil
+    }
+
+    func 允许新保存返回() {
+        新保存返回等待?.resume()
+        新保存返回等待 = nil
+    }
+}
+
 private extension SessionTokens {
     static func fixture(access: String = "access", refresh: String = "refresh") -> Self {
         SessionTokens(accessToken: access, refreshToken: refresh)
@@ -289,6 +340,58 @@ private extension AuthDevice {
     await #expect(throws: AppError.authenticationRequired) {
         _ = try await oldLogin.value
     }
+    #expect(newUser == .fixture(id: 2))
+    #expect(await repository.currentUser == .fixture(id: 2))
+    #expect(await repository.currentAccessToken() == "new-access")
+    #expect(try await store.read()?.refreshToken == "new-refresh")
+}
+
+@Test func 旧登录清理不会丢弃已持久化的新会话() async throws {
+    let client = 门控认证客户端()
+    let store = 保存返回前门控会话存储()
+    let repository = AuthRepository(client: client, store: store)
+    let oldLogin = Task {
+        try await repository.login(
+            username: "old",
+            password: "test-only-password",
+            device: .fixture()
+        )
+    }
+    while await client.等待登录数 != 1 {
+        try await Task.sleep(for: .milliseconds(5))
+    }
+    await client.恢复首个登录(
+        .success(.fixture(access: "old-access", refresh: "old-refresh", user: .fixture(id: 1)))
+    )
+    while await !store.旧刷新令牌保存已到达 {
+        try await Task.sleep(for: .milliseconds(5))
+    }
+    let newLogin = Task {
+        try await repository.login(
+            username: "new",
+            password: "test-only-password",
+            device: .fixture()
+        )
+    }
+    while await client.等待登录数 != 1 {
+        try await Task.sleep(for: .milliseconds(5))
+    }
+
+    await client.恢复首个登录(
+        .success(.fixture(access: "new-access", refresh: "new-refresh", user: .fixture(id: 2)))
+    )
+    while await !store.新刷新令牌已保存 {
+        try await Task.sleep(for: .milliseconds(5))
+    }
+    await store.允许旧保存返回()
+    await #expect(throws: AppError.authenticationRequired) {
+        _ = try await oldLogin.value
+    }
+    #expect(await store.新令牌保存后清理次数 == 0)
+
+    await store.允许新保存返回()
+    let newUser = try await newLogin.value
+
     #expect(newUser == .fixture(id: 2))
     #expect(await repository.currentUser == .fixture(id: 2))
     #expect(await repository.currentAccessToken() == "new-access")
