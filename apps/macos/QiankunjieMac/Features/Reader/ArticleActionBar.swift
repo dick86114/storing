@@ -80,6 +80,7 @@ enum ReaderArticleAction: Identifiable {
 
 struct ArticleActionBar: View {
     let model: ReaderModel
+    let isGuest: Bool
     let onAction: (ReaderArticleAction) -> Void
 
     var body: some View {
@@ -134,7 +135,7 @@ struct ArticleActionBar: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .disabled(model.isPerformingAction || model.article == nil)
+        .disabled(model.isPerformingAction || model.article == nil || isGuest)
     }
 
     private func actionButton(

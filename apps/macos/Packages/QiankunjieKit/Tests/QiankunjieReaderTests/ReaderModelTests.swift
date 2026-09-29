@@ -1,5 +1,6 @@
 import Foundation
 import QiankunjieCore
+import QiankunjieNetworking
 import Testing
 @testable import QiankunjieReader
 
@@ -39,6 +40,135 @@ struct ReaderModelTests {
         #expect(await client.lastHTMLVariant == "desktop")
         #expect(model.article?.id == 12)
         #expect(model.errorMessage == nil)
+    }
+
+    @Test func 游客公开卡片使用公开文章路由() async {
+        let client = 模拟阅读客户端()
+        let model = ReaderModel(client: client)
+        let selection = ReaderSelection(
+            articleID: 71,
+            publicID: "public-token",
+            isGuest: true
+        )
+
+        await model.open(selection)
+
+        #expect(await client.paths.first == "publications/public-token")
+        #expect(model.articleID == 71)
+        #expect(model.errorMessage == nil)
+    }
+
+    @Test func 登录私有卡片使用私有文章路由() async {
+        let client = 模拟阅读客户端()
+        let model = ReaderModel(client: client)
+        let selection = ReaderSelection(
+            articleID: 72,
+            publicID: nil,
+            isGuest: false
+        )
+
+        await model.open(selection)
+
+        #expect(await client.paths.first == "articles/72?format=html&htmlVariant=desktop")
+        #expect(model.articleID == 72)
+    }
+
+    @Test func 登录公开卡片优先使用私有文章路由() async {
+        let client = 模拟阅读客户端()
+        let model = ReaderModel(client: client)
+        let selection = ReaderSelection(
+            articleID: 73,
+            publicID: "public-token",
+            isGuest: false
+        )
+
+        await model.open(selection)
+
+        #expect(await client.paths.first == "articles/73?format=html&htmlVariant=desktop")
+        #expect(model.articleID == 73)
+    }
+
+    @Test func API客户端游客公开路由不带认证头() async throws {
+        let session = 模拟网络会话(
+            data: Data(
+                #"{"article":{"id":81,"publicId":"public-token","title":"公开文章","isPublished":true}}"#
+                    .utf8
+            )
+        )
+        let client = APIClient(
+            baseURL: URL(string: "https://storing.example/api/v1")!,
+            session: session
+        )
+        let selection = ReaderSelection(
+            articleID: 81,
+            publicID: "public-token",
+            isGuest: true
+        )
+
+        let detail = try await client.articleDetail(selection)
+        let request = try #require(await session.requests.first)
+
+        #expect(detail.id == 81)
+        #expect(request.url?.path.hasSuffix("/publications/public-token") == true)
+        #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
+    }
+
+    @Test func 旧收藏响应不会更新切换后的文章() async throws {
+        let client = 模拟阅读客户端()
+        let model = ReaderModel(client: client)
+        await model.open(articleID: 91)
+        await client.holdFavorite()
+
+        let favoriteTask = Task {
+            await model.toggleFavorite()
+        }
+        await client.waitForRequestCount(1)
+        await model.open(articleID: 92)
+        await client.resumeFavorite()
+        await favoriteTask.value
+
+        #expect(model.articleID == 92)
+        #expect(model.article?.id == 92)
+        #expect(model.article?.isFavorited == false)
+        #expect(model.actionErrorMessage == nil)
+    }
+
+    @Test func 旧删除响应不会关闭切换后的文章() async throws {
+        let client = 模拟阅读客户端()
+        let model = ReaderModel(client: client)
+        await model.open(articleID: 93)
+        var deleteCallbackCount = 0
+        model.onDeleted = {
+            deleteCallbackCount += 1
+        }
+        await client.holdDelete()
+
+        let deleteTask = Task {
+            await model.delete()
+        }
+        await client.waitForRequestCount(2)
+        await model.open(articleID: 94)
+        await client.resumeDelete()
+        await deleteTask.value
+
+        #expect(model.articleID == 94)
+        #expect(model.article?.id == 94)
+        #expect(!model.isDeleted)
+        #expect(deleteCallbackCount == 0)
+    }
+
+    @Test func 过期阅读状态令牌不会写入存储() async throws {
+        let store = 内存阅读位置存储()
+        let client = 模拟阅读客户端()
+        let model = ReaderModel(client: client, positionStore: store)
+        await model.open(articleID: 95)
+        let state = Data("新状态".utf8)
+
+        model.updateReadingState(state, contentToken: "old-token")
+
+        let nextModel = ReaderModel(client: client, positionStore: store)
+        await nextModel.open(articleID: 95)
+        #expect(nextModel.savedReadingState == nil)
     }
 
     @Test func 缺少服务端HTML时用文章信息生成中文回退正文() async {
@@ -140,6 +270,11 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
     private(set) var paths: [String] = []
     private(set) var lastHTMLVariant: String?
     private(set) var desktopRequestCount = 0
+    private var shouldHoldFavorite = false
+    private var shouldHoldDelete = false
+    private var favoriteContinuation: CheckedContinuation<ReaderFavoriteResult, Error>?
+    private var deleteContinuation: CheckedContinuation<ReaderDeleteResult, Error>?
+    private var requestWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
 
     init(detail: ArticleDetail = 文章详情(id: 12)) {
         self.detail = detail
@@ -147,15 +282,36 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
 
     func articleDetail(articleID: Int, htmlVariant: String) async throws -> ArticleDetail {
         paths.append("articles/\(articleID)?format=html&htmlVariant=\(htmlVariant)")
+        notifyRequestWaiters()
         lastHTMLVariant = htmlVariant
         if htmlVariant == "desktop" {
             desktopRequestCount += 1
         }
-        return detail
+        return articleID == detail.id ? detail : 文章详情(id: articleID)
+    }
+
+    func articleDetail(_ selection: ReaderSelection) async throws -> ArticleDetail {
+        if selection.isGuest, let publicID = selection.publicID {
+            paths.append("publications/\(publicID)")
+            notifyRequestWaiters()
+            return 文章详情(id: selection.articleID)
+        }
+
+        return try await articleDetail(
+            articleID: selection.articleID,
+            htmlVariant: "desktop"
+        )
     }
 
     func toggleFavorite(articleID: Int) async throws -> ReaderFavoriteResult {
         paths.append("articles/\(articleID)/favorite")
+        notifyRequestWaiters()
+        if shouldHoldFavorite {
+            shouldHoldFavorite = false
+            return try await withCheckedThrowingContinuation { continuation in
+                favoriteContinuation = continuation
+            }
+        }
         return ReaderFavoriteResult(isFavorited: true)
     }
 
@@ -191,7 +347,50 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
 
     func delete(articleID: Int) async throws -> ReaderDeleteResult {
         paths.append("articles/\(articleID)")
+        notifyRequestWaiters()
+        if shouldHoldDelete {
+            shouldHoldDelete = false
+            return try await withCheckedThrowingContinuation { continuation in
+                deleteContinuation = continuation
+            }
+        }
         return ReaderDeleteResult(deleted: true)
+    }
+
+    func holdFavorite() {
+        shouldHoldFavorite = true
+    }
+
+    func resumeFavorite() {
+        favoriteContinuation?.resume(returning: ReaderFavoriteResult(isFavorited: true))
+        favoriteContinuation = nil
+    }
+
+    func holdDelete() {
+        shouldHoldDelete = true
+    }
+
+    func resumeDelete() {
+        deleteContinuation?.resume(returning: ReaderDeleteResult(deleted: true))
+        deleteContinuation = nil
+    }
+
+    func waitForRequestCount(_ count: Int) async {
+        guard paths.count < count else {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            requestWaiters[count, default: []].append(continuation)
+        }
+    }
+
+    private func notifyRequestWaiters() {
+        let readyKeys = requestWaiters.keys.filter { $0 <= paths.count }
+        for key in readyKeys {
+            let waiters = requestWaiters.removeValue(forKey: key) ?? []
+            waiters.forEach { $0.resume() }
+        }
     }
 }
 
@@ -215,6 +414,26 @@ private final class 内存阅读位置存储: ReaderPositionStoring, @unchecked 
         lock.withLock {
             _ = states.removeValue(forKey: articleID)
         }
+    }
+}
+
+private actor 模拟网络会话: URLSessioning {
+    private let data: Data
+    private(set) var requests: [URLRequest] = []
+
+    init(data: Data) {
+        self.data = data
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        requests.append(request)
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: 200,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"]
+        )!
+        return (data, response)
     }
 }
 

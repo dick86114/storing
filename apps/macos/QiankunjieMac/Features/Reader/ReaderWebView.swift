@@ -8,7 +8,7 @@ struct ReaderWebView: NSViewRepresentable {
     let html: String
     let contentToken: String
     let savedReadingState: Data?
-    let onReadingStateChange: @MainActor (Data) -> Void
+    let onReadingStateChange: @MainActor (Data, String) -> Void
 
     func makeNSView(context: Context) -> ReaderWKWebView {
         let configuration = WKWebViewConfiguration()
@@ -27,8 +27,8 @@ struct ReaderWebView: NSViewRepresentable {
         webView.allowsBackForwardNavigationGestures = false
         webView.allowsLinkPreview = false
         webView.isInspectable = false
-        webView.onReadingStateChange = { state in
-            context.coordinator.handleReadingState(state)
+        webView.onReadingStateChange = { state, token in
+            context.coordinator.handleReadingState(state, token: token)
         }
         context.coordinator.webView = webView
         webView.loadServerHTML(
@@ -58,15 +58,15 @@ struct ReaderWebView: NSViewRepresentable {
 
 @MainActor
 final class ReaderWebViewCoordinator: NSObject, WKNavigationDelegate {
-    private let onReadingStateChange: @MainActor (Data) -> Void
+    private let onReadingStateChange: @MainActor (Data, String) -> Void
     weak var webView: ReaderWKWebView?
 
-    init(onReadingStateChange: @escaping @MainActor (Data) -> Void) {
+    init(onReadingStateChange: @escaping @MainActor (Data, String) -> Void) {
         self.onReadingStateChange = onReadingStateChange
     }
 
-    func handleReadingState(_ state: Data) {
-        onReadingStateChange(state)
+    func handleReadingState(_ state: Data, token: String) {
+        onReadingStateChange(state, token)
     }
 
     func webView(
@@ -138,7 +138,7 @@ final class ReaderWebViewCoordinator: NSObject, WKNavigationDelegate {
 final class ReaderWKWebView: WKWebView {
     var loadedToken = ""
     var pendingReadingState: Data?
-    var onReadingStateChange: ((Data) -> Void)?
+    var onReadingStateChange: ((Data, String) -> Void)?
     private var stateCaptureTask: Task<Void, Never>?
 
     func loadServerHTML(
@@ -148,6 +148,7 @@ final class ReaderWKWebView: WKWebView {
     ) {
         loadedToken = token
         pendingReadingState = savedState
+        stateCaptureTask?.cancel()
         loadHTMLString(html, baseURL: nil)
     }
 
@@ -211,7 +212,7 @@ final class ReaderWKWebView: WKWebView {
             requiringSecureCoding: false
         )
         if let data {
-            onReadingStateChange?(data)
+            onReadingStateChange?(data, loadedToken)
         }
     }
 }

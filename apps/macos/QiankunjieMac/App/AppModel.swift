@@ -3,6 +3,7 @@ import QiankunjieAuth
 import QiankunjieCore
 import QiankunjieLibrary
 import QiankunjieNetworking
+import QiankunjieReader
 
 enum AppDestination: String, CaseIterable, Hashable, Sendable {
     case inbox
@@ -60,6 +61,7 @@ final class AppModel {
     var user: AuthenticatedUser?
     var destination: AppDestination = .published
     var selectedArticleID: Int?
+    var selectedReaderSelection: ReaderSelection?
     var isLoginPresented = false
 
     init(
@@ -111,7 +113,7 @@ final class AppModel {
         }
 
         self.destination = destination
-        selectedArticleID = nil
+        selectArticle(nil)
         if let view = destination.libraryView {
             libraryModel.select(view: view)
             Task {
@@ -120,10 +122,28 @@ final class AppModel {
         }
     }
 
+    func selectArticle(_ articleID: Int?) {
+        selectedArticleID = articleID
+        guard let articleID else {
+            selectedReaderSelection = nil
+            return
+        }
+
+        selectedReaderSelection = ReaderSelection(
+            articleID: articleID,
+            publicID: libraryModel.articles.first { $0.id == articleID }?.publicID,
+            isGuest: !isAuthenticated
+        )
+    }
+
+    func closeArticle() {
+        selectArticle(nil)
+    }
+
     private func synchronizeWithAuthentication() async {
         let previousLibraryUserID = libraryModel.userID
         user = authModel.user
-        selectedArticleID = nil
+        selectArticle(nil)
         destination = user == nil ? .published : .inbox
         libraryModel.prepareUser(
             userID: user?.id,
