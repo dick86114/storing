@@ -10,8 +10,17 @@ struct SidebarView: View {
         List(selection: destinationSelection) {
             Section("资料库") {
                 ForEach(AppDestination.allCases, id: \.self) { destination in
-                    Label(destination.title, systemImage: destination.systemImage)
-                        .tag(destination)
+                    HStack(spacing: 8) {
+                        Label(destination.title, systemImage: destination.systemImage)
+                            .tag(destination)
+                        Spacer(minLength: 0)
+                        if let count = destination.libraryView.flatMap({ model.libraryModel.count(for: $0) }) {
+                            Text("\(count)")
+                                .font(.caption)
+                                .monospacedDigit()
+                                .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                        }
+                    }
                 }
             }
         }

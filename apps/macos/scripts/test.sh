@@ -5,10 +5,10 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 macos_dir="$(cd "${script_dir}/.." && pwd)"
 derived_data="${MACOS_DERIVED_DATA:-${macos_dir}/.derivedData}"
 
-"${script_dir}/verify-xcode.sh"
+xcodegen_bin="$("${script_dir}/verify-xcode.sh" --print-xcodegen-bin)"
 
 cd "${macos_dir}"
-xcodegen generate
+"${xcodegen_bin}" generate
 swift test --package-path Packages/QiankunjieKit
 xcodebuild \
   -project Qiankunjie.xcodeproj \

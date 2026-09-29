@@ -1,16 +1,41 @@
 import AppKit
 import QiankunjieDesignSystem
+import QiankunjieNetworking
 import QiankunjieReader
 import SwiftUI
 
 struct ReaderPaneView: View {
     let selection: ReaderSelection?
+    let userID: Int?
+    let positionStore: any ReaderPositionStoring
+    let networkClient: any ReaderNetworkClient
     let onClose: () -> Void
     let onLibraryDidChange: () -> Void
 
-    @State private var model = ReaderModel()
+    @State private var model: ReaderModel
     @State private var pendingAction: ReaderArticleAction?
     @Environment(\.colorScheme) private var colorScheme
+
+    init(
+        selection: ReaderSelection?,
+        userID: Int?,
+        positionStore: any ReaderPositionStoring,
+        networkClient: any ReaderNetworkClient = APIClient(),
+        onClose: @escaping () -> Void,
+        onLibraryDidChange: @escaping () -> Void
+    ) {
+        self.selection = selection
+        self.userID = userID
+        self.positionStore = positionStore
+        self.networkClient = networkClient
+        self.onClose = onClose
+        self.onLibraryDidChange = onLibraryDidChange
+        _model = State(initialValue: ReaderModel(
+            client: networkClient,
+            positionStore: positionStore,
+            userID: userID
+        ))
+    }
 
     var body: some View {
         Group {
@@ -28,6 +53,9 @@ struct ReaderPaneView: View {
             }
         }
         .background(QiankunjieColors.background(for: colorScheme))
+        .onChange(of: userID, initial: true) { _, newValue in
+            model.prepareUser(userID: newValue)
+        }
         .task(id: selection) {
             if let selection {
                 await model.open(selection)
@@ -100,15 +128,47 @@ struct ReaderPaneView: View {
 
                 HStack(spacing: 8) {
                     Text(article.source ?? "乾坤戒")
+                    Text(article.author ?? "未知作者")
                     if let time = article.publishTime ?? article.createdAt {
-                        Text(time.formatted(.relative(presentation: .named)))
+                        Text(time.formatted(date: .abbreviated, time: .omitted))
                     }
-                    if article.isPublished {
-                        Text("已公开")
-                    }
+                    Text(statusText(for: article))
                 }
                 .font(QiankunjieTypography.labelMedium)
                 .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+
+                metadataRow(label: "分类", value: article.category?.name ?? article.aiCategory ?? "未分类")
+
+                HStack(alignment: .top, spacing: 8) {
+                    Text("标签")
+                        .font(QiankunjieTypography.labelMedium)
+                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+
+                    if article.aiTags.isEmpty {
+                        Text("无标签")
+                            .font(QiankunjieTypography.labelMedium)
+                            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                    } else {
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 68), spacing: 6)],
+                            alignment: .leading,
+                            spacing: 6
+                        ) {
+                            ForEach(article.aiTags, id: \.self) { tag in
+                                Text(tag)
+                                    .font(QiankunjieTypography.labelMedium)
+                                    .lineLimit(1)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 2)
+                                    .background(QiankunjieColors.surface(for: colorScheme))
+                                    .clipShape(Capsule())
+                                    .overlay {
+                                        Capsule().strokeBorder(QiankunjieColors.outline(for: colorScheme))
+                                    }
+                            }
+                        }
+                    }
+                }
             }
 
             Spacer(minLength: 12)
@@ -136,6 +196,25 @@ struct ReaderPaneView: View {
             title,
             systemImage: systemImage
         )
+    }
+
+    private func metadataRow(label: String, value: String) -> some View {
+        HStack(spacing: 8) {
+            Text(label)
+            Text(value)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .font(QiankunjieTypography.labelMedium)
+        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+    }
+
+    private func statusText(for article: ReaderArticle) -> String {
+        var statuses: [String] = []
+        statuses.append(article.isPublished ? "已公开" : "未公开")
+        if article.isFavorited { statuses.append("已收藏") }
+        statuses.append(article.isArchived ? "已归档" : "未归档")
+        return statuses.joined(separator: " · ")
     }
 
     private func errorView(_ message: String) -> some View {

@@ -54,4 +54,8 @@ if [[ "$(uname -m)" != "arm64" ]]; then
   exit 1
 fi
 
-echo "工具链校验通过：Xcode ${xcode_version}，Swift ${swift_version}，XcodeGen ${xcodegen_version}，macOS SDK ${sdk_version}，$(uname -m)。"
+if [[ "${1:-}" == "--print-xcodegen-bin" ]]; then
+  printf '%s\n' "${xcodegen_bin}"
+else
+  echo "工具链校验通过：Xcode ${xcode_version}，Swift ${swift_version}，XcodeGen ${xcodegen_version}，macOS SDK ${sdk_version}，$(uname -m)。"
+fi

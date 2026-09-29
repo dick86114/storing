@@ -43,6 +43,15 @@ import Testing
     #expect(script.contains("RESTORE_NEEDED=0"))
 }
 
+@Test func installScriptPreservesBackupAndShowsRecoveryCommand() {
+    let script = UpdateInstaller.installScript()
+
+    #expect(script.contains("display dialog"))
+    #expect(script.contains("备份位置"))
+    #expect(script.contains(#"ditto "$BACKUP" "$APP""#))
+    #expect(script.contains("rm -rf \"$APP\" && ditto \"$BACKUP\" \"$APP\""))
+}
+
 @Test func installScriptPassesHostileValuesOnlyAsProcessArguments() {
     let source = "/tmp/'; rm -rf \"$HOME\"; '/Qiankunjie.app"
     let destination = "/Applications/'; open '/ evil.app"

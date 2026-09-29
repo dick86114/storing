@@ -436,6 +436,7 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
 
 private final class 内存阅读位置存储: ReaderPositionStoring, @unchecked Sendable {
     private var states: [Int: Data] = [:]
+    private var currentUserID: Int?
     private let lock = NSLock()
 
     func readingState(articleID: Int) -> Data? {
@@ -453,6 +454,15 @@ private final class 内存阅读位置存储: ReaderPositionStoring, @unchecked 
     func remove(articleID: Int) {
         lock.withLock {
             _ = states.removeValue(forKey: articleID)
+        }
+    }
+
+    func prepareUser(userID: Int?) {
+        guard currentUserID != userID else { return }
+
+        lock.withLock {
+            currentUserID = userID
+            states.removeAll()
         }
     }
 }

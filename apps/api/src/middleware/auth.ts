@@ -6,8 +6,9 @@ const require = createRequire(import.meta.url);
 const jwt = require('jsonwebtoken');
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { eq, and, gt, isNull } from 'drizzle-orm';
 import { isAllowedBrowserExtensionOrigin } from '../services/browser-extension-origin.service.js';
+import { mobileSessions } from '../db/schema.js';
 import type { ClientSessionType } from '../services/mobile-session.service.js';
 
 export function getRequiredJwtSecret() {
@@ -67,6 +68,48 @@ function verifyToken(token: string) {
   }
 }
 
+type ClientTokenPayload = {
+  userId: number;
+  sessionId: string;
+  client: ClientSessionType;
+};
+
+const clientSessionTypes: ClientSessionType[] = ['android', 'browser_extension', 'macos'];
+
+function verifyClientToken(token: string): ClientTokenPayload | null {
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as Partial<ClientTokenPayload>;
+    if (
+      !payload
+      || typeof payload.userId !== 'number'
+      || !payload.userId
+      || typeof payload.sessionId !== 'string'
+      || !payload.sessionId
+      || !clientSessionTypes.includes(payload.client as ClientSessionType)
+    ) {
+      return null;
+    }
+    return payload as ClientTokenPayload;
+  } catch {
+    return null;
+  }
+}
+
+async function isClientSessionActive(payload: ClientTokenPayload) {
+  const [session] = await db
+    .select({ id: mobileSessions.id })
+    .from(mobileSessions)
+    .where(and(
+      eq(mobileSessions.id, payload.sessionId),
+      eq(mobileSessions.userId, payload.userId),
+      eq(mobileSessions.clientType, payload.client),
+      isNull(mobileSessions.revokedAt),
+      gt(mobileSessions.expiresAt, new Date()),
+    ))
+    .limit(1);
+  return Boolean(session);
+}
+
 /**
  * 必须登录的中间件
  */
@@ -78,6 +121,10 @@ export async function requireAuth(c: Context, next: Next) {
   }
 
   const userId = verifyToken(token);
+  const clientPayload = verifyClientToken(token);
+  if (clientPayload && !(await isClientSessionActive(clientPayload))) {
+    return c.json({ error: { code: 'SESSION_REVOKED', message: '登录会话已撤销，请重新登录' } }, 401);
+  }
   if (!userId) {
     return c.json({ error: { code: 'INVALID_TOKEN', message: 'Token 无效或已过期' } }, 401);
   }
@@ -108,6 +155,10 @@ export async function optionalAuth(c: Context, next: Next) {
 
   if (token) {
     const userId = verifyToken(token);
+    const clientPayload = verifyClientToken(token);
+    if (clientPayload && !(await isClientSessionActive(clientPayload))) {
+      return;
+    }
     if (userId) {
       const [user] = await db
         .select({ id: users.id, username: users.username, role: users.role, status: users.status })
@@ -133,6 +184,10 @@ export async function requireAdmin(c: Context, next: Next) {
   }
 
   const userId = verifyToken(token);
+  const clientPayload = verifyClientToken(token);
+  if (clientPayload && !(await isClientSessionActive(clientPayload))) {
+    return c.json({ error: { code: 'SESSION_REVOKED', message: '登录会话已撤销，请重新登录' } }, 401);
+  }
   if (!userId) {
     return c.json({ error: { code: 'INVALID_TOKEN', message: 'Token 无效或已过期' } }, 401);
   }
@@ -193,3 +248,36 @@ export function generateMobileAccessToken(userId: number, sessionId: string) {
 export function generateMacOSAccessToken(userId: number, sessionId: string) {
   return generateClientAccessToken(userId, sessionId, 'macos');
 }
+
+/** 只允许指定客户端类型的可撤销 Bearer 会话访问。 */
+export function createClientSessionAuth(expectedClient: ClientSessionType) {
+  return async function requireClientSession(c: Context, next: Next) {
+    const token = getRequestToken(c);
+    if (!token) {
+      return c.json({ error: { code: 'UNAUTHORIZED', message: '请先登录' } }, 401);
+    }
+
+    const payload = verifyClientToken(token);
+    if (!payload || payload.client !== expectedClient || !(await isClientSessionActive(payload))) {
+      return c.json({ error: { code: 'SESSION_REVOKED', message: '登录会话已撤销，请重新登录' } }, 401);
+    }
+
+    const [user] = await db
+      .select({ id: users.id, username: users.username, role: users.role, status: users.status })
+      .from(users)
+      .where(eq(users.id, payload.userId));
+    if (!user) {
+      return c.json({ error: { code: 'INVALID_TOKEN', message: 'Token 无效或已过期' } }, 401);
+    }
+    if (user.status !== 'active') {
+      return c.json({ error: { code: 'USER_DISABLED', message: '用户已禁用' } }, 403);
+    }
+
+    c.set('user', user);
+    await next();
+  };
+}
+
+export const requireAndroidAuth = createClientSessionAuth('android');
+export const requireExtensionAuth = createClientSessionAuth('browser_extension');
+export const requireMacOSAuth = createClientSessionAuth('macos');

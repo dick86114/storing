@@ -42,7 +42,7 @@ test('macOS UI Lab 只在 Debug 路由且不触碰生产数据边界', () => {
 
   assert.match(appSource, /#if DEBUG/);
   assert.match(appSource, /UILabScenario\.fromCommandLine/);
-  assert.doesNotMatch(fixtureSource, /KeychainSessionStore|LibraryCache\(|UserDefaults\.standard|APIClient\(/);
+  assert.doesNotMatch(fixtureSource, /KeychainSessionStore|(?<!Empty)LibraryCache\(|UserDefaults\.standard|APIClient\(/);
 });
 
 test('macOS UI Lab 脚本和文档覆盖十个截图场景', () => {
@@ -81,9 +81,7 @@ test('macOS UI Lab 任务夹具显式解码并暴露允许的任务动作', () =
   assert.match(fixtureSource, /"failed"/);
   assert.match(scenarioSource, /struct UILabTaskActionAvailability/);
   assert.match(scenarioSource, /static func taskActionAvailability/);
-  assert.match(scenarioSource, /onOpenArticle: availability\.canOpenArticle \? \{\} : nil/);
-  assert.match(scenarioSource, /onRetry: availability\.canRetry \? \{\} : nil/);
-  assert.match(scenarioSource, /onDelete: availability\.canDelete \? \{\} : nil/);
+  assert.doesNotMatch(scenarioSource, /List\(\s*UILabFixtures\.collectJobs/);
 
   const taskRow = guide
     .split('\n')
@@ -92,4 +90,18 @@ test('macOS UI Lab 任务夹具显式解码并暴露允许的任务动作', () =
   assert.match(taskRow ?? '', /打开文章/);
   assert.match(taskRow ?? '', /重试/);
   assert.match(taskRow ?? '', /删除任务/);
+});
+
+test('macOS UI Lab 通过固定仓储驱动生产视图', () => {
+  const scenarioSource = read('apps/macos/QiankunjieMac/UILab/UILabScenario.swift');
+  const fixtureSource = read('apps/macos/QiankunjieMac/UILab/UILabFixtures.swift');
+
+  assert.match(scenarioSource, /UILabFixtures\.libraryModel/);
+  assert.match(scenarioSource, /UILabFixtures\.collectModel/);
+  assert.match(scenarioSource, /UILabFixtures\.authModel/);
+  assert.match(scenarioSource, /LoginView\(/);
+  assert.match(scenarioSource, /CompactArticleListView\(/);
+  assert.match(scenarioSource, /CollectView\(/);
+  assert.match(scenarioSource, /CollectTasksView\(/);
+  assert.doesNotMatch(fixtureSource, /URLRequest|URLSession|KeychainSessionStore|UserDefaults\.standard/);
 });

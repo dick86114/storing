@@ -5,7 +5,7 @@ import { adminAuditLogs, articleMetadata, articles, collectJobs, mcpClients, mcp
 import { and, count, desc, eq, gt, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
-import { requireAuth, requireAdmin, getCurrentUser, generateClientAccessToken, generateMacOSAccessToken, generateMobileAccessToken, generateToken } from '../middleware/auth.js';
+import { requireAuth, requireAdmin, requireAndroidAuth, requireExtensionAuth, requireMacOSAuth, getCurrentUser, generateClientAccessToken, generateMacOSAccessToken, generateMobileAccessToken, generateToken } from '../middleware/auth.js';
 import { getConfiguredAdminStatus, resetConfiguredAdminPassword } from '../services/admin-bootstrap.service.js';
 import { writeAdminAudit } from '../services/admin-audit.service.js';
 import { generateSummaryAndTags } from '../services/ai.service.js';
@@ -254,7 +254,7 @@ authRoutes.post('/extension/auth/logout', async (c) => {
 });
 
 /** GET /extension/auth/session */
-authRoutes.get('/extension/auth/session', requireAuth, async (c) => {
+authRoutes.get('/extension/auth/session', requireExtensionAuth, async (c) => {
   const user = getCurrentUser(c);
   return c.json({ user: serializeMobileUser(user) });
 });
@@ -330,13 +330,13 @@ authRoutes.post('/mobile/auth/logout', async (c) => {
 });
 
 /** GET /mobile/auth/sessions */
-authRoutes.get('/mobile/auth/sessions', requireAuth, async (c) => {
+authRoutes.get('/mobile/auth/sessions', requireAndroidAuth, async (c) => {
   const user = getCurrentUser(c);
   return c.json({ sessions: (await listMobileSessions(user.id, 'android')).map(serializeMobileSession) });
 });
 
 /** DELETE /mobile/auth/sessions/:id */
-authRoutes.delete('/mobile/auth/sessions/:id', requireAuth, async (c) => {
+authRoutes.delete('/mobile/auth/sessions/:id', requireAndroidAuth, async (c) => {
   const user = getCurrentUser(c);
   const id = c.req.param('id');
   if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return c.json({ error: { code: 'BAD_REQUEST', message: '会话 ID 无效' } }, 400);
@@ -413,19 +413,19 @@ authRoutes.post('/macos/auth/logout', async (c) => {
 });
 
 /** GET /macos/auth/session */
-authRoutes.get('/macos/auth/session', requireAuth, async (c) => {
+authRoutes.get('/macos/auth/session', requireMacOSAuth, async (c) => {
   const user = getCurrentUser(c);
   return c.json({ user: serializeMobileUser(user) });
 });
 
 /** GET /macos/auth/sessions */
-authRoutes.get('/macos/auth/sessions', requireAuth, async (c) => {
+authRoutes.get('/macos/auth/sessions', requireMacOSAuth, async (c) => {
   const user = getCurrentUser(c);
   return c.json({ sessions: (await listMobileSessions(user.id, 'macos')).map(serializeMobileSession) });
 });
 
 /** DELETE /macos/auth/sessions/:id */
-authRoutes.delete('/macos/auth/sessions/:id', requireAuth, async (c) => {
+authRoutes.delete('/macos/auth/sessions/:id', requireMacOSAuth, async (c) => {
   const user = getCurrentUser(c);
   const id = c.req.param('id');
   if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return c.json({ error: { code: 'BAD_REQUEST', message: '会话 ID 无效' } }, 400);

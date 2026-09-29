@@ -7,6 +7,7 @@ final class GlobalShortcutSettings {
     static let storageKey = "quickCollect.globalShortcut"
 
     private let defaults: UserDefaults
+    private(set) var registrationMessage: String?
     var shortcut: GlobalShortcut {
         didSet {
             guard shortcut != oldValue else { return }
@@ -28,9 +29,24 @@ final class GlobalShortcutSettings {
     }
 
     func select(_ shortcut: GlobalShortcut) {
-        guard shortcut != self.shortcut else { return }
+        select(shortcut) { _ in true }
+    }
+
+    @discardableResult
+    func select(
+        _ shortcut: GlobalShortcut,
+        register: @MainActor (GlobalShortcut) -> Bool
+    ) -> Bool {
+        guard shortcut != self.shortcut else { return true }
+
+        guard register(shortcut) else {
+            registrationMessage = "全局快捷键注册失败，已保留原快捷键。"
+            return false
+        }
 
         self.shortcut = shortcut
         defaults.set(shortcut.rawValue, forKey: Self.storageKey)
+        registrationMessage = nil
+        return true
     }
 }
