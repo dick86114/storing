@@ -57,6 +57,7 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
 @Observable
 final class AppModel {
     let authModel: AuthModel
+    let collectAPIClient: APIClient
     private(set) var libraryModel: LibraryModel
     private(set) var collectModel: CollectModel
 
@@ -69,7 +70,7 @@ final class AppModel {
     init(
         authModel: AuthModel = AuthModel(repository: AuthRepository()),
         libraryModel: LibraryModel? = nil,
-        collectRepository: any CollectServicing = CollectRepository()
+        collectRepository: (any CollectServicing)? = nil
     ) {
         self.authModel = authModel
         if let libraryModel {
@@ -82,8 +83,12 @@ final class AppModel {
                 cache: (try? LibraryCache()) ?? EmptyLibraryCache()
             )
         }
+        let collectAPIClient = APIClient(tokenProvider: authModel.repository)
+        self.collectAPIClient = collectAPIClient
         self.collectModel = CollectModel(
-            repository: collectRepository,
+            repository: collectRepository ?? CollectRepository(
+                apiClient: collectAPIClient
+            ),
             userID: authModel.user?.id
         )
     }

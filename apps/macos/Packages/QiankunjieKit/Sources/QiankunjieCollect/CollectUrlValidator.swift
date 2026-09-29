@@ -29,6 +29,9 @@ public enum CollectUrlValidator {
     }
 
     private static func isLocalOrPrivateHost(_ host: String) -> Bool {
+        if usesIPv4Shorthand(host) {
+            return true
+        }
         if let address = IPv4Address(host) {
             return address.isLocalOrPrivate
         }
@@ -43,20 +46,53 @@ public enum CollectUrlValidator {
             || host.hasSuffix(".home.arpa")
             || !host.contains(".")
     }
+
+    private static func usesIPv4Shorthand(_ host: String) -> Bool {
+        let labels = host.split(separator: ".", omittingEmptySubsequences: false)
+        guard !labels.isEmpty, labels.count <= 4 else { return false }
+
+        if labels.allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isNumber) }) {
+            return true
+        }
+
+        return labels.contains { label in
+            guard label.count > 1,
+                  label.lowercased().hasPrefix("0x"),
+                  label.dropFirst(2).allSatisfy(\.isHexDigit)
+            else {
+                return false
+            }
+            return UInt32(label.dropFirst(2), radix: 16) != nil
+        }
+    }
 }
 
 private struct IPv4Address {
-    private let value: in_addr_t
+    private let octets: [UInt8]
 
     init?(_ text: String) {
-        var address = in_addr()
-        guard inet_pton(AF_INET, text, &address) == 1 else { return nil }
-        value = address.s_addr
+        let octets = text.split(separator: ".", omittingEmptySubsequences: false)
+        guard octets.count == 4 else { return nil }
+
+        var bytes: [UInt8] = []
+        bytes.reserveCapacity(4)
+        for octet in octets {
+            guard
+                !octet.isEmpty,
+                octet.allSatisfy(\.isNumber),
+                octet.allSatisfy({ $0.isASCII }),
+                let value = UInt8(octet),
+                octet == "0" || octet.first != "0"
+            else {
+                return nil
+            }
+            bytes.append(value)
+        }
+
+        self.octets = bytes
     }
 
     var isLocalOrPrivate: Bool {
-        let octets = Array(withUnsafeBytes(of: value) { Data($0) })
-
         return octets[0] == 0
             || octets[0] == 10
             || octets[0] == 127

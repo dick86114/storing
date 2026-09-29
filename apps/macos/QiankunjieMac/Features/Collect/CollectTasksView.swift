@@ -154,6 +154,27 @@ struct CollectTasksView: View {
                         } : nil
                     )
                 }
+
+                if model.hasMore {
+                    Button {
+                        Task {
+                            await model.loadMoreJobs()
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            if model.isLoadingMoreJobs {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "chevron.down.circle")
+                            }
+                            Text(model.isLoadingMoreJobs ? "正在加载" : "加载更多")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(model.isLoadingMoreJobs || model.userID == nil)
+                    .padding(.top, 4)
+                }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)

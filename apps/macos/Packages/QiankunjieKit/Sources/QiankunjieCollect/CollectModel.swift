@@ -23,6 +23,7 @@ public final class CollectModel {
     public private(set) var hasMore = false
     public private(set) var isLoadingJobs = true
     public private(set) var isRefreshingJobs = false
+    public private(set) var isLoadingMoreJobs = false
     public private(set) var isSubmitting = false
     public private(set) var mutatingJobIDs: Set<Int> = []
     public private(set) var inputErrorMessage: String?
@@ -33,16 +34,21 @@ public final class CollectModel {
     private let repository: any CollectServicing
     private let pollInterval: Duration
     private var requestGeneration = 0
+    private var pollGeneration = 0
+    private let pageSize = 30
+    private var nextPageOffset = 0
 
     public init(
         repository: any CollectServicing = CollectRepository(),
         userID: Int? = nil,
         initialJobs: [CollectJob] = [],
+        initialCurrentJob: CollectJob? = nil,
         pollInterval: Duration = .milliseconds(2000)
     ) {
         self.repository = repository
         self.userID = userID
         self.jobs = initialJobs
+        self.currentJob = initialCurrentJob
         self.total = initialJobs.count
         self.pollInterval = pollInterval
     }
@@ -93,10 +99,9 @@ public final class CollectModel {
             total += 1
             urlDraft = ""
             isSubmitting = false
-            await poll(jobID: job.id, generation: generation)
+            await poll(jobID: job.id, generation: pollGeneration)
         } catch {
             guard requestGeneration == generation else { return }
-            currentJob = nil
             submitErrorMessage = Self.message(for: error)
         }
 
@@ -113,6 +118,7 @@ public final class CollectModel {
         }
 
         requestGeneration += 1
+        pollGeneration += 1
         let generation = requestGeneration
         if jobs.isEmpty {
             isLoadingJobs = true
@@ -122,18 +128,19 @@ public final class CollectModel {
         refreshErrorMessage = nil
 
         do {
-            let page = try await repository.jobs(limit: 30, offset: 0)
+            let page = try await repository.jobs(limit: pageSize, offset: 0)
             guard requestGeneration == generation else { return }
 
             jobs = page.jobs
             total = page.total
             hasMore = page.hasMore
+            nextPageOffset = page.hasMore ? pageSize : 0
             if let jobID = currentJob?.id {
                 currentJob = page.jobs.first { $0.id == jobID }
             }
             isLoadingJobs = false
             isRefreshingJobs = false
-            await pollActiveJobs(generation: generation)
+            await pollActiveJobs(generation: pollGeneration)
         } catch {
             guard requestGeneration == generation else { return }
             refreshErrorMessage = Self.message(for: error)
@@ -152,7 +159,6 @@ public final class CollectModel {
             let failedJob = jobs.first(where: { $0.id == jobID && $0.status == "failed" })
         else { return }
 
-        requestGeneration += 1
         let generation = requestGeneration
         mutatingJobIDs.insert(jobID)
         actionErrorMessage = nil
@@ -165,7 +171,7 @@ public final class CollectModel {
             if currentJob?.id == job.id {
                 currentJob = job
             }
-            await poll(jobID: job.id, generation: generation)
+            await poll(jobID: job.id, generation: pollGeneration)
         } catch {
             guard requestGeneration == generation else { return }
             actionErrorMessage = Self.message(for: error)
@@ -205,6 +211,42 @@ public final class CollectModel {
         pendingDeletionJobID = nil
     }
 
+    public func loadMoreJobs() async {
+        guard
+            userID != nil,
+            hasMore,
+            !isLoadingMoreJobs,
+            !isLoadingJobs
+        else {
+            return
+        }
+
+        requestGeneration += 1
+        let generation = requestGeneration
+        let offset = nextPageOffset
+        isLoadingMoreJobs = true
+
+        do {
+            let page = try await repository.jobs(limit: pageSize, offset: offset)
+            guard requestGeneration == generation else { return }
+
+            let existingIDs = Set(jobs.map(\.id))
+            for job in page.jobs where !existingIDs.contains(job.id) {
+                jobs.append(job)
+            }
+            total = page.total
+            hasMore = page.hasMore
+            nextPageOffset = offset + pageSize
+        } catch {
+            guard requestGeneration == generation else { return }
+            actionErrorMessage = Self.message(for: error)
+        }
+
+        if requestGeneration == generation {
+            isLoadingMoreJobs = false
+        }
+    }
+
     public func clearFinished() async {
         guard userID != nil, !jobs.isEmpty else {
             isClearConfirmationPresented = false
@@ -222,6 +264,7 @@ public final class CollectModel {
                 jobs.removeAll(where: \.isTerminal)
                 total = max(0, total - (oldCount - jobs.count))
             }
+            await refreshJobs()
         } catch {
             actionErrorMessage = Self.message(for: error)
         }
@@ -231,16 +274,19 @@ public final class CollectModel {
 
     public func prepareUser(userID: Int?) {
         requestGeneration += 1
+        pollGeneration += 1
         self.userID = userID
         jobs = []
         currentJob = nil
         total = 0
         hasMore = false
+        nextPageOffset = 0
         urlDraft = ""
         pendingDeletionJobID = nil
         isClearConfirmationPresented = false
         isSubmitting = false
         isRefreshingJobs = false
+        isLoadingMoreJobs = false
         mutatingJobIDs = []
         inputErrorMessage = nil
         submitErrorMessage = nil
@@ -270,12 +316,12 @@ public final class CollectModel {
     }
 
     private func poll(jobID: Int, generation: Int) async {
-        while requestGeneration == generation {
+        while pollGeneration == generation {
             do {
                 guard let job = try await repository.job(id: jobID) else {
                     return
                 }
-                guard requestGeneration == generation else { return }
+                guard pollGeneration == generation else { return }
 
                 refreshErrorMessage = nil
                 replace(job)
@@ -286,7 +332,7 @@ public final class CollectModel {
                     return
                 }
             } catch {
-                guard requestGeneration == generation else { return }
+                guard pollGeneration == generation else { return }
                 refreshErrorMessage = Self.message(for: error)
                 return
             }
