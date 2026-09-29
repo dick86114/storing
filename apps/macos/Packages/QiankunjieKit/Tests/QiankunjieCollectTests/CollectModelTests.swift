@@ -596,6 +596,62 @@ struct CollectModelTests {
         #expect(await repository.requestedOffsets == [0, 0])
     }
 
+    @Test func 提交进行中清理成功后仍完成对账() async throws {
+        let repository = 模拟采集仓库(
+            page: CollectJobPage(
+                jobs: [
+                    .fixture(id: 10, status: "completed"),
+                    .fixture(id: 12, status: "completed"),
+                ],
+                total: 3,
+                hasMore: true
+            ),
+            statuses: ["completed"],
+            clearedCount: 2,
+            clearedFirstPage: CollectJobPage(
+                jobs: [.fixture(id: 12, status: "completed")],
+                total: 1,
+                hasMore: false
+            )
+        )
+        let model = CollectModel(repository: repository, userID: 9)
+        await model.refreshJobs()
+        await repository.holdNextClear()
+
+        let clearing = Task {
+            await model.clearFinished()
+        }
+        await Task.yield()
+        await repository.waitForClearRequest()
+        #expect(model.isClearingFinishedJobs)
+
+        await repository.holdNextSubmit()
+        let submission = Task {
+            await model.submit("https://example.com/next")
+        }
+        await repository.waitForSubmitRequest()
+        #expect(model.isSubmitting)
+        await repository.resumeSubmit(with: .success(
+            CollectJob.fixture(id: 11, status: "pending")
+        ))
+        await submission.value
+
+        #expect(model.jobs.map(\.id) == [11, 10, 12])
+        #expect(model.total == 4)
+        #expect(model.hasMore)
+
+        await repository.resumeClear(with: .success(2))
+        await clearing.value
+
+        #expect(model.jobs.map(\.id) == [12])
+        #expect(model.total == 1)
+        #expect(!model.hasMore)
+        #expect(!model.isClearingFinishedJobs)
+        #expect(await repository.jobsRequestCount == 2)
+        #expect(await repository.requestedOffsets == [0, 0])
+        #expect(await repository.clearFinishedCount == 1)
+    }
+
     @Test func 清理进行中时刷新保持互斥并完成对账() async throws {
         let active = CollectJob.fixture(id: 12, status: "running")
         let repository = 模拟采集仓库(
@@ -658,6 +714,11 @@ private actor 模拟采集仓库: CollectServicing {
     private var pausedJobContinuation: CheckedContinuation<CollectJob, Error>?
     private var shouldHoldNextClear = false
     private var heldClearContinuation: CheckedContinuation<Int, Error>?
+    private var clearRequestContinuation: CheckedContinuation<Void, Never>?
+    private var shouldHoldNextSubmit = false
+    private var heldSubmitContinuation: CheckedContinuation<CollectJob, Error>?
+    private var submitRequestContinuation: CheckedContinuation<Void, Never>?
+    private var jobRequestContinuation: CheckedContinuation<Void, Never>?
 
     private(set) var submitCount = 0
     private(set) var jobsRequestCount = 0
@@ -686,6 +747,14 @@ private actor 模拟采集仓库: CollectServicing {
 
     func submit(url: URL) async throws -> CollectJob {
         submitCount += 1
+        if shouldHoldNextSubmit {
+            shouldHoldNextSubmit = false
+            return try await withCheckedThrowingContinuation { continuation in
+                heldSubmitContinuation = continuation
+                submitRequestContinuation?.resume()
+                submitRequestContinuation = nil
+            }
+        }
         if let submitError {
             throw submitError
         }
@@ -736,6 +805,8 @@ private actor 模拟采集仓库: CollectServicing {
             shouldHoldNextJob = false
             return try await withCheckedThrowingContinuation { continuation in
                 heldJobContinuation = continuation
+                jobRequestContinuation?.resume()
+                jobRequestContinuation = nil
             }
         }
         guard !statuses.isEmpty else { return .fixture(id: id, status: "completed") }
@@ -763,6 +834,8 @@ private actor 模拟采集仓库: CollectServicing {
             shouldHoldNextClear = false
             return try await withCheckedThrowingContinuation { continuation in
                 heldClearContinuation = continuation
+                clearRequestContinuation?.resume()
+                clearRequestContinuation = nil
             }
         }
         if let clearedFirstPage {
@@ -807,8 +880,12 @@ private actor 模拟采集仓库: CollectServicing {
     }
 
     func waitForJobRequest() async {
-        while heldJobContinuation == nil {
-            await Task.yield()
+        if heldJobContinuation != nil {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            jobRequestContinuation = continuation
         }
     }
 
@@ -830,13 +907,37 @@ private actor 模拟采集仓库: CollectServicing {
         }
     }
 
+    func holdNextSubmit() {
+        shouldHoldNextSubmit = true
+    }
+
+    func waitForSubmitRequest() async {
+        if heldSubmitContinuation != nil {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            submitRequestContinuation = continuation
+        }
+    }
+
+    func resumeSubmit(with result: Result<CollectJob, Error>) {
+        guard let continuation = heldSubmitContinuation else { return }
+        heldSubmitContinuation = nil
+        continuation.resume(with: result)
+    }
+
     func holdNextClear() {
         shouldHoldNextClear = true
     }
 
     func waitForClearRequest() async {
-        while heldClearContinuation == nil {
-            await Task.yield()
+        if heldClearContinuation != nil {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            clearRequestContinuation = continuation
         }
     }
 

@@ -47,6 +47,7 @@ public final class CollectModel {
     private let pollInterval: Duration
     private var requestGeneration = 0
     private var pollGeneration = 0
+    private var clearOperationGeneration = 0
     private let pageSize = 30
     private var nextPageOffset = 0
     private var activeListOperation: CollectListOperationToken?
@@ -309,7 +310,8 @@ public final class CollectModel {
         isClearingFinishedJobs = true
         actionErrorMessage = nil
         requestGeneration += 1
-        let generation = requestGeneration
+        clearOperationGeneration += 1
+        let generation = clearOperationGeneration
         let operationUserID = userID
 
         defer {
@@ -321,7 +323,7 @@ public final class CollectModel {
 
         do {
             let deletedCount = try await repository.clearFinished()
-            guard canApplyListOperation(token, generation: generation, userID: operationUserID) else {
+            guard canApplyClearOperation(token, generation: generation, userID: operationUserID) else {
                 return
             }
 
@@ -336,7 +338,7 @@ public final class CollectModel {
             }
             await refreshJobs()
         } catch {
-            guard canApplyListOperation(token, generation: generation, userID: operationUserID) else {
+            guard canApplyClearOperation(token, generation: generation, userID: operationUserID) else {
                 return
             }
             actionErrorMessage = Self.message(for: error)
@@ -347,6 +349,7 @@ public final class CollectModel {
 
     public func prepareUser(userID: Int?) {
         requestGeneration += 1
+        clearOperationGeneration += 1
         pollGeneration += 1
         self.userID = userID
         jobs = []
@@ -444,6 +447,17 @@ public final class CollectModel {
         activeListOperation == token
             && !invalidatedListOperationIDs.contains(token.id)
             && requestGeneration == generation
+            && self.userID == userID
+    }
+
+    private func canApplyClearOperation(
+        _ token: CollectListOperationToken,
+        generation: Int,
+        userID: Int?
+    ) -> Bool {
+        activeListOperation == token
+            && !invalidatedListOperationIDs.contains(token.id)
+            && clearOperationGeneration == generation
             && self.userID == userID
     }
 
