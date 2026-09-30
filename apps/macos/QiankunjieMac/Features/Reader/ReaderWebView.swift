@@ -8,12 +8,12 @@ struct ReaderWebView: NSViewRepresentable {
     let html: String
     let contentToken: String
     let savedReadingState: Data?
+    let baseURL: URL?
     let onReadingStateChange: @MainActor (Data, String) -> Void
 
     func makeNSView(context: Context) -> ReaderWKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
-        configuration.limitsNavigationsToAppBoundDomains = true
         configuration.defaultWebpagePreferences.allowsContentJavaScript = false
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
         configuration.mediaTypesRequiringUserActionForPlayback = .all
@@ -33,6 +33,7 @@ struct ReaderWebView: NSViewRepresentable {
         context.coordinator.webView = webView
         webView.loadServerHTML(
             html,
+            baseURL: baseURL,
             token: contentToken,
             savedState: savedReadingState
         )
@@ -46,6 +47,7 @@ struct ReaderWebView: NSViewRepresentable {
 
         webView.loadServerHTML(
             html,
+            baseURL: baseURL,
             token: contentToken,
             savedState: savedReadingState
         )
@@ -143,13 +145,14 @@ final class ReaderWKWebView: WKWebView {
 
     func loadServerHTML(
         _ html: String,
+        baseURL: URL?,
         token: String,
         savedState: Data?
     ) {
         loadedToken = token
         pendingReadingState = savedState
         stateCaptureTask?.cancel()
-        loadHTMLString(html, baseURL: nil)
+        loadHTMLString(html, baseURL: baseURL)
     }
 
     func restoreReadingState() {

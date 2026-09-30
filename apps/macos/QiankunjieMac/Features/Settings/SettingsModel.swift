@@ -86,20 +86,36 @@ struct AuthRepositoryDeviceSessionService: DeviceSessionServicing {
     }
 
     func sessions() async throws -> [DeviceSession] {
-        let response: DeviceSessionListResponse = try await apiClient.send(
-            .get("macos/auth/sessions"),
-            authenticated: true
-        )
+        let response: DeviceSessionListResponse
+        do {
+            response = try await apiClient.send(
+                .get("macos/auth/sessions"),
+                authenticated: true
+            )
+        } catch AppError.contentUnavailable {
+            response = try await apiClient.send(
+                .get("mobile/auth/sessions"),
+                authenticated: true
+            )
+        }
         return response.sessions
     }
 
     func revoke(id: String) async throws {
         let path = try Self.encodedPath(for: id)
 
-        let _: RevokedSessionResponse = try await apiClient.send(
-            .delete(path),
-            authenticated: true
-        )
+        do {
+            let _: RevokedSessionResponse = try await apiClient.send(
+                .delete(path),
+                authenticated: true
+            )
+        } catch AppError.contentUnavailable {
+            let legacyPath = path.replacingOccurrences(of: "macos/auth/sessions", with: "mobile/auth/sessions")
+            let _: RevokedSessionResponse = try await apiClient.send(
+                .delete(legacyPath),
+                authenticated: true
+            )
+        }
     }
 
     static func encodedPath(for id: String) throws -> String {

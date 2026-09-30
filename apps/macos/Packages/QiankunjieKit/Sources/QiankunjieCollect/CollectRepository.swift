@@ -50,22 +50,32 @@ public struct CollectRepository: CollectServicing {
 
     public func submit(url: URL) async throws -> CollectJob {
         let body = try JSONEncoder().encode(["url": url.absoluteString])
-        let response: CollectJobEnvelope = try await apiClient.send(
-            .post("macos/collect", body: body),
+        let response: CollectJobEnvelope = try await request(
+            primary: .post("macos/collect", body: body),
+            fallback: .post("mobile/collect", body: body),
             authenticated: true
         )
         return response.job
     }
 
     public func jobs(limit: Int, offset: Int) async throws -> CollectJobPage {
-        let response: CollectJobsEnvelope = try await apiClient.send(
-            .get(
+        let primary = APIRequest.get(
                 "macos/collect/jobs",
                 queryItems: [
                     URLQueryItem(name: "limit", value: String(limit)),
                     URLQueryItem(name: "offset", value: String(offset)),
                 ]
-            ),
+        )
+        let fallback = APIRequest.get(
+            "mobile/collect/jobs",
+            queryItems: [
+                URLQueryItem(name: "limit", value: String(limit)),
+                URLQueryItem(name: "offset", value: String(offset)),
+            ]
+        )
+        let response: CollectJobsEnvelope = try await request(
+            primary: primary,
+            fallback: fallback,
             authenticated: true
         )
         return CollectJobPage(
@@ -76,34 +86,55 @@ public struct CollectRepository: CollectServicing {
     }
 
     public func job(id: Int) async throws -> CollectJob? {
-        let response: CollectJobEnvelope = try await apiClient.send(
-            .get("macos/collect/jobs/\(id)"),
+        let response: CollectJobEnvelope = try await request(
+            primary: .get("macos/collect/jobs/\(id)"),
+            fallback: .get("mobile/collect/jobs/\(id)"),
             authenticated: true
         )
         return response.job
     }
 
     public func retry(id: Int) async throws -> CollectJob {
-        let response: CollectJobEnvelope = try await apiClient.send(
-            .post("macos/collect/jobs/\(id)/retry"),
+        let response: CollectJobEnvelope = try await request(
+            primary: .post("macos/collect/jobs/\(id)/retry"),
+            fallback: .post("mobile/collect/jobs/\(id)/retry"),
             authenticated: true
         )
         return response.job
     }
 
     public func delete(id: Int) async throws -> Bool {
-        let response: CollectDeletedEnvelope = try await apiClient.send(
-            .delete("macos/collect/jobs/\(id)"),
+        let response: CollectDeletedEnvelope = try await request(
+            primary: .delete("macos/collect/jobs/\(id)"),
+            fallback: .delete("mobile/collect/jobs/\(id)"),
             authenticated: true
         )
         return response.deleted
     }
 
     public func clearFinished() async throws -> Int {
-        let response: CollectClearedEnvelope = try await apiClient.send(
-            .delete("macos/collect/jobs"),
+        let response: CollectClearedEnvelope = try await request(
+            primary: .delete("macos/collect/jobs"),
+            fallback: .delete("mobile/collect/jobs"),
             authenticated: true
         )
         return response.deletedCount
+    }
+
+    private func request<T: Decodable & Sendable>(
+        primary: APIRequest,
+        fallback: APIRequest,
+        authenticated: Bool
+    ) async throws -> T {
+        do {
+            return try await apiClient.send(primary, authenticated: authenticated)
+        } catch AppError.contentUnavailable {
+            // 旧版服务端还没有 macOS 来源；回退到现有 mobile 采集契约。
+            return try await apiClient.send(fallback, authenticated: authenticated)
+        } catch let error as DecodingError {
+            throw AppError.server
+        } catch {
+            throw error
+        }
     }
 }

@@ -40,7 +40,7 @@ xcodebuild \
   CODE_SIGNING_ALLOWED=NO \
   build
 
-app_path="${derived_data}/Build/Products/Debug/QiankunjieMac.app"
+app_path="${derived_data}/Build/Products/Debug/storing.app"
 mkdir -p "${screenshot_dir}"
 open -n "${app_path}" --args --ui-lab "${scenario}"
 

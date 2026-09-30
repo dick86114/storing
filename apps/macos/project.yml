@@ -16,6 +16,7 @@ settings:
     ONLY_ACTIVE_ARCH: YES
     SWIFT_STRICT_CONCURRENCY: complete
     SWIFT_VERSION: "6.0"
+    PRODUCT_NAME: storing
 
 packages:
   QiankunjieKit:
@@ -43,6 +44,7 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         MARKETING_VERSION: 0.1.0
         PRODUCT_BUNDLE_IDENTIFIER: com.idickies.storing.macos
+        PRODUCT_MODULE_NAME: QiankunjieMac
 
   QiankunjieMacTests:
     type: bundle.unit-test
@@ -56,6 +58,8 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: com.idickies.storing.macos.tests
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/storing.app/Contents/MacOS/storing"
+        BUNDLE_LOADER: "$(TEST_HOST)"
 
 schemes:
   QiankunjieMac:

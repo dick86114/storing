@@ -40,6 +40,7 @@ struct LoginView: View {
                 .padding(32)
                 .frame(maxWidth: 420)
         }
+        .frame(width: 420)
         .foregroundStyle(QiankunjieColors.onBackground(for: colorScheme))
         .overlay(alignment: .topTrailing) {
             if let onCancel {

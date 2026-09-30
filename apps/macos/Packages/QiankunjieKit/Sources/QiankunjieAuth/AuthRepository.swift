@@ -49,8 +49,10 @@ public struct DefaultAuthClient: AuthClient {
         let body = try JSONEncoder().encode(
             LoginRequest(username: username, password: password, device: device)
         )
-        return try await apiClient.send(
+
+        return try await sendWithLegacyFallback(
             .post("macos/auth/login", body: body),
+            fallback: .post("mobile/auth/login", body: body),
             authenticated: false
         )
     }
@@ -62,16 +64,19 @@ public struct DefaultAuthClient: AuthClient {
         let body = try JSONEncoder().encode(
             RefreshRequest(refreshToken: refreshToken, device: device)
         )
-        return try await apiClient.send(
+
+        return try await sendWithLegacyFallback(
             .post("macos/auth/refresh", body: body),
+            fallback: .post("mobile/auth/refresh", body: body),
             authenticated: false
         )
     }
 
     public func logout(refreshToken: String) async throws {
         let body = try JSONEncoder().encode(LogoutRequest(refreshToken: refreshToken))
-        let _: RevokedResponse = try await apiClient.send(
+        let _: RevokedResponse = try await sendWithLegacyFallback(
             .post("macos/auth/logout", body: body),
+            fallback: .post("mobile/auth/logout", body: body),
             authenticated: false
         )
     }
@@ -85,6 +90,19 @@ public struct DefaultAuthClient: AuthClient {
             authenticated: false
         )
         return response.user
+    }
+
+    private func sendWithLegacyFallback<T: Decodable & Sendable>(
+        _ primary: APIRequest,
+        fallback: APIRequest,
+        authenticated: Bool
+    ) async throws -> T {
+        do {
+            return try await apiClient.send(primary, authenticated: authenticated)
+        } catch AppError.contentUnavailable {
+            // 旧版服务端尚未提供 macOS 专用接口时，暂时复用现有 mobile 会话契约。
+            return try await apiClient.send(fallback, authenticated: authenticated)
+        }
     }
 }
 
