@@ -78,16 +78,6 @@ final class ReaderWebViewCoordinator: NSObject, WKNavigationDelegate {
     ) {
         let url = navigationAction.request.url
 
-        // loadHTMLString 的主文档没有 URL；其余主文档地址都必须通过安全策略。
-        if
-            navigationAction.targetFrame?.isMainFrame == true,
-            url == nil,
-            navigationAction.navigationType == .other
-        {
-            decisionHandler(.allow)
-            return
-        }
-
         if navigationAction.targetFrame?.isMainFrame != true {
             if let url, ReaderNavigationPolicy.isSupportedResourceURL(url) {
                 decisionHandler(.allow)
@@ -97,17 +87,39 @@ final class ReaderWebViewCoordinator: NSObject, WKNavigationDelegate {
             return
         }
 
-        guard let url else {
+        switch Self.mainNavigationAction(
+            url: url,
+            isServerHTMLLoading: (webView as? ReaderWKWebView)?.isServerHTMLLoading == true,
+            navigationType: navigationAction.navigationType
+        ) {
+        case .allow:
+            decisionHandler(.allow)
+        case .openExternally(let url):
+            NSWorkspace.shared.open(url)
             decisionHandler(.cancel)
-            return
+        case .block:
+            decisionHandler(.cancel)
+        }
+    }
+
+    static func mainNavigationAction(
+        url: URL?,
+        isServerHTMLLoading: Bool,
+        navigationType: WKNavigationType
+    ) -> ReaderMainNavigationAction {
+        if isServerHTMLLoading {
+            return .allow
+        }
+
+        guard let url else {
+            return .block
         }
 
         switch ReaderNavigationPolicy.decision(for: url) {
         case .openExternally:
-            NSWorkspace.shared.open(url)
-            decisionHandler(.cancel)
+            return .openExternally(url)
         case .load, .block:
-            decisionHandler(.cancel)
+            return .block
         }
     }
 
@@ -136,9 +148,16 @@ final class ReaderWebViewCoordinator: NSObject, WKNavigationDelegate {
     }
 }
 
+enum ReaderMainNavigationAction: Equatable {
+    case allow
+    case openExternally(URL)
+    case block
+}
+
 @MainActor
 final class ReaderWKWebView: WKWebView {
     var loadedToken = ""
+    var isServerHTMLLoading = false
     var pendingReadingState: Data?
     var onReadingStateChange: ((Data, String) -> Void)?
     private var stateCaptureTask: Task<Void, Never>?
@@ -150,6 +169,7 @@ final class ReaderWKWebView: WKWebView {
         savedState: Data?
     ) {
         loadedToken = token
+        isServerHTMLLoading = true
         pendingReadingState = savedState
         stateCaptureTask?.cancel()
         loadHTMLString(html, baseURL: baseURL)
@@ -164,6 +184,7 @@ final class ReaderWKWebView: WKWebView {
 
         interactionState = state
         pendingReadingState = nil
+        isServerHTMLLoading = false
     }
 
     private static func readingState(from data: Data) -> Any? {
