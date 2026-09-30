@@ -32,37 +32,38 @@ struct LoginView: View {
     }
 
     var body: some View {
-        ZStack {
-            QiankunjieColors.background(for: colorScheme)
-                .ignoresSafeArea()
-
-            loginForm
-                .padding(32)
-                .frame(maxWidth: 420)
-        }
-        .frame(width: 420)
-        .foregroundStyle(QiankunjieColors.onBackground(for: colorScheme))
-        .overlay(alignment: .topTrailing) {
-            if let onCancel {
-                Button {
-                    onCancel()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .padding(12)
-                .accessibilityLabel("关闭登录")
+        loginForm
+            .padding(28)
+            .frame(width: 420, alignment: .top)
+            .background {
+                RoundedRectangle(cornerRadius: QiankunjieRadius.panel, style: .continuous)
+                    .fill(QiankunjieColors.surface(for: colorScheme))
+                    .shadow(color: .black.opacity(0.24), radius: 28, y: 12)
             }
-        }
+            .overlay(alignment: .topTrailing) {
+                if let onCancel {
+                    Button {
+                        onCancel()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(12)
+                    .accessibilityLabel("关闭登录")
+                }
+            }
+        .foregroundStyle(QiankunjieColors.onBackground(for: colorScheme))
     }
 
     private var loginForm: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 24) {
             brandHeader
-            loginCard
-                .padding(.top, 28)
+            usernameField
+            passwordField
+            errorMessage
+            submitButton
         }
     }
 
@@ -77,23 +78,6 @@ struct LoginView: View {
             Text("登录乾坤戒")
                 .font(.title2.weight(.semibold))
         }
-    }
-
-    private var loginCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            usernameField
-            passwordField
-            errorMessage
-            submitButton
-        }
-        .padding(24)
-        .background(
-            RoundedRectangle(
-                cornerRadius: QiankunjieRadius.panel,
-                style: .continuous
-            )
-            .fill(QiankunjieColors.surface(for: colorScheme))
-        )
     }
 
     private var usernameField: some View {

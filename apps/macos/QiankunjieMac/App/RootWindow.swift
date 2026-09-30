@@ -277,12 +277,6 @@ private struct LoginOverlay: View {
                 onAuthenticated: onAuthenticated,
                 onCancel: onCancel
             )
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(.background)
-                    .shadow(color: .black.opacity(0.24), radius: 28, y: 12)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .onTapGesture {}
         }
         .transition(.opacity)
