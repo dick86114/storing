@@ -52,6 +52,10 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
         case .collect, .tasks, .search, .settings: nil
         }
     }
+
+    var requiresAuthentication: Bool {
+        [.inbox, .favorites, .archive].contains(self)
+    }
 }
 
 @MainActor
@@ -140,11 +144,6 @@ final class AppModel {
     }
 
     func selectDestination(_ destination: AppDestination) {
-        guard isAuthenticated || destination == .published else {
-            presentLogin()
-            return
-        }
-
         guard destination != self.destination else {
             return
         }

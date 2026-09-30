@@ -90,7 +90,8 @@ struct ReaderPaneView: View {
             ReaderWebView(
                 html: model.displayHTML,
                 contentToken: model.contentToken,
-                savedReadingState: model.savedReadingState
+                savedReadingState: model.savedReadingState,
+                baseURL: article.originalURL.flatMap(URL.init(string:))
             ) { state, contentToken in
                 model.updateReadingState(state, contentToken: contentToken)
             }

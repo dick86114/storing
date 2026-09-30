@@ -103,6 +103,8 @@ struct UILabRootView: View {
                     model: UILabFixtures.appModel.settingsModel,
                     shortcutSettings: UILabFixtures.appModel.shortcutSettings,
                     menuBarController: nil,
+                    isAuthenticated: true,
+                    onLogin: {},
                     updateService: UILabFixtures.updateService,
                     updateDefaults: UILabFixtures.preferences
                 )
@@ -111,6 +113,8 @@ struct UILabRootView: View {
                     model: UILabFixtures.appModel.settingsModel,
                     shortcutSettings: UILabFixtures.appModel.shortcutSettings,
                     menuBarController: nil,
+                    isAuthenticated: true,
+                    onLogin: {},
                     updateService: UILabFixtures.updateService,
                     updateDefaults: UILabFixtures.preferences
                 )

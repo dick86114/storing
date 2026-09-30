@@ -120,13 +120,21 @@ struct RootWindow: View {
         } else if model.destination == .settings {
             SettingsView(
                 model: model,
-                menuBarController: menuBarController
+                menuBarController: menuBarController,
+                onLogin: model.presentLogin
             )
         } else if model.destination == .search {
             LibrarySearchView(
                 model: model.libraryModel,
                 selection: articleSelection
             )
+        } else if model.destination.requiresAuthentication, !model.isAuthenticated {
+            GuestAccessView(
+                title: "\(model.destination.title)需要登录",
+                message: "登录后可以查看和管理当前账号的\(model.destination.title)内容。"
+            ) {
+                model.presentLogin()
+            }
         } else {
             LibraryPlaceholderView(destination: model.destination)
         }
@@ -220,6 +228,37 @@ private struct LibrarySearchView: View {
     }
 }
 
+private struct GuestAccessView: View {
+    let title: String
+    let message: String
+    let onLogin: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "person.badge.key")
+                .font(.system(size: 36))
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 8) {
+                Text(title)
+                    .font(.title3.weight(.semibold))
+
+                Text(message)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            Button("登录", action: onLogin)
+                .buttonStyle(.borderedProminent)
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(QiankunjieColors.background(for: colorScheme))
+    }
+}
+
 private struct LoginOverlay: View {
     let authModel: AuthModel
     let onAuthenticated: @MainActor () -> Void
@@ -228,7 +267,7 @@ private struct LoginOverlay: View {
     var body: some View {
         ZStack {
             Rectangle()
-                .fill(.black.opacity(0.28))
+                .fill(.black.opacity(0.46))
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onCancel)

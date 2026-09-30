@@ -23,7 +23,7 @@ struct AppModelTests {
         #expect(model.isLoginPresented)
     }
 
-    @Test func 游客进入受限栏目弹出登录并保留发布页() {
+    @Test func 游客可以打开设置界面() {
         let model = AppModel.fixture(
             user: nil,
             destination: .published,
@@ -32,8 +32,22 @@ struct AppModelTests {
 
         model.selectDestination(.settings)
 
-        #expect(model.destination == .published)
-        #expect(model.isLoginPresented)
+        #expect(model.destination == .settings)
+        #expect(!model.isLoginPresented)
+    }
+
+    @Test func 游客可以打开受限资料库并由界面引导登录() {
+        let model = AppModel.fixture(
+            user: nil,
+            destination: .published,
+            selectedArticleID: nil
+        )
+
+        model.selectDestination(.inbox)
+
+        #expect(model.destination == .inbox)
+        #expect(model.destination.requiresAuthentication)
+        #expect(!model.isLoginPresented)
     }
 
     @Test func 游客取消登录不改变游客目的地() {

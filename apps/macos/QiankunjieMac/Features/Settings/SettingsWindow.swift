@@ -7,6 +7,8 @@ struct SettingsWindow: View {
     @Bindable var model: SettingsModel
     @Bindable var shortcutSettings: GlobalShortcutSettings
     let menuBarController: MenuBarController?
+    let isAuthenticated: Bool
+    let onLogin: () -> Void
     private let updateService: (any UpdateServicing)?
     private let updateDefaults: UserDefaults
     @State private var shortcutRegistrationMessage: String?
@@ -15,12 +17,16 @@ struct SettingsWindow: View {
         model: SettingsModel,
         shortcutSettings: GlobalShortcutSettings,
         menuBarController: MenuBarController?,
+        isAuthenticated: Bool,
+        onLogin: @escaping () -> Void,
         updateService: (any UpdateServicing)? = nil,
         updateDefaults: UserDefaults = .standard
     ) {
         self.model = model
         self.shortcutSettings = shortcutSettings
         self.menuBarController = menuBarController
+        self.isAuthenticated = isAuthenticated
+        self.onLogin = onLogin
         self.updateService = updateService
         self.updateDefaults = updateDefaults
         _shortcutRegistrationMessage = State(initialValue: nil)
@@ -42,7 +48,18 @@ struct SettingsWindow: View {
             }
             appearanceSection
             shortcutSection
-            DeviceSessionsView(model: model)
+            if isAuthenticated {
+                DeviceSessionsView(model: model)
+            } else {
+                Section("账号") {
+                    LabeledContent("当前状态", value: "未登录")
+                    Button {
+                        onLogin()
+                    } label: {
+                        Label("登录乾坤戒", systemImage: "person.badge.key")
+                    }
+                }
+            }
             accountSection
         }
         .formStyle(.grouped)
@@ -89,22 +106,24 @@ struct SettingsWindow: View {
 
     private var accountSection: some View {
         Section {
-            Button {
-                Task {
-                    await model.logout()
-                }
-            } label: {
-                if model.isLoggingOut {
-                    HStack {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("正在退出登录")
+            if isAuthenticated {
+                Button {
+                    Task {
+                        await model.logout()
                     }
-                } else {
-                    Label("退出登录", systemImage: "rectangle.portrait.and.arrow.right")
+                } label: {
+                    if model.isLoggingOut {
+                        HStack {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("正在退出登录")
+                        }
+                    } else {
+                        Label("退出登录", systemImage: "rectangle.portrait.and.arrow.right")
+                    }
                 }
+                .disabled(model.isLoggingOut)
             }
-            .disabled(model.isLoggingOut)
         }
     }
 
