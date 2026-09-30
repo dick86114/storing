@@ -135,7 +135,16 @@ final class AppModel {
         isLoginPresented = true
     }
 
+    func dismissLogin() {
+        isLoginPresented = false
+    }
+
     func selectDestination(_ destination: AppDestination) {
+        guard isAuthenticated || destination == .published else {
+            presentLogin()
+            return
+        }
+
         guard destination != self.destination else {
             return
         }

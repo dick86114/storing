@@ -23,6 +23,33 @@ struct AppModelTests {
         #expect(model.isLoginPresented)
     }
 
+    @Test func 游客进入受限栏目弹出登录并保留发布页() {
+        let model = AppModel.fixture(
+            user: nil,
+            destination: .published,
+            selectedArticleID: nil
+        )
+
+        model.selectDestination(.settings)
+
+        #expect(model.destination == .published)
+        #expect(model.isLoginPresented)
+    }
+
+    @Test func 游客取消登录不改变游客目的地() {
+        let model = AppModel.fixture(
+            user: nil,
+            destination: .published,
+            selectedArticleID: nil
+        )
+
+        model.presentLogin()
+        model.dismissLogin()
+
+        #expect(model.destination == .published)
+        #expect(!model.isLoginPresented)
+    }
+
     @Test func 登录成功关闭登录流程并进入收件箱() async {
         let authModel = AuthModel(
             repository: AuthRepository(

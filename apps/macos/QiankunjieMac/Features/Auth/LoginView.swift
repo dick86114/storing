@@ -6,6 +6,7 @@ import SwiftUI
 struct LoginView: View {
     let authModel: AuthModel
     let onAuthenticated: @MainActor () -> Void
+    var onCancel: (() -> Void)?
     private let deviceProvider: MacAuthDeviceProvider
 
     @Environment(\.colorScheme) private var colorScheme
@@ -15,10 +16,12 @@ struct LoginView: View {
     init(
         authModel: AuthModel,
         onAuthenticated: @escaping @MainActor () -> Void,
+        onCancel: (() -> Void)? = nil,
         deviceProvider: MacAuthDeviceProvider = MacAuthDeviceProvider()
     ) {
         self.authModel = authModel
         self.onAuthenticated = onAuthenticated
+        self.onCancel = onCancel
         self.deviceProvider = deviceProvider
     }
 
@@ -38,6 +41,20 @@ struct LoginView: View {
                 .frame(maxWidth: 420)
         }
         .foregroundStyle(QiankunjieColors.onBackground(for: colorScheme))
+        .overlay(alignment: .topTrailing) {
+            if let onCancel {
+                Button {
+                    onCancel()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(12)
+                .accessibilityLabel("关闭登录")
+            }
+        }
     }
 
     private var loginForm: some View {
