@@ -49,6 +49,26 @@ import Testing
     #expect(detail.contentMarkdown == "正文")
 }
 
+@Test func 文章详情解码服务端驼峰字段和毫秒时间() throws {
+    let data = #"""
+    {
+      "id": 354,
+      "publicId": "4f113bf2-7807-4ccf-8bb5-3bffc269a7cd",
+      "publishTime": "2026-09-28T13:16:02.000Z",
+      "publishedAt": "2026-09-29T02:50:52.171Z",
+      "isPublished": true,
+      "contentHtml": "<p>正文</p>",
+      "contentMd": "正文"
+    }
+    """#.data(using: .utf8)!
+
+    let detail = try JSONDecoder.qiankunjie.decode(ArticleDetail.self, from: data)
+
+    #expect(detail.publicID == "4f113bf2-7807-4ccf-8bb5-3bffc269a7cd")
+    #expect(detail.publishTime != nil)
+    #expect(detail.contentHTML == "<p>正文</p>")
+}
+
 @Test func 采集任务解码队列字段和终态() throws {
     let data = #"""
     {"id":11,"url":"https://example.com/a","normalized_url":"https://example.com/a","status":"completed","stage":"completed","method":"singlefile","capture_strategy":"desktop","article_id":7,"title":"文章","error":null,"error_summary":null,"error_details":[],"error_hint":null,"created_at":"2026-09-29T00:00:00Z","updated_at":"2026-09-29T00:00:00Z","started_at":"2026-09-29T00:00:00Z","finished_at":"2026-09-29T00:00:00Z"}

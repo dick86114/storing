@@ -1,3 +1,4 @@
+import QiankunjieAuth
 import QiankunjieDesignSystem
 import QiankunjieCollect
 import QiankunjieLibrary
@@ -17,12 +18,16 @@ struct RootWindow: View {
             .preferredColorScheme(
                 model.settingsModel.appearance.resolvedColorScheme(system: colorScheme)
             )
-            .sheet(isPresented: $model.isLoginPresented) {
-            LoginView(
-                authModel: model.authModel,
-                onAuthenticated: model.didAuthenticate
-            )
-        }
+            .overlay {
+                if model.isLoginPresented {
+                    LoginOverlay(
+                        authModel: model.authModel,
+                        onAuthenticated: model.didAuthenticate,
+                        onCancel: model.dismissLogin
+                    )
+                    .transition(.opacity)
+                }
+            }
     }
 
     private var mainInterface: some View {
@@ -212,6 +217,36 @@ private struct LibrarySearchView: View {
             model: model,
             selection: selection
         )
+    }
+}
+
+private struct LoginOverlay: View {
+    let authModel: AuthModel
+    let onAuthenticated: @MainActor () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(.black.opacity(0.28))
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onCancel)
+
+            LoginView(
+                authModel: authModel,
+                onAuthenticated: onAuthenticated,
+                onCancel: onCancel
+            )
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(.background)
+                    .shadow(color: .black.opacity(0.24), radius: 28, y: 12)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .onTapGesture {}
+        }
+        .transition(.opacity)
     }
 }
 
