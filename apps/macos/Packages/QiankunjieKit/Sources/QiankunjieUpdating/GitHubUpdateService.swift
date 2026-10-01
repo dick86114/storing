@@ -73,6 +73,9 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading, UpdateLogPr
         if response.statusCode == 404 {
             return nil
         }
+        if response.statusCode == 403 || response.statusCode == 429 {
+            return try await fetchAtomUpdateLog(for: version)
+        }
         guard (200..<300).contains(response.statusCode) else {
             throw UpdateServiceError.invalidResponse
         }
@@ -83,6 +86,26 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading, UpdateLogPr
 
         let release = try JSONDecoder().decode(GitHubRelease.self, from: response.data)
         return release.body?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func fetchAtomUpdateLog(for version: String) async throws -> String? {
+        var request = URLRequest(url: Self.atomURL)
+        request.timeoutInterval = 30
+        request.setValue("application/atom+xml", forHTTPHeaderField: "Accept")
+        request.setValue("Qiankunjie-macOS-updater", forHTTPHeaderField: "User-Agent")
+        let response = try await network.data(for: request)
+        guard (200..<300).contains(response.statusCode) else {
+            throw UpdateServiceError.invalidResponse
+        }
+
+        let expectedTag = "macos-v\(version)"
+        guard let entry = AtomFeedParser().parse(response.data).first(where: {
+            Self.tagName(inAtomID: $0.id) == expectedTag
+        }) else {
+            return nil
+        }
+        let text = Self.plainText(fromHTML: entry.content)
+        return text.isEmpty ? nil : text
     }
 
     public func download(
@@ -202,11 +225,13 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading, UpdateLogPr
         let releases = entries.compactMap { entry -> AppRelease? in
             guard
                 let tag = Self.tagName(inAtomID: entry.id),
-                let version = Self.version(fromTag: tag),
-                let assetName = Self.dmgName(inText: entry.content)
+                let version = Self.version(fromTag: tag)
             else {
                 return nil
             }
+
+            let assetName = Self.dmgName(inText: entry.content)
+                ?? Self.defaultAssetName(for: version)
 
             let downloadURL = URL(
                 string: "https://github.com/dick86114/storing/releases/download/\(tag)/\(assetName)"
@@ -393,6 +418,10 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading, UpdateLogPr
             .map(String.init)
     }
 
+    private static func defaultAssetName(for version: String) -> String {
+        "Qiankunjie-\(version)-arm64.dmg"
+    }
+
     private static func checksum(in text: String) -> String? {
         text.lowercased().firstMatch(of: /[0-9a-f]{64}/).map { String($0.output) }
     }
@@ -402,6 +431,16 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading, UpdateLogPr
         let fractionalFormatter = ISO8601DateFormatter()
         fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return fractionalFormatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+    }
+
+    private static func plainText(fromHTML html: String) -> String {
+        html
+            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func applyMirror(_ url: URL, mirror: String?) -> URL {
