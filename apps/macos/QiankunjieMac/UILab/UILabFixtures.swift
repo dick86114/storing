@@ -367,6 +367,10 @@ struct UILabFixtureUpdateService: UpdateServicing {
         release
     }
 
+    func fetchUpdateLog(for version: String) async throws -> String? {
+        release.releaseNotes
+    }
+
     func download(
         _ release: AppRelease,
         progress: @Sendable (Double?) -> Void

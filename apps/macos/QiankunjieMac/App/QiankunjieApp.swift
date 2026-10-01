@@ -4,8 +4,45 @@ import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowWillClose(_:)),
+            name: NSWindow.willCloseNotification,
+            object: nil
+        )
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    static func shouldHideDock(
+        afterClosing window: NSWindow,
+        otherVisibleWindows: [NSWindow]
+    ) -> Bool {
+        guard !(window is NSPanel) else { return false }
+        return otherVisibleWindows.allSatisfy { $0 is NSPanel }
+    }
+
+    @objc private func windowWillClose(_ notification: Notification) {
+        MainActor.assumeIsolated {
+            guard let window = notification.object as? NSWindow else { return }
+            let otherVisibleWindows = NSApp.windows.filter {
+                $0 !== window && $0.isVisible
+            }
+            if Self.shouldHideDock(
+                afterClosing: window,
+                otherVisibleWindows: otherVisibleWindows
+            ) {
+                NSApp.setActivationPolicy(.accessory)
+            }
+        }
     }
 }
 

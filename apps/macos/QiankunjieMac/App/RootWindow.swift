@@ -3,6 +3,7 @@ import QiankunjieDesignSystem
 import QiankunjieCollect
 import QiankunjieCore
 import QiankunjieLibrary
+import AppKit
 import SwiftUI
 
 struct RootWindow: View {
@@ -156,7 +157,8 @@ struct RootWindow: View {
                     SettingsView(
                         model: model,
                         menuBarController: menuBarController,
-                        onLogin: model.presentLogin
+                        onLogin: model.presentLogin,
+                        updateCheckRequestID: model.updateCheckRequestID
                     )
                 }
             }
@@ -280,13 +282,57 @@ struct RootWindow: View {
         let controller = MenuBarController(
             appModel: model,
             shortcut: model.shortcutSettings.shortcut,
-            onShowMainWindow: {
-                openWindow(id: "main")
-                NSApp.activate(ignoringOtherApps: true)
-            }
+            onShowMainWindow: showMainWindow,
+            actions: MenuBarActions(
+                openSettings: {
+                    model.selectDestination(.settings)
+                    showMainWindow()
+                },
+                checkForUpdates: {
+                    model.selectDestination(.settings)
+                    model.requestUpdateCheck()
+                    showMainWindow()
+                },
+                reportIssue: openIssueReport,
+                quit: {
+                    NSApp.terminate(nil)
+                }
+            )
         )
         controller.start()
         menuBarController = controller
+    }
+
+    private func showMainWindow() {
+        NSApp.setActivationPolicy(.regular)
+        openWindow(id: "main")
+        NSApp.activate(ignoringOtherApps: true)
+        DispatchQueue.main.async {
+            let mainWindow = NSApp.windows.first { !($0 is NSPanel) }
+            mainWindow?.deminiaturize(nil)
+            mainWindow?.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    private func openIssueReport() {
+        var components = URLComponents(
+            string: "https://github.com/dick86114/storing/issues/new"
+        )
+        components?.queryItems = [
+            URLQueryItem(name: "title", value: "[macOS] "),
+            URLQueryItem(
+                name: "body",
+                value: """
+                **应用版本**：\(QiankunjieMacMetadata.appVersion)
+                **系统版本**：\(ProcessInfo.processInfo.operatingSystemVersionString)
+
+                ### 问题描述
+
+                """
+            ),
+        ]
+        guard let url = components?.url else { return }
+        NSWorkspace.shared.open(url)
     }
 
     private var destinationSelection: Binding<AppDestination> {

@@ -1,4 +1,5 @@
 name: Release macOS DMG
+run-name: "macOS v${{ inputs.version }} | ${{ inputs.release_notes }}"
 
 on:
   workflow_dispatch:

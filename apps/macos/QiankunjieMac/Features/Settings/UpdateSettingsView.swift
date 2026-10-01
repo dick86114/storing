@@ -27,7 +27,20 @@ enum UpdateMirrorMode: String, CaseIterable, Identifiable {
     }
 }
 
-protocol UpdateServicing: UpdateChecking, UpdateDownloading, Sendable {}
+@MainActor protocol UpdateInstalling {
+    func install(_ update: DownloadedUpdate) throws
+}
+
+extension UpdateInstaller: UpdateInstalling {}
+
+protocol UpdateServicing: Sendable {
+    func checkForUpdate() async throws -> AppRelease?
+    func download(
+        _ release: AppRelease,
+        progress: @escaping @Sendable (Double?) -> Void
+    ) async throws -> DownloadedUpdate
+    func fetchUpdateLog(for version: String) async throws -> String?
+}
 
 extension GitHubUpdateService: UpdateServicing {}
 
@@ -40,11 +53,17 @@ final class UpdateSettingsModel {
     private(set) var release: AppRelease?
     private(set) var downloadedUpdate: DownloadedUpdate?
     private(set) var progress: Double?
+    private(set) var updateLog: String?
+    private(set) var isFetchingUpdateLog = false
+    private(set) var updateLogErrorText: String?
     private(set) var mirrorBase: String
 
     private let service: any UpdateServicing
     private let defaults: UserDefaults
-    private let installer = UpdateInstaller()
+    private let currentVersion: String
+    private let updateLogCache: UpdateLogCache
+    private let installer: any UpdateInstalling
+    private let terminateApplication: @MainActor () -> Void
     private var downloadGeneration = 0
 
     convenience init(currentVersion: String) {
@@ -64,10 +83,20 @@ final class UpdateSettingsModel {
     init(
         currentVersion: String,
         service: any UpdateServicing,
-        defaults: UserDefaults
+        defaults: UserDefaults,
+        installer: any UpdateInstalling = UpdateInstaller(),
+        terminateApplication: @escaping @MainActor () -> Void = {
+            NSApplication.shared.terminate(nil)
+        }
     ) {
         self.service = service
         self.defaults = defaults
+        self.currentVersion = currentVersion
+        let updateLogCache = UpdateLogCache(defaults: defaults)
+        self.updateLogCache = updateLogCache
+        updateLog = updateLogCache.read(currentVersion: currentVersion)
+        self.installer = installer
+        self.terminateApplication = terminateApplication
         mirrorBase = defaults.string(forKey: Self.mirrorStorageKey) ?? ""
     }
 
@@ -139,6 +168,31 @@ final class UpdateSettingsModel {
         }
     }
 
+    func fetchUpdateLog() async {
+        guard !isFetchingUpdateLog else { return }
+
+        isFetchingUpdateLog = true
+        updateLogErrorText = nil
+        defer { isFetchingUpdateLog = false }
+
+        do {
+            let fetchedLog = try await service.fetchUpdateLog(for: currentVersion)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !Task.isCancelled else { return }
+            guard let fetchedLog, !fetchedLog.isEmpty else {
+                updateLog = nil
+                updateLogCache.clear()
+                updateLogErrorText = "未找到当前版本的更新日志"
+                return
+            }
+
+            updateLog = fetchedLog
+            updateLogCache.save(fetchedLog, for: currentVersion)
+        } catch {
+            updateLogErrorText = "获取更新日志失败，请稍后重试"
+        }
+    }
+
     func download() async {
         guard let release, !isBusy else { return }
 
@@ -171,9 +225,12 @@ final class UpdateSettingsModel {
 
         do {
             try installer.install(downloadedUpdate)
+            updateLogCache.clear()
+            updateLog = nil
+            updateLogErrorText = nil
             phase = .readyToRelaunch
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                NSApplication.shared.terminate(nil)
+                self.terminateApplication()
             }
         } catch {
             phase = .failed(Self.failureMessage(error))
@@ -225,17 +282,24 @@ final class UpdateSettingsModel {
 
 struct UpdateSettingsView: View {
     @State private var model: UpdateSettingsModel
+    let updateCheckRequestID: Int
     @State private var isInstallConfirmationPresented = false
 
-    init(currentVersion: String = QiankunjieMacMetadata.appVersion) {
+    init(
+        currentVersion: String = QiankunjieMacMetadata.appVersion,
+        updateCheckRequestID: Int = 0
+    ) {
+        self.updateCheckRequestID = updateCheckRequestID
         _model = State(initialValue: UpdateSettingsModel(currentVersion: currentVersion))
     }
 
     init(
         currentVersion: String,
         service: any UpdateServicing,
-        defaults: UserDefaults
+        defaults: UserDefaults,
+        updateCheckRequestID: Int = 0
     ) {
+        self.updateCheckRequestID = updateCheckRequestID
         _model = State(initialValue: UpdateSettingsModel(
             currentVersion: currentVersion,
             service: service,
@@ -244,7 +308,13 @@ struct UpdateSettingsView: View {
     }
 
     var body: some View {
-        LabeledContent("当前版本", value: QiankunjieMacMetadata.appVersion)
+        LabeledContent("版本", value: QiankunjieMacMetadata.appVersion)
+            .task(id: updateCheckRequestID) {
+                guard updateCheckRequestID > 0 else { return }
+                await model.checkForUpdate()
+            }
+
+        updateLogSection
 
         Picker("更新源", selection: model.mirrorMode) {
             ForEach(UpdateMirrorMode.allCases) { mode in
@@ -286,6 +356,36 @@ struct UpdateSettingsView: View {
         }
     }
 
+    private var updateLogSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("更新日志")
+                Spacer()
+                Button("获取更新日志") {
+                    Task {
+                        await model.fetchUpdateLog()
+                    }
+                }
+                .disabled(model.isFetchingUpdateLog)
+            }
+
+            if let updateLog = model.updateLog, !updateLog.isEmpty {
+                Text(updateLog)
+                    .font(.footnote)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if let error = model.updateLogErrorText {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            } else {
+                Text("尚未获取更新日志")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
     @ViewBuilder
     private var updateContent: some View {
         switch model.phase {
@@ -301,11 +401,6 @@ struct UpdateSettingsView: View {
             if let release = model.release {
                 VStack(alignment: .leading, spacing: 8) {
                     LabeledContent("新版本", value: release.version)
-                    if let notes = release.releaseNotes, !notes.isEmpty {
-                        Text(notes)
-                            .font(.footnote)
-                            .lineLimit(6)
-                    }
                     Button("下载更新") {
                         Task {
                             await model.download()
