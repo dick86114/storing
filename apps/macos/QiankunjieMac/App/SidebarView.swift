@@ -170,36 +170,28 @@ struct SidebarView: View {
             }
             .font(.system(size: 13, weight: .medium))
             .foregroundStyle(.white)
-            .padding(.horizontal, 8)
-            .frame(maxWidth: .infinity, minHeight: 26, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                accent.opacity(isCollectButtonHovered ? 1 : 0.96),
-                                accent.opacity(0.78),
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .shadow(
-                        color: accent.opacity(isCollectButtonHovered ? 0.3 : 0.14),
-                        radius: isCollectButtonHovered ? 6 : 3,
-                        y: 1
-                    )
-            }
-            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .scaleEffect(isCollectActive ? 0.98 : 1)
+        // 用列表行自己的背景承载底色，宽度和高度才能和「收件箱」等行的行底色完全一致。
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            accent.opacity(isCollectButtonHovered ? 1 : 0.96),
+                            accent.opacity(0.78),
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
         .onHover { hovering in
             withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) {
                 isCollectButtonHovered = hovering
             }
         }
-        .animation(.spring(response: 0.28, dampingFraction: 0.72), value: isCollectActive)
         .help("采集")
         .accessibilityLabel("采集")
     }

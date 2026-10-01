@@ -31,7 +31,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         otherVisibleWindows: [NSWindow]
     ) -> Bool {
         guard !(window is NSPanel) else { return false }
-        return otherVisibleWindows.allSatisfy { $0 is NSPanel }
+        return otherVisibleWindows.allSatisfy { $0 is NSPanel || isStatusBarWindow($0) }
+    }
+
+    /// 菜单栏图标自身会长期保留一个可见的 `NSStatusBarWindow`，它既不是普通窗口也不是
+    /// `NSPanel`。不把它排除掉，关闭主窗口后 Dock 图标永远不会隐藏。
+    private static func isStatusBarWindow(_ window: NSWindow) -> Bool {
+        window.className == "NSStatusBarWindow"
     }
 
     @objc private func windowWillClose(_ notification: Notification) {
