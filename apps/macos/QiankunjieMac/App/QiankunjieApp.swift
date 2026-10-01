@@ -100,24 +100,15 @@ struct QiankunjieMacApp: App {
         .environment(model.settingsModel)
         // 清空系统标题，窗口顶部只保留带版本号的自定义标题。
         .navigationTitle("")
-        .toolbar {
-            ToolbarItem(placement: .navigation) {
-                mainWindowTitle
-            }
-        }
+        .background(
+            MainWindowTitlebar(
+                title: QiankunjieMacMetadata.displayName,
+                version: "v" + QiankunjieMacMetadata.appVersion
+            )
+        )
         .task {
             await model.start()
         }
     }
 
-    /// 窗口标题：应用名保持原字号，版本号以更小的字贴在右侧同一行。
-    private var mainWindowTitle: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text(QiankunjieMacMetadata.displayName)
-                .font(.headline)
-            Text("v" + QiankunjieMacMetadata.appVersion)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
 }
