@@ -270,6 +270,9 @@ final class SettingsModel {
         {
             readerContentWidth = preference
         }
+
+        // 启动就应用一次外观，保证从菜单栏等不经过主窗口的入口进入时也是正确外观。
+        AppearanceApplier.apply(appearance)
     }
 
     func setAppearance(_ preference: AppearancePreference) {
@@ -277,6 +280,7 @@ final class SettingsModel {
 
         appearance = preference
         appearanceDefaults.set(preference.rawValue, forKey: Self.appearanceStorageKey)
+        AppearanceApplier.apply(preference)
     }
 
     func setAppFont(_ preference: AppFontPreference) {

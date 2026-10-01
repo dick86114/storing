@@ -45,6 +45,12 @@ targets:
         MARKETING_VERSION: 0.1.0
         PRODUCT_BUNDLE_IDENTIFIER: com.idickies.storing.macos
         PRODUCT_MODULE_NAME: QiankunjieMac
+      configs:
+        Debug:
+          # Debug 与正式版使用不同 Bundle ID，避免 UserDefaults、会话存储和
+          # LaunchServices 注册互相覆盖，也避免两个版本共享登录态。
+          PRODUCT_BUNDLE_IDENTIFIER: com.idickies.storing.macos.debug
+          INFOPLIST_KEY_CFBundleDisplayName: 乾坤戒 Debug
 
   QiankunjieMacTests:
     type: bundle.unit-test

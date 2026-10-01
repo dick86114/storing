@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import QiankunjieAuth
 import QiankunjieCore
 import Testing
@@ -30,6 +31,30 @@ struct SettingsModelTests {
         )
 
         #expect(second.appearance == .dark)
+    }
+
+    @Test func 切换外观会同步应用到整个应用并可撤回() throws {
+        let (defaults, suiteName) = try 临时偏好存储()
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+            AppearanceApplier.apply(.system)
+        }
+
+        let model = SettingsModel(
+            authModel: 空认证模型(),
+            sessionService: 模拟会话服务(),
+            appearanceDefaults: defaults
+        )
+
+        // 不再依赖主窗口的 onChange：菜单栏等入口切换时也要立即生效。
+        model.setAppearance(.dark)
+        #expect(NSApp.appearance?.name == .darkAqua)
+
+        model.setAppearance(.light)
+        #expect(NSApp.appearance?.name == .aqua)
+
+        model.setAppearance(.system)
+        #expect(NSApp.appearance == nil)
     }
 
     @Test func 应用字号和正文宽度持久化并在重新加载时保留() throws {
