@@ -23,6 +23,23 @@ struct AppModelTests {
         #expect(model.isLoginPresented)
     }
 
+    @Test func 打开登录框会清理启动恢复遗留错误() async throws {
+        let authModel = AuthModel(
+            repository: AuthRepository(
+                client: 固定错误认证客户端(error: .contentUnavailable),
+                store: 空会话存储(tokens: .fixture())
+            )
+        )
+        await authModel.restore()
+        #expect(authModel.errorMessage == "请求的内容暂时不可用")
+
+        let model = AppModel(authModel: authModel)
+
+        model.presentLogin()
+
+        #expect(model.authModel.errorMessage == nil)
+    }
+
     @Test func 游客可以打开设置界面() {
         let model = AppModel.fixture(
             user: nil,
@@ -36,11 +53,13 @@ struct AppModelTests {
         #expect(!model.isLoginPresented)
     }
 
-    @Test func 游客可以打开受限资料库并由界面引导登录() {
+    @Test func 游客可以打开受限资料库并由界面引导登录() async {
+        let repository = 模拟资料库仓库()
         let model = AppModel.fixture(
             user: nil,
             destination: .published,
-            selectedArticleID: nil
+            selectedArticleID: nil,
+            libraryRepository: repository
         )
 
         model.selectDestination(.inbox)
@@ -48,6 +67,8 @@ struct AppModelTests {
         #expect(model.destination == .inbox)
         #expect(model.destination.requiresAuthentication)
         #expect(!model.isLoginPresented)
+        let requestedPageCount = await repository.loadRequestCount()
+        #expect(requestedPageCount == 0)
     }
 
     @Test func 游客取消登录不改变游客目的地() {
@@ -109,13 +130,84 @@ struct AppModelTests {
         #expect(model.selectedArticleID == nil)
     }
 
-    @Test func 首版导航不包含管理端入口() {
+    @Test func 导航包含管理员设置但不进入资料库侧栏() {
         #expect(
             AppDestination.allCases == [
                 .inbox, .favorites, .archive, .published,
-                .collect, .tasks, .search, .settings,
+                .collect, .admin, .settings,
             ]
         )
+        #expect(AppDestination.admin.isAdminOnly)
+        #expect(AppDestination.settings.title == "设置")
+        #expect(AppDestination.admin.title == "管理员设置")
+    }
+
+    @Test func 侧栏主菜单只显示资料库栏目() {
+        #expect(AppDestination.sidebarDestinations == [.inbox, .favorites, .archive, .published])
+    }
+
+    @Test func 普通设置按固定顺序提供账户与工具入口() {
+        #expect(SettingsTool.allCases == [.myMCP, .categories, .resetPassword])
+        #expect(SettingsTool.allCases.map(\.title) == ["我的 MCP", "分类管理", "重置密码"])
+    }
+
+    @Test func 管理员设置按固定顺序提供用户与MCP管理() {
+        #expect(AdminSettingsTab.allCases == [.users, .mcp])
+        #expect(AdminSettingsTab.allCases.map(\.title) == ["用户管理", "MCP 管理"])
+    }
+
+    @Test func 仅管理员账号可以打开管理员设置() {
+        let adminModel = AppModel.fixture(
+            user: .fixture(id: 1, role: "admin"),
+            destination: .published,
+            selectedArticleID: nil
+        )
+        adminModel.selectDestination(.admin)
+        #expect(adminModel.destination == .admin)
+
+        let regularModel = AppModel.fixture(
+            user: .fixture(id: 2, role: "user"),
+            destination: .published,
+            selectedArticleID: nil
+        )
+        regularModel.selectDestination(.admin)
+        #expect(regularModel.destination == .published)
+    }
+
+    @Test func 打开搜索进入双栏搜索态并清理旧文章选择() {
+        let model = AppModel.fixture(
+            user: .fixture(id: 9),
+            destination: .archive,
+            selectedArticleID: 42
+        )
+
+        model.openSearch()
+
+        #expect(model.isSearchPresented)
+        #expect(model.destination == .archive)
+        #expect(model.selectedArticleID == nil)
+        #expect(model.selectedReaderSelection == nil)
+
+        model.closeSearch()
+
+        #expect(!model.isSearchPresented)
+        #expect(model.destination == .archive)
+    }
+
+    @Test func 搜索结果选择后加载右侧阅读器() {
+        let model = AppModel.fixture(
+            user: .fixture(id: 9),
+            destination: .inbox,
+            selectedArticleID: nil
+        )
+
+        let article = ArticleCard(id: 88, title: "搜索结果", publicID: "public-88")
+        model.selectSearchArticle(article)
+
+        #expect(model.selectedArticleID == 88)
+        #expect(model.selectedReaderSelection?.articleID == 88)
+        #expect(model.selectedReaderSelection?.publicID == "public-88")
+        #expect(model.selectedReaderSelection?.isGuest == false)
     }
 
     @Test func 资料库目的地同步筛选状态并重置文章选择() {
@@ -353,6 +445,10 @@ private actor 模拟资料库仓库: LibraryLoading {
         []
     }
 
+    func loadCategoryFilters(userID: Int?) async throws -> [LibraryCategoryFilter] {
+        []
+    }
+
     func holdNextLoad() {
         shouldHoldNextLoad = true
     }
@@ -374,6 +470,10 @@ private actor 模拟资料库仓库: LibraryLoading {
         while requestedPageCount < count {
             await Task.yield()
         }
+    }
+
+    func loadRequestCount() async -> Int {
+        requestedPageCount
     }
 }
 
@@ -424,8 +524,14 @@ private actor 可阻塞资料库缓存: LibraryCaching {
 }
 
 private extension AuthenticatedUser {
-    static func fixture(id: Int) -> Self {
-        AuthenticatedUser(id: id, username: "admin", role: "admin", status: "active")
+    static func fixture(id: Int, role: String = "admin") -> Self {
+        AuthenticatedUser(id: id, username: role == "admin" ? "admin" : "reader", role: role, status: "active")
+    }
+}
+
+private extension SessionTokens {
+    static func fixture(refresh: String = String(repeating: "r", count: 48)) -> Self {
+        SessionTokens(accessToken: "", refreshToken: refresh)
     }
 }
 
@@ -436,7 +542,13 @@ private extension AuthDevice {
 }
 
 private struct 空会话存储: SessionStore {
-    func read() async throws -> SessionTokens? { nil }
+    private let tokens: SessionTokens?
+
+    init(tokens: SessionTokens? = nil) {
+        self.tokens = tokens
+    }
+
+    func read() async throws -> SessionTokens? { tokens }
     func save(_ tokens: SessionTokens) async throws {}
     func clear() async throws {}
 }
@@ -469,5 +581,23 @@ private struct 无操作认证客户端: AuthClient, Sendable {
         device: AuthDevice?
     ) async throws -> AuthSessionResponse {
         throw AppError.server
+    }
+}
+
+private struct 固定错误认证客户端: AuthClient, Sendable {
+    let error: AppError
+
+    func login(username: String, password: String, device: AuthDevice) async throws -> AuthSessionResponse {
+        throw error
+    }
+
+    func refresh(refreshToken: String, device: AuthDevice?) async throws -> AuthSessionResponse {
+        throw error
+    }
+
+    func logout(refreshToken: String) async throws {}
+
+    func session(accessToken: String) async throws -> AuthenticatedUser {
+        throw error
     }
 }

@@ -68,6 +68,7 @@ enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
 struct UILabRootView: View {
     let scenario: UILabScenario
     @State private var stateLibraryModel: LibraryModel?
+    @State private var presentationMode: ArticleListPresentationMode = .compactList
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -136,7 +137,8 @@ struct UILabRootView: View {
         } content: {
             CompactArticleListView(
                 model: UILabFixtures.libraryModel,
-                selection: .constant(UILabFixtures.article.id)
+                selection: .constant(UILabFixtures.article.id),
+                presentationMode: $presentationMode
             )
             .task {
                 await UILabFixtures.libraryModel.load(reset: true)
@@ -149,14 +151,16 @@ struct UILabRootView: View {
     }
 
     private var reader: some View {
-        ReaderPaneView(
-            selection: ReaderSelection(
-                articleID: UILabFixtures.article.id,
-                publicID: nil,
-                isGuest: false
-            ),
-            userID: UILabFixtures.user.id,
-            positionStore: UILabFixtures.appModel.readerPositionStore,
+            ReaderPaneView(
+                selection: ReaderSelection(
+                    articleID: UILabFixtures.article.id,
+                    publicID: nil,
+                    isGuest: false
+                ),
+                userID: UILabFixtures.user.id,
+                appFont: .standard,
+                readerContentWidth: .normal,
+                positionStore: UILabFixtures.appModel.readerPositionStore,
             networkClient: UILabFixtures.readerClient,
             onClose: {},
             onLibraryDidChange: {}
@@ -166,10 +170,18 @@ struct UILabRootView: View {
     private func productionLibrary(_ state: FixtureLibraryState) -> some View {
         Group {
             if let model = stateLibraryModel {
-                CompactArticleListView(model: model, selection: .constant(nil))
+                CompactArticleListView(
+                    model: model,
+                    selection: .constant(nil),
+                    presentationMode: $presentationMode
+                )
             } else {
                 let model = UILabFixtures.libraryModel(for: state)
-                CompactArticleListView(model: model, selection: .constant(nil))
+                CompactArticleListView(
+                    model: model,
+                    selection: .constant(nil),
+                    presentationMode: $presentationMode
+                )
                     .onAppear { stateLibraryModel = model }
             }
         }

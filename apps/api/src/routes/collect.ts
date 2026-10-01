@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { getCurrentUser, requireAuth } from '../middleware/auth.js';
-import { clearFinishedCollectJobs, createCollectJob, deleteCollectJob, getCollectJob, listCollectJobs, retryCollectJob } from '../services/collect.service.js';
+import { clearFinishedCollectJobs, createCollectJob, deleteCollectJob, getCollectJob, listCollectJobs, retryCollectJob, USER_COLLECT_SOURCES } from '../services/collect.service.js';
 
 export const collectRoutes = new Hono();
 
@@ -174,7 +174,7 @@ collectRoutes.get('/macos/collect/jobs', requireAuth, async (c) => {
   const limit = Math.min(30, Math.max(1, Number(c.req.query('limit') || 12)));
   const offset = Math.max(0, Number(c.req.query('offset') || 0));
   const user = getCurrentUser(c);
-  const result = await listCollectJobs(limit, offset, { userId: user.id, requestSource: 'macos' });
+  const result = await listCollectJobs(limit, offset, { userId: user.id, requestSource: USER_COLLECT_SOURCES });
   return c.json({ jobs: result.jobs.map(serializeJob), total: result.total, hasMore: result.hasMore });
 });
 
@@ -182,7 +182,7 @@ collectRoutes.get('/macos/collect/jobs/:id', requireAuth, async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.json({ error: { code: 'BAD_REQUEST', message: '任务 ID 无效' } }, 400);
   const user = getCurrentUser(c);
-  const job = await getCollectJob(id, { userId: user.id, requestSource: 'macos' });
+  const job = await getCollectJob(id, { userId: user.id, requestSource: USER_COLLECT_SOURCES });
   if (!job) return c.json({ error: { code: 'NOT_FOUND', message: '任务不存在' } }, 404);
   return c.json({ job: serializeJob(job) });
 });
@@ -191,7 +191,7 @@ collectRoutes.post('/macos/collect/jobs/:id/retry', requireAuth, async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.json({ error: { code: 'BAD_REQUEST', message: '任务 ID 无效' } }, 400);
   const user = getCurrentUser(c);
-  const job = await getCollectJob(id, { userId: user.id, requestSource: 'macos' });
+  const job = await getCollectJob(id, { userId: user.id, requestSource: USER_COLLECT_SOURCES });
   if (!job) return c.json({ error: { code: 'NOT_FOUND', message: '任务不存在' } }, 404);
   if (job.status === 'running') return c.json({ job: serializeJob(job) });
   await retryCollectJob(id);
@@ -200,14 +200,14 @@ collectRoutes.post('/macos/collect/jobs/:id/retry', requireAuth, async (c) => {
 
 collectRoutes.delete('/macos/collect/jobs', requireAuth, async (c) => {
   const user = getCurrentUser(c);
-  return c.json(await clearFinishedCollectJobs({ userId: user.id, requestSource: 'macos' }));
+  return c.json(await clearFinishedCollectJobs({ userId: user.id, requestSource: USER_COLLECT_SOURCES }));
 });
 
 collectRoutes.delete('/macos/collect/jobs/:id', requireAuth, async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.json({ error: { code: 'BAD_REQUEST', message: '任务 ID 无效' } }, 400);
   const user = getCurrentUser(c);
-  const result = await deleteCollectJob(id, { userId: user.id, requestSource: 'macos' });
+  const result = await deleteCollectJob(id, { userId: user.id, requestSource: USER_COLLECT_SOURCES });
   if (!result.deleted && result.reason === 'not_found') return c.json({ error: { code: 'NOT_FOUND', message: '任务不存在' } }, 404);
   if (!result.deleted && result.reason === 'running') return c.json({ error: { code: 'JOB_RUNNING', message: '运行中的采集任务暂不能删除' } }, 409);
   return c.json({ deleted: true });

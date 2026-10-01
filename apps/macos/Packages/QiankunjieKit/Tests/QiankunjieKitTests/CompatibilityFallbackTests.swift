@@ -14,6 +14,7 @@ private actor 录制兼容会话: URLSessioning {
 
     private var 响应队列: [响应]
     private(set) var 请求路径: [String] = []
+    private(set) var 请求头: [String: String] = [:]
 
     init(_ 响应队列: [响应]) {
         self.响应队列 = 响应队列
@@ -21,6 +22,9 @@ private actor 录制兼容会话: URLSessioning {
 
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         请求路径.append(request.url?.path ?? "")
+        if let authorization = request.value(forHTTPHeaderField: "Authorization") {
+            请求头["Authorization"] = authorization
+        }
         guard let 当前 = 响应队列.isEmpty ? nil : 响应队列.removeFirst() else {
             throw URLError(.badServerResponse)
         }
@@ -41,6 +45,25 @@ private actor 录制兼容会话: URLSessioning {
     }
 
     func reset() { 请求路径 = [] }
+}
+
+@Test func 会话校验在旧服务端缺少macOS接口时回退extension接口() async throws {
+    let session = 录制兼容会话([
+        .init(statusCode: 404, body: Data("404 Not Found".utf8)),
+        .init(statusCode: 200, body: Data(#"""
+        {"user":{"id":9,"username":"admin","role":"admin","status":"active"}}
+        """#.data(using: .utf8)!)),
+    ])
+    let client = DefaultAuthClient(apiClient: APIClient(session: session))
+
+    let user = try await client.session(accessToken: "access-token")
+    let paths = await session.请求路径
+    let authorization = await session.请求头["Authorization"]
+
+    #expect(user.id == 9)
+    #expect(paths.first == "/api/v1/macos/auth/session")
+    #expect(paths.last == "/api/v1/extension/auth/session")
+    #expect(authorization == "Bearer access-token")
 }
 
 private actor 固定令牌: TokenRefreshing {

@@ -12,6 +12,7 @@ test('macOS release workflow builds an unsigned arm64 DMG and publishes macos-v 
   assert.match(workflow, /workflow_dispatch/);
   assert.match(workflow, /version/);
   assert.match(workflow, /release_notes/);
+  assert.match(workflow, /支持 Markdown 格式/);
   assert.match(workflow, /macos-v\$\{\{ inputs\.version \}\}/);
   assert.match(workflow, /Xcode 27/);
   assert.match(workflow, /runs-on:\s+xcode-27\s*$/m);

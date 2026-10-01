@@ -129,7 +129,7 @@ private struct QuickCollectView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Text("快速采集")
-                    .font(QiankunjieTypography.headlineSmall)
+                    .qiankunjieFont(.headlineSmall)
                     .foregroundStyle(QiankunjieColors.onBackground(for: colorScheme))
                 Spacer()
                 Button {
@@ -157,10 +157,10 @@ private struct QuickCollectView: View {
     private var loginPrompt: some View {
         VStack(alignment: .leading, spacing: 10) {
             Label("登录后才能采集网页", systemImage: "person.badge.key")
-                .font(QiankunjieTypography.titleMedium)
+                .qiankunjieFont(.titleMedium)
                 .foregroundStyle(QiankunjieColors.onBackground(for: colorScheme))
             Text("可以在主窗口完成登录，采集状态会在这里同步显示。")
-                .font(QiankunjieTypography.bodyMedium)
+                .qiankunjieFont(.bodyMedium)
                 .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -208,10 +208,10 @@ private struct QuickCollectView: View {
             if form.canConfirm {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("确认提交这个链接：")
-                        .font(QiankunjieTypography.labelMedium)
+                        .qiankunjieFont(.labelMedium)
                         .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                     Text(form.trimmedURL)
-                        .font(QiankunjieTypography.bodyMedium)
+                        .qiankunjieFont(.bodyMedium)
                         .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
                         .lineLimit(2)
                     Toggle("我确认提交以上链接", isOn: confirmationBinding)
@@ -241,7 +241,7 @@ private struct QuickCollectView: View {
     private var errorMessages: some View {
         if let message = model.inputErrorMessage ?? model.submitErrorMessage {
             Text(message)
-                .font(QiankunjieTypography.bodyMedium)
+                .qiankunjieFont(.bodyMedium)
                 .foregroundStyle(
                     colorScheme == .dark
                         ? QiankunjieColors.darkError
@@ -253,14 +253,14 @@ private struct QuickCollectView: View {
     private var recentJob: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("最近任务")
-                .font(QiankunjieTypography.labelMedium)
+                .qiankunjieFont(.labelMedium)
                 .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
 
             if let job = model.currentJob {
                 CollectJobRow(job: job, isMutating: false)
             } else {
                 Text("暂无任务")
-                    .font(QiankunjieTypography.bodyMedium)
+                    .qiankunjieFont(.bodyMedium)
                     .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
             }
         }

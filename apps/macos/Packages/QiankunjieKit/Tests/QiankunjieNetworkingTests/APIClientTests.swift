@@ -133,7 +133,7 @@ private actor 录制令牌提供者: TokenRefreshing {
         (400, "BAD_REQUEST", .invalidInput),
         (403, "USER_DISABLED", .forbidden),
         (404, "NOT_FOUND", .contentUnavailable),
-        (429, "LOGIN_RATE_LIMITED", .server),
+        (429, "LOGIN_RATE_LIMITED", .rateLimited),
         (500, "INTERNAL_ERROR", .server),
     ]
 

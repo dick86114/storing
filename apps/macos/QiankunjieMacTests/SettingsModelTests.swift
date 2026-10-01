@@ -32,6 +32,47 @@ struct SettingsModelTests {
         #expect(second.appearance == .dark)
     }
 
+    @Test func 应用字号和正文宽度持久化并在重新加载时保留() throws {
+        let (defaults, suiteName) = try 临时偏好存储()
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let first = SettingsModel(
+            authModel: 空认证模型(),
+            sessionService: 模拟会话服务(),
+            appearanceDefaults: defaults
+        )
+        first.setAppFont(.large)
+        first.setReaderContentWidth(.wide)
+
+        #expect(first.appFont == .large)
+        #expect(first.readerContentWidth == .wide)
+        #expect(defaults.string(forKey: SettingsModel.appFontStorageKey) == AppFontPreference.large.rawValue)
+        #expect(defaults.string(forKey: SettingsModel.readerContentWidthStorageKey) == ReaderContentWidthPreference.wide.rawValue)
+
+        let second = SettingsModel(
+            authModel: 空认证模型(),
+            sessionService: 模拟会话服务(),
+            appearanceDefaults: defaults
+        )
+
+        #expect(second.appFont == .large)
+        #expect(second.readerContentWidth == .wide)
+    }
+
+    @Test func 应用字号映射到全局动态字体层级() {
+        #expect(AppFontPreference.small.dynamicTypeSize == .small)
+        #expect(AppFontPreference.standard.dynamicTypeSize == .medium)
+        #expect(AppFontPreference.large.dynamicTypeSize == .large)
+        #expect(AppFontPreference.extraLarge.dynamicTypeSize == .xLarge)
+
+        #expect(AppFontPreference.small.uiScale == 0.8)
+        #expect(AppFontPreference.standard.uiScale == 0.9)
+        #expect(AppFontPreference.large.uiScale == 1)
+        #expect(AppFontPreference.extraLarge.uiScale == 1.18)
+    }
+
     @Test func 会话列表加载服务返回的macOS会话() async throws {
         let authModel = 空认证模型()
         let sessions = [

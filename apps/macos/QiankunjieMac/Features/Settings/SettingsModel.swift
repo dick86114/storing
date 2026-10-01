@@ -1,8 +1,73 @@
 import Foundation
+import CoreGraphics
 import Observation
 import QiankunjieAuth
 import QiankunjieCore
 import QiankunjieNetworking
+import SwiftUI
+
+public enum AppFontPreference: String, CaseIterable, Codable, Identifiable, Sendable {
+    case small
+    case standard
+    case large
+    case extraLarge
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .small: "小"
+        case .standard: "标准"
+        case .large: "大"
+        case .extraLarge: "特大"
+        }
+    }
+
+    public var dynamicTypeSize: DynamicTypeSize {
+        switch self {
+        case .small: .small
+        case .standard: .medium
+        case .large: .large
+        case .extraLarge: .xLarge
+        }
+    }
+
+    public var uiScale: CGFloat {
+        switch self {
+        case .small: 0.8
+        case .standard: 0.9
+        case .large: 1
+        case .extraLarge: 1.18
+        }
+    }
+
+    public var pointSize: CGFloat {
+        switch self {
+        case .small: 14
+        case .standard: 15
+        case .large: 17
+        case .extraLarge: 20
+        }
+    }
+}
+
+public enum ReaderContentWidthPreference: String, CaseIterable, Codable, Identifiable, Sendable {
+    case normal
+    case wide
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .normal: "正常"
+        case .wide: "宽"
+        }
+    }
+
+    public var cssWidth: String {
+        self == .wide ? "95%" : "720px"
+    }
+}
 
 struct DeviceSession: Decodable, Equatable, Identifiable, Sendable {
     let id: String
@@ -147,6 +212,8 @@ private struct RevokedSessionResponse: Decodable, Sendable {
 @Observable
 final class SettingsModel {
     static let appearanceStorageKey = "appearance.preference"
+    static let appFontStorageKey = "reader.font.preference"
+    static let readerContentWidthStorageKey = "reader.contentWidth.preference"
 
     let authState: AuthModel
     let serviceAddress = APIClient.defaultBaseURL.absoluteString
@@ -154,6 +221,8 @@ final class SettingsModel {
 
     var onUserStateCleared: (@MainActor () async -> Void)?
     private(set) var appearance: AppearancePreference
+    private(set) var appFont = AppFontPreference.standard
+    private(set) var readerContentWidth = ReaderContentWidthPreference.normal
     private(set) var sessions: [DeviceSession] = []
     private(set) var currentSessionID: String?
     private(set) var isLoadingSessions = false
@@ -187,6 +256,20 @@ final class SettingsModel {
             }
             appearance = .system
         }
+
+        if
+            let storedValue = appearanceDefaults.string(forKey: Self.appFontStorageKey),
+            let preference = AppFontPreference(rawValue: storedValue)
+        {
+            appFont = preference
+        }
+
+        if
+            let storedValue = appearanceDefaults.string(forKey: Self.readerContentWidthStorageKey),
+            let preference = ReaderContentWidthPreference(rawValue: storedValue)
+        {
+            readerContentWidth = preference
+        }
     }
 
     func setAppearance(_ preference: AppearancePreference) {
@@ -194,6 +277,20 @@ final class SettingsModel {
 
         appearance = preference
         appearanceDefaults.set(preference.rawValue, forKey: Self.appearanceStorageKey)
+    }
+
+    func setAppFont(_ preference: AppFontPreference) {
+        guard preference != appFont else { return }
+
+        appFont = preference
+        appearanceDefaults.set(preference.rawValue, forKey: Self.appFontStorageKey)
+    }
+
+    func setReaderContentWidth(_ preference: ReaderContentWidthPreference) {
+        guard preference != readerContentWidth else { return }
+
+        readerContentWidth = preference
+        appearanceDefaults.set(preference.rawValue, forKey: Self.readerContentWidthStorageKey)
     }
 
     func loadSessions() async {

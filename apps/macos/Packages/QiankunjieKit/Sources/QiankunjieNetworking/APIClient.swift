@@ -43,6 +43,10 @@ public struct APIClient: @unchecked Sendable {
         do {
             return try JSONDecoder.qiankunjie.decode(T.self, from: result.data)
         } catch {
+#if DEBUG
+            let body = String(data: result.data, encoding: .utf8) ?? "<non-UTF8>"
+            print("[QiankunjieAPI] decode \(T.self) failed for \(request.path) -> \(result.response.statusCode): \(body)")
+#endif
             throw AppError.server
         }
     }
@@ -83,7 +87,7 @@ public struct APIClient: @unchecked Sendable {
         }
 
         if
-            httpResponse.statusCode == 401,
+           httpResponse.statusCode == 401,
             authenticated,
             canRetryAfterRefresh,
             let tokenProvider
@@ -95,6 +99,13 @@ public struct APIClient: @unchecked Sendable {
                 canRetryAfterRefresh: false
             )
         }
+
+#if DEBUG
+        if !(200..<300).contains(httpResponse.statusCode) {
+            let body = String(data: data, encoding: .utf8) ?? "<non-UTF8>"
+            print("[QiankunjieAPI] \(authorizedRequest.httpMethod ?? "GET") \(authorizedRequest.url?.absoluteString ?? "") -> \(httpResponse.statusCode): \(body)")
+        }
+#endif
 
         return (data, httpResponse)
     }
@@ -139,6 +150,8 @@ public struct APIClient: @unchecked Sendable {
             return .authenticationRequired
         case "FORBIDDEN", "USER_DISABLED":
             return .forbidden
+        case "LOGIN_RATE_LIMITED":
+            return .rateLimited
         case "BAD_REQUEST", "INVALID_INPUT", "VALIDATION_ERROR":
             return .invalidInput
         case "NOT_FOUND", "CONTENT_UNAVAILABLE":
@@ -154,6 +167,8 @@ public struct APIClient: @unchecked Sendable {
             return .authenticationRequired
         case 403:
             return .forbidden
+        case 429:
+            return .rateLimited
         case 404:
             return .contentUnavailable
         case 408:

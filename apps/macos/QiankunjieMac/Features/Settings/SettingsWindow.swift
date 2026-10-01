@@ -12,6 +12,7 @@ struct SettingsWindow: View {
     private let updateService: (any UpdateServicing)?
     private let updateDefaults: UserDefaults
     @State private var shortcutRegistrationMessage: String?
+    @Environment(\.colorScheme) private var colorScheme
 
     init(
         model: SettingsModel,
@@ -49,7 +50,7 @@ struct SettingsWindow: View {
             appearanceSection
             shortcutSection
             if isAuthenticated {
-                DeviceSessionsView(model: model)
+                accountToolsSection
             } else {
                 Section("账号") {
                     LabeledContent("当前状态", value: "未登录")
@@ -64,10 +65,8 @@ struct SettingsWindow: View {
         }
         .formStyle(.grouped)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(WorkspacePalette.pageBackground(for: colorScheme))
         .navigationTitle("设置")
-        .task {
-            await model.loadSessions()
-        }
     }
 
     private var applicationSection: some View {
@@ -81,7 +80,21 @@ struct SettingsWindow: View {
     private var appearanceSection: some View {
         Section("外观") {
             AppearanceSettingsView(model: model)
+            Picker("字号", selection: appFontSelection) {
+                ForEach(AppFontPreference.allCases) { preference in
+                    Text(preference.displayName)
+                        .tag(preference)
+                }
+            }
+            .pickerStyle(.segmented)
         }
+    }
+
+    private var appFontSelection: Binding<AppFontPreference> {
+        Binding(
+            get: { model.appFont },
+            set: { model.setAppFont($0) }
+        )
     }
 
     private var shortcutSection: some View {
@@ -123,6 +136,16 @@ struct SettingsWindow: View {
                     }
                 }
                 .disabled(model.isLoggingOut)
+            }
+        }
+    }
+
+    private var accountToolsSection: some View {
+        Section("账户与工具") {
+            ForEach(SettingsTool.allCases) { tool in
+                NavigationLink(value: tool) {
+                    Label(tool.title, systemImage: tool.systemImage)
+                }
             }
         }
     }

@@ -2,6 +2,27 @@ import Foundation
 import QiankunjieCore
 import QiankunjieNetworking
 
+private struct CategoryFiltersResponse: Decodable {
+    let filters: [LibraryCategoryFilter]
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let categories = try container.decode([ArticleCategory].self, forKey: .categories)
+        let counts = try container.decodeIfPresent([String: Int].self, forKey: .counts) ?? [:]
+        filters = categories.map { category in
+            LibraryCategoryFilter(
+                category: category,
+                count: counts[String(category.id)] ?? 0
+            )
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case categories
+        case counts
+    }
+}
+
 public protocol LibraryNetworkClient: Sendable {
     func page(
         _ request: APIRequest,
@@ -15,6 +36,10 @@ public protocol LibraryNetworkClient: Sendable {
         _ request: APIRequest,
         authenticated: Bool
     ) async throws -> [LibrarySource]
+    func categoryFilters(
+        _ request: APIRequest,
+        authenticated: Bool
+    ) async throws -> [LibraryCategoryFilter]
 }
 
 private struct APIClientLibraryNetworkClient: LibraryNetworkClient {
@@ -40,12 +65,35 @@ private struct APIClientLibraryNetworkClient: LibraryNetworkClient {
     ) async throws -> [LibrarySource] {
         try await apiClient.send(request, authenticated: authenticated)
     }
+
+    func categoryFilters(
+        _ request: APIRequest,
+        authenticated: Bool
+    ) async throws -> [LibraryCategoryFilter] {
+        let response: CategoryFiltersResponse = try await apiClient.send(request, authenticated: authenticated)
+        return response.filters
+    }
 }
 
 public protocol LibraryLoading: Sendable {
     func load(_ query: LibraryQuery) async throws -> ArticleListPage
     func loadCounts(userID: Int?) async throws -> ArticleCounts
     func loadSources(userID: Int?) async throws -> [LibrarySource]
+    func loadCategoryFilters(userID: Int?) async throws -> [LibraryCategoryFilter]
+}
+
+public struct LibraryCategoryFilter: Codable, Hashable, Identifiable, Sendable {
+    public let category: ArticleCategory
+    public let count: Int
+
+    public var id: Int { category.id }
+    public var name: String { category.name }
+    public var color: String? { category.color }
+
+    public init(category: ArticleCategory, count: Int) {
+        self.category = category
+        self.count = count
+    }
 }
 
 public struct LibrarySource: Codable, Hashable, Identifiable, Sendable {
@@ -108,6 +156,13 @@ public struct LibraryRepository: LibraryLoading, Sendable {
                     URLQueryItem(name: "order", value: "desc"),
                 ]
             ),
+            authenticated: userID != nil
+        )
+    }
+
+    public func loadCategoryFilters(userID: Int?) async throws -> [LibraryCategoryFilter] {
+        try await networkClient.categoryFilters(
+            .get("categories"),
             authenticated: userID != nil
         )
     }

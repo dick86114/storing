@@ -18,6 +18,18 @@ struct CollectWiringTests {
         let model = AppModel(authModel: authModel)
         #expect(model.collectAPIClient.usesTokenProvider(authModel.repository))
     }
+
+    @Test func 生产阅读器使用认证客户端提供者() throws {
+        let authModel = AuthModel(
+            repository: AuthRepository(
+                client: NoopAuthClient(),
+                store: NoopSessionStore()
+            )
+        )
+
+        let model = AppModel(authModel: authModel)
+        #expect(model.readerAPIClient.usesTokenProvider(authModel.repository))
+    }
 }
 
 private final class NoopAuthClient: AuthClient {

@@ -23,10 +23,12 @@ public final class LibraryModel {
     public private(set) var categoryId: Int?
     public private(set) var articles: [ArticleCard] = []
     public private(set) var page = 1
+    public private(set) var total = 0
     public private(set) var totalPages = 0
     public private(set) var perPage = 20
     public private(set) var counts: ArticleCounts?
     public private(set) var availableSources: [LibrarySource] = []
+    public private(set) var availableCategories: [LibraryCategoryFilter] = []
     public private(set) var isLoading = true
     public private(set) var isRefreshing = false
     public private(set) var isLoadingMore = false
@@ -34,6 +36,7 @@ public final class LibraryModel {
     public private(set) var errorMessage: String?
     public private(set) var loadMoreErrorMessage: String?
     public private(set) var refreshErrorMessage: String?
+    public private(set) var sourceErrorMessage: String?
 
     private let repository: any LibraryLoading
     private let cache: any LibraryCaching
@@ -83,6 +86,10 @@ public final class LibraryModel {
         view == .archive && appliedSearchText.isEmpty
     }
 
+    public var selectedCategory: LibraryCategoryFilter? {
+        availableCategories.first { $0.id == categoryId }
+    }
+
     public func count(for view: LibraryView) -> Int? {
         guard let counts else {
             return nil
@@ -103,6 +110,11 @@ public final class LibraryModel {
         self.view = view
         sort = ArticleSort.defaultSort(for: view)
         order = .desc
+        source = nil
+        categoryId = nil
+        availableSources = []
+        availableCategories = []
+        sourceErrorMessage = nil
         resetLoadedState()
     }
 
@@ -154,6 +166,14 @@ public final class LibraryModel {
     public func clearSearch() {
         searchDraft = ""
         appliedSearchText = ""
+        clearResults()
+    }
+
+    public func clearResults() {
+        articles = []
+        page = 1
+        total = 0
+        totalPages = 0
         resetLoadedState()
     }
 
@@ -253,7 +273,11 @@ public final class LibraryModel {
             if userID != nil {
                 try? await cache.save(nextPageResult, scope: scope)
             }
-            articles.append(contentsOf: nextPageResult.articles)
+            var existingIDs = Set(articles.map(\.id))
+            let newArticles = nextPageResult.articles.filter { article in
+                existingIDs.insert(article.id).inserted
+            }
+            articles.append(contentsOf: newArticles)
             page = nextPageResult.page
             totalPages = nextPageResult.totalPages
         } catch {
@@ -284,6 +308,8 @@ public final class LibraryModel {
         categoryId = nil
         counts = nil
         availableSources = []
+        availableCategories = []
+        sourceErrorMessage = nil
         selectedArticleID = nil
         resetLoadedState()
     }
@@ -304,6 +330,7 @@ public final class LibraryModel {
     private func resetLoadedState() {
         articles = []
         page = 1
+        total = 0
         totalPages = 0
         isLoading = true
         isRefreshing = false
@@ -333,12 +360,14 @@ public final class LibraryModel {
     }
 
     private func apply(_ pageResult: ArticleListPage, fromCache: Bool) {
-        articles = pageResult.articles
+        articles = Self.deduplicated(pageResult.articles)
         page = pageResult.page
+        total = pageResult.total
         totalPages = pageResult.totalPages
         isShowingCache = fromCache
         errorMessage = nil
         refreshErrorMessage = nil
+        sourceErrorMessage = nil
         isLoading = false
     }
 
@@ -350,18 +379,36 @@ public final class LibraryModel {
     }
 
     private func loadAuxiliaryData(generation: Int) async {
-        async let loadedCounts = repository.loadCounts(userID: userID)
-        if isSourceFilterAvailable {
-            async let loadedSources = repository.loadSources(userID: userID)
-            if let sources = try? await loadedSources, requestGeneration == generation {
-                availableSources = sources
-            }
-        } else if requestGeneration == generation {
-            availableSources = []
-        }
+        do {
+            async let loadedCounts = repository.loadCounts(userID: userID)
 
-        if let loadedCounts = try? await loadedCounts, requestGeneration == generation {
-            counts = loadedCounts
+            if isSourceFilterAvailable {
+                async let loadedSources = repository.loadSources(userID: userID)
+                let sources = try await loadedSources
+                if requestGeneration == generation {
+                    availableSources = sources
+                }
+            } else if requestGeneration == generation {
+                availableSources = []
+            }
+
+            if isSourceFilterAvailable {
+                async let loadedCategories = repository.loadCategoryFilters(userID: userID)
+                let categories = try await loadedCategories
+                if requestGeneration == generation {
+                    availableCategories = categories
+                }
+            } else if requestGeneration == generation {
+                availableCategories = []
+            }
+
+            if let counts = try? await loadedCounts, requestGeneration == generation {
+                self.counts = counts
+            }
+        } catch {
+            if isSourceFilterAvailable, requestGeneration == generation, availableSources.isEmpty {
+                sourceErrorMessage = Self.message(for: error)
+            }
         }
     }
 
@@ -377,12 +424,21 @@ public final class LibraryModel {
             "登录已失效，请重新登录"
         case .forbidden:
             "当前账号无权访问资料库"
+        case .rateLimited:
+            "请求过于频繁，请稍后再试"
         case .contentUnavailable:
             "请求的资料不可用"
         case .invalidInput:
             "筛选条件无效，请调整后重试"
         case .server:
             "服务暂时不可用，请稍后重试"
+        }
+    }
+
+    private static func deduplicated(_ articles: [ArticleCard]) -> [ArticleCard] {
+        var seenIDs = Set<Int>()
+        return articles.filter { article in
+            seenIDs.insert(article.id).inserted
         }
     }
 }

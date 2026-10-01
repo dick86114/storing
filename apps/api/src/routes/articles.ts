@@ -914,11 +914,10 @@ articlesRoutes.post('/articles/:id/refetch', requireAuth, async (c) => {
     }, 422);
   }
 
-  // A refetch is an explicit user request. Wait for the cover update so the
-  // very next list/detail response is authoritative instead of retaining body image #1.
-  const processedCoverImage = await processCoverImage(id, userId).catch((error) => {
+  // Cover processing can include a slow image download/upload. Keep refetch
+  // responsive and let the next list/detail read observe the eventual update.
+  void processCoverImage(id, userId).catch((error) => {
     console.error('Cover image process failed after refetch:', error instanceof Error ? error.message : error);
-    return null;
   });
   const refreshedArticle = await getArticleRecord(id, userId);
 
@@ -927,7 +926,7 @@ articlesRoutes.post('/articles/:id/refetch', requireAuth, async (c) => {
     contentHtml: Boolean(contentHtml),
     contentHtmlMobile: Boolean(contentHtmlMobile),
     contentMd: Boolean(contentMd),
-    coverImage: processedCoverImage || refreshedArticle?.metadataCoverImage || refreshedArticle?.articleCoverImage || null,
+    coverImage: refreshedArticle?.metadataCoverImage || refreshedArticle?.articleCoverImage || null,
   });
 });
 

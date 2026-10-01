@@ -344,7 +344,40 @@ public extension JSONDecoder {
     static var qiankunjie: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let rawValue = try container.decode(String.self)
+
+            let fractionalFormatter = ISO8601DateFormatter()
+            fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = fractionalFormatter.date(from: rawValue) {
+                return date
+            }
+
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime]
+            if let date = formatter.date(from: rawValue) {
+                return date
+            }
+
+            let sqlFormatter = DateFormatter()
+            sqlFormatter.locale = Locale(identifier: "en_US_POSIX")
+            sqlFormatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
+            sqlFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
+            if let date = sqlFormatter.date(from: rawValue) {
+                return date
+            }
+
+            sqlFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+            if let date = sqlFormatter.date(from: rawValue) {
+                return date
+            }
+
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "日期格式无效：\(rawValue)"
+            )
+        }
         return decoder
     }
 }

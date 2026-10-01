@@ -2,6 +2,14 @@
 
 本文说明如何安装、首次通过 Gatekeeper 运行、更新乾坤戒 macOS 客户端，以及在更新失败后恢复。GitHub Actions 会从 `master` 手动触发，构建无签名 Apple Silicon DMG，并发布到 `macos-vX.Y.Z` 标签。
 
+## 手动发布
+
+在 GitHub Actions 中从 `master` 运行 `Release macOS DMG`，填写稳定的 `X.Y.Z` 版本号和支持 Markdown 的更新日志。工作流会构建、校验并发布以下资产：
+
+- `Qiankunjie.dmg` 和 `Qiankunjie-X.Y.Z-arm64.dmg`
+- 两个对应的 `.sha256` 校验文件
+- `macos-vX.Y.Z` GitHub Release，Release Notes 保留填写的 Markdown 内容
+
 ## 系统要求
 
 - Apple Silicon（arm64）Mac。
@@ -31,6 +39,8 @@ xattr -dr com.apple.quarantine "/Applications/乾坤戒.app"
 ## 应用内更新
 
 在「设置」中检查更新时，客户端只会识别名为 `macos-vX.Y.Z` 的稳定版 Release，其中 `X.Y.Z` 是三段数字版本；预发布和畸形标签会被忽略。客户端下载版本化 DMG 和 `.sha256`，校验 SHA-256 后等待应用退出，再替换应用并验证新版本号。
+
+客户端检查到新版本后会自动下载并校验更新包。校验通过后，安装前仍会弹出确认窗口；选择“立即退出并安装”后，安装脚本等待应用退出，再替换应用并尝试重新打开。
 
 更新失败时优先保持旧应用可启动。若新应用启动失败，安装器会恢复替换前创建的备份；不要在更新进行中强制关闭电源或删除 `乾坤戒.app`。
 

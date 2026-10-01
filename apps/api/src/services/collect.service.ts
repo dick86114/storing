@@ -41,6 +41,7 @@ type CollectJobStatus = 'pending' | 'running' | 'completed' | 'failed';
 type CollectMethod = 'reader' | 'singlefile';
 type CollectRequestSource = 'web' | 'android' | 'android_share' | 'browser_extension' | 'macos' | 'mcp' | 'api' | 'system';
 const FIRST_PARTY_COLLECT_SOURCES: CollectRequestSource[] = ['web', 'android', 'android_share', 'browser_extension', 'macos'];
+export const USER_COLLECT_SOURCES: CollectRequestSource[] = [...FIRST_PARTY_COLLECT_SOURCES, 'mcp'];
 
 // Web collection historically enters Archive. MCP and native Android collection are
 // explicit inbox saves, so they must not be auto-archived after capture completes.

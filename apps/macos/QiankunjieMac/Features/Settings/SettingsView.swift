@@ -5,13 +5,33 @@ struct SettingsView: View {
     let menuBarController: MenuBarController?
     let onLogin: () -> Void
 
+    @State private var path = NavigationPath()
+
     var body: some View {
-        SettingsWindow(
-            model: model.settingsModel,
-            shortcutSettings: model.shortcutSettings,
-            menuBarController: menuBarController,
-            isAuthenticated: model.isAuthenticated,
-            onLogin: onLogin
-        )
+        NavigationStack(path: $path) {
+            SettingsWindow(
+                model: model.settingsModel,
+                shortcutSettings: model.shortcutSettings,
+                menuBarController: menuBarController,
+                isAuthenticated: model.isAuthenticated,
+                onLogin: onLogin
+            )
+            .navigationDestination(for: SettingsTool.self) { tool in
+                destination(for: tool)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func destination(for tool: SettingsTool) -> some View {
+        let client = ManagementAPIClient(repository: model.authModel.repository)
+        switch tool {
+        case .myMCP:
+            MCPManagementView(scope: .personal, client: client)
+        case .categories:
+            CategoryManagementView(client: client)
+        case .resetPassword:
+            ResetPasswordView(client: client)
+        }
     }
 }

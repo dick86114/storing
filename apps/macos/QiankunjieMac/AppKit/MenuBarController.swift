@@ -103,7 +103,7 @@ public final class MenuBarController: NSObject {
                 onShowMainWindow()
             },
             onOpenTaskList: { [weak appModel] in
-                appModel?.selectDestination(.tasks)
+                appModel?.selectDestination(.collect)
                 onShowMainWindow()
             }
         )
@@ -120,10 +120,10 @@ public final class MenuBarController: NSObject {
         isStarted = true
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(
-            systemSymbolName: "plus.rectangle.on.rectangle",
-            accessibilityDescription: "快速采集"
-        )
+        let menuBarIcon = NSImage(named: "MenuBarCollectIcon")
+        menuBarIcon?.isTemplate = false
+        menuBarIcon?.size = NSSize(width: 18, height: 18)
+        item.button?.image = menuBarIcon
         item.button?.target = self
         item.button?.action = #selector(togglePanelFromStatusItem)
         statusItem = item
