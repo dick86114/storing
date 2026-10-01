@@ -112,6 +112,28 @@ extension AppRelease {
     #expect(requests[0].url?.absoluteString == "https://api.github.com/repos/dick86114/storing/releases/tags/macos-v1.3.0")
 }
 
+@Test func updateLogFallsBackToAtomWhenGitHubAPIIsRateLimited() async throws {
+    let atom = """
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>tag:github.com,2008:Repository/1/macos-v0.0.2</id>
+        <title>乾坤戒 macOS v0.0.2</title>
+        <updated>2026-10-01T09:02:02Z</updated>
+        <content type="html">&lt;p&gt;优化一些东西&lt;/p&gt;</content>
+      </entry>
+    </feed>
+    """
+    let network = MockUpdateNetwork([
+        .data(statusCode: 403, body: Data(#"{"message":"rate limit"}"#.utf8)),
+        .data(statusCode: 200, body: Data(atom.utf8)),
+    ])
+    let service = GitHubUpdateService.fixture(currentVersion: "0.0.2", network: network)
+
+    let log = try await service.fetchUpdateLog(for: "0.0.2")
+
+    #expect(log == "优化一些东西")
+}
+
 @Test func missingUpdateLogReturnsNil() async throws {
     let network = MockUpdateNetwork([
         .data(statusCode: 404, body: Data(#"{"message":"Not Found"}"#.utf8)),
@@ -167,6 +189,30 @@ extension AppRelease {
     let release = try await service.checkForUpdate()
 
     #expect(release?.version == "1.3.0")
+}
+
+@Test func atomFallbackConstructsVersionedAssetWhenFeedOmitsAssetNames() async throws {
+    let atom = """
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>tag:github.com,2008:Repository/1/macos-v0.0.2</id>
+        <title>乾坤戒 macOS v0.0.2</title>
+        <updated>2026-10-01T09:02:02Z</updated>
+        <content type="html">&lt;p&gt;优化一些东西&lt;/p&gt;</content>
+      </entry>
+    </feed>
+    """
+    let network = MockUpdateNetwork([
+        .data(statusCode: 403, body: Data("{}".utf8)),
+        .data(statusCode: 200, body: Data(atom.utf8)),
+    ])
+    let service = GitHubUpdateService.fixture(currentVersion: "0.0.1", network: network)
+
+    let release = try await service.checkForUpdate()
+
+    #expect(release?.version == "0.0.2")
+    #expect(release?.assetName == "Qiankunjie-0.0.2-arm64.dmg")
+    #expect(release?.downloadURL.absoluteString.hasSuffix("/macos-v0.0.2/Qiankunjie-0.0.2-arm64.dmg") == true)
 }
 
 @Test func atomStableIDsAreAcceptedAndPrereleaseIDsRejected() async throws {
