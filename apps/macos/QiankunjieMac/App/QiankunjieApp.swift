@@ -101,7 +101,7 @@ struct QiankunjieMacApp: App {
         // 清空系统标题，窗口顶部只保留带版本号的自定义标题。
         .navigationTitle("")
         .toolbar {
-            ToolbarItem(placement: .principal) {
+            ToolbarItem(placement: .navigation) {
                 mainWindowTitle
             }
         }
