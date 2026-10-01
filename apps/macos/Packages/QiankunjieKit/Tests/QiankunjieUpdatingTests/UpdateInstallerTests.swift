@@ -72,5 +72,43 @@ import Testing
     #expect(script.contains(#"SOURCE="$2""#))
     #expect(script.contains(#"CURRENT_PID="$3""#))
     #expect(script.contains(#"EXPECTED="$4""#))
-    #expect(arguments == [source, destination, "99", version])
+    #expect(arguments == [destination, source, "99", version])
+}
+
+@Test func installArgumentsMatchScriptParameterOrder() {
+    // 脚本以 APP="$1"、SOURCE="$2" 读取参数：先传目标安装路径，再传挂载源。
+    let arguments = UpdateInstaller.makeArguments(
+        source: "/Volumes/mount/乾坤戒.app",
+        destination: "/Applications/乾坤戒.app",
+        pid: 42,
+        version: "0.0.3"
+    )
+
+    #expect(arguments[0] == "/Applications/乾坤戒.app")
+    #expect(arguments[1] == "/Volumes/mount/乾坤戒.app")
+    #expect(arguments[2] == "42")
+    #expect(arguments[3] == "0.0.3")
+}
+
+@Test func staleMountDirectoriesOnlyMatchesInstallerMountPoints() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("stale-mount-test-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    for name in [
+        "qiankunjie-update-mount-abc",
+        "qiankunjie-update-mount-def",
+        "qiankunjie-update-123",
+        "other-directory",
+    ] {
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent(name, isDirectory: true),
+            withIntermediateDirectories: true
+        )
+    }
+
+    let matched = UpdateInstaller.staleMountDirectories(in: root)
+        .map(\.lastPathComponent)
+        .sorted()
+
+    #expect(matched == ["qiankunjie-update-mount-abc", "qiankunjie-update-mount-def"])
 }
