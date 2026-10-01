@@ -14,6 +14,12 @@ public struct UpdateInstaller: Sendable {
     }
 
     public func install(_ update: DownloadedUpdate) throws {
+        // 旧版本安装失败可能留下已挂载的只读卷，先尝试清理，避免越积越多。
+        for staleMount in Self.staleMountDirectories(in: FileManager.default.temporaryDirectory) {
+            try? run("/usr/bin/hdiutil", arguments: ["detach", staleMount.path, "-force"])
+            try? FileManager.default.removeItem(at: staleMount)
+        }
+
         let mountURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("qiankunjie-update-mount-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: mountURL, withIntermediateDirectories: true)
@@ -58,13 +64,25 @@ public struct UpdateInstaller: Sendable {
         }
     }
 
+    /// 第 1 个参数是目标安装路径，第 2 个是 DMG 内挂载的源 App。
+    /// 顺序必须与 installScript 中 APP/SOURCE 的读取顺序一致。
     static func makeArguments(source: String, destination: String, pid: Int, version: String) -> [String] {
         [
-            source,
             destination,
+            source,
             String(max(pid, 0)),
             version,
         ]
+    }
+
+    /// 列出临时目录中历史安装失败留下的挂载点目录。
+    static func staleMountDirectories(in directory: URL) -> [URL] {
+        let entries = (try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: []
+        )) ?? []
+        return entries.filter { $0.lastPathComponent.hasPrefix("qiankunjie-update-mount-") }
     }
 
     static func installScript() -> String {

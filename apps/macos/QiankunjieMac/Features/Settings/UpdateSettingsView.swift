@@ -161,7 +161,6 @@ final class UpdateSettingsModel {
                 phase = .upToDate
             } else {
                 phase = .available
-                await download()
             }
         } catch {
             phase = .failed(Self.failureMessage(error))

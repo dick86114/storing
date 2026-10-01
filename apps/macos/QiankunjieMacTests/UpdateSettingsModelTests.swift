@@ -102,6 +102,19 @@ extension AppRelease {
 
 @MainActor
 struct UpdateSettingsModelTests {
+    @Test func 检测更新后停在可下载状态且不自动下载() async throws {
+        let (defaults, suiteName) = try temporaryDefaults()
+        let service = GatedUpdateService()
+        let model = UpdateSettingsModel(currentVersion: "1.2.0", service: service, defaults: defaults)
+
+        await model.checkForUpdate()
+
+        #expect(model.phase == .available)
+        #expect(model.release != nil)
+        #expect(await service.downloadCount == 0)
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
     @Test func downloadIgnoresConcurrentCallAndLocksMirrorControls() async throws {
         let (defaults, suiteName) = try temporaryDefaults()
         defaults.set("https://ghfast.top", forKey: "update.mirrorBase")
@@ -109,21 +122,12 @@ struct UpdateSettingsModelTests {
         let model = UpdateSettingsModel(currentVersion: "1.2.0", service: service, defaults: defaults)
         let deadline = waitForDeadline()
 
-        let checkTask = Task {
-            await model.checkForUpdate()
+        await model.checkForUpdate()
+        #expect(model.phase == .available)
+
+        let downloadTask = Task {
+            await model.download()
         }
-        while model.release == nil {
-            if Task.isCancelled {
-                Issue.record("模型未获取更新信息")
-                return
-            }
-            if Date() > deadline {
-                Issue.record("等待更新信息超时")
-                return
-            }
-            try await Task.sleep(for: .milliseconds(1))
-        }
-        #expect(model.release != nil)
 
         while model.phase != .downloading {
             if Task.isCancelled {
@@ -162,7 +166,7 @@ struct UpdateSettingsModelTests {
         #expect(model.phase == .downloading)
 
         await service.resumeDownload()
-        await checkTask.value
+        await downloadTask.value
 
         #expect(model.phase == .downloaded)
         #expect(model.canModifyMirror)
@@ -175,21 +179,12 @@ struct UpdateSettingsModelTests {
         let model = UpdateSettingsModel(currentVersion: "1.2.0", service: service, defaults: defaults)
         let deadline = waitForDeadline()
 
-        let checkTask = Task {
-            await model.checkForUpdate()
+        await model.checkForUpdate()
+        #expect(model.phase == .available)
+
+        let downloadTask = Task {
+            await model.download()
         }
-        while model.release == nil {
-            if Task.isCancelled {
-                Issue.record("迟到回调测试模型未获取更新信息")
-                return
-            }
-            if Date() > deadline {
-                Issue.record("迟到回调测试等待更新信息超时")
-                return
-            }
-            try await Task.sleep(for: .milliseconds(1))
-        }
-        #expect(model.release != nil)
 
         while model.phase != .downloading {
             if Task.isCancelled {
@@ -203,7 +198,7 @@ struct UpdateSettingsModelTests {
             try await Task.sleep(for: .milliseconds(1))
         }
         await service.resumeDownload()
-        await checkTask.value
+        await downloadTask.value
 
         await service.emitLateProgress(0.9)
         try await Task.sleep(for: .milliseconds(50))
@@ -286,6 +281,9 @@ struct UpdateSettingsModelTests {
         )
 
         await model.checkForUpdate()
+        #expect(model.phase == .available)
+
+        await model.download()
         #expect(model.phase == .downloaded)
 
         model.install()
