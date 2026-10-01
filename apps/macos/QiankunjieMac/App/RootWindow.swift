@@ -14,6 +14,7 @@ struct RootWindow: View {
     @State private var sidebarVisibility: NavigationSplitViewVisibility = .all
     @State private var isSidebarCollapsed = false
     @State private var availableWidth: CGFloat = 1200
+    @State private var isOpeningMainWindow = false
     private let layoutPolicy = AppShellLayoutPolicy()
     private let columnWidthPolicy = AppShellColumnWidthPolicy()
 
@@ -199,27 +200,47 @@ struct RootWindow: View {
 
     @ViewBuilder
     private var listColumn: some View {
-        if model.destination.requiresAuthentication, !model.isAuthenticated {
-            GuestAccessView(
-                title: "登录后查看\(model.destination.title)",
-                message: "当前账号未登录，登录后即可查看\(model.destination.title)内容。"
-            ) {
-                model.presentLogin()
+        Group {
+            if model.destination.requiresAuthentication, !model.isAuthenticated {
+                GuestAccessView(
+                    title: "登录后查看\(model.destination.title)",
+                    message: "当前账号未登录，登录后即可查看\(model.destination.title)内容。"
+                ) {
+                    model.presentLogin()
+                }
+            } else if let libraryView = model.destination.libraryView {
+                CompactArticleListView(
+                    model: model.libraryModel,
+                    selection: articleSelection,
+                    presentationMode: presentationModeBinding
+                )
+                .id(libraryView)
+            } else if model.destination == .collect {
+                CollectView(
+                    model: model.collectModel,
+                    onOpenArticle: model.openCollectArticle
+                )
+            } else {
+                LibraryPlaceholderView(destination: model.destination)
             }
-        } else if let libraryView = model.destination.libraryView {
-            CompactArticleListView(
-                model: model.libraryModel,
-                selection: articleSelection,
-                presentationMode: presentationModeBinding
-            )
-            .id(libraryView)
-        } else if model.destination == .collect {
-            CollectView(
-                model: model.collectModel,
-                onOpenArticle: model.openCollectArticle
-            )
+        }
+        .toolbar {
+            contentColumnTitleToolbarItem
+        }
+    }
+
+    /// 内容列工具栏最左侧的「乾坤戒 v版本号」。
+    @ToolbarContentBuilder
+    private var contentColumnTitleToolbarItem: some ToolbarContent {
+        if #available(macOS 26.0, *) {
+            ToolbarItem(placement: .navigation) {
+                MainWindowTitleLabel(showsVersion: !isSidebarCollapsed)
+            }
+            .sharedBackgroundVisibility(.hidden)
         } else {
-            LibraryPlaceholderView(destination: model.destination)
+            ToolbarItem(placement: .navigation) {
+                MainWindowTitleLabel(showsVersion: !isSidebarCollapsed)
+            }
         }
     }
 
@@ -307,19 +328,50 @@ struct RootWindow: View {
         afterWindowShown: (() -> Void)? = nil
     ) {
         NSApp.setActivationPolicy(.regular)
+
+        if let existingWindow = MainWindowIdentity.existingWindow(in: NSApp.windows) {
+            presentMainWindow(
+                existingWindow,
+                destination: destination,
+                afterWindowShown: afterWindowShown
+            )
+            return
+        }
+
+        guard !isOpeningMainWindow else { return }
+        isOpeningMainWindow = true
         openWindow(id: "main")
         NSApp.activate(ignoringOtherApps: true)
         DispatchQueue.main.async {
             // 新窗口是异步创建的，等窗口真正出现后再落导航位置，
             // 否则会被启动阶段的登录状态同步重置回首页。
-            if let destination {
-                model.selectDestination(destination)
+            isOpeningMainWindow = false
+            let mainWindow = MainWindowIdentity.existingWindow(in: NSApp.windows)
+                ?? NSApp.windows.first { !($0 is NSPanel) }
+            guard let mainWindow else {
+                afterWindowShown?()
+                return
             }
-            let mainWindow = NSApp.windows.first { !($0 is NSPanel) }
-            mainWindow?.deminiaturize(nil)
-            mainWindow?.makeKeyAndOrderFront(nil)
-            afterWindowShown?()
+            MainWindowIdentity.configure(mainWindow)
+            presentMainWindow(
+                mainWindow,
+                destination: destination,
+                afterWindowShown: afterWindowShown
+            )
         }
+    }
+
+    private func presentMainWindow(
+        _ window: NSWindow,
+        destination: AppDestination?,
+        afterWindowShown: (() -> Void)?
+    ) {
+        if let destination {
+            model.selectDestination(destination)
+        }
+        window.deminiaturize(nil)
+        window.makeKeyAndOrderFront(nil)
+        afterWindowShown?()
     }
 
     private func showAboutPanel() {

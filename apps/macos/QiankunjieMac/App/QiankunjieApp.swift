@@ -9,6 +9,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        NSWindow.allowsAutomaticWindowTabbing = false
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NotificationCenter.default.addObserver(
             self,
@@ -69,10 +73,9 @@ struct QiankunjieMacApp: App {
     }
 
     var body: some Scene {
-        WindowGroup(id: "main") {
+        Window(QiankunjieMacMetadata.displayName, id: "main") {
             mainContent
-                // 窗口标题由 productionContent 里的 principal 工具条项提供，
-                // 这里不再设置 navigationTitle，避免出现两个标题。
+                // 标题由根视图内容列的工具栏项提供，这里不再设置 navigationTitle。
         }
     }
 
@@ -100,12 +103,6 @@ struct QiankunjieMacApp: App {
         .environment(model.settingsModel)
         // 清空系统标题，窗口顶部只保留带版本号的自定义标题。
         .navigationTitle("")
-        .background(
-            MainWindowTitlebar(
-                title: QiankunjieMacMetadata.displayName,
-                version: "v" + QiankunjieMacMetadata.appVersion
-            )
-        )
         .task {
             await model.start()
         }
