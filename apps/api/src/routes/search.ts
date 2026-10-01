@@ -62,11 +62,13 @@ searchRoutes.get('/search', optionalAuth, async (c) => {
       source: articles.source,
       originalUrl: articles.originalUrl,
       publishTime: articles.publishTime,
-      coverImage: articles.coverImage,
+      articleCoverImage: articles.coverImage,
+      metadataCoverImage: articleMetadata.coverImage,
       summary: articles.summary,
       tags: articles.tags,
       readStatus: articles.readStatus,
       createdAt: articles.createdAt,
+      publicId: articleMetadata.publicId,
       isFavorited: articleMetadata.isFavorited,
       isArchived: articleMetadata.isArchived,
       aiSummary: articleMetadata.aiSummary,
@@ -83,6 +85,7 @@ searchRoutes.get('/search', optionalAuth, async (c) => {
   return c.json({
     articles: data.map(a => ({
       ...a,
+      coverImage: a.metadataCoverImage || a.articleCoverImage,
       isFavorited: a.isFavorited ?? false,
       isArchived: a.isArchived ?? false,
       aiTags: a.aiTags ?? [],

@@ -58,7 +58,7 @@ packages/shared/  # 共享类型和常量
 
 - **articles**（只读）：外部数据源，存储原始文章内容
 - **article_metadata**（读写）：业务数据，存储收藏状态、归档状态、AI 摘要/分类/标签
-- **users**：管理员账号，启动时自动初始化（默认 admin/admin123）
+- **users**：管理员账号，启动时根据 `ADMIN_USERNAME` 和 `ADMIN_PASSWORD` 初始化，不提供默认密码
 
 查询时 LEFT JOIN articles 和 article_metadata。
 
@@ -84,8 +84,8 @@ DEEPSEEK_API_KEY=sk-...
 
 # 可选
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=admin123
-JWT_SECRET=your-secret
+ADMIN_PASSWORD=replace-with-a-unique-12-character-minimum-password
+JWT_SECRET=replace-with-a-long-stable-random-secret-at-least-32-characters
 READER_API_BASE=https://...    # 文章抓取服务
 IMG_HOST=https://...           # 图片上传服务
 ```

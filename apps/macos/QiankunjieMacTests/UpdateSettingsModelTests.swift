@@ -69,12 +69,22 @@ struct UpdateSettingsModelTests {
         let model = UpdateSettingsModel(currentVersion: "1.2.0", service: service, defaults: defaults)
         let deadline = waitForDeadline()
 
-        await model.checkForUpdate()
+        let checkTask = Task {
+            await model.checkForUpdate()
+        }
+        while model.release == nil {
+            if Task.isCancelled {
+                Issue.record("模型未获取更新信息")
+                return
+            }
+            if Date() > deadline {
+                Issue.record("等待更新信息超时")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(1))
+        }
         #expect(model.release != nil)
 
-        let downloadTask = Task {
-            await model.download()
-        }
         while model.phase != .downloading {
             if Task.isCancelled {
                 Issue.record("模型未进入下载状态")
@@ -112,7 +122,7 @@ struct UpdateSettingsModelTests {
         #expect(model.phase == .downloading)
 
         await service.resumeDownload()
-        await downloadTask.value
+        await checkTask.value
 
         #expect(model.phase == .downloaded)
         #expect(model.canModifyMirror)
@@ -125,12 +135,22 @@ struct UpdateSettingsModelTests {
         let model = UpdateSettingsModel(currentVersion: "1.2.0", service: service, defaults: defaults)
         let deadline = waitForDeadline()
 
-        await model.checkForUpdate()
+        let checkTask = Task {
+            await model.checkForUpdate()
+        }
+        while model.release == nil {
+            if Task.isCancelled {
+                Issue.record("迟到回调测试模型未获取更新信息")
+                return
+            }
+            if Date() > deadline {
+                Issue.record("迟到回调测试等待更新信息超时")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(1))
+        }
         #expect(model.release != nil)
 
-        let downloadTask = Task {
-            await model.download()
-        }
         while model.phase != .downloading {
             if Task.isCancelled {
                 Issue.record("迟到回调测试模型未进入下载状态")
@@ -143,7 +163,7 @@ struct UpdateSettingsModelTests {
             try await Task.sleep(for: .milliseconds(1))
         }
         await service.resumeDownload()
-        await downloadTask.value
+        await checkTask.value
 
         await service.emitLateProgress(0.9)
         try await Task.sleep(for: .milliseconds(50))

@@ -34,7 +34,7 @@ extension GitHubUpdateService: UpdateServicing {}
 @MainActor
 @Observable
 final class UpdateSettingsModel {
-    nonisolated(unsafe) private static let mirrorStorageKey = "update.mirrorBase"
+    nonisolated private static let mirrorStorageKey = "update.mirrorBase"
 
     private(set) var phase: UpdatePhase = .idle
     private(set) var release: AppRelease?
@@ -128,7 +128,12 @@ final class UpdateSettingsModel {
         do {
             let checkedRelease = try await service.checkForUpdate()
             release = checkedRelease
-            phase = checkedRelease == nil ? .upToDate : .available
+            if checkedRelease == nil {
+                phase = .upToDate
+            } else {
+                phase = .available
+                await download()
+            }
         } catch {
             phase = .failed(Self.failureMessage(error))
         }
@@ -220,6 +225,7 @@ final class UpdateSettingsModel {
 
 struct UpdateSettingsView: View {
     @State private var model: UpdateSettingsModel
+    @State private var isInstallConfirmationPresented = false
 
     init(currentVersion: String = QiankunjieMacMetadata.appVersion) {
         _model = State(initialValue: UpdateSettingsModel(currentVersion: currentVersion))
@@ -323,8 +329,16 @@ struct UpdateSettingsView: View {
         case .downloaded:
             VStack(alignment: .leading, spacing: 8) {
                 Text("SHA-256 校验通过")
-                Button("退出并安装") {
-                    model.install()
+                Button("安装更新") {
+                    isInstallConfirmationPresented = true
+                }
+                .alert("更新已下载并通过校验", isPresented: $isInstallConfirmationPresented) {
+                    Button("稍后", role: .cancel) {}
+                    Button("立即退出并安装") {
+                        model.install()
+                    }
+                } message: {
+                    Text("安装将退出乾坤戒，并在替换完成后自动重新打开。")
                 }
             }
         case .readyToRelaunch:

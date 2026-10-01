@@ -1,3 +1,4 @@
+import QiankunjieDesignSystem
 import QiankunjieReader
 import SwiftUI
 
@@ -81,7 +82,10 @@ enum ReaderArticleAction: Identifiable {
 struct ArticleActionBar: View {
     let model: ReaderModel
     let isGuest: Bool
+    let contentWidth: ReaderContentWidthPreference
+    let onContentWidthChange: (ReaderContentWidthPreference) -> Void
     let onAction: (ReaderArticleAction) -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     private var availability: ReaderActionAvailability {
         ReaderActionPolicy.availability(
@@ -99,31 +103,40 @@ struct ArticleActionBar: View {
 
             actionButton(
                 model.article?.isFavorited == true ? "star.fill" : "star",
-                model.article?.isFavorited == true ? "取消收藏" : "收藏"
+                model.article?.isFavorited == true ? "取消收藏" : "收藏",
+                isSelected: model.article?.isFavorited == true
             ) {
                 onAction(.favorite)
             }
             .disabled(accountActionsDisabled)
 
             if model.article?.isArchived == true {
-                actionButton("tray.and.arrow.down", "移回收件箱") {
+                actionButton(
+                    "tray.and.arrow.down",
+                    "移回收件箱",
+                    isSelected: true
+                ) {
                     onAction(.inbox)
                 }
                 .disabled(accountActionsDisabled)
             } else {
-                actionButton("archivebox", "归档") {
+                actionButton("archivebox", "归档", isSelected: false) {
                     onAction(.archive)
                 }
                 .disabled(accountActionsDisabled)
             }
 
             if model.article?.isPublished == true {
-                actionButton("globe.badge.chevron.backward", "取消公开") {
+                actionButton(
+                    "globe.badge.chevron.backward",
+                    "取消公开",
+                    isSelected: true
+                ) {
                     onAction(.unpublish)
                 }
                 .disabled(accountActionsDisabled)
             } else {
-                actionButton("globe", "公开") {
+                actionButton("globe", "公开", isSelected: false) {
                     onAction(.publish)
                 }
                 .disabled(accountActionsDisabled)
@@ -138,7 +151,22 @@ struct ArticleActionBar: View {
             }
             .disabled(accountActionsDisabled)
 
+            HStack(spacing: 2) {
+                contentWidthButton(.normal, systemImage: "arrow.right.and.line.vertical.and.arrow.left")
+                contentWidthButton(.wide, systemImage: "arrow.left.and.line.vertical.and.arrow.right")
+            }
+            .padding(2)
+            .background {
+                RoundedRectangle(cornerRadius: QiankunjieRadius.control)
+                    .fill(.quinary)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: QiankunjieRadius.control))
+
             Spacer(minLength: 8)
+
+            if let article = model.article {
+                ArticleExportMenu(article: article)
+            }
 
             if let url = actionAvailability.originalURL {
                 actionButton("safari", "打开原始网页") {
@@ -156,17 +184,59 @@ struct ArticleActionBar: View {
         .padding(.vertical, 10)
     }
 
+    private var contentWidthSelection: Binding<ReaderContentWidthPreference> {
+        Binding(
+            get: { contentWidth },
+            set: { onContentWidthChange($0) }
+        )
+    }
+
+    private func contentWidthButton(
+        _ preference: ReaderContentWidthPreference,
+        systemImage: String
+    ) -> some View {
+        let isSelected = contentWidth == preference
+
+        return Button {
+            onContentWidthChange(preference)
+        } label: {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(isSelected ? .white : .primary)
+                .frame(width: 26, height: 24)
+                .background {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isSelected ? QiankunjieColors.lightAccent : .clear)
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(preference.displayName)正文宽度")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .help("正文宽度：\(preference.displayName)")
+    }
+
     private func actionButton(
         _ systemImage: String,
         _ label: String,
         role: ButtonRole? = nil,
+        isSelected: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
-        Button(role: role) {
+        let accentColor = QiankunjieColors.accent(for: colorScheme)
+
+        return Button(role: role) {
             action()
         } label: {
             Image(systemName: systemImage)
+                .foregroundStyle(isSelected ? accentColor : colorScheme == .dark ? .white : .black)
                 .frame(width: 28, height: 28)
+                .background {
+                    if isSelected {
+                        Circle()
+                            .fill(accentColor.opacity(0.13))
+                    }
+                }
         }
         .buttonStyle(.borderless)
         .help(label)

@@ -11,12 +11,14 @@ function getArg(name: string, fallback?: string) {
   return value ? value.slice(prefix.length) : fallback;
 }
 
-async function ensureOwnerUser(username: string, role: 'admin' | 'user' | 'service' = 'service') {
+async function ensureOwnerUser(username: string, role: 'admin' | 'user' | 'service' = 'service', password?: string) {
   const [existing] = await db.select().from(users).where(eq(users.username, username)).limit(1);
   if (existing) return existing;
 
-  const password = getArg('owner-password', 'change-me-now') || 'change-me-now';
-  const passwordHash = await bcrypt.hash(password, 10);
+  if (!password || password.length < 12) {
+    throw new Error('创建新 MCP 所有者时，必须通过 --owner-password 或 MCP_OWNER_PASSWORD 提供至少 12 个字符的密码');
+  }
+  const passwordHash = await bcrypt.hash(password, 12);
   const [created] = await db.insert(users).values({
     username,
     passwordHash,
@@ -31,6 +33,7 @@ async function main() {
 
   const ownerUsername = getArg('owner', 'mcp-bot')!;
   const ownerRole = (getArg('owner-role', 'service') as 'admin' | 'user' | 'service');
+  const ownerPassword = getArg('owner-password') ?? process.env.MCP_OWNER_PASSWORD;
   const clientName = getArg('name');
   const scopesArg = getArg('scopes', 'summary:create,job:read:self')!;
   const enabled = getArg('enabled', 'true') !== 'false';
@@ -40,7 +43,7 @@ async function main() {
     throw new Error('缺少参数 --name=<client-name>');
   }
 
-  const owner = await ensureOwnerUser(ownerUsername, ownerRole);
+  const owner = await ensureOwnerUser(ownerUsername, ownerRole, ownerPassword);
   const apiKey = generateMcpApiKey();
   const apiKeyHash = hashMcpApiKey(apiKey);
 

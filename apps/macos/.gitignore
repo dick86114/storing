@@ -1,6 +1,7 @@
 # 本地生成的 Xcode 工程和构建产物
 .derivedData/
 dist/
+dist-debug/
 Qiankunjie.xcodeproj/
 xcuserdata/
 

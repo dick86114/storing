@@ -6,14 +6,18 @@ import SwiftUI
 struct CompactArticleListView: View {
     @Bindable var model: LibraryModel
     @Binding var selection: Int?
+    @Binding var presentationMode: ArticleListPresentationMode
     @Environment(\.colorScheme) private var colorScheme
 
     private let paginationPreviewCount = 6
-    private let layoutMetrics = CompactArticleListLayoutMetrics(centerWidth: 280)
+    private let layoutMetrics = CompactArticleListLayoutMetrics()
 
     var body: some View {
         VStack(spacing: 0) {
-            LibraryToolbar(model: model)
+            LibraryToolbar(
+                model: model,
+                presentationMode: $presentationMode
+            )
             Rectangle()
                 .fill(QiankunjieColors.outline(for: colorScheme))
                 .frame(height: 1)
@@ -39,20 +43,26 @@ struct CompactArticleListView: View {
     }
 
     private var articleList: some View {
-        ScrollView {
+        ThinScrollView {
             LazyVStack(spacing: 8) {
                 ForEach(
                     Array(model.articles.enumerated()),
                     id: \.element.id
                 ) { index, article in
-                    articleRow(article)
-                        .onAppear {
-                            if index >= model.articles.count - paginationPreviewCount {
-                                Task {
-                                    await model.loadMore()
-                                }
+                    Group {
+                        if presentationMode == .card {
+                            articleCard(article)
+                        } else {
+                            articleRow(article)
+                        }
+                    }
+                    .onAppear {
+                        if index >= model.articles.count - paginationPreviewCount {
+                            Task {
+                                await model.loadMore()
                             }
                         }
+                    }
                 }
 
                 if model.isLoadingMore {
@@ -61,13 +71,20 @@ struct CompactArticleListView: View {
                             .controlSize(.small)
                         Text("正在加载更多")
                     }
-                    .font(QiankunjieTypography.labelMedium)
+                    .qiankunjieFont(.labelMedium)
                     .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                     .padding(.vertical, 8)
                 }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
+        }
+        .task(id: model.articles.map(\.id)) {
+            ArticleCoverImageCache.shared.prefetch(
+                model.articles.compactMap { article in
+                    article.coverImage.flatMap(URL.init(string:))
+                }
+            )
         }
     }
 
@@ -82,12 +99,12 @@ struct CompactArticleListView: View {
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(article.title ?? "未命名文章")
-                        .font(QiankunjieTypography.titleMedium)
+                        .qiankunjieFont(.titleMedium)
                         .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
                         .lineLimit(2)
 
                     Text(article.aiSummary ?? "暂无摘要")
-                        .font(QiankunjieTypography.bodyMedium)
+                        .qiankunjieFont(.bodyMedium)
                         .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                         .lineLimit(2)
 
@@ -100,7 +117,7 @@ struct CompactArticleListView: View {
                             Label(time, systemImage: "clock")
                         }
                     }
-                    .font(QiankunjieTypography.labelMedium)
+                    .qiankunjieFont(.labelMedium)
                     .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                     .lineLimit(1)
 
@@ -110,7 +127,7 @@ struct CompactArticleListView: View {
                 Spacer(minLength: 0)
             }
             .padding(10)
-            .frame(height: layoutMetrics.rowHeight, alignment: .leading)
+            .frame(minHeight: layoutMetrics.rowHeight, alignment: .topLeading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -130,33 +147,206 @@ struct CompactArticleListView: View {
         }
     }
 
+    private func articleCard(_ article: ArticleCard) -> some View {
+        let isSelected = selection == article.id
+
+        return Button {
+            selection = article.id
+        } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                cardCover(article)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Label(
+                            article.source ?? "未知来源",
+                            systemImage: sourceSystemImage(article.source)
+                        )
+
+                        if let time = displayTime(article) {
+                            Label(time, systemImage: "clock")
+                        }
+                    }
+                    .qiankunjieFont(.labelMedium)
+                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                    .lineLimit(1)
+
+                    Text(article.title ?? "未命名文章")
+                        .font(.headline)
+                        .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+
+                    if let summary = article.aiSummary, !summary.isEmpty {
+                        Text(summary)
+                            .qiankunjieFont(.bodyMedium)
+                            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+
+                    tags(article)
+                }
+                .padding(14)
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background {
+            GlassSurface(role: .control, cornerRadius: QiankunjieRadius.panel) {
+                Color.clear
+            }
+        }
+        .overlay {
+            if isSelected {
+                RoundedRectangle(cornerRadius: QiankunjieRadius.panel, style: .continuous)
+                    .strokeBorder(
+                        QiankunjieColors.accent(for: colorScheme),
+                        lineWidth: 1.5
+                    )
+            }
+        }
+    }
+
     private func cover(_ article: ArticleCard) -> some View {
+        coverImage(article)
+            .frame(
+                width: layoutMetrics.coverSize,
+                height: layoutMetrics.coverSize
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .accessibilityLabel("文章封面")
+    }
+
+    private func cardCover(_ article: ArticleCard) -> some View {
+        coverImage(article)
+            .frame(maxWidth: .infinity)
+            .aspectRatio(2.35, contentMode: .fit)
+            .clipped()
+            .accessibilityLabel("文章封面")
+    }
+
+    private func coverImage(_ article: ArticleCard) -> some View {
         ZStack {
             if
                 let coverText = article.coverImage,
                 let url = URL(string: coverText)
             {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    default:
-                        fallbackCover(article)
-                    }
+                ArticleCoverImageView(url: url) {
+                    fallbackCover(article)
                 }
             } else {
                 fallbackCover(article)
             }
-        }
-        .frame(
-            width: layoutMetrics.coverSize,
-            height: layoutMetrics.coverSize
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        .accessibilityLabel("文章封面")
     }
+}
+
+@MainActor
+final class ArticleCoverImageCache {
+    static let shared = ArticleCoverImageCache()
+
+    private let cache = NSCache<NSURL, NSImage>()
+    private var loadingTasks: [URL: Task<NSImage?, Never>] = [:]
+
+    private init() {
+        cache.countLimit = 400
+    }
+
+    func storedImage(for url: URL) -> NSImage? {
+        cache.object(forKey: url as NSURL)
+    }
+
+    func prefetch(_ urls: [URL]) {
+        for url in urls where storedImage(for: url) == nil {
+            Task {
+                await image(for: url)
+            }
+        }
+    }
+
+    func image(for url: URL) async -> NSImage? {
+        if let cachedImage = storedImage(for: url) {
+            return cachedImage
+        }
+
+        if let loadingTask = loadingTasks[url] {
+            return await loadingTask.value
+        }
+
+        let loadingTask = Task {
+            let image = await load(url)
+            loadingTasks.removeValue(forKey: url)
+            return image
+        }
+        loadingTasks[url] = loadingTask
+
+        return await loadingTask.value
+    }
+
+    private func load(_ url: URL) async -> NSImage? {
+        if let cachedImage = storedImage(for: url) {
+            return cachedImage
+        }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard
+                let httpResponse = response as? HTTPURLResponse,
+                200..<300 ~= httpResponse.statusCode,
+                let image = NSImage(data: data)
+            else {
+                return nil
+            }
+
+            cache.setObject(image, forKey: url as NSURL)
+            return image
+        } catch {
+            if !Task.isCancelled {
+                print("Article cover load failed:", error.localizedDescription)
+            }
+            return nil
+        }
+    }
+}
+
+private struct ArticleCoverImageView<Fallback: View>: View {
+    let url: URL
+    @ViewBuilder let fallback: () -> Fallback
+
+    @State private var image: NSImage?
+    @State private var didFail = false
+
+    var body: some View {
+        Group {
+            if let cachedImage = ArticleCoverImageCache.shared.storedImage(for: url) {
+                imageView(cachedImage)
+            } else if let image {
+                imageView(image)
+            } else {
+                fallback()
+            }
+        }
+        .task(id: url) {
+            if ArticleCoverImageCache.shared.storedImage(for: url) != nil {
+                return
+            }
+
+            let loadedImage = await ArticleCoverImageCache.shared.image(for: url)
+            if !Task.isCancelled, let loadedImage {
+                image = loadedImage
+            } else if !Task.isCancelled {
+                didFail = true
+            }
+        }
+    }
+
+    private func imageView(_ image: NSImage) -> some View {
+        Image(nsImage: image)
+            .resizable()
+            .scaledToFill()
+    }
+}
 
     private func fallbackCover(_ article: ArticleCard) -> some View {
         let palette = ArticleCoverFallback.forArticle(article.id)
@@ -173,33 +363,33 @@ struct CompactArticleListView: View {
     }
 
     private func tags(_ article: ArticleCard) -> some View {
-        HStack(spacing: 5) {
+        HorizontalTagScrollView {
             ForEach(layoutMetrics.visibleTags(article.aiTags)) { tag in
-                Text(tag.text)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(
-                        maxWidth: layoutMetrics.maximumTagWidth,
-                        alignment: .leading
-                    )
-                    .font(QiankunjieTypography.labelMedium)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(QiankunjieColors.surface(for: colorScheme))
-                    .clipShape(Capsule())
-                    .overlay {
-                        Capsule()
-                            .strokeBorder(QiankunjieColors.outline(for: colorScheme))
-                    }
+                tagCapsule(tag.text)
             }
         }
+    }
+
+    private func tagCapsule(_ text: String) -> some View {
+        Text(text)
+            .qiankunjieFont(.labelMedium)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(QiankunjieColors.surface(for: colorScheme))
+            .clipShape(Capsule())
+            .overlay {
+                Capsule()
+                    .strokeBorder(QiankunjieColors.outline(for: colorScheme))
+            }
     }
 
     private var loadingView: some View {
         VStack(spacing: 10) {
             ProgressView()
             Text("正在加载文章")
-                .font(QiankunjieTypography.bodyMedium)
+                .qiankunjieFont(.bodyMedium)
                 .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
         }
     }
@@ -215,7 +405,7 @@ struct CompactArticleListView: View {
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 96, height: 96)
             Text("资料库为空")
-                .font(QiankunjieTypography.titleMedium)
+                .qiankunjieFont(.titleMedium)
                 .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
         }
     }
@@ -230,7 +420,7 @@ struct CompactArticleListView: View {
                         : QiankunjieColors.lightError
                 )
             Text(model.errorMessage ?? "加载资料库失败")
-                .font(QiankunjieTypography.bodyMedium)
+                .qiankunjieFont(.bodyMedium)
                 .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
                 .multilineTextAlignment(.center)
             Button {
@@ -250,8 +440,63 @@ struct CompactArticleListView: View {
             ?? article.createdAt?.formatted(.relative(presentation: .named))
     }
 
+    private struct HorizontalTagScrollView<Content: View>: View {
+        @ViewBuilder let content: Content
+        @State private var dragOffset: CGFloat = 0
+        @State private var availableWidth: CGFloat = 0
+        @State private var contentWidth: CGFloat = 0
+
+        init(@ViewBuilder content: () -> Content) {
+            self.content = content()
+        }
+
+        var body: some View {
+            GeometryReader { proxy in
+                HStack(spacing: 5) {
+                    content
+                }
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(.vertical, 1)
+                .background {
+                    GeometryReader { contentProxy in
+                        Color.clear
+                            .onAppear { contentWidth = contentProxy.size.width }
+                            .onChange(of: contentProxy.size.width) { _, width in
+                                contentWidth = width
+                            }
+                    }
+                }
+                .offset(x: self.clampedOffset(0, availableWidth: proxy.size.width))
+                .gesture(
+                    DragGesture(minimumDistance: 1)
+                        .onChanged { value in
+                        dragOffset = self.clampedOffset(
+                                dragOffset + value.translation.width,
+                                availableWidth: proxy.size.width
+                            )
+                        }
+                )
+                .onAppear { availableWidth = proxy.size.width }
+                .onChange(of: proxy.size.width) { _, width in
+                    availableWidth = width
+                dragOffset = self.clampedOffset(dragOffset, availableWidth: width)
+                }
+            }
+            .frame(height: 30)
+            .clipped()
+        }
+
+        private func clampedOffset(
+            _ offset: CGFloat,
+            availableWidth: CGFloat
+        ) -> CGFloat {
+            let overflow = max(0, contentWidth - availableWidth)
+            return min(0, max(-overflow, offset))
+        }
+    }
+
     private func sourceSystemImage(_ source: String?) -> String {
         source == "微信公众号" ? "person.2" : "doc.text"
-    }
+}
 
 }

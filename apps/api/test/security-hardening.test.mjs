@@ -46,6 +46,15 @@ test('production authentication has no known default secret or administrator pas
   assert.match(bootstrap, /requireConfiguredAdminCredentials|ADMIN_PASSWORD/);
 });
 
+test('MCP client bootstrap requires an explicit strong owner password', () => {
+  const script = read('src/scripts/create-mcp-client.ts');
+
+  assert.doesNotMatch(script, /change-me-now/);
+  assert.match(script, /--owner-password/);
+  assert.match(script, /MCP_OWNER_PASSWORD/);
+  assert.match(script, /password\.length < 12/);
+});
+
 test('login route applies a login-specific rate-limit gate before password verification', () => {
   const route = read('src/routes/auth.ts');
   const login = route.match(/authRoutes\.post\('\/login'[\s\S]*?(?=authRoutes\.)/)?.[0];

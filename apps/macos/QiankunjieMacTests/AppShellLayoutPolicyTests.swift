@@ -25,4 +25,16 @@ struct AppShellLayoutPolicyTests {
 
         #expect(layout == .listDetail(isReaderPrimary: true))
     }
+
+    @Test func 设置和管理员设置都合并中栏和阅读栏() {
+        let policy = AppShellLayoutPolicy(threeColumnMinimumWidth: 900)
+
+        let wideLayout = policy.layout(availableWidth: 1000, selectedArticleID: nil, destination: .settings)
+        let narrowLayout = policy.layout(availableWidth: 640, selectedArticleID: nil, destination: .settings)
+        let adminLayout = policy.layout(availableWidth: 1000, selectedArticleID: nil, destination: .admin)
+
+        #expect(wideLayout == .settings)
+        #expect(narrowLayout == .settings)
+        #expect(adminLayout == .settings)
+    }
 }

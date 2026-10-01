@@ -82,9 +82,13 @@ public struct DefaultAuthClient: AuthClient {
     }
 
     public func session(accessToken: String) async throws -> AuthenticatedUser {
-        let response: SessionEnvelope = try await apiClient.send(
+        let response: SessionEnvelope = try await sendWithLegacyFallback(
             .get(
                 "macos/auth/session",
+                headers: ["Authorization": "Bearer \(accessToken)"]
+            ),
+            fallback: .get(
+                "extension/auth/session",
                 headers: ["Authorization": "Bearer \(accessToken)"]
             ),
             authenticated: false

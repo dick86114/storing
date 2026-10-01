@@ -496,6 +496,23 @@ private extension AuthDevice {
 
     #expect(!succeeded)
     #expect(model.user == nil)
-    #expect(model.errorMessage == "用户名或密码错误")
+    #expect(model.errorMessage == "用户名或密码不正确，请检查后重试")
     #expect(!model.isSubmitting)
+}
+
+@Test @MainActor func 认证模型登录限流显示友好提示() async {
+    let repository = AuthRepository(
+        client: 模拟认证客户端(loginResult: .failure(.rateLimited)),
+        store: 内存会话存储()
+    )
+    let model = AuthModel(repository: repository)
+
+    let succeeded = await model.login(
+        username: "admin",
+        password: "test-only-password",
+        device: .fixture()
+    )
+
+    #expect(!succeeded)
+    #expect(model.errorMessage == "登录尝试过于频繁，请稍后再试")
 }

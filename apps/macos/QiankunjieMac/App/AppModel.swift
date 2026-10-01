@@ -13,8 +13,7 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
     case archive
     case published
     case collect
-    case tasks
-    case search
+    case admin
     case settings
 
     var title: String {
@@ -23,9 +22,8 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
         case .favorites: "收藏"
         case .archive: "归档"
         case .published: "已发布"
-        case .collect: "收集"
-        case .tasks: "任务"
-        case .search: "搜索"
+        case .collect: "采集"
+        case .admin: "管理员设置"
         case .settings: "设置"
         }
     }
@@ -37,8 +35,7 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
         case .archive: "archivebox"
         case .published: "globe"
         case .collect: "plus.rectangle.on.rectangle"
-        case .tasks: "checklist"
-        case .search: "magnifyingglass"
+        case .admin: "shield.lefthalf.filled"
         case .settings: "gearshape"
         }
     }
@@ -49,12 +46,65 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
         case .favorites: .favorites
         case .archive: .archive
         case .published: .published
-        case .collect, .tasks, .search, .settings: nil
+        case .collect, .admin, .settings: nil
         }
     }
 
     var requiresAuthentication: Bool {
-        [.inbox, .favorites, .archive].contains(self)
+        [.inbox, .favorites, .archive, .admin].contains(self)
+    }
+
+    var isAdminOnly: Bool {
+        self == .admin
+    }
+
+    static var sidebarDestinations: [AppDestination] {
+        allCases.filter { $0.libraryView != nil }
+    }
+}
+
+enum SettingsTool: String, CaseIterable, Hashable, Identifiable, Sendable {
+    case myMCP
+    case categories
+    case resetPassword
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .myMCP: "我的 MCP"
+        case .categories: "分类管理"
+        case .resetPassword: "重置密码"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .myMCP: "point.3.connected.trianglepath.dotted"
+        case .categories: "folder"
+        case .resetPassword: "lock.rotation"
+        }
+    }
+}
+
+enum AdminSettingsTab: String, CaseIterable, Identifiable, Sendable {
+    case users
+    case mcp
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .users: "用户管理"
+        case .mcp: "MCP 管理"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .users: "person.3"
+        case .mcp: "key.horizontal"
+        }
     }
 }
 
@@ -63,17 +113,20 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
 final class AppModel {
     let authModel: AuthModel
     let collectAPIClient: APIClient
+    let readerAPIClient: APIClient
     let settingsModel: SettingsModel
     let shortcutSettings: GlobalShortcutSettings
     let readerPositionStore: any ReaderPositionStoring
     private(set) var libraryModel: LibraryModel
     private(set) var collectModel: CollectModel
+    let searchModel: LibraryModel
 
     var user: AuthenticatedUser?
     var destination: AppDestination = .published
     var selectedArticleID: Int?
     var selectedReaderSelection: ReaderSelection?
     var isLoginPresented = false
+    var isSearchPresented = false
 
     init(
         authModel: AuthModel = AuthModel(repository: AuthRepository()),
@@ -95,6 +148,13 @@ final class AppModel {
         }
         let collectAPIClient = APIClient(tokenProvider: authModel.repository)
         self.collectAPIClient = collectAPIClient
+        self.readerAPIClient = APIClient(tokenProvider: authModel.repository)
+        self.searchModel = LibraryModel(
+            repository: LibraryRepository(
+                apiClient: APIClient(tokenProvider: authModel.repository)
+            ),
+            cache: EmptyLibraryCache()
+        )
         self.shortcutSettings = GlobalShortcutSettings(defaults: shortcutDefaults)
         self.readerPositionStore = readerPositionStore
         let settingsModel = SettingsModel(
@@ -136,6 +196,7 @@ final class AppModel {
     }
 
     func presentLogin() {
+        authModel.clearError()
         isLoginPresented = true
     }
 
@@ -143,21 +204,53 @@ final class AppModel {
         isLoginPresented = false
     }
 
+    func toggleSearch() {
+        if isSearchPresented {
+            closeSearch()
+        } else {
+            openSearch()
+        }
+    }
+
+    func openSearch() {
+        isSearchPresented = true
+        selectArticle(nil)
+    }
+
+    func closeSearch() {
+        isSearchPresented = false
+        selectArticle(nil)
+    }
+
+    func selectSearchArticle(_ article: ArticleCard) {
+        selectedArticleID = article.id
+        selectedReaderSelection = ReaderSelection(
+            articleID: article.id,
+            publicID: article.publicID,
+            isGuest: !isAuthenticated
+        )
+    }
+
     func selectDestination(_ destination: AppDestination) {
+        if destination.isAdminOnly, user?.role != "admin" {
+            return
+        }
         guard destination != self.destination else {
             return
         }
 
         self.destination = destination
         selectArticle(nil)
-        if destination == .collect || destination == .tasks {
+        if destination == .collect {
             Task {
                 await collectModel.refreshJobs()
             }
         } else if let view = destination.libraryView {
             libraryModel.select(view: view)
-            Task {
-                await libraryModel.load(reset: true)
+            if isAuthenticated || view == .published {
+                Task {
+                    await libraryModel.load(reset: true)
+                }
             }
         }
     }
@@ -200,6 +293,11 @@ final class AppModel {
         let previousLibraryUserID = libraryModel.userID
         user = authModel.user
         selectArticle(nil)
+        isSearchPresented = false
+        searchModel.prepareUser(
+            userID: user?.id,
+            view: .inbox
+        )
         readerPositionStore.prepareUser(userID: user?.id)
         destination = user == nil ? .published : .inbox
         libraryModel.prepareUser(

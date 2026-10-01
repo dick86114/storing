@@ -7,6 +7,9 @@ import SwiftUI
 struct ReaderPaneView: View {
     let selection: ReaderSelection?
     let userID: Int?
+    let appFont: AppFontPreference
+    let readerContentWidth: ReaderContentWidthPreference
+    let onReaderContentWidthChange: (ReaderContentWidthPreference) -> Void
     let positionStore: any ReaderPositionStoring
     let networkClient: any ReaderNetworkClient
     let onClose: () -> Void
@@ -14,11 +17,15 @@ struct ReaderPaneView: View {
 
     @State private var model: ReaderModel
     @State private var pendingAction: ReaderArticleAction?
+    @State private var selectedImageURL: URL?
     @Environment(\.colorScheme) private var colorScheme
 
     init(
         selection: ReaderSelection?,
         userID: Int?,
+        appFont: AppFontPreference = .standard,
+        readerContentWidth: ReaderContentWidthPreference = .normal,
+        onReaderContentWidthChange: @escaping (ReaderContentWidthPreference) -> Void = { _ in },
         positionStore: any ReaderPositionStoring,
         networkClient: any ReaderNetworkClient = APIClient(),
         onClose: @escaping () -> Void,
@@ -26,6 +33,9 @@ struct ReaderPaneView: View {
     ) {
         self.selection = selection
         self.userID = userID
+        self.appFont = appFont
+        self.readerContentWidth = readerContentWidth
+        self.onReaderContentWidthChange = onReaderContentWidthChange
         self.positionStore = positionStore
         self.networkClient = networkClient
         self.onClose = onClose
@@ -56,6 +66,15 @@ struct ReaderPaneView: View {
         .onChange(of: userID, initial: true) { _, newValue in
             model.prepareUser(userID: newValue)
         }
+        .overlay {
+            if let selectedImageURL {
+                ImageZoomOverlay(url: selectedImageURL) {
+                    self.selectedImageURL = nil
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.16), value: selectedImageURL)
         .task(id: selection) {
             if let selection {
                 await model.open(selection)
@@ -67,14 +86,27 @@ struct ReaderPaneView: View {
         VStack(spacing: 0) {
             header(article)
             Divider()
-            ArticleActionBar(model: model, isGuest: selection?.isGuest == true) { action in
+            ArticleActionBar(
+                model: model,
+                isGuest: selection?.isGuest == true,
+                contentWidth: readerContentWidth,
+                onContentWidthChange: onReaderContentWidthChange
+            ) { action in
                 requestAction(action)
             }
             Divider()
 
+            if
+                let aiSummary = article.aiSummary?.trimmingCharacters(in: .whitespacesAndNewlines),
+                !aiSummary.isEmpty
+            {
+                ReaderAISummaryCard(summary: aiSummary)
+                Divider()
+            }
+
             if let actionErrorMessage = model.actionErrorMessage {
                 Text(actionErrorMessage)
-                    .font(QiankunjieTypography.labelMedium)
+                    .qiankunjieFont(.labelMedium)
                     .foregroundStyle(
                         colorScheme == .dark
                             ? QiankunjieColors.darkError
@@ -91,11 +123,20 @@ struct ReaderPaneView: View {
                 html: model.displayHTML,
                 contentToken: model.contentToken,
                 savedReadingState: model.savedReadingState,
-                baseURL: article.originalURL.flatMap(URL.init(string:))
+                baseURL: article.originalURL.flatMap(URL.init(string:)),
+                displayStyle: ReaderContentStyle(
+                    font: appFont,
+                    contentWidth: readerContentWidth,
+                    colorScheme: colorScheme
+                )
             ) { state, contentToken in
                 model.updateReadingState(state, contentToken: contentToken)
+            } onImageSelected: { url in
+                selectedImageURL = url
             }
+            .frame(minHeight: 0)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
         }
         .confirmationDialog(
             pendingAction?.confirmationTitle ?? "",
@@ -119,11 +160,46 @@ struct ReaderPaneView: View {
         }
     }
 
+    private func aiSummaryCard(_ summary: String) -> some View {
+        let accent = QiankunjieColors.accent(for: colorScheme)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(accent)
+
+                Text("AI 摘要")
+                    .qiankunjieFont(.labelLarge)
+                    .foregroundStyle(accent)
+            }
+
+            Text(summary)
+                .qiankunjieFont(.bodyMedium)
+                .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(accent.opacity(0.08))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(accent.opacity(0.18))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
     private func header(_ article: ReaderArticle) -> some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
                 Text(article.title ?? "未命名文章")
-                    .font(QiankunjieTypography.headlineSmall)
+                    .qiankunjieFont(.headlineSmall)
                     .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
                     .lineLimit(2)
 
@@ -135,19 +211,19 @@ struct ReaderPaneView: View {
                     }
                     Text(statusText(for: article))
                 }
-                .font(QiankunjieTypography.labelMedium)
+                .qiankunjieFont(.labelMedium)
                 .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
 
                 metadataRow(label: "分类", value: article.category?.name ?? article.aiCategory ?? "未分类")
 
                 HStack(alignment: .top, spacing: 8) {
                     Text("标签")
-                        .font(QiankunjieTypography.labelMedium)
+                        .qiankunjieFont(.labelMedium)
                         .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
 
                     if article.aiTags.isEmpty {
                         Text("无标签")
-                            .font(QiankunjieTypography.labelMedium)
+                            .qiankunjieFont(.labelMedium)
                             .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                     } else {
                         LazyVGrid(
@@ -157,7 +233,7 @@ struct ReaderPaneView: View {
                         ) {
                             ForEach(article.aiTags, id: \.self) { tag in
                                 Text(tag)
-                                    .font(QiankunjieTypography.labelMedium)
+                                    .qiankunjieFont(.labelMedium)
                                     .lineLimit(1)
                                     .padding(.horizontal, 7)
                                     .padding(.vertical, 2)
@@ -206,7 +282,7 @@ struct ReaderPaneView: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
-        .font(QiankunjieTypography.labelMedium)
+        .qiankunjieFont(.labelMedium)
         .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
     }
 
@@ -228,7 +304,7 @@ struct ReaderPaneView: View {
                         : QiankunjieColors.lightError
                 )
             Text(message)
-                .font(QiankunjieTypography.bodyMedium)
+                .qiankunjieFont(.bodyMedium)
                 .multilineTextAlignment(.center)
             Button("重试") {
                 guard let selection else {
@@ -286,6 +362,114 @@ struct ReaderPaneView: View {
             if model.actionErrorMessage == nil {
                 onLibraryDidChange()
             }
+        }
+    }
+}
+
+private struct ReaderAISummaryCard: View {
+    let summary: String
+    @State private var isExpanded = true
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let accent = QiankunjieColors.accent(for: colorScheme)
+
+        VStack(spacing: 0) {
+            Button {
+                withAnimation(.easeOut(duration: 0.18)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(accent)
+
+                    Text("AI 摘要")
+                        .qiankunjieFont(.labelLarge)
+                        .foregroundStyle(accent)
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                        .rotationEffect(.degrees(isExpanded ? 0 : -90))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isExpanded ? "收起 AI 摘要" : "展开 AI 摘要")
+
+            if isExpanded {
+                Text(summary)
+                    .qiankunjieFont(.bodyMedium)
+                    .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+                    .lineSpacing(4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 12)
+            }
+        }
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(accent.opacity(0.08))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(accent.opacity(0.18))
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+}
+
+private struct ImageZoomOverlay: View {
+    let url: URL
+    let onClose: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.black.opacity(0.86)
+                .ignoresSafeArea()
+                .onTapGesture(perform: onClose)
+
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFit()
+                default:
+                    VStack(spacing: 10) {
+                        ProgressView()
+                            .controlSize(.large)
+                        Text("正在加载图片")
+                            .font(.callout)
+                            .foregroundStyle(.white.opacity(0.72))
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(32)
+
+            Button {
+                onClose()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(colorScheme == .dark ? .white : .black)
+                    .frame(width: 30, height: 30)
+                    .background(.white.opacity(0.9), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.cancelAction)
+            .padding(18)
+            .help("关闭图片预览")
         }
     }
 }

@@ -29,7 +29,7 @@ struct CollectTasksView: View {
 
             if let message = model.refreshErrorMessage ?? model.actionErrorMessage {
                 Text(message)
-                    .font(QiankunjieTypography.labelMedium)
+                    .qiankunjieFont(.labelMedium)
                     .foregroundStyle(
                         colorScheme == .dark
                             ? QiankunjieColors.darkError
@@ -82,7 +82,7 @@ struct CollectTasksView: View {
     private var toolbar: some View {
         HStack(spacing: 10) {
             Text("采集任务")
-                .font(QiankunjieTypography.headlineSmall)
+                .qiankunjieFont(.headlineSmall)
                 .foregroundStyle(QiankunjieColors.onBackground(for: colorScheme))
 
             Spacer()
@@ -150,7 +150,7 @@ struct CollectTasksView: View {
     }
 
     private var taskList: some View {
-        ScrollView {
+        ThinScrollView {
             LazyVStack(spacing: 8) {
                 ForEach(model.jobs, id: \.id) { job in
                     CollectJobRow(
@@ -203,7 +203,7 @@ struct CollectTasksView: View {
         VStack(spacing: 10) {
             ProgressView()
             Text("正在加载采集任务")
-                .font(QiankunjieTypography.bodyMedium)
+                .qiankunjieFont(.bodyMedium)
                 .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -219,7 +219,7 @@ struct CollectTasksView: View {
         ContentUnavailableView(
             "暂无采集任务",
             systemImage: "tray",
-            description: Text("在收集页提交公开链接后，任务会显示在这里")
+            description: Text("在采集页提交公开链接后，任务会显示在这里")
         )
     }
 
@@ -234,7 +234,7 @@ struct CollectTasksView: View {
                 )
 
             Text(model.refreshErrorMessage ?? "加载采集任务失败")
-                .font(QiankunjieTypography.bodyMedium)
+                .qiankunjieFont(.bodyMedium)
                 .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
                 .multilineTextAlignment(.center)
 

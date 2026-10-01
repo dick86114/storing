@@ -19,6 +19,10 @@ public final class AuthModel {
         user != nil
     }
 
+    public func clearError() {
+        errorMessage = nil
+    }
+
     public func restore() async {
         isRestoring = true
         defer { isRestoring = false }
@@ -72,15 +76,17 @@ public final class AuthModel {
 
         switch appError {
         case .network:
-            return "网络连接失败，请稍后重试"
+            return "无法连接服务器，请检查网络后重试"
         case .authenticationRequired:
-            return "登录已失效，请重新登录"
+            return "登录状态已过期，请重新登录"
         case .forbidden:
-            return "当前账号无权执行此操作"
+            return "当前账号暂时无法执行此操作"
+        case .rateLimited:
+            return "登录尝试过于频繁，请稍后再试"
         case .contentUnavailable:
-            return "请求的内容不可用"
+            return "请求的内容暂时不可用"
         case .invalidInput:
-            return "输入内容无效"
+            return "输入内容无效，请检查后重试"
         case .server:
             return "服务暂时不可用，请稍后重试"
         }
@@ -88,10 +94,10 @@ public final class AuthModel {
 
     private static func loginMessage(for error: any Error) -> String {
         guard let appError = error as? AppError else {
-            return "登录失败，请稍后重试"
+            return "登录暂时没有成功，请稍后重试"
         }
         if appError == .authenticationRequired {
-            return "用户名或密码错误"
+            return "用户名或密码不正确，请检查后重试"
         }
         return message(for: appError)
     }

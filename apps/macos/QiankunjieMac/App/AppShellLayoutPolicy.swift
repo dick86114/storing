@@ -3,6 +3,7 @@ import CoreGraphics
 enum AppShellLayout: Equatable, Sendable {
     case threeColumns
     case listDetail(isReaderPrimary: Bool)
+    case settings
 }
 
 struct AppShellLayoutPolicy: Sendable {
@@ -14,8 +15,13 @@ struct AppShellLayoutPolicy: Sendable {
 
     func layout(
         availableWidth: CGFloat,
-        selectedArticleID: Int?
+        selectedArticleID: Int?,
+        destination: AppDestination = .published
     ) -> AppShellLayout {
+        if destination == .settings || destination == .admin {
+            return .settings
+        }
+
         guard availableWidth >= threeColumnMinimumWidth else {
             return .listDetail(isReaderPrimary: selectedArticleID != nil)
         }

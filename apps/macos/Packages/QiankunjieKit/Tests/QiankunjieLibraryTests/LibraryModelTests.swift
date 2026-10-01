@@ -1,3 +1,4 @@
+import Foundation
 import QiankunjieCore
 import Testing
 @testable import QiankunjieLibrary
@@ -22,6 +23,21 @@ struct LibraryModelTests {
         #expect(!model.canLoadMore)
     }
 
+    @Test func 首页和加载更多都会移除重复文章ID() async {
+        let repository = 模拟资料库仓库(
+            pages: [
+                1: .fixture(ids: [1, 1, 2], page: 1, totalPages: 2),
+                2: .fixture(ids: [2, 3], page: 2, totalPages: 2),
+            ]
+        )
+        let model = LibraryModel(repository: repository, cache: EmptyLibraryCache())
+
+        await model.load(reset: true)
+        await model.loadMore()
+
+        #expect(model.articles.map(\.id) == [1, 2, 3])
+    }
+
     @Test func 搜索会提交并重置归档来源和页码() async throws {
         let repository = 模拟资料库仓库(
             pages: [1: .fixture(ids: [7], page: 1, totalPages: 1)]
@@ -43,6 +59,77 @@ struct LibraryModelTests {
         #expect(query.sort == .published)
         #expect(query.order == .asc)
         #expect(query.page == 1)
+    }
+
+    @Test func 各栏目排序与筛选可见性对齐网页端() {
+        let model = LibraryModel(repository: 模拟资料库仓库(), cache: EmptyLibraryCache())
+
+        #expect(model.availableSorts == [.collected, .published])
+        #expect(!model.isSourceFilterAvailable)
+        model.selectSource("少数派")
+        model.selectCategory(3)
+        #expect(model.source == nil)
+        #expect(model.categoryId == nil)
+
+        model.select(view: .favorites)
+        #expect(model.availableSorts == [.favorited, .collected, .published])
+        #expect(!model.isSourceFilterAvailable)
+
+        model.select(view: .archive)
+        #expect(model.availableSorts == [.archived, .collected, .published])
+        #expect(model.isSourceFilterAvailable)
+
+        model.select(view: .published)
+        #expect(model.availableSorts == [.published, .collected])
+        #expect(!model.isSourceFilterAvailable)
+    }
+
+    @Test func 归档分类筛选加载并可切换栏目清理() async throws {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [7], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+
+        await model.load(reset: true)
+
+        #expect(model.availableCategories.map(\.name) == ["AI 工程"])
+        #expect(model.availableCategories.first?.count == 2)
+
+        model.selectCategory(3)
+        await model.load(reset: true)
+        #expect(await repository.lastQuery?.categoryId == 3)
+
+        model.select(view: .inbox)
+        #expect(model.availableCategories.isEmpty)
+        #expect(model.categoryId == nil)
+    }
+
+    @Test func 来源统计解码兼容PostgreSQL时间() throws {
+        let data = Data(#"""
+        [{"source":"知新坊","count":2,"latestCreatedAt":"2026-08-31 14:00:17.446"}]
+        """#.utf8)
+
+        let sources = try JSONDecoder.qiankunjie.decode([LibrarySource].self, from: data)
+
+        #expect(sources.first?.source == "知新坊")
+        #expect(sources.first?.latestCreatedAt != nil)
+    }
+
+    @Test func 来源统计解码兼容毫秒时间() throws {
+        let data = Data(#"""
+        [{"source":"少数派","count":2,"latestCreatedAt":"2026-09-30T04:00:00.000Z"}]
+        """#.utf8)
+
+        let sources = try JSONDecoder.qiankunjie.decode([LibrarySource].self, from: data)
+
+        #expect(sources.first?.source == "少数派")
+        #expect(sources.first?.count == 2)
+        #expect(sources.first?.latestCreatedAt != nil)
     }
 
     @Test func 无网络时优先显示同作用域缓存并保留文章() async throws {
@@ -248,10 +335,17 @@ private actor 模拟资料库仓库: LibraryLoading {
     private var heldContinuations: [Int: CheckedContinuation<ArticleListPage, Error>] = [:]
     private(set) var requestedPages: [Int] = []
     private(set) var lastQuery: LibraryQuery?
+    private let categoryFilters: [LibraryCategoryFilter]
 
     init(pages: [Int: ArticleListPage] = [:], error: AppError? = nil) {
         self.pages = pages
         self.currentError = error
+        self.categoryFilters = [
+            LibraryCategoryFilter(
+                category: ArticleCategory(id: 3, name: "AI 工程", color: nil),
+                count: 2
+            ),
+        ]
     }
 
     func load(_ query: LibraryQuery) async throws -> ArticleListPage {
@@ -276,6 +370,10 @@ private actor 模拟资料库仓库: LibraryLoading {
 
     func loadSources(userID: Int?) async throws -> [LibrarySource] {
         [LibrarySource(source: "少数派", count: 2, latestCreatedAt: nil)]
+    }
+
+    func loadCategoryFilters(userID: Int?) async throws -> [LibraryCategoryFilter] {
+        categoryFilters
     }
 
     func setResult(_ page: ArticleListPage) {

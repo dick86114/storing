@@ -19,7 +19,10 @@ struct CollectView: View {
                     .fill(QiankunjieColors.outline(for: colorScheme))
                     .frame(height: 1)
 
-                currentJobView
+                CollectTasksView(
+                    model: model,
+                    onOpenArticle: onOpenArticle
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -37,7 +40,7 @@ struct CollectView: View {
     private var submitHeader: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("新建采集")
-                .font(QiankunjieTypography.headlineSmall)
+                .qiankunjieFont(.headlineSmall)
                 .foregroundStyle(QiankunjieColors.onBackground(for: colorScheme))
 
             HStack(spacing: 10) {
@@ -65,7 +68,7 @@ struct CollectView: View {
 
             if let message = model.inputErrorMessage {
                 Text(message)
-                    .font(QiankunjieTypography.bodyMedium)
+                    .qiankunjieFont(.bodyMedium)
                     .foregroundStyle(
                         colorScheme == .dark
                             ? QiankunjieColors.darkError
@@ -75,7 +78,7 @@ struct CollectView: View {
 
             if let message = model.submitErrorMessage {
                 Text(message)
-                    .font(QiankunjieTypography.bodyMedium)
+                    .qiankunjieFont(.bodyMedium)
                     .foregroundStyle(
                         colorScheme == .dark
                             ? QiankunjieColors.darkError
@@ -83,59 +86,9 @@ struct CollectView: View {
                     )
             }
 
-            if let message = model.refreshErrorMessage {
-                Text(message)
-                    .font(QiankunjieTypography.bodyMedium)
-                    .foregroundStyle(
-                        colorScheme == .dark
-                            ? QiankunjieColors.darkError
-                            : QiankunjieColors.lightError
-                    )
-            }
-
-            if let message = model.actionErrorMessage {
-                Text(message)
-                    .font(QiankunjieTypography.bodyMedium)
-                    .foregroundStyle(
-                        colorScheme == .dark
-                            ? QiankunjieColors.darkError
-                            : QiankunjieColors.lightError
-                    )
-            }
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
-    }
-
-    @ViewBuilder
-    private var currentJobView: some View {
-        if let job = model.currentJob {
-            ScrollView {
-                CollectJobRow(
-                    job: job,
-                    isMutating: model.mutatingJobIDs.contains(job.id),
-                    onOpenArticle: {
-                        onOpenArticle(job)
-                    },
-                    onRetry: {
-                        Task {
-                            await model.retry(jobID: job.id)
-                        }
-                    }
-                )
-                .padding(18)
-            }
-        } else {
-            VStack(spacing: 10) {
-                Image(systemName: "tray.and.arrow.down")
-                    .font(.title2)
-                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                Text("提交链接后会显示采集进度")
-                    .font(QiankunjieTypography.bodyMedium)
-                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
     }
 
     private func submit() {
@@ -162,17 +115,17 @@ struct CollectJobRow: View {
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(job.title ?? job.url)
-                        .font(QiankunjieTypography.titleMedium)
+                        .qiankunjieFont(.titleMedium)
                         .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
                         .lineLimit(2)
 
                     Text(displayStatus)
-                        .font(QiankunjieTypography.labelMedium)
+                        .qiankunjieFont(.labelMedium)
                         .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
 
                     if job.status == "failed" {
                         Text(job.errorSummary ?? job.error ?? "采集失败")
-                            .font(QiankunjieTypography.bodyMedium)
+                            .qiankunjieFont(.bodyMedium)
                             .foregroundStyle(
                                 colorScheme == .dark
                                     ? QiankunjieColors.darkError
@@ -182,7 +135,7 @@ struct CollectJobRow: View {
 
                         if let hint = job.errorHint {
                             Text(hint)
-                                .font(QiankunjieTypography.labelMedium)
+                                .qiankunjieFont(.labelMedium)
                                 .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                         }
                     }

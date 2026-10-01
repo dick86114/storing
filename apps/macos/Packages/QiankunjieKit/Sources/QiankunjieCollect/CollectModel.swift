@@ -488,6 +488,8 @@ public final class CollectModel {
             "登录已失效，请重新登录"
         case .forbidden:
             "当前账号无权使用采集功能"
+        case .rateLimited:
+            "操作过于频繁，请稍后再试"
         case .contentUnavailable:
             "采集任务不存在或已被删除"
         case .invalidInput:

@@ -103,15 +103,77 @@ public enum QiankunjieColors {
     }
 }
 
+public enum QiankunjieFontRole {
+    case headlineMedium
+    case headlineSmall
+    case titleLarge
+    case titleMedium
+    case bodyLarge
+    case bodyMedium
+    case labelLarge
+    case labelMedium
+}
+
+private struct QiankunjieAppFontScaleKey: EnvironmentKey {
+    public static let defaultValue: CGFloat = 1
+}
+
+public extension EnvironmentValues {
+    var qiankunjieAppFontScale: CGFloat {
+        get { self[QiankunjieAppFontScaleKey.self] }
+        set { self[QiankunjieAppFontScaleKey.self] = newValue }
+    }
+}
+
+public extension View {
+    func qiankunjieAppFontScale(_ scale: CGFloat) -> some View {
+        environment(\.qiankunjieAppFontScale, scale)
+    }
+
+    func qiankunjieFont(_ role: QiankunjieFontRole) -> some View {
+        modifier(QiankunjieFontModifier(role: role))
+    }
+}
+
+public struct QiankunjieFontModifier: ViewModifier {
+    let role: QiankunjieFontRole
+    @Environment(\.qiankunjieAppFontScale) private var scale
+
+    public func body(content: Content) -> some View {
+        content.font(QiankunjieTypography.font(role, scale: scale))
+    }
+}
+
 public enum QiankunjieTypography {
-    public static let headlineMedium = Font.system(.title, design: .default, weight: .semibold)
-    public static let headlineSmall = Font.system(.title2, design: .default, weight: .semibold)
-    public static let titleLarge = Font.system(.headline, design: .default, weight: .semibold)
-    public static let titleMedium = Font.system(.subheadline, design: .default, weight: .semibold)
-    public static let bodyLarge = Font.system(.body, design: .default)
-    public static let bodyMedium = Font.system(.callout, design: .default)
-    public static let labelLarge = Font.system(.callout, design: .default, weight: .semibold)
-    public static let labelMedium = Font.system(.caption, design: .default, weight: .medium)
+    public static func font(
+        _ role: QiankunjieFontRole,
+        scale: CGFloat
+    ) -> Font {
+        let adjustedScale = max(0.8, min(1.6, scale))
+
+        func sized(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+            .system(size: size * adjustedScale, weight: weight)
+        }
+
+        switch role {
+        case .headlineMedium:
+            return sized(28, weight: .semibold)
+        case .headlineSmall:
+            return sized(22, weight: .semibold)
+        case .titleLarge:
+            return sized(16, weight: .semibold)
+        case .titleMedium:
+            return sized(15, weight: .semibold)
+        case .bodyLarge:
+            return sized(17)
+        case .bodyMedium:
+            return sized(16)
+        case .labelLarge:
+            return sized(16, weight: .semibold)
+        case .labelMedium:
+            return sized(12, weight: .medium)
+        }
+    }
 }
 
 public struct QiankunjieTheme<Content: View>: View {

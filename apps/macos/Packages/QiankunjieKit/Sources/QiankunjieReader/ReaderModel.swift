@@ -502,6 +502,8 @@ public final class ReaderModel {
             "登录已失效，请重新登录"
         case .forbidden:
             "当前账号无权执行该操作"
+        case .rateLimited:
+            "操作过于频繁，请稍后再试"
         case .contentUnavailable:
             "请求的文章不可用"
         case .invalidInput:
