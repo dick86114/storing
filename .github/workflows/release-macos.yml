@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build unsigned arm64 DMG
+    name: Build ad-hoc signed arm64 DMG
     runs-on: xcode-27
     outputs:
       checkout_commit: ${{ steps.checkout.outputs.commit }}
