@@ -71,8 +71,8 @@ struct QiankunjieMacApp: App {
     var body: some Scene {
         WindowGroup(id: "main") {
             mainContent
-                .navigationTitle(QiankunjieMacMetadata.displayName)
-                .navigationSubtitle("v" + QiankunjieMacMetadata.appVersion)
+                // 窗口标题由 productionContent 里的 principal 工具条项提供，
+                // 这里不再设置 navigationTitle，避免出现两个标题。
         }
     }
 
@@ -98,8 +98,26 @@ struct QiankunjieMacApp: App {
         )
         .environment(model)
         .environment(model.settingsModel)
+        // 清空系统标题，窗口顶部只保留带版本号的自定义标题。
+        .navigationTitle("")
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                mainWindowTitle
+            }
+        }
         .task {
             await model.start()
+        }
+    }
+
+    /// 窗口标题：应用名保持原字号，版本号以更小的字贴在右侧同一行。
+    private var mainWindowTitle: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text(QiankunjieMacMetadata.displayName)
+                .font(.headline)
+            Text("v" + QiankunjieMacMetadata.appVersion)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 }
