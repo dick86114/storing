@@ -9,6 +9,8 @@ actor GatedUpdateService: UpdateServicing {
     private var progressHandler: ((Double?) -> Void)?
 
     private(set) var downloadCount = 0
+    private(set) var updateLogFetchCount = 0
+    var updateLog: String? = "测试更新日志"
 
     func checkForUpdate() async throws -> AppRelease? {
         release
@@ -36,10 +38,48 @@ actor GatedUpdateService: UpdateServicing {
         continuation = nil
     }
 
+    func fetchUpdateLog(for version: String) async throws -> String? {
+        updateLogFetchCount += 1
+        return updateLog
+    }
+
     func emitLateProgress(_ value: Double) {
         progressHandler?(value)
     }
 
+}
+
+actor ImmediateUpdateService: UpdateServicing {
+    private let release = AppRelease.fixture()
+
+    func checkForUpdate() async throws -> AppRelease? {
+        release
+    }
+
+    func download(
+        _ release: AppRelease,
+        progress: @escaping @Sendable (Double?) -> Void
+    ) async throws -> DownloadedUpdate {
+        progress(1)
+        return DownloadedUpdate(
+            version: release.version,
+            fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("immediate-update.dmg"),
+            sha256: String(repeating: "b", count: 64)
+        )
+    }
+
+    func fetchUpdateLog(for version: String) async throws -> String? {
+        "测试更新日志"
+    }
+}
+
+@MainActor
+final class UpdateInstallerSpy: UpdateInstalling {
+    private(set) var installCount = 0
+
+    func install(_ update: DownloadedUpdate) throws {
+        installCount += 1
+    }
 }
 
 extension AppRelease {
@@ -170,6 +210,89 @@ struct UpdateSettingsModelTests {
 
         #expect(model.phase == .downloaded)
         #expect(model.progress == 0.25)
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    @Test func 更新日志默认只读当前版本缓存() throws {
+        let (defaults, suiteName) = try temporaryDefaults()
+        let cache = UpdateLogCache(defaults: defaults)
+        cache.save("1.2.0 更新日志", for: "1.2.0")
+
+        let model = UpdateSettingsModel(
+            currentVersion: "1.2.0",
+            service: GatedUpdateService(),
+            defaults: defaults
+        )
+
+        #expect(model.updateLog == "1.2.0 更新日志")
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    @Test func 获取更新日志只在点击后刷新并按版本复用缓存() async throws {
+        let (defaults, suiteName) = try temporaryDefaults()
+        let service = GatedUpdateService()
+        let model = UpdateSettingsModel(
+            currentVersion: "1.2.0",
+            service: service,
+            defaults: defaults
+        )
+
+        #expect(model.updateLog == nil)
+        #expect(await service.updateLogFetchCount == 0)
+
+        await model.fetchUpdateLog()
+
+        #expect(model.updateLog == "测试更新日志")
+        #expect(await service.updateLogFetchCount == 1)
+
+        let cachedModel = UpdateSettingsModel(
+            currentVersion: "1.2.0",
+            service: service,
+            defaults: defaults
+        )
+
+        #expect(cachedModel.updateLog == "测试更新日志")
+        #expect(await service.updateLogFetchCount == 1)
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    @Test func 当前版本不匹配时更新日志缓存失效() throws {
+        let (defaults, suiteName) = try temporaryDefaults()
+        let cache = UpdateLogCache(defaults: defaults)
+        cache.save("1.1.0 更新日志", for: "1.1.0")
+
+        let model = UpdateSettingsModel(
+            currentVersion: "1.2.0",
+            service: GatedUpdateService(),
+            defaults: defaults
+        )
+
+        #expect(model.updateLog == nil)
+        #expect(cache.read(currentVersion: "1.1.0") == nil)
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    @Test func 安装完成后清空当前版本更新日志缓存() async throws {
+        let (defaults, suiteName) = try temporaryDefaults()
+        let cache = UpdateLogCache(defaults: defaults)
+        cache.save("1.2.0 更新日志", for: "1.2.0")
+        let installer = UpdateInstallerSpy()
+        let model = UpdateSettingsModel(
+            currentVersion: "1.2.0",
+            service: ImmediateUpdateService(),
+            defaults: defaults,
+            installer: installer,
+            terminateApplication: {}
+        )
+
+        await model.checkForUpdate()
+        #expect(model.phase == .downloaded)
+
+        model.install()
+
+        #expect(installer.installCount == 1)
+        #expect(model.updateLog == nil)
+        #expect(cache.read(currentVersion: "1.2.0") == nil)
         defaults.removePersistentDomain(forName: suiteName)
     }
 

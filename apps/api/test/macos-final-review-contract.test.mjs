@@ -41,3 +41,31 @@ test('macOS 更新安装前必须让用户确认或稍后处理', () => {
   assert.match(view, /立即退出并安装/);
   assert.match(view, /稍后/);
 });
+
+test('macOS 菜单检测更新会打开设置并触发更新检查', () => {
+  const root = read('apps/macos/QiankunjieMac/App/RootWindow.swift');
+  const settingsView = read('apps/macos/QiankunjieMac/Features/Settings/SettingsView.swift');
+  const settingsWindow = read('apps/macos/QiankunjieMac/Features/Settings/SettingsWindow.swift');
+  const updateView = read('apps/macos/QiankunjieMac/Features/Settings/UpdateSettingsView.swift');
+
+  assert.match(root, /model\.requestUpdateCheck\(\)/);
+  assert.match(root, /issues\/new/);
+  assert.match(settingsView, /updateCheckRequestID/);
+  assert.match(settingsWindow, /updateCheckRequestID/);
+  assert.match(updateView, /\.task\(id: updateCheckRequestID\)/);
+  assert.match(updateView, /await model\.checkForUpdate\(\)/);
+});
+
+test('macOS 设置合并应用与更新并将日志缓存绑定当前版本', () => {
+  const settingsWindow = read('apps/macos/QiankunjieMac/Features/Settings/SettingsWindow.swift');
+  const updateView = read('apps/macos/QiankunjieMac/Features/Settings/UpdateSettingsView.swift');
+  const updateLogCache = read('apps/macos/QiankunjieMac/Core/Updating/UpdateLogCache.swift');
+
+  assert.doesNotMatch(settingsWindow, /服务地址|环境/);
+  assert.match(settingsWindow, /Section\("应用与更新"\)/);
+  assert.match(updateView, /LabeledContent\("版本"/);
+  assert.match(updateView, /Text\("更新日志"\)/);
+  assert.match(updateView, /Button\("获取更新日志"\)/);
+  assert.match(updateView, /fetchUpdateLog/);
+  assert.match(updateLogCache, /currentVersion/);
+});

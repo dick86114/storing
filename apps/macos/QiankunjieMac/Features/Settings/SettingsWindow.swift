@@ -9,6 +9,7 @@ struct SettingsWindow: View {
     let menuBarController: MenuBarController?
     let isAuthenticated: Bool
     let onLogin: () -> Void
+    let updateCheckRequestID: Int
     private let updateService: (any UpdateServicing)?
     private let updateDefaults: UserDefaults
     @State private var shortcutRegistrationMessage: String?
@@ -20,6 +21,7 @@ struct SettingsWindow: View {
         menuBarController: MenuBarController?,
         isAuthenticated: Bool,
         onLogin: @escaping () -> Void,
+        updateCheckRequestID: Int = 0,
         updateService: (any UpdateServicing)? = nil,
         updateDefaults: UserDefaults = .standard
     ) {
@@ -28,6 +30,7 @@ struct SettingsWindow: View {
         self.menuBarController = menuBarController
         self.isAuthenticated = isAuthenticated
         self.onLogin = onLogin
+        self.updateCheckRequestID = updateCheckRequestID
         self.updateService = updateService
         self.updateDefaults = updateDefaults
         _shortcutRegistrationMessage = State(initialValue: nil)
@@ -35,16 +38,16 @@ struct SettingsWindow: View {
 
     var body: some View {
         Form {
-            applicationSection
-            Section("软件更新") {
+            Section("应用与更新") {
                 if let updateService {
                     UpdateSettingsView(
                         currentVersion: QiankunjieMacMetadata.appVersion,
                         service: updateService,
-                        defaults: updateDefaults
+                        defaults: updateDefaults,
+                        updateCheckRequestID: updateCheckRequestID
                     )
                 } else {
-                    UpdateSettingsView()
+                    UpdateSettingsView(updateCheckRequestID: updateCheckRequestID)
                 }
             }
             appearanceSection
@@ -67,14 +70,6 @@ struct SettingsWindow: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(WorkspacePalette.pageBackground(for: colorScheme))
         .navigationTitle("设置")
-    }
-
-    private var applicationSection: some View {
-        Section("应用信息") {
-            LabeledContent("版本", value: QiankunjieMacMetadata.appVersion)
-            LabeledContent("服务地址", value: model.serviceAddress)
-            LabeledContent("环境", value: model.environmentName)
-        }
     }
 
     private var appearanceSection: some View {

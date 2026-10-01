@@ -8,6 +8,82 @@ import Testing
 
 @MainActor
 struct MenuBarStateTests {
+    @Test func 右键菜单按固定顺序提供四项操作() {
+        let model = CollectModel(userID: 7)
+        let controller = MenuBarController(
+            model: model,
+            panel: QuickCollectPanelSpy(model: model),
+            hotKeys: HotKeyRegistrarSpy(),
+            observerCenter: ObserverCenterSpy(),
+            shortcut: .default
+        )
+
+        controller.start()
+
+        #expect(controller.statusMenuTitles == ["设置", "检测更新", "提交问题", "退出"])
+    }
+
+    @Test func 右键菜单操作调用对应回调() {
+        let model = CollectModel(userID: 7)
+        var events: [String] = []
+        let actions = MenuBarActions(
+            openSettings: { events.append("设置") },
+            checkForUpdates: { events.append("检测更新") },
+            reportIssue: { events.append("提交问题") },
+            quit: { events.append("退出") }
+        )
+        let controller = MenuBarController(
+            model: model,
+            panel: QuickCollectPanelSpy(model: model),
+            hotKeys: HotKeyRegistrarSpy(),
+            observerCenter: ObserverCenterSpy(),
+            shortcut: .default,
+            actions: actions
+        )
+
+        controller.start()
+        for index in 0..<controller.statusMenuTitles.count {
+            #expect(controller.performStatusMenuAction(at: index))
+        }
+
+        #expect(events == ["设置", "检测更新", "提交问题", "退出"])
+    }
+
+    @Test func 关闭最后一个普通窗口后隐藏Dock() {
+        let mainWindow = NSWindow(
+            contentRect: .zero,
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        let anotherWindow = NSWindow(
+            contentRect: .zero,
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+
+        #expect(AppDelegate.shouldHideDock(
+            afterClosing: mainWindow,
+            otherVisibleWindows: []
+        ))
+        #expect(!AppDelegate.shouldHideDock(
+            afterClosing: mainWindow,
+            otherVisibleWindows: [anotherWindow]
+        ))
+    }
+
+    @Test func 关闭快速采集面板不会隐藏Dock() {
+        let panel = NSPanel(
+            contentRect: .zero,
+            styleMask: [.titled, .closable, .utilityWindow],
+            backing: .buffered,
+            defer: false
+        )
+
+        #expect(!AppDelegate.shouldHideDock(afterClosing: panel, otherVisibleWindows: []))
+    }
+
     @Test func 菜单栏和快捷键共享同一个快速采集面板() {
         let collectModel = CollectModel(userID: 7)
         let panel = QuickCollectPanelSpy(model: collectModel)

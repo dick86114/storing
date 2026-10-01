@@ -4,6 +4,10 @@ public protocol UpdateChecking: Sendable {
     func checkForUpdate() async throws -> AppRelease?
 }
 
+public protocol UpdateLogProviding: Sendable {
+    func fetchUpdateLog(for version: String) async throws -> String?
+}
+
 public protocol UpdateDownloading: Sendable {
     func download(
         _ release: AppRelease,

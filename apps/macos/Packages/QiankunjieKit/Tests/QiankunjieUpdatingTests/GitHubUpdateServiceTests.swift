@@ -95,6 +95,32 @@ extension AppRelease {
     #expect(release?.version == "1.3.0")
 }
 
+@Test func updateLogIsFetchedFromExactInstalledVersionTag() async throws {
+    let payload = Data("""
+    {"tag_name":"macos-v1.3.0","body":"## 更新日志\\n- 修复问题"}
+    """.utf8)
+    let network = MockUpdateNetwork([
+        .data(statusCode: 200, body: payload),
+    ])
+    let service = GitHubUpdateService.fixture(currentVersion: "1.3.0", network: network)
+
+    let log = try await service.fetchUpdateLog(for: "1.3.0")
+
+    #expect(log == "## 更新日志\n- 修复问题")
+    let requests = await network.requests
+    #expect(requests.count == 1)
+    #expect(requests[0].url?.absoluteString == "https://api.github.com/repos/dick86114/storing/releases/tags/macos-v1.3.0")
+}
+
+@Test func missingUpdateLogReturnsNil() async throws {
+    let network = MockUpdateNetwork([
+        .data(statusCode: 404, body: Data(#"{"message":"Not Found"}"#.utf8)),
+    ])
+    let service = GitHubUpdateService.fixture(currentVersion: "1.3.0", network: network)
+
+    #expect(try await service.fetchUpdateLog(for: "1.3.0") == nil)
+}
+
 @Test func githubAPIFailureFallsBackToAtomFeed() async throws {
     let atom = """
     <feed xmlns="http://www.w3.org/2005/Atom">

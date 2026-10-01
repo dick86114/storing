@@ -6,6 +6,20 @@ enum MenuBarState: Equatable {
     case authenticated
 }
 
+struct MenuBarActions {
+    let openSettings: () -> Void
+    let checkForUpdates: () -> Void
+    let reportIssue: () -> Void
+    let quit: () -> Void
+
+    @MainActor static let noop = MenuBarActions(
+        openSettings: {},
+        checkForUpdates: {},
+        reportIssue: {},
+        quit: {}
+    )
+}
+
 @MainActor
 protocol ObserverCentering: AnyObject {
     func addObserver(
@@ -44,8 +58,10 @@ public final class MenuBarController: NSObject {
     private let hotKeys: any HotKeyRegistering
     private let observerCenter: any ObserverCentering
     private let notifications: (any CollectNotificationObserving)?
+    private let actions: MenuBarActions
     private(set) var shortcut: GlobalShortcut
     private var statusItem: NSStatusItem?
+    private var statusMenu: NSMenu?
     private var observerToken: NSObjectProtocol?
     private var terminationObserverToken: NSObjectProtocol?
     private var isStarted = false
@@ -58,13 +74,15 @@ public final class MenuBarController: NSObject {
         hotKeys: any HotKeyRegistering,
         observerCenter: any ObserverCentering,
         shortcut: GlobalShortcut,
-        notifications: (any CollectNotificationObserving)? = nil
+        notifications: (any CollectNotificationObserving)? = nil,
+        actions: MenuBarActions? = nil
     ) {
         self.model = model
         self.panel = panel
         self.hotKeys = hotKeys
         self.observerCenter = observerCenter
         self.notifications = notifications
+        self.actions = actions ?? .noop
         self.shortcut = shortcut
         super.init()
         refreshState()
@@ -74,7 +92,8 @@ public final class MenuBarController: NSObject {
         model: CollectModel,
         shortcut: GlobalShortcut = .default,
         onOpenMainWindow: @escaping @MainActor () -> Void,
-        notifications: (any CollectNotificationObserving)? = nil
+        notifications: (any CollectNotificationObserving)? = nil,
+        actions: MenuBarActions? = nil
     ) {
         let panel = QuickCollectPanel(
             model: model,
@@ -88,14 +107,16 @@ public final class MenuBarController: NSObject {
             },
             observerCenter: AppObserverCenter(),
             shortcut: shortcut,
-            notifications: notifications
+            notifications: notifications,
+            actions: actions
         )
     }
 
     convenience init(
         appModel: AppModel,
         shortcut: GlobalShortcut = .default,
-        onShowMainWindow: @escaping @MainActor () -> Void
+        onShowMainWindow: @escaping @MainActor () -> Void,
+        actions: MenuBarActions? = nil
     ) {
         let notificationService = CollectNotificationService(
             onOpenArticle: { [weak appModel] job in
@@ -111,7 +132,8 @@ public final class MenuBarController: NSObject {
             model: appModel.collectModel,
             shortcut: shortcut,
             onOpenMainWindow: onShowMainWindow,
-            notifications: notificationService
+            notifications: notificationService,
+            actions: actions
         )
     }
 
@@ -126,6 +148,8 @@ public final class MenuBarController: NSObject {
         item.button?.image = menuBarIcon
         item.button?.target = self
         item.button?.action = #selector(togglePanelFromStatusItem)
+        item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        statusMenu = makeStatusMenu()
         statusItem = item
 
         observerToken = observerCenter.addObserver(
@@ -162,6 +186,7 @@ public final class MenuBarController: NSObject {
             NSStatusBar.system.removeStatusItem(statusItem)
             self.statusItem = nil
         }
+        statusMenu = nil
         isStarted = false
         notifications?.stopObserving()
     }
@@ -172,6 +197,21 @@ public final class MenuBarController: NSObject {
         } else {
             panel.present(from: statusItem?.button)
         }
+    }
+
+    var statusMenuTitles: [String] {
+        statusMenu?.items.map(\.title) ?? []
+    }
+
+    @discardableResult
+    func performStatusMenuAction(at index: Int) -> Bool {
+        guard
+            let item = statusMenu?.item(at: index),
+            let action = item.action
+        else {
+            return false
+        }
+        return NSApp.sendAction(action, to: item.target, from: item)
     }
 
     @discardableResult
@@ -224,7 +264,52 @@ public final class MenuBarController: NSObject {
 
     @objc private func togglePanelFromStatusItem() {
         MainActor.assumeIsolated {
-            togglePanel()
+            if NSApp.currentEvent?.type == .rightMouseUp {
+                showStatusMenu()
+            } else {
+                togglePanel()
+            }
         }
+    }
+
+    private func makeStatusMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(statusMenuItem(title: "设置", action: #selector(openSettingsFromMenu)))
+        menu.addItem(statusMenuItem(title: "检测更新", action: #selector(checkForUpdatesFromMenu)))
+        menu.addItem(statusMenuItem(title: "提交问题", action: #selector(reportIssueFromMenu)))
+        menu.addItem(statusMenuItem(title: "退出", action: #selector(quitFromMenu)))
+        return menu
+    }
+
+    private func statusMenuItem(title: String, action: Selector) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        return item
+    }
+
+    private func showStatusMenu() {
+        panel.dismiss()
+        guard let button = statusItem?.button, let statusMenu else { return }
+        statusMenu.popUp(
+            positioning: nil,
+            at: NSPoint(x: 0, y: button.bounds.height + 4),
+            in: button
+        )
+    }
+
+    @objc private func openSettingsFromMenu() {
+        MainActor.assumeIsolated { actions.openSettings() }
+    }
+
+    @objc private func checkForUpdatesFromMenu() {
+        MainActor.assumeIsolated { actions.checkForUpdates() }
+    }
+
+    @objc private func reportIssueFromMenu() {
+        MainActor.assumeIsolated { actions.reportIssue() }
+    }
+
+    @objc private func quitFromMenu() {
+        MainActor.assumeIsolated { actions.quit() }
     }
 }

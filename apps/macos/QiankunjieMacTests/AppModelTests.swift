@@ -53,6 +53,20 @@ struct AppModelTests {
         #expect(!model.isLoginPresented)
     }
 
+    @Test func 菜单检测更新会递增更新检查请求() {
+        let model = AppModel.fixture(
+            user: nil,
+            destination: .published,
+            selectedArticleID: nil
+        )
+
+        #expect(model.updateCheckRequestID == 0)
+        model.requestUpdateCheck()
+        model.requestUpdateCheck()
+
+        #expect(model.updateCheckRequestID == 2)
+    }
+
     @Test func 游客可以打开受限资料库并由界面引导登录() async {
         let repository = 模拟资料库仓库()
         let model = AppModel.fixture(

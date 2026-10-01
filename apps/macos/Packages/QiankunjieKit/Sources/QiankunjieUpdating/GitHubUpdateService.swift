@@ -1,11 +1,14 @@
 import CryptoKit
 import Foundation
 
-public actor GitHubUpdateService: UpdateChecking, UpdateDownloading {
+public actor GitHubUpdateService: UpdateChecking, UpdateDownloading, UpdateLogProviding {
     private static let releasesURL = URL(
         string: "https://api.github.com/repos/dick86114/storing/releases?per_page=100"
     )!
     private static let atomURL = URL(string: "https://github.com/dick86114/storing/releases.atom")!
+    private static let releaseTagBaseURL = URL(
+        string: "https://api.github.com/repos/dick86114/storing/releases/tags"
+    )!
 
     private let currentVersion: String
     private let network: any UpdateNetworkClient
@@ -53,6 +56,33 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading {
             return Self.newestRelease(from: apiReleases, newerThan: currentVersion)
         }
         return try await fetchAtomRelease()
+    }
+
+    public func fetchUpdateLog(for version: String) async throws -> String? {
+        guard version.firstMatch(of: /^[0-9]+\.[0-9]+\.[0-9]+$/) != nil else {
+            throw UpdateServiceError.invalidRelease
+        }
+
+        var request = URLRequest(
+            url: Self.releaseTagBaseURL.appendingPathComponent("macos-v\(version)")
+        )
+        request.timeoutInterval = 30
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("Qiankunjie-macOS-updater", forHTTPHeaderField: "User-Agent")
+        let response = try await network.data(for: request)
+        if response.statusCode == 404 {
+            return nil
+        }
+        guard (200..<300).contains(response.statusCode) else {
+            throw UpdateServiceError.invalidResponse
+        }
+
+        struct GitHubRelease: Decodable {
+            let body: String?
+        }
+
+        let release = try JSONDecoder().decode(GitHubRelease.self, from: response.data)
+        return release.body?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     public func download(

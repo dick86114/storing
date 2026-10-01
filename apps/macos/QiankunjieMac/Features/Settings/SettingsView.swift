@@ -4,6 +4,7 @@ struct SettingsView: View {
     @Bindable var model: AppModel
     let menuBarController: MenuBarController?
     let onLogin: () -> Void
+    let updateCheckRequestID: Int
 
     @State private var path = NavigationPath()
 
@@ -14,7 +15,8 @@ struct SettingsView: View {
                 shortcutSettings: model.shortcutSettings,
                 menuBarController: menuBarController,
                 isAuthenticated: model.isAuthenticated,
-                onLogin: onLogin
+                onLogin: onLogin,
+                updateCheckRequestID: updateCheckRequestID
             )
             .navigationDestination(for: SettingsTool.self) { tool in
                 destination(for: tool)

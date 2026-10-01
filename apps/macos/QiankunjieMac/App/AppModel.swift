@@ -127,6 +127,7 @@ final class AppModel {
     var selectedReaderSelection: ReaderSelection?
     var isLoginPresented = false
     var isSearchPresented = false
+    private(set) var updateCheckRequestID = 0
 
     init(
         authModel: AuthModel = AuthModel(repository: AuthRepository()),
@@ -202,6 +203,10 @@ final class AppModel {
 
     func dismissLogin() {
         isLoginPresented = false
+    }
+
+    func requestUpdateCheck() {
+        updateCheckRequestID += 1
     }
 
     func toggleSearch() {
