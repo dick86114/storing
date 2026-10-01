@@ -115,6 +115,47 @@ struct UpdateSettingsModelTests {
         defaults.removePersistentDomain(forName: suiteName)
     }
 
+    @Test func 确认更新会自动下载并安装() async throws {
+        let (defaults, suiteName) = try temporaryDefaults()
+        let installer = UpdateInstallerSpy()
+        let model = UpdateSettingsModel(
+            currentVersion: "1.2.0",
+            service: ImmediateUpdateService(),
+            defaults: defaults,
+            installer: installer,
+            terminateApplication: {}
+        )
+
+        await model.checkForUpdate()
+        #expect(model.pendingUpdate?.version == "1.3.0")
+
+        await model.confirmUpdate()
+
+        #expect(model.pendingUpdate == nil)
+        #expect(installer.installCount == 1)
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    @Test func 关闭更新确认窗不会安装() async throws {
+        let (defaults, suiteName) = try temporaryDefaults()
+        let installer = UpdateInstallerSpy()
+        let model = UpdateSettingsModel(
+            currentVersion: "1.2.0",
+            service: ImmediateUpdateService(),
+            defaults: defaults,
+            installer: installer,
+            terminateApplication: {}
+        )
+
+        await model.checkForUpdate()
+        model.dismissUpdatePrompt()
+
+        #expect(model.pendingUpdate == nil)
+        #expect(model.phase == .available)
+        #expect(installer.installCount == 0)
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
     @Test func downloadIgnoresConcurrentCallAndLocksMirrorControls() async throws {
         let (defaults, suiteName) = try temporaryDefaults()
         defaults.set("https://ghfast.top", forKey: "update.mirrorBase")

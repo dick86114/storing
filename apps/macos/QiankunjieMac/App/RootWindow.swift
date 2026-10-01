@@ -281,18 +281,18 @@ struct RootWindow: View {
         let controller = MenuBarController(
             appModel: model,
             shortcut: model.shortcutSettings.shortcut,
-            onShowMainWindow: showMainWindow,
+            onShowMainWindow: { showMainWindow() },
             actions: MenuBarActions(
                 openSettings: {
-                    model.selectDestination(.settings)
-                    showMainWindow()
+                    showMainWindow(destination: .settings)
                 },
                 checkForUpdates: {
-                    model.selectDestination(.settings)
-                    model.requestUpdateCheck()
-                    showMainWindow()
+                    showMainWindow(destination: .settings) {
+                        model.requestUpdateCheck()
+                    }
                 },
                 reportIssue: openIssueReport,
+                about: showAboutPanel,
                 quit: {
                     NSApp.terminate(nil)
                 }
@@ -302,15 +302,33 @@ struct RootWindow: View {
         menuBarController = controller
     }
 
-    private func showMainWindow() {
+    private func showMainWindow(
+        destination: AppDestination? = nil,
+        afterWindowShown: (() -> Void)? = nil
+    ) {
         NSApp.setActivationPolicy(.regular)
         openWindow(id: "main")
         NSApp.activate(ignoringOtherApps: true)
         DispatchQueue.main.async {
+            // 新窗口是异步创建的，等窗口真正出现后再落导航位置，
+            // 否则会被启动阶段的登录状态同步重置回首页。
+            if let destination {
+                model.selectDestination(destination)
+            }
             let mainWindow = NSApp.windows.first { !($0 is NSPanel) }
             mainWindow?.deminiaturize(nil)
             mainWindow?.makeKeyAndOrderFront(nil)
+            afterWindowShown?()
         }
+    }
+
+    private func showAboutPanel() {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationName: QiankunjieMacMetadata.displayName,
+            .applicationVersion: "v" + QiankunjieMacMetadata.appVersion,
+            .version: "",
+        ])
     }
 
     private func openIssueReport() {

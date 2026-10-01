@@ -72,6 +72,7 @@ struct QiankunjieMacApp: App {
         WindowGroup(id: "main") {
             mainContent
                 .navigationTitle(QiankunjieMacMetadata.displayName)
+                .navigationSubtitle("v" + QiankunjieMacMetadata.appVersion)
         }
     }
 

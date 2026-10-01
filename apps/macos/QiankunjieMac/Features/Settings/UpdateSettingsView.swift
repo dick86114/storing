@@ -1,4 +1,5 @@
 import AppKit
+import QiankunjieDesignSystem
 import QiankunjieUpdating
 import SwiftUI
 
@@ -51,6 +52,8 @@ final class UpdateSettingsModel {
 
     private(set) var phase: UpdatePhase = .idle
     private(set) var release: AppRelease?
+    /// 检测到新版本后待用户确认的更新；非 nil 时界面弹出更新确认窗。
+    private(set) var pendingUpdate: AppRelease?
     private(set) var downloadedUpdate: DownloadedUpdate?
     private(set) var progress: Double?
     private(set) var updateLog: String?
@@ -161,6 +164,7 @@ final class UpdateSettingsModel {
                 phase = .upToDate
             } else {
                 phase = .available
+                pendingUpdate = checkedRelease
             }
         } catch {
             phase = .failed(Self.failureMessage(error))
@@ -190,6 +194,19 @@ final class UpdateSettingsModel {
         } catch {
             updateLogErrorText = "获取更新日志失败，请稍后重试"
         }
+    }
+
+    /// 用户在更新确认窗里确认更新：关掉确认窗并自动完成下载与安装。
+    func confirmUpdate() async {
+        pendingUpdate = nil
+        await download()
+        guard phase == .downloaded else { return }
+        install()
+    }
+
+    /// 用户关闭更新确认窗，保留下载入口但不自动安装。
+    func dismissUpdatePrompt() {
+        pendingUpdate = nil
     }
 
     func download() async {
@@ -279,10 +296,58 @@ final class UpdateSettingsModel {
     }
 }
 
+/// 检测到新版本后的确认窗：展示该版本的更新日志，确认后自动下载安装。
+private struct UpdatePromptView: View {
+    let release: AppRelease
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("发现新版本 v\(release.version)")
+                .qiankunjieFont(.titleMedium)
+                .foregroundStyle(QiankunjieColors.onBackground(for: colorScheme))
+
+            if releaseNotes.isEmpty {
+                Text("本次更新没有提供说明。")
+                    .qiankunjieFont(.bodyMedium)
+                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+            } else {
+                ScrollView {
+                    Text(releaseNotes)
+                        .qiankunjieFont(.bodyMedium)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 280)
+            }
+
+            HStack {
+                Spacer()
+                Button("稍后") {
+                    onCancel()
+                }
+                Button("立即更新") {
+                    onConfirm()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 480)
+        .background(QiankunjieColors.background(for: colorScheme))
+    }
+
+    private var releaseNotes: String {
+        (release.releaseNotes ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 struct UpdateSettingsView: View {
     @State private var model: UpdateSettingsModel
     let updateCheckRequestID: Int
-    @State private var isInstallConfirmationPresented = false
 
     init(
         currentVersion: String = QiankunjieMacMetadata.appVersion,
@@ -307,10 +372,25 @@ struct UpdateSettingsView: View {
     }
 
     var body: some View {
-        LabeledContent("版本", value: QiankunjieMacMetadata.appVersion)
+        LabeledContent("版本", value: "v" + QiankunjieMacMetadata.appVersion)
             .task(id: updateCheckRequestID) {
                 guard updateCheckRequestID > 0 else { return }
                 await model.checkForUpdate()
+            }
+            .sheet(isPresented: updatePromptBinding) {
+                if let release = model.pendingUpdate {
+                    UpdatePromptView(
+                        release: release,
+                        onConfirm: {
+                            Task {
+                                await model.confirmUpdate()
+                            }
+                        },
+                        onCancel: {
+                            model.dismissUpdatePrompt()
+                        }
+                    )
+                }
             }
 
         updateLogSection
@@ -353,6 +433,17 @@ struct UpdateSettingsView: View {
                 .font(.footnote)
                 .foregroundStyle(.red)
         }
+    }
+
+    private var updatePromptBinding: Binding<Bool> {
+        Binding(
+            get: { model.pendingUpdate != nil },
+            set: { isPresented in
+                if !isPresented {
+                    model.dismissUpdatePrompt()
+                }
+            }
+        )
     }
 
     private var updateLogSection: some View {
@@ -400,9 +491,9 @@ struct UpdateSettingsView: View {
             if let release = model.release {
                 VStack(alignment: .leading, spacing: 8) {
                     LabeledContent("新版本", value: release.version)
-                    Button("下载更新") {
+                    Button("下载并安装") {
                         Task {
-                            await model.download()
+                            await model.confirmUpdate()
                         }
                     }
                 }
@@ -422,18 +513,7 @@ struct UpdateSettingsView: View {
             }
         case .downloaded:
             VStack(alignment: .leading, spacing: 8) {
-                Text("SHA-256 校验通过")
-                Button("安装更新") {
-                    isInstallConfirmationPresented = true
-                }
-                .alert("更新已下载并通过校验", isPresented: $isInstallConfirmationPresented) {
-                    Button("稍后", role: .cancel) {}
-                    Button("立即退出并安装") {
-                        model.install()
-                    }
-                } message: {
-                    Text("安装将退出乾坤戒，并在替换完成后自动重新打开。")
-                }
+                Text("SHA-256 校验通过，正在退出并安装")
             }
         case .readyToRelaunch:
             Text("正在退出应用并完成安装")

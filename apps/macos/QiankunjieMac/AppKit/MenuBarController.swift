@@ -10,12 +10,14 @@ struct MenuBarActions {
     let openSettings: () -> Void
     let checkForUpdates: () -> Void
     let reportIssue: () -> Void
+    let about: () -> Void
     let quit: () -> Void
 
     @MainActor static let noop = MenuBarActions(
         openSettings: {},
         checkForUpdates: {},
         reportIssue: {},
+        about: {},
         quit: {}
     )
 }
@@ -277,6 +279,7 @@ public final class MenuBarController: NSObject {
         menu.addItem(statusMenuItem(title: "设置", action: #selector(openSettingsFromMenu)))
         menu.addItem(statusMenuItem(title: "检测更新", action: #selector(checkForUpdatesFromMenu)))
         menu.addItem(statusMenuItem(title: "提交问题", action: #selector(reportIssueFromMenu)))
+        menu.addItem(statusMenuItem(title: "关于 乾坤戒", action: #selector(showAboutFromMenu)))
         menu.addItem(statusMenuItem(title: "退出", action: #selector(quitFromMenu)))
         return menu
     }
@@ -311,5 +314,9 @@ public final class MenuBarController: NSObject {
 
     @objc private func quitFromMenu() {
         MainActor.assumeIsolated { actions.quit() }
+    }
+
+    @objc private func showAboutFromMenu() {
+        MainActor.assumeIsolated { actions.about() }
     }
 }

@@ -40,6 +40,20 @@ struct AppModelTests {
         #expect(model.authModel.errorMessage == nil)
     }
 
+    @Test func 启动同步不会把用户主动打开的设置页拽回首页() async {
+        let model = AppModel.fixture(
+            user: nil,
+            destination: .published,
+            selectedArticleID: nil
+        )
+
+        // 模拟菜单栏打开设置：导航已指定，但登录恢复还在异步进行。
+        model.selectDestination(.settings)
+        await model.start()
+
+        #expect(model.destination == .settings)
+    }
+
     @Test func 游客可以打开设置界面() {
         let model = AppModel.fixture(
             user: nil,
