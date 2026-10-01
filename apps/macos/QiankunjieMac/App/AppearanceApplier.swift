@@ -9,13 +9,24 @@ import QiankunjieAuth
 @MainActor
 enum AppearanceApplier {
     static func apply(_ preference: AppearancePreference) {
-        let application = NSApplication.shared
-        application.appearance = preference.appKitAppearance
+        applyImmediately(preference)
         guard preference == .system else { return }
-        // 窗口自身的 appearance 优先级高于 NSApp，若不清理，之前强制过的窗口
-        // 会继续停留在旧外观。切回跟随系统时统一清掉。
+        // SwiftUI 会在同一帧里把 preferredColorScheme 落到窗口上，
+        // 再等一个渲染周期确认一次，避免窗口残留上一次的强制外观。
+        Task { @MainActor in
+            applyImmediately(preference)
+        }
+    }
+
+    private static func applyImmediately(_ preference: AppearancePreference) {
+        let application = NSApplication.shared
+        let appearance = preference.appKitAppearance
+        application.appearance = appearance
+        // SwiftUI 的 preferredColorScheme 只作用于它托管的窗口，菜单栏面板等
+        // 独立窗口需要自己同步。窗口自身的 appearance 优先级高于 NSApp，
+        // 所以每次都要显式写入；跟随系统时写 nil，窗口才会重新继承系统外观。
         for window in application.windows {
-            window.appearance = nil
+            window.appearance = appearance
         }
     }
 }
