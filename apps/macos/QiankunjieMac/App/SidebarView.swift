@@ -16,6 +16,10 @@ struct SidebarView: View {
     var body: some View {
         List(selection: destinationSelection) {
             Section(isCollapsed ? "" : "资料库") {
+                if !isCollapsed {
+                    collectRow
+                }
+
                 ForEach(AppDestination.sidebarDestinations, id: \.self) { destination in
                     Group {
                         if isCollapsed {
@@ -56,7 +60,9 @@ struct SidebarView: View {
 
     private var bottomControls: some View {
         VStack(spacing: 10) {
-            collectButton
+            if isCollapsed {
+                collectButton
+            }
 
             accountButton
                 .popover(
@@ -100,16 +106,7 @@ struct SidebarView: View {
         let accent = QiankunjieColors.accent(for: colorScheme)
 
         return Button {
-            isCollectActive = true
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.62)) {
-                collectIconRotation += 180
-            }
-
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(260))
-                isCollectActive = false
-                model.selectDestination(.collect)
-            }
+            triggerCollect()
         } label: {
             collectButtonIcon
                 .rotationEffect(.degrees(collectIconRotation))
@@ -151,6 +148,73 @@ struct SidebarView: View {
         .accessibilityLabel("采集")
         .accessibilityAddTraits(.isButton)
         .buttonStyle(CollectFabButtonStyle())
+    }
+
+    /// 采集入口：与「收件箱」等菜单行同宽同高的长条按钮，排在菜单第一行。
+    private var collectRow: some View {
+        let accent = QiankunjieColors.accent(for: colorScheme)
+
+        return Button {
+            triggerCollect()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "plus")
+                    .font(.system(size: 13, weight: .bold))
+                    .frame(width: 18)
+                    .rotationEffect(.degrees(collectIconRotation))
+
+                Text("采集")
+                    .lineLimit(1)
+
+                Spacer(minLength: 0)
+            }
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity, minHeight: 26, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                accent.opacity(isCollectButtonHovered ? 1 : 0.96),
+                                accent.opacity(0.78),
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .shadow(
+                        color: accent.opacity(isCollectButtonHovered ? 0.3 : 0.14),
+                        radius: isCollectButtonHovered ? 6 : 3,
+                        y: 1
+                    )
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .scaleEffect(isCollectActive ? 0.98 : 1)
+        .onHover { hovering in
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) {
+                isCollectButtonHovered = hovering
+            }
+        }
+        .animation(.spring(response: 0.28, dampingFraction: 0.72), value: isCollectActive)
+        .help("采集")
+        .accessibilityLabel("采集")
+    }
+
+    private func triggerCollect() {
+        isCollectActive = true
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.62)) {
+            collectIconRotation += 180
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(260))
+            isCollectActive = false
+            model.selectDestination(.collect)
+        }
     }
 
     private var collectButtonIcon: some View {
