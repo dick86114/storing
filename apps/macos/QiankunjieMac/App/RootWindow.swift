@@ -20,6 +20,7 @@ struct RootWindow: View {
     var body: some View {
         mainInterface
             .preferredColorScheme(model.settingsModel.appearance.preferredColorScheme)
+            .background(MainWindowSizer())
             .overlay {
                 if model.isLoginPresented {
                     LoginOverlay(
