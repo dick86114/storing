@@ -85,6 +85,105 @@ struct MenuBarStateTests {
         #expect(!AppDelegate.shouldHideDock(afterClosing: panel, otherVisibleWindows: []))
     }
 
+    @Test func 菜单栏图标窗口不会阻止关闭主窗口后隐藏Dock() {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+
+        let mainWindow = NSWindow(
+            contentRect: .zero,
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        // 菜单栏图标会一直保留一个可见的 NSStatusBarWindow，它不该算作「还有普通窗口」。
+        let statusBarWindows = NSApp.windows.filter {
+            $0.isVisible && $0.className == "NSStatusBarWindow"
+        }
+
+        #expect(!statusBarWindows.isEmpty)
+        #expect(AppDelegate.shouldHideDock(
+            afterClosing: mainWindow,
+            otherVisibleWindows: statusBarWindows
+        ))
+    }
+
+    @Test func 关闭主窗口后应用切换为后台运行() {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+
+        let delegate = AppDelegate()
+        delegate.applicationDidFinishLaunching(
+            Notification(name: NSApplication.didFinishLaunchingNotification, object: NSApp)
+        )
+        defer { delegate.applicationWillTerminate(
+            Notification(name: NSApplication.willTerminateNotification, object: NSApp)
+        ) }
+
+        let mainWindow = NSWindow(
+            contentRect: .zero,
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        mainWindow.orderFront(nil)
+        defer { mainWindow.orderOut(nil) }
+
+        // 测试宿主可能自带窗口，先隐藏掉，只留主窗口和菜单栏图标两条路径。
+        let backgroundWindows = NSApp.windows.filter {
+            $0 !== mainWindow && $0.className != "NSStatusBarWindow"
+        }
+        let restoreWindows = backgroundWindows.map { ($0, $0.isVisible) }
+        for window in backgroundWindows {
+            window.orderOut(nil)
+        }
+        defer {
+            for (window, wasVisible) in restoreWindows where wasVisible {
+                window.orderFront(nil)
+            }
+        }
+
+        let previousPolicy = NSApp.activationPolicy()
+        NSApp.setActivationPolicy(.regular)
+        defer { NSApp.setActivationPolicy(previousPolicy) }
+
+        NotificationCenter.default.post(
+            name: NSWindow.willCloseNotification,
+            object: mainWindow
+        )
+
+        #expect(NSApp.activationPolicy() == .accessory)
+    }
+
+    @Test func 菜单栏区域的点击不会被当成点面板外面() {
+        guard let screen = NSScreen.screens.first else { return }
+
+        func mouseEvent(at point: NSPoint) -> NSEvent? {
+            NSEvent.mouseEvent(
+                with: .leftMouseDown,
+                location: point,
+                modifierFlags: [],
+                timestamp: 0,
+                windowNumber: 0,
+                context: nil,
+                eventNumber: 0,
+                clickCount: 1,
+                pressure: 1
+            )
+        }
+
+        // 菜单栏在 visibleFrame 上方：这里属于点图标，不能收起面板。
+        let menuBarEvent = mouseEvent(
+            at: NSPoint(x: screen.frame.midX, y: screen.visibleFrame.maxY + 2)
+        )
+        #expect(menuBarEvent.map(QuickCollectPanel.isMenuBarClick) == true)
+
+        // 桌面区域仍算点面板外面。
+        let desktopEvent = mouseEvent(
+            at: NSPoint(x: screen.frame.midX, y: screen.visibleFrame.midY)
+        )
+        #expect(desktopEvent.map(QuickCollectPanel.isMenuBarClick) == false)
+    }
+
     @Test func 菜单栏和快捷键共享同一个快速采集面板() {
         let collectModel = CollectModel(userID: 7)
         let panel = QuickCollectPanelSpy(model: collectModel)

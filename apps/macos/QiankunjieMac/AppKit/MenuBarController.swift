@@ -194,11 +194,7 @@ public final class MenuBarController: NSObject {
     }
 
     func togglePanel() {
-        if panel.isPresented {
-            panel.dismiss()
-        } else {
-            panel.present(from: statusItem?.button)
-        }
+        panel.toggleFromStatusItem(statusItem?.button)
     }
 
     var statusMenuTitles: [String] {
