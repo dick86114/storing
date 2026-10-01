@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-test('macOS release workflow builds an unsigned arm64 DMG and publishes macos-v tags', () => {
+test('macOS release workflow builds an ad-hoc signed arm64 DMG and publishes macos-v tags', () => {
   const repoRoot = new URL('../../../', import.meta.url);
   const workflow = readFileSync(new URL('.github/workflows/release-macos.yml', repoRoot), 'utf8');
   const script = readFileSync(new URL('apps/macos/scripts/build-dmg.sh', repoRoot), 'utf8');
@@ -40,6 +40,9 @@ test('macOS release workflow builds an unsigned arm64 DMG and publishes macos-v 
   assert.match(workflow, /ref:\s+master/);
   assert.doesNotMatch(workflow, /Sparkle/i);
   assert.match(script, /CODE_SIGNING_ALLOWED=NO/);
+  assert.match(script, /codesign --force --sign -/);
+  assert.match(script, /codesign --verify --deep --strict/);
+  assert.match(script, /安装乾坤戒\.command/);
   assert.match(script, /hdiutil verify/);
   assert.match(script, /lipo -archs/);
   assert.match(script, /\.sha256/);
@@ -48,5 +51,6 @@ test('macOS release workflow builds an unsigned arm64 DMG and publishes macos-v 
   assert.match(guide, /Apple Silicon/);
   assert.match(guide, /更新失败/);
   assert.match(guide, /无证书/);
+  assert.match(guide, /ad-hoc/);
   assert.doesNotMatch(workflow, /codesign|notarytool|stapler/);
 });
