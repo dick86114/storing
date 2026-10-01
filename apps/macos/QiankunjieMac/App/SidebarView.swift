@@ -186,6 +186,9 @@ struct SidebarView: View {
                         endPoint: .bottomTrailing
                     )
                 )
+                // 系统选中蒙版相对整行左右缩进 10pt、上下缩进 2pt。
+                .padding(.horizontal, 10)
+                .padding(.vertical, 2)
         )
         .onHover { hovering in
             withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) {
