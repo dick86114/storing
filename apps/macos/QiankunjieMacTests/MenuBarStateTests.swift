@@ -20,7 +20,7 @@ struct MenuBarStateTests {
 
         controller.start()
 
-        #expect(controller.statusMenuTitles == ["设置", "检测更新", "提交问题", "退出"])
+        #expect(controller.statusMenuTitles == ["设置", "检测更新", "提交问题", "关于 乾坤戒", "退出"])
     }
 
     @Test func 右键菜单操作调用对应回调() {
@@ -30,6 +30,7 @@ struct MenuBarStateTests {
             openSettings: { events.append("设置") },
             checkForUpdates: { events.append("检测更新") },
             reportIssue: { events.append("提交问题") },
+            about: { events.append("关于 乾坤戒") },
             quit: { events.append("退出") }
         )
         let controller = MenuBarController(
@@ -46,7 +47,7 @@ struct MenuBarStateTests {
             #expect(controller.performStatusMenuAction(at: index))
         }
 
-        #expect(events == ["设置", "检测更新", "提交问题", "退出"])
+        #expect(events == ["设置", "检测更新", "提交问题", "关于 乾坤戒", "退出"])
     }
 
     @Test func 关闭最后一个普通窗口后隐藏Dock() {

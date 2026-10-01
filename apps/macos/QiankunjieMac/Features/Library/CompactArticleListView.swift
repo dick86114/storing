@@ -224,6 +224,16 @@ struct CompactArticleListView: View {
             .frame(maxWidth: .infinity)
             .aspectRatio(2.35, contentMode: .fit)
             .clipped()
+            .clipShape(
+                // 卡片上方两个角要和下方的面板圆角保持一致，否则封面会把圆角盖成直角。
+                UnevenRoundedRectangle(
+                    topLeadingRadius: QiankunjieRadius.panel,
+                    bottomLeadingRadius: 0,
+                    bottomTrailingRadius: 0,
+                    topTrailingRadius: QiankunjieRadius.panel,
+                    style: .continuous
+                )
+            )
             .accessibilityLabel("文章封面")
     }
 

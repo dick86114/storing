@@ -123,6 +123,11 @@ final class AppModel {
 
     var user: AuthenticatedUser?
     var destination: AppDestination = .published
+
+    /// 用户是否在当前会话里主动指定过要打开的页面。
+    /// 启动阶段会异步恢复登录状态，如果不区分这一点，菜单栏打开设置后
+    /// 会被恢复流程重新拽回首页。
+    private var hasExplicitDestinationSelection = false
     var selectedArticleID: Int?
     var selectedReaderSelection: ReaderSelection?
     var isLoginPresented = false
@@ -186,6 +191,7 @@ final class AppModel {
 
     func didAuthenticate() {
         isLoginPresented = false
+        hasExplicitDestinationSelection = false
         Task {
             await synchronizeWithAuthentication()
         }
@@ -194,6 +200,7 @@ final class AppModel {
     func didLogout() async {
         await settingsModel.logout()
         isLoginPresented = false
+        hasExplicitDestinationSelection = false
     }
 
     func presentLogin() {
@@ -245,6 +252,7 @@ final class AppModel {
         }
 
         self.destination = destination
+        hasExplicitDestinationSelection = true
         selectArticle(nil)
         if destination == .collect {
             Task {
@@ -304,7 +312,9 @@ final class AppModel {
             view: .inbox
         )
         readerPositionStore.prepareUser(userID: user?.id)
-        destination = user == nil ? .published : .inbox
+        if !hasExplicitDestinationSelection {
+            destination = user == nil ? .published : .inbox
+        }
         libraryModel.prepareUser(
             userID: user?.id,
             view: destination.libraryView ?? .published
