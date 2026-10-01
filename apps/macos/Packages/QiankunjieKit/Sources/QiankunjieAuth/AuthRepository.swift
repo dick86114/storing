@@ -125,7 +125,7 @@ public actor AuthRepository: TokenRefreshing {
 
     public init(
         client: any AuthClient = DefaultAuthClient(),
-        store: any SessionStore = KeychainSessionStore(),
+        store: any SessionStore = FileSessionStore(),
         device: AuthDevice? = nil
     ) {
         self.client = client
