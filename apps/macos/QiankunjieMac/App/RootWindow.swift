@@ -20,9 +20,6 @@ struct RootWindow: View {
     var body: some View {
         mainInterface
             .preferredColorScheme(model.settingsModel.appearance.preferredColorScheme)
-            .onChange(of: model.settingsModel.appearance) { _, newValue in
-                AppearanceApplier.apply(newValue)
-            }
             .overlay {
                 if model.isLoginPresented {
                     LoginOverlay(
@@ -56,7 +53,6 @@ struct RootWindow: View {
                 rootToolbar
             }
             .onAppear {
-                AppearanceApplier.apply(model.settingsModel.appearance)
                 installMenuBarIfNeeded()
             }
     }
