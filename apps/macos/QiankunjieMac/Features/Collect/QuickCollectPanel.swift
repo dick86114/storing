@@ -17,6 +17,7 @@ protocol QuickCollectPresenting: AnyObject {
 final class QuickCollectPanel: NSPanel, QuickCollectPresenting, NSWindowDelegate {
     let model: CollectModel
     private let onOpenMainWindow: @MainActor () -> Void
+    private var outsideClickMonitor: Any?
 
     var isPresented: Bool { isVisible }
 
@@ -65,10 +66,40 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting, NSWindowDelegate
         }
         NSApp.activate(ignoringOtherApps: true)
         makeKeyAndOrderFront(nil)
+        installOutsideClickMonitor()
     }
 
     func dismiss() {
+        removeOutsideClickMonitor()
+        guard isVisible else { return }
         orderOut(nil)
+    }
+
+    /// 面板失去焦点（例如点到主窗口或其他界面）时自动隐藏。
+    func windowDidResignKey(_ notification: Notification) {
+        guard isVisible else { return }
+        dismiss()
+    }
+
+    /// 监听其他应用的鼠标按下事件，点面板之外立刻隐藏。
+    ///
+    /// 全局监视器只接收其他应用的事件，因此点击菜单栏图标切换面板不受影响；
+    /// 本应用内点击其他窗口由 `windowDidResignKey` 负责。
+    private func installOutsideClickMonitor() {
+        guard outsideClickMonitor == nil else { return }
+        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.dismiss()
+            }
+        }
+    }
+
+    private func removeOutsideClickMonitor() {
+        guard let outsideClickMonitor else { return }
+        NSEvent.removeMonitor(outsideClickMonitor)
+        self.outsideClickMonitor = nil
     }
 }
 
