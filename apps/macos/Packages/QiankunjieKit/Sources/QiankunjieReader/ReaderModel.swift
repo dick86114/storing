@@ -15,6 +15,7 @@ public protocol ReaderNetworkClient: Sendable {
     func refetch(articleID: Int) async throws -> ReaderRefetchResult
     func regenerateAI(articleID: Int) async throws -> ReaderAIResult
     func delete(articleID: Int) async throws -> ReaderDeleteResult
+    func permanentDelete(articleID: Int) async throws
     func renameArticle(articleID: Int, title: String) async throws
 }
 
@@ -448,6 +449,17 @@ public final class ReaderModel {
         }
     }
 
+    public func deletePermanent() async {
+        await performAction { articleID, actionGeneration in
+            try await self.client.permanentDelete(articleID: articleID)
+            if isCurrentAction(actionGeneration) {
+                self.isDeleted = true
+                self.positionStore.remove(articleID: articleID)
+                self.onDeleted?()
+            }
+        }
+    }
+
     private func applyPublication(
         _ result: ReaderPublicationResult,
         published: Bool
@@ -620,6 +632,18 @@ extension APIClient: ReaderNetworkClient {
     private struct ReaderRenameEnvelope: Decodable {
         let articleId: Int
         let title: String
+    }
+
+    private struct ReaderPermanentDeleteEnvelope: Decodable {
+        let articleId: Int
+        let deleted: Bool
+    }
+
+    public func permanentDelete(articleID: Int) async throws {
+        let _: ReaderPermanentDeleteEnvelope = try await send(
+            .delete("articles/\(articleID)/permanent"),
+            authenticated: true
+        )
     }
 
     public func renameArticle(articleID: Int, title: String) async throws {

@@ -2,7 +2,7 @@ import QiankunjieDesignSystem
 import QiankunjieReader
 import SwiftUI
 
-enum ReaderArticleAction: Identifiable {
+enum ReaderArticleAction: Identifiable, Equatable {
     case favorite
     case archive
     case inbox
@@ -11,6 +11,7 @@ enum ReaderArticleAction: Identifiable {
     case refetch
     case regenerateAI
     case delete
+    case deletePermanent
     case openOriginal(URL)
 
     var id: String {
@@ -23,6 +24,7 @@ enum ReaderArticleAction: Identifiable {
         case .refetch: "refetch"
         case .regenerateAI: "regenerate-ai"
         case .delete: "delete"
+        case .deletePermanent: "delete-permanent"
         case .openOriginal: "open-original"
         }
     }
@@ -36,6 +38,7 @@ enum ReaderArticleAction: Identifiable {
         case .refetch: "重新抓取正文？"
         case .regenerateAI: "重新生成 AI 信息？"
         case .delete: "删除这篇文章？"
+        case .deletePermanent: "彻底删除这篇文章？"
         case .openOriginal: "打开原始网页？"
         case .favorite: ""
         }
@@ -50,6 +53,7 @@ enum ReaderArticleAction: Identifiable {
         case .refetch: "服务端会覆盖当前正文和封面。"
         case .regenerateAI: "当前 AI 摘要和标签会被替换。"
         case .delete: "文章会从资料库中移除。"
+        case .deletePermanent: "正文、媒体和元数据会从服务器彻底清除，无法恢复。"
         case .openOriginal: "网页将在默认浏览器中打开。"
         case .favorite: ""
         }
@@ -64,6 +68,7 @@ enum ReaderArticleAction: Identifiable {
         case .refetch: "重新抓取"
         case .regenerateAI: "重新生成"
         case .delete: "删除"
+        case .deletePermanent: "彻底删除"
         case .openOriginal: "打开原文"
         case .favorite: "收藏"
         }

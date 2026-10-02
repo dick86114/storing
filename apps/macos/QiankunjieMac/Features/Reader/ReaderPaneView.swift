@@ -170,6 +170,12 @@ struct ReaderPaneView: View {
             Button(action.buttonTitle, role: action.isDestructive ? .destructive : nil) {
                 perform(action)
             }
+            if action == ReaderArticleAction.delete {
+                // 软删除之外提供物理删除入口；先切到彻底删除的确认，再点一次才执行。
+                Button("彻底删除…", role: .destructive) {
+                    pendingAction = .deletePermanent
+                }
+            }
             Button("取消", role: .cancel) {}
         } message: { action in
             Text(action.confirmationMessage)
@@ -398,6 +404,10 @@ struct ReaderPaneView: View {
                 await model.regenerateAI()
             case .delete:
                 await model.delete()
+                onLibraryDidChange()
+                return
+            case .deletePermanent:
+                await model.deletePermanent()
                 onLibraryDidChange()
                 return
             case .openOriginal(let url):

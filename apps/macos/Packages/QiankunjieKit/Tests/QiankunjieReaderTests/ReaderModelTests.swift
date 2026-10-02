@@ -409,6 +409,11 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
         notifyRequestWaiters()
     }
 
+    func permanentDelete(articleID: Int) async throws {
+        paths.append("articles/\(articleID)/permanent")
+        notifyRequestWaiters()
+    }
+
     func holdFavorite() {
         shouldHoldFavorite = true
     }
