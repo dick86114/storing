@@ -91,6 +91,7 @@ enum SettingsTool: String, CaseIterable, Hashable, Identifiable, Sendable {
 enum AdminSettingsTab: String, CaseIterable, Identifiable, Sendable {
     case users
     case mcp
+    case trash
 
     var id: String { rawValue }
 
@@ -98,6 +99,7 @@ enum AdminSettingsTab: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .users: "用户管理"
         case .mcp: "MCP 管理"
+        case .trash: "回收站"
         }
     }
 
@@ -105,6 +107,7 @@ enum AdminSettingsTab: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .users: "person.3"
         case .mcp: "key.horizontal"
+        case .trash: "trash"
         }
     }
 }

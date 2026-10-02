@@ -182,6 +182,8 @@ struct AdminSettingsView: View {
                     client: ManagementAPIClient(repository: repository),
                     presentation: .embedded
                 )
+            case .trash:
+                AdminTrashView(client: ManagementAPIClient(repository: repository))
             }
         }
     }
