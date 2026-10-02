@@ -15,6 +15,7 @@ public protocol ReaderNetworkClient: Sendable {
     func refetch(articleID: Int) async throws -> ReaderRefetchResult
     func regenerateAI(articleID: Int) async throws -> ReaderAIResult
     func delete(articleID: Int) async throws -> ReaderDeleteResult
+    func renameArticle(articleID: Int, title: String) async throws
 }
 
 /// 列表选择同时保留内部 ID 和公开令牌，避免游客公开阅读丢失路由。
@@ -253,6 +254,8 @@ public struct ReaderArticle: Sendable {
 public final class ReaderModel {
     public private(set) var article: ReaderArticle?
     public private(set) var articleID: Int?
+    /// 用户手动修改后的标题，优先于服务端详情标题展示。
+    public private(set) var titleOverride: String?
     public private(set) var selection: ReaderSelection?
     public private(set) var isLoading = false
     public private(set) var isPerformingAction = false
@@ -325,6 +328,7 @@ public final class ReaderModel {
     ) async {
         self.articleID = selection.articleID
         self.selection = selection
+        titleOverride = nil
         isDeleted = false
         isLoading = true
         errorMessage = nil
@@ -613,6 +617,19 @@ enum ReaderHTMLDocument {
 }
 
 extension APIClient: ReaderNetworkClient {
+    private struct ReaderRenameEnvelope: Decodable {
+        let articleId: Int
+        let title: String
+    }
+
+    public func renameArticle(articleID: Int, title: String) async throws {
+        let body = try JSONEncoder().encode(["title": title])
+        let _: ReaderRenameEnvelope = try await send(
+            .patch("articles/\(articleID)/title", body: body),
+            authenticated: true
+        )
+    }
+
     public func articleDetail(
         _ selection: ReaderSelection
     ) async throws -> ArticleDetail {
@@ -672,5 +689,20 @@ extension APIClient: ReaderNetworkClient {
 
     public func delete(articleID: Int) async throws -> ReaderDeleteResult {
         try await send(.delete("articles/\(articleID)"), authenticated: true)
+    }
+}
+
+extension ReaderModel {
+    /// 修改文章标题：服务端保存成功后更新本地展示，并回读失败原因。
+    public func rename(title: String) async {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let article, !trimmed.isEmpty, trimmed != (titleOverride ?? article.title ?? "") else { return }
+        do {
+            try await client.renameArticle(articleID: article.id, title: trimmed)
+            titleOverride = trimmed
+            errorMessage = nil
+        } catch {
+            errorMessage = Self.message(for: error)
+        }
     }
 }

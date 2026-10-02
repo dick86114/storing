@@ -747,6 +747,27 @@ articlesRoutes.patch('/articles/:id/category', requireAuth, async (c) => {
   }
 });
 
+articlesRoutes.patch('/articles/:id/title', requireAuth, async (c) => {
+  const id = Number(c.req.param('id'));
+  const body = await c.req.json().catch(() => null) as { title?: unknown } | null;
+  const title = typeof body?.title === 'string' ? body.title.trim() : '';
+  if (!Number.isInteger(id) || id <= 0) return c.json({ error: { code: 'BAD_REQUEST', message: '文章 ID 无效' } }, 400);
+  if (!title || title.length > 300) return c.json({ error: { code: 'BAD_REQUEST', message: '标题不能为空且不超过 300 字' } }, 400);
+
+  const userId = getCurrentUser(c).id as number;
+  const [owned] = await db
+    .select({ id: articleMetadata.id })
+    .from(articleMetadata)
+    .where(and(eq(articleMetadata.articleId, id), eq(articleMetadata.userId, userId)))
+    .limit(1);
+  if (!owned) return c.json({ error: { code: 'NOT_FOUND', message: '文章不存在' } }, 404);
+
+  const now = new Date();
+  await db.update(articles).set({ title, updatedAt: now }).where(eq(articles.id, id));
+  await db.update(articleMetadata).set({ updatedAt: now }).where(metadataWhereCondition(id, userId));
+  return c.json({ articleId: id, title });
+});
+
 articlesRoutes.post('/articles/bulk-category', requireAuth, async (c) => {
   const body = await c.req.json().catch(() => null) as { articleIds?: unknown; categoryId?: unknown } | null;
   if (!body || !Array.isArray(body.articleIds) || typeof body.categoryId !== 'number') return c.json({ error: { code: 'BAD_REQUEST', message: '批量分类参数无效' } }, 400);

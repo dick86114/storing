@@ -404,6 +404,11 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
         return ReaderDeleteResult(deleted: true)
     }
 
+    func renameArticle(articleID: Int, title: String) async throws {
+        paths.append("articles/\(articleID)/title")
+        notifyRequestWaiters()
+    }
+
     func holdFavorite() {
         shouldHoldFavorite = true
     }
