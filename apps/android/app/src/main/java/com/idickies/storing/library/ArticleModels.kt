@@ -172,6 +172,17 @@ data class ArticleCategoryAssignmentRequest(
 )
 
 @Serializable
+data class ArticleUpdateTitleRequest(
+  val title: String,
+)
+
+@Serializable
+data class ArticleUpdateTitleResponse(
+  @SerialName("articleId") val articleId: Int,
+  val title: String,
+)
+
+@Serializable
 data class ArticleCategoryAssignmentResponse(
   @SerialName("articleId") val articleId: Int,
   @SerialName("updatedCount") val updatedCount: Int,
