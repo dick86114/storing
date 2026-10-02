@@ -168,6 +168,18 @@ export type AdminUserDeletionResult = {
   };
 };
 
+export type AdminTrashItem = {
+  article_id: number;
+  title: string | null;
+  source: string | null;
+  author: string | null;
+  cover_image: string | null;
+  user_id: number;
+  username: string | null;
+  source_type: string | null;
+  deleted_at: string | null;
+};
+
 
 type ApiRequestInit = RequestInit & {
   timeoutMs?: number;
@@ -235,6 +247,15 @@ export const api = {
 
   deleteAdminUser: (id: number, confirmUsername: string) =>
     fetchJSON<AdminUserDeletionResult>(`/admin/users/${id}`, { method: 'DELETE', body: JSON.stringify({ confirm_username: confirmUsername }) }),
+
+  getAdminTrash: () =>
+    fetchJSON<{ items: AdminTrashItem[]; total: number }>('/admin/trash'),
+
+  restoreAdminTrashArticle: (articleId: number) =>
+    fetchJSON<{ article_id: number; restored_users: number }>(`/admin/trash/${articleId}/restore`, { method: 'POST' }),
+
+  purgeAdminTrashArticle: (articleId: number) =>
+    fetchJSON<{ article_id: number; deleted: boolean }>(`/admin/trash/${articleId}`, { method: 'DELETE' }),
 
   getAdminUserActivity: (id: number, limit = 20, offset = 0) =>
     fetchJSON<AdminUserActivity>(`/admin/users/${id}/activity?limit=${limit}&offset=${offset}`),

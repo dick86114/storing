@@ -39,6 +39,12 @@ class AdminRepository @Inject constructor(
 
   suspend fun mcpRequestLogs() = authenticatedRequest { api.mcpRequestLogs().logs }
 
+  suspend fun trash() = authenticatedRequest { api.trash().items }
+
+  suspend fun restoreTrash(articleId: Int) = authenticatedRequest { api.restoreTrash(articleId) }
+
+  suspend fun purgeTrash(articleId: Int) = authenticatedRequest { api.purgeTrash(articleId) }
+
   private suspend fun <T> authenticatedRequest(request: suspend () -> T): T {
     if (!sessionAuthenticator.ensureValidAccessToken()) throw AdminAuthenticationRequiredException()
 

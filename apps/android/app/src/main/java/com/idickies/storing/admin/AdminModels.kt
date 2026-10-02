@@ -141,3 +141,28 @@ data class AdminMcpRequestLog(
 
 @Serializable
 data class AdminMcpRequestLogsResponse(val logs: List<AdminMcpRequestLog> = emptyList())
+
+@Serializable
+data class AdminTrashItem(
+  @SerialName("article_id") val articleId: Int,
+  val title: String? = null,
+  val source: String? = null,
+  val author: String? = null,
+  @SerialName("user_id") val userId: Int,
+  val username: String? = null,
+  @SerialName("source_type") val sourceType: String? = null,
+  @SerialName("deleted_at") val deletedAt: String? = null,
+)
+
+@Serializable
+data class AdminTrashResponse(
+  val items: List<AdminTrashItem> = emptyList(),
+  val total: Int = 0,
+)
+
+@Serializable
+data class AdminTrashActionResponse(
+  @SerialName("article_id") val articleId: Int,
+  @SerialName("restored_users") val restoredUsers: Int? = null,
+  val deleted: Boolean? = null,
+)

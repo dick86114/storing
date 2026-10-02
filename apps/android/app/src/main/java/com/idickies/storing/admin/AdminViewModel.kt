@@ -15,6 +15,7 @@ data class AdminUiState(
   val notice: String? = null,
   val users: List<AdminUser> = emptyList(),
   val auditLogs: List<AdminAuditLog> = emptyList(),
+  val trashItems: List<AdminTrashItem> = emptyList(),
   val mcpClients: List<AdminMcpClient> = emptyList(),
   val mcpLogs: List<AdminMcpRequestLog> = emptyList(),
   val mcpLimits: AdminMcpPlatformLimits? = null,
@@ -40,7 +41,10 @@ class AdminViewModel @Inject constructor(
         val mcpClients = repository.mcpClients()
         val mcpLogs = repository.mcpRequestLogs()
         val mcpLimits = repository.mcpDefaultLimits()
-        mutableState.update { it.copy(loading = false, users = users, auditLogs = logs, mcpClients = mcpClients, mcpLogs = mcpLogs, mcpLimits = mcpLimits) }
+        val trashItems = runCatching { repository.trash() }.getOrDefault(emptyList())
+        mutableState.update {
+          it.copy(loading = false, users = users, auditLogs = logs, mcpClients = mcpClients, mcpLogs = mcpLogs, mcpLimits = mcpLimits, trashItems = trashItems)
+        }
       }.onFailure { error ->
         val message = error.message ?: "加载失败"
         val isForbidden = message.contains("403") || message.contains("FORBIDDEN")
@@ -88,6 +92,44 @@ class AdminViewModel @Inject constructor(
         .onFailure { error ->
           mutableState.update { state -> adminUserDeletionFailed(state, error) }
         }
+    }
+  }
+
+  fun restoreTrash(articleId: Int) {
+    if (mutableState.value.submitting) return
+    viewModelScope.launch {
+      mutableState.update { it.copy(submitting = true, error = null) }
+      runCatching { repository.restoreTrash(articleId) }
+        .onSuccess { response ->
+          mutableState.update { state ->
+            state.copy(
+              submitting = false,
+              notice = "已恢复到原用户的资料库（${
+                state.trashItems.firstOrNull { it.articleId == articleId }?.title ?: "文章"
+              }）",
+              trashItems = state.trashItems.filter { it.articleId != articleId },
+            )
+          }
+        }
+        .onFailure { error -> mutableState.update { it.copy(submitting = false, error = error.message ?: "恢复失败") } }
+    }
+  }
+
+  fun purgeTrash(articleId: Int) {
+    if (mutableState.value.submitting) return
+    viewModelScope.launch {
+      mutableState.update { it.copy(submitting = true, error = null) }
+      runCatching { repository.purgeTrash(articleId) }
+        .onSuccess {
+          mutableState.update { state ->
+            state.copy(
+              submitting = false,
+              trashItems = state.trashItems.filter { it.articleId != articleId },
+              notice = "已从服务器彻底删除",
+            )
+          }
+        }
+        .onFailure { error -> mutableState.update { it.copy(submitting = false, error = error.message ?: "彻底删除失败") } }
     }
   }
 

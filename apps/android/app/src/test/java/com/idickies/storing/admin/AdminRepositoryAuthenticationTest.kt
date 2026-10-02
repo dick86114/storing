@@ -129,6 +129,12 @@ class AdminRepositoryAuthenticationTest {
 
     override suspend fun mcpRequestLogs(limit: Int, offset: Int): AdminMcpRequestLogsResponse = AdminMcpRequestLogsResponse()
 
+    override suspend fun trash(): AdminTrashResponse = AdminTrashResponse()
+
+    override suspend fun restoreTrash(articleId: Int): AdminTrashActionResponse = AdminTrashActionResponse(articleId = articleId)
+
+    override suspend fun purgeTrash(articleId: Int): AdminTrashActionResponse = AdminTrashActionResponse(articleId = articleId, deleted = true)
+
     private fun user() = AdminUser(id = 1, username = "admin", role = "admin", status = "active")
   }
 }

@@ -1,6 +1,7 @@
 package com.idickies.storing.admin
 
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.HTTP
 import retrofit2.http.GET
 import retrofit2.http.PATCH
@@ -42,4 +43,13 @@ interface AdminApi {
     @Query("limit") limit: Int = 50,
     @Query("offset") offset: Int = 0,
   ): AdminMcpRequestLogsResponse
+
+  @GET("admin/trash")
+  suspend fun trash(): AdminTrashResponse
+
+  @POST("admin/trash/{id}/restore")
+  suspend fun restoreTrash(@Path("id") id: Int): AdminTrashActionResponse
+
+  @DELETE("admin/trash/{id}")
+  suspend fun purgeTrash(@Path("id") id: Int): AdminTrashActionResponse
 }
