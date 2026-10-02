@@ -69,6 +69,9 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: android-actions/setup-android@v3
+        with:
+          # runner 的新版 sdkmanager 已移除废弃的 tools 包，只装仍然有效的 platform-tools。
+          packages: platform-tools
       - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - uses: pnpm/action-setup@v4
         with:
