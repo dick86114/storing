@@ -1,5 +1,11 @@
 name: Qiankunjie
 
+configs:
+  Debug: debug
+  Dev: debug
+  Test: debug
+  Release: release
+
 options:
   bundleIdPrefix: com.idickies.storing
   createIntermediateGroups: true
@@ -51,7 +57,13 @@ targets:
           # Debug 与正式版使用不同 Bundle ID，避免 UserDefaults、会话存储和
           # LaunchServices 注册互相覆盖，也避免两个版本共享登录态。
           PRODUCT_BUNDLE_IDENTIFIER: com.idickies.storing.macos.debug
-          INFOPLIST_KEY_CFBundleDisplayName: 乾坤戒 Debug
+          INFOPLIST_KEY_CFBundleDisplayName: 乾坤戒 debug
+        Dev:
+          PRODUCT_BUNDLE_IDENTIFIER: com.idickies.storing.macos.dev
+          INFOPLIST_KEY_CFBundleDisplayName: 乾坤戒 dev
+        Test:
+          PRODUCT_BUNDLE_IDENTIFIER: com.idickies.storing.macos.test
+          INFOPLIST_KEY_CFBundleDisplayName: 乾坤戒 test
 
   QiankunjieMacTests:
     type: bundle.unit-test
@@ -105,7 +117,13 @@ targets:
       configs:
         Debug:
           PRODUCT_BUNDLE_IDENTIFIER: com.idickies.storing.macos.debug.share
-          EXTENSION_DISPLAY_NAME: 乾坤戒 Debug
+          EXTENSION_DISPLAY_NAME: 乾坤戒 debug
+        Dev:
+          PRODUCT_BUNDLE_IDENTIFIER: com.idickies.storing.macos.dev.share
+          EXTENSION_DISPLAY_NAME: 乾坤戒 dev
+        Test:
+          PRODUCT_BUNDLE_IDENTIFIER: com.idickies.storing.macos.test.share
+          EXTENSION_DISPLAY_NAME: 乾坤戒 test
 
 schemes:
   QiankunjieMac:
