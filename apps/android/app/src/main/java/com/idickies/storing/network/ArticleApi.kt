@@ -2,6 +2,8 @@ package com.idickies.storing.network
 
 import com.idickies.storing.library.ArchiveResponse
 import com.idickies.storing.library.ArticleArchiveRequest
+import com.idickies.storing.library.ArticleUpdateTitleRequest
+import com.idickies.storing.library.ArticleUpdateTitleResponse
 import com.idickies.storing.library.ArticleRefetchResponse
 import com.idickies.storing.library.ArticleRegenerateAiResponse
 import com.idickies.storing.library.ArticleDetail
@@ -103,6 +105,12 @@ interface ArticleApi {
     @Path("id") id: Int,
     @Body request: ArticleCategoryAssignmentRequest,
   ): ArticleCategoryAssignmentResponse
+
+  @PATCH("articles/{id}/title")
+  suspend fun updateTitle(
+    @Path("id") id: Int,
+    @Body request: ArticleUpdateTitleRequest,
+  ): ArticleUpdateTitleResponse
 
   @POST("articles/bulk-category")
   suspend fun moveToCategoryBulk(@Body request: ArticleBulkCategoryRequest): ArticleBulkCategoryResponse

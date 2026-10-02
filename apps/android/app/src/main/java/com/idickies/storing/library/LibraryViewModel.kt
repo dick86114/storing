@@ -641,6 +641,46 @@ class LibraryViewModel @Inject constructor(
     }
   }
 
+  fun deletePermanentCard(article: ArticleCard) {
+    viewModelScope.launch {
+      runCatching { repository.deletePermanent(article.id) }.onSuccess {
+        mutableState.update { state -> state.copy(articles = state.articles.filterNot { it.id == article.id }) }
+        loadCounts()
+      }
+    }
+  }
+
+  fun unpublishCard(article: ArticleCard) {
+    viewModelScope.launch {
+      runCatching { repository.togglePublication(article.id, published = true) }.onSuccess { result ->
+        mutableState.update { state ->
+          state.copy(articles = state.articles.map { if (it.id == article.id) it.copy(isPublished = result.article.isPublished) else it })
+        }
+        loadCounts()
+      }
+    }
+  }
+
+  fun updateTitle(article: ArticleDetail, title: String) {
+    if (mutableState.value.processingAction != null) return
+    viewModelScope.launch {
+      mutableState.update { it.copy(processingAction = ArticleProcessingAction.Refetch, processingError = null) }
+      runCatching { repository.updateTitle(article.id, title) }
+        .onSuccess { result ->
+          mutableState.update { state ->
+            state.copy(
+              processingAction = null,
+              detail = state.detail?.copy(title = result.title),
+              articles = state.articles.map { if (it.id == article.id) it.copy(title = result.title) else it },
+            )
+          }
+        }
+        .onFailure { error ->
+          mutableState.update { it.copy(processingAction = null, processingError = error.message ?: "修改标题失败") }
+        }
+    }
+  }
+
   fun toggleFavorite(article: ArticleDetail) {
     viewModelScope.launch {
       runCatching { repository.toggleFavorite(article.id) }.onSuccess { result ->
@@ -793,6 +833,7 @@ class LibraryViewModel @Inject constructor(
           ArticleProcessingAction.Refetch -> repository.refetch(article.id)
           ArticleProcessingAction.RegenerateAi -> repository.regenerateAi(article.id)
           ArticleProcessingAction.ReclassifyCategory -> repository.classify(article.id)
+          ArticleProcessingAction.UpdateTitle -> Unit
         }
         repository.detail(article.id)
       }.onSuccess { refreshed ->

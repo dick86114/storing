@@ -63,6 +63,7 @@ class ArticleRepository @Inject constructor(
   suspend fun classify(id: Int) = api.classify(id)
   suspend fun classify(articleIds: List<Int>) = api.classifyBulk(ArticleBulkClassifyRequest(articleIds))
   suspend fun togglePublication(id: Int, published: Boolean) = if (published) api.unpublish(id) else api.publish(id)
+  suspend fun updateTitle(id: Int, title: String): ArticleUpdateTitleResponse = api.updateTitle(id, ArticleUpdateTitleRequest(title))
   suspend fun refetch(id: Int) = api.refetch(id)
   suspend fun regenerateAi(id: Int) = api.regenerateAi(id)
   suspend fun delete(id: Int) = api.delete(id)

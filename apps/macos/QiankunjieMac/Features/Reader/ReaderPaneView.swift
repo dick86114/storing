@@ -20,6 +20,7 @@ struct ReaderPaneView: View {
     @State private var selectedImageURL: URL?
     @State private var titleHovered = false
     @State private var isRenaming = false
+    @State private var isPurgeConfirming = false
     @State private var renameDraft = ""
     @State private var titleCopied = false
     @Environment(\.colorScheme) private var colorScheme
@@ -79,18 +80,6 @@ struct ReaderPaneView: View {
             }
         }
         .animation(.easeOut(duration: 0.16), value: selectedImageURL)
-        .alert("修改标题", isPresented: $isRenaming) {
-            TextField("标题", text: $renameDraft)
-            Button("保存") {
-                Task {
-                    await model.rename(title: renameDraft)
-                    onLibraryDidChange()
-                }
-            }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("修改后会在所有设备同步显示。")
-        }
         .task(id: selection) {
             if let selection {
                 await model.open(selection)
@@ -167,19 +156,92 @@ struct ReaderPaneView: View {
             titleVisibility: .visible,
             presenting: pendingAction
         ) { action in
-            Button(action.buttonTitle, role: action.isDestructive ? .destructive : nil) {
+            let isSoftDelete = action == ReaderArticleAction.delete
+            Button {
                 perform(action)
+            } label: {
+                Text(action.buttonTitle)
+                    .foregroundStyle(isSoftDelete ? AnyShapeStyle(.orange) : AnyShapeStyle(.primary))
             }
-            if action == ReaderArticleAction.delete {
-                // 软删除之外提供物理删除入口；先切到彻底删除的确认，再点一次才执行。
-                Button("彻底删除…", role: .destructive) {
-                    pendingAction = .deletePermanent
+            if isSoftDelete {
+                Button(role: .destructive) {
+                    pendingAction = nil
+                    isPurgeConfirming = true
+                } label: {
+                    Text("彻底删除").foregroundStyle(.red)
                 }
             }
             Button("取消", role: .cancel) {}
         } message: { action in
             Text(action.confirmationMessage)
         }
+        .alert("彻底删除这篇文章？", isPresented: $isPurgeConfirming) {
+            Button("彻底删除", role: .destructive) {
+                Task {
+                    await model.deletePermanent()
+                    onLibraryDidChange()
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("正文、媒体和元数据会从服务器彻底清除，此操作无法恢复。")
+        }
+        .overlay {
+            if isRenaming {
+                renameSheet
+            }
+        }
+    }
+
+    private var renameSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("修改文章标题")
+                .font(.headline)
+            TextEditor(text: $renameDraft)
+                .font(.body)
+                .scrollContentBackground(.hidden)
+                .padding(8)
+                .frame(height: 110)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(QiankunjieColors.surface(for: colorScheme))
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(QiankunjieColors.outline(for: colorScheme))
+                }
+            HStack {
+                Text("\(renameDraft.count)/300")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("取消") {
+                    isRenaming = false
+                }
+                .keyboardShortcut(.cancelAction)
+                Button("保存") {
+                    Task {
+                        await model.rename(title: renameDraft)
+                        onLibraryDidChange()
+                        isRenaming = false
+                    }
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(renameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || renameDraft.count > 300)
+            }
+        }
+        .padding(20)
+        .frame(width: 480)
+        .background {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(QiankunjieColors.surface(for: colorScheme))
+                .shadow(color: .black.opacity(0.25), radius: 24)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(QiankunjieColors.outline(for: colorScheme))
+        }
+        .padding(40)
     }
 
     private func aiSummaryCard(_ summary: String) -> some View {

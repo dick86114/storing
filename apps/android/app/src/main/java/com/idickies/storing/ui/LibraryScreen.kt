@@ -84,6 +84,7 @@ import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.DeleteForever
@@ -845,6 +846,7 @@ fun LibraryScreen(
     if (!shouldKeepCachedContent) tabContentStates[state.view] = state
   }
   var longPressedArticle by remember { mutableStateOf<com.idickies.storing.library.ArticleCard?>(null) }
+  var pendingPurgeCard by remember { mutableStateOf<com.idickies.storing.library.ArticleCard?>(null) }
   var archiveCategoryTarget by remember { mutableStateOf<ArchiveCategoryTarget?>(null) }
   val isScrolledDown by remember(libraryListState) { derivedStateOf { libraryListState.firstVisibleItemIndex > 0 || libraryListState.firstVisibleItemScrollOffset > 200 } }
   val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -1054,6 +1056,7 @@ fun LibraryScreen(
       onDelete = { libraryViewModel.delete(detail) },
       onDeletePermanent = { libraryViewModel.deletePermanent(detail) },
       onRefresh = libraryViewModel::refreshDetail,
+      onUpdateTitle = { title -> libraryViewModel.updateTitle(detail, title) },
       onSaveReadingPosition = { percentage -> libraryViewModel.saveReadingPosition(detail.id, percentage) },
     )
     state.loadingDetail -> ArticleDetailSkeleton()
@@ -1270,6 +1273,37 @@ fun LibraryScreen(
         }
       },
       onDelete = { libraryViewModel.deleteCard(article); longPressedArticle = null },
+      isPublished = article.isPublished,
+      submitting = false,
+      onUnpublish = {
+        libraryViewModel.unpublishCard(article)
+        longPressedArticle = null
+      },
+      onDeletePermanent = {
+        longPressedArticle = null
+        pendingPurgeCard = article
+      },
+    )
+  }
+  pendingPurgeCard?.let { article ->
+    QiankunjieAlertDialog(
+      onDismissRequest = { pendingPurgeCard = null },
+      icon = { Icon(Icons.Outlined.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+      title = { Text("彻底删除「${article.displayTitle}」？") },
+      text = {
+        Text("正文、媒体引用和元数据会从服务器彻底清除，此操作无法恢复。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+      },
+      confirmButton = {
+        Button(
+          onClick = {
+            val target = article
+            pendingPurgeCard = null
+            libraryViewModel.deletePermanentCard(target)
+          },
+          colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+        ) { Text("彻底删除") }
+      },
+      dismissButton = { TextButton(onClick = { pendingPurgeCard = null }) { Text("取消") } },
     )
   }
   archiveCategoryTarget?.let { target ->
@@ -1736,6 +1770,10 @@ private fun ArticleLongPressSheet(
   onFavorite: () -> Unit,
   onArchive: () -> Unit,
   onDelete: () -> Unit,
+  isPublished: Boolean,
+  submitting: Boolean,
+  onUnpublish: () -> Unit,
+  onDeletePermanent: () -> Unit,
 ) {
   val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
   androidx.compose.material3.ModalBottomSheet(
@@ -1749,7 +1787,9 @@ private fun ArticleLongPressSheet(
       Spacer(Modifier.height(4.dp))
       LongPressActionRow(icon = if (article.isFavorited) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, label = if (article.isFavorited) "取消收藏" else "收藏", tint = MaterialTheme.colorScheme.primary, onClick = onFavorite)
       LongPressActionRow(icon = if (article.isArchived) Icons.Outlined.MoveToInbox else Icons.Outlined.Archive, label = if (article.isArchived) "移回收件箱" else "归档", tint = MaterialTheme.colorScheme.primary, onClick = onArchive)
+      if (isPublished) LongPressActionRow(icon = Icons.AutoMirrored.Outlined.Label, label = "取消发布", tint = MaterialTheme.colorScheme.primary, onClick = onUnpublish)
       LongPressActionRow(icon = Icons.Outlined.DeleteOutline, label = "删除", tint = MaterialTheme.colorScheme.error, onClick = onDelete)
+      LongPressActionRow(icon = Icons.Outlined.DeleteForever, label = "彻底删除", tint = MaterialTheme.colorScheme.error, onClick = onDeletePermanent)
     }
   }
 }
@@ -2207,12 +2247,14 @@ internal fun ArticleDetailSkeleton() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, archiveCategories: List<ArticleCategory>, onMoveToCategory: (Int) -> Unit, onCreateCategory: (String, (ArticleCategory?, String?) -> Unit) -> Unit, onReclassify: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onSaveReadingPosition: (Float) -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, archiveCategories: List<ArticleCategory>, onMoveToCategory: (Int) -> Unit, onCreateCategory: (String, (ArticleCategory?, String?) -> Unit) -> Unit, onReclassify: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onUpdateTitle: (String) -> Unit, onSaveReadingPosition: (Float) -> Unit) {
   val context = LocalContext.current
   val isDarkAppearance = isQiankunjieDarkTheme()
   var confirmDelete by remember { mutableStateOf(false) }
   var confirmPermanentDelete by remember { mutableStateOf(false) }
   var confirmPublication by remember { mutableStateOf<PublicationAction?>(null) }
+  var showRenameDialog by remember { mutableStateOf(false) }
+  var renameDraft by remember { mutableStateOf("") }
   var confirmProcessing by remember { mutableStateOf<ArticleProcessingAction?>(null) }
   var moreExpanded by remember { mutableStateOf(false) }
   var categoryPickerOpen by remember { mutableStateOf(false) }
@@ -2280,6 +2322,11 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                 onClick = { moreExpanded = false; shareOriginalUrl() },
                 leadingIcon = { Icon(Icons.Outlined.IosShare, contentDescription = null) },
                 enabled = isWebOriginalUrl(article.originalUrl),
+              )
+              if (canManage) DropdownMenuItem(
+                text = { Text("修改标题", style = MaterialTheme.typography.bodyLarge) },
+                onClick = { moreExpanded = false; renameDraft = article.displayTitle; showRenameDialog = true },
+                leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
               )
               if (article.isPublished && publicUrl != null) DropdownMenuItem(
                 text = { Text("复制公开链接", style = MaterialTheme.typography.bodyLarge) },
@@ -2536,6 +2583,36 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
       dismissButton = { TextButton(onClick = { confirmPublication = null }) { Text("取消") } },
     )
   }
+  if (showRenameDialog) QiankunjieAlertDialog(
+    onDismissRequest = { if (processingAction == null) showRenameDialog = false },
+    icon = { Icon(Icons.Outlined.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+    title = { Text("修改文章标题") },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        OutlinedTextField(
+          value = renameDraft,
+          onValueChange = { renameDraft = it.take(300) },
+          label = { Text("标题") },
+          minLines = 2,
+          maxLines = 4,
+          enabled = processingAction == null,
+          modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+          "${renameDraft.trim().length}/300 字，保存后所有设备同步显示。",
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+    },
+    confirmButton = {
+      Button(
+        onClick = { val title = renameDraft.trim(); showRenameDialog = false; if (title.isNotEmpty()) onUpdateTitle(title) },
+        enabled = processingAction == null && renameDraft.trim().isNotEmpty() && renameDraft.trim() != (article.title ?: ""),
+      ) { Text("保存") }
+    },
+    dismissButton = { TextButton(onClick = { showRenameDialog = false }, enabled = processingAction == null) { Text("取消") } },
+  )
   if (confirmDelete) QiankunjieAlertDialog(
     onDismissRequest = { confirmDelete = false },
     icon = { Icon(Icons.Outlined.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
