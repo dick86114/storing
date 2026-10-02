@@ -14,6 +14,8 @@ struct AdminTrashItem: Identifiable, Equatable, Decodable, Sendable {
     let username: String?
     let sourceType: String?
     let deletedAt: String?
+    let aiSummary: String?
+    let contentPreview: String?
 
     enum CodingKeys: String, CodingKey {
         case articleId
@@ -24,6 +26,8 @@ struct AdminTrashItem: Identifiable, Equatable, Decodable, Sendable {
         case username
         case sourceType
         case deletedAt
+        case aiSummary
+        case contentPreview
     }
 
     init(from decoder: Decoder) throws {
@@ -36,6 +40,8 @@ struct AdminTrashItem: Identifiable, Equatable, Decodable, Sendable {
         username = try container.decodeIfPresent(String.self, forKey: .username)
         sourceType = try container.decodeIfPresent(String.self, forKey: .sourceType)
         deletedAt = try container.decodeIfPresent(String.self, forKey: .deletedAt)
+        aiSummary = try container.decodeIfPresent(String.self, forKey: .aiSummary)
+        contentPreview = try container.decodeIfPresent(String.self, forKey: .contentPreview)
         id = "\(articleId)-\(userId)"
     }
 }
@@ -57,6 +63,7 @@ final class AdminTrashModel {
     var errorMessage: String?
     var noticeMessage: String?
     var purgeConfirmItem: AdminTrashItem?
+    var detailItem: AdminTrashItem?
 
     private let client: ManagementAPIClient
 
@@ -159,10 +166,28 @@ struct AdminTrashView: View {
                 purgeConfirmation(item: purgeConfirmItem)
             }
         }
+        .overlay {
+            if let detailItem = model.detailItem {
+                detailSheet(item: detailItem)
+            }
+        }
     }
 
     private var trashList: some View {
         List {
+            Section {
+                HStack {
+                    Text("共 \(model.items.count) 条")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        Task { await model.load() }
+                    } label: {
+                        Label("刷新", systemImage: "arrow.clockwise")
+                    }
+                }
+            }
             Section {
                 ForEach(model.items) { item in
                     row(item)
@@ -210,6 +235,12 @@ struct AdminTrashView: View {
             Spacer()
 
             HStack(spacing: 8) {
+                Button("详情") {
+                    model.detailItem = item
+                }
+                .buttonStyle(.bordered)
+                .disabled(model.busyArticleId != nil)
+
                 Button("恢复") {
                     Task { await model.restore(item) }
                 }
@@ -258,5 +289,68 @@ struct AdminTrashView: View {
                 .shadow(radius: 18)
         }
         .padding(40)
+    }
+
+    private func detailSheet(item: AdminTrashItem) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(item.title ?? "未命名文章")
+                    .font(.headline)
+                Text(
+                    [
+                        item.source ?? "乾坤戒",
+                        item.author,
+                        "用户：\(item.username ?? "#\(item.userId)")",
+                        "删除于 \(item.deletedAt ?? "—")",
+                    ]
+                    .compactMap { $0 }
+                    .joined(separator: " · ")
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            if let summary = item.aiSummary, !summary.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("AI 摘要")
+                        .font(.subheadline.weight(.semibold))
+                    Text(summary)
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("正文预览")
+                    .font(.subheadline.weight(.semibold))
+                ScrollView {
+                    Text(item.contentPreview?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? item.contentPreview! : "（无正文）")
+                        .font(.system(.callout, design: .monospaced))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                }
+                .frame(maxHeight: 280)
+            }
+
+            HStack {
+                Spacer()
+                Button("关闭") {
+                    model.detailItem = nil
+                }
+                .keyboardShortcut(.cancelAction)
+            }
+        }
+        .padding(24)
+        .frame(width: 560, height: 480)
+        .background {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(QiankunjieColors.surface(for: colorScheme))
+                .shadow(color: .black.opacity(0.25), radius: 24)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(QiankunjieColors.outline(for: colorScheme))
+        }
+        .padding(30)
     }
 }

@@ -152,6 +152,8 @@ data class AdminTrashItem(
   val username: String? = null,
   @SerialName("source_type") val sourceType: String? = null,
   @SerialName("deleted_at") val deletedAt: String? = null,
+  @SerialName("ai_summary") val aiSummary: String? = null,
+  @SerialName("content_preview") val contentPreview: String? = null,
 )
 
 @Serializable

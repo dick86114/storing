@@ -911,15 +911,17 @@ authRoutes.delete('/admin/users/:id/articles/:articleId', requireAdmin, async (c
 authRoutes.get('/admin/trash', requireAdmin, async (c) => {
   const rows = await db
     .select({
-      articleId: articles.id,
+      article_id: articles.id,
       title: articles.title,
       source: articles.source,
       author: articles.author,
-      coverImage: articles.coverImage,
-      userId: articleMetadata.userId,
+      cover_image: articles.coverImage,
+      user_id: articleMetadata.userId,
       username: sql<string | null>`(SELECT "username" FROM "users" WHERE "id" = ${articleMetadata.userId})`,
-      sourceType: articleMetadata.sourceType,
-      deletedAt: articleMetadata.updatedAt,
+      source_type: articleMetadata.sourceType,
+      deleted_at: articleMetadata.updatedAt,
+      ai_summary: articleMetadata.aiSummary,
+      content_preview: sql<string | null>`left(${articles.contentMarkdown}, 2000)`,
     })
     .from(articles)
     .innerJoin(articleMetadata, eq(articleMetadata.articleId, articles.id))

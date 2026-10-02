@@ -20,6 +20,7 @@ export function AdminTrashContent() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [purgeTarget, setPurgeTarget] = useState<AdminTrashItem | null>(null);
+  const [detailTarget, setDetailTarget] = useState<AdminTrashItem | null>(null);
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -116,6 +117,9 @@ export function AdminTrashContent() {
                 </p>
               </div>
               <div className="admin-trash-card-actions">
+                <button type="button" className="mcp-btn mcp-btn-quiet" onClick={() => setDetailTarget(item)}>
+                  <InboxOutlined /> 详情
+                </button>
                 <button type="button" className="mcp-btn mcp-btn-quiet" disabled={busyId === item.article_id} onClick={() => restore(item)}>
                   <ReloadOutlined /> 恢复
                 </button>
@@ -143,6 +147,37 @@ export function AdminTrashContent() {
               <button type="button" className="mcp-btn mcp-btn-danger" disabled={busyId === purgeTarget.article_id} onClick={() => purge(purgeTarget)}>
                 <DeleteOutlined /> {busyId === purgeTarget.article_id ? '删除中…' : '确认彻底删除'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {detailTarget && (
+        <div className="mcp-modal-overlay" role="presentation" onClick={() => setDetailTarget(null)}>
+          <div className="mcp-modal-panel" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+            <div>
+              <p className="mcp-kicker">回收站详情</p>
+              <h2 style={{ margin: '4px 0 8px' }}>{detailTarget.title ?? '未命名文章'}</h2>
+              <p className="mcp-muted">
+                {[detailTarget.source ?? '乾坤戒', detailTarget.author, `用户：${detailTarget.username ?? `#${detailTarget.user_id}`}`, `删除于 ${deletedAtText(detailTarget.deleted_at)}`]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            </div>
+            {detailTarget.ai_summary && (
+              <div>
+                <p style={{ margin: '0 0 6px', fontWeight: 600 }}>AI 摘要</p>
+                <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{detailTarget.ai_summary}</p>
+              </div>
+            )}
+            <div>
+              <p style={{ margin: '0 0 6px', fontWeight: 600 }}>正文预览</p>
+              <pre style={{ margin: 0, maxHeight: 320, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13 }}>
+                {detailTarget.content_preview?.trim() || '（无正文）'}
+              </pre>
+            </div>
+            <div className="mcp-form-actions" style={{ justifyContent: 'flex-end' }}>
+              <button type="button" className="mcp-btn mcp-btn-quiet" onClick={() => setDetailTarget(null)}>关闭</button>
             </div>
           </div>
         </div>

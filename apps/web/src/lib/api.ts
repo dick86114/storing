@@ -178,6 +178,8 @@ export type AdminTrashItem = {
   username: string | null;
   source_type: string | null;
   deleted_at: string | null;
+  ai_summary: string | null;
+  content_preview: string | null;
 };
 
 
