@@ -46,7 +46,8 @@ xcodebuild \
 # 内嵌分享扩展必须先签，主程序签名时才能把它的摘要封进去。
 for extension_path in "${app_path}/Contents/PlugIns/"*.appex; do
   [[ -e "${extension_path}" ]] || continue
-  codesign --force --sign - --timestamp=none --generate-entitlement-der "${extension_path}"
+  codesign --force --sign - --timestamp=none --generate-entitlement-der \
+    --entitlements QiankunjieShare/QiankunjieShare.entitlements "${extension_path}"
 done
 codesign --force --sign - --timestamp=none --generate-entitlement-der "${app_path}"
 codesign --verify --deep --strict "${app_path}"
