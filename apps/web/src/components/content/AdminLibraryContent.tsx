@@ -60,6 +60,8 @@ function actionLabel(action: string) {
     article_copied_to_admin: '复制到管理员收件箱',
     article_ai_regenerated: '重新生成 AI',
     article_metadata_deleted: '删除用户文章记录',
+    article_restored: '回收站恢复文章',
+    article_purged: '回收站彻底删除文章',
   };
   return labels[action] || action;
 }

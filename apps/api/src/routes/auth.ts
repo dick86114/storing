@@ -907,6 +907,67 @@ authRoutes.delete('/admin/users/:id/articles/:articleId', requireAdmin, async (c
   return c.json({ article_id: articleId, user_id: targetUserId, deleted: true, scope: 'metadata' });
 });
 
+/** 管理员：回收站——列出所有被软删除的文章。 */
+authRoutes.get('/admin/trash', requireAdmin, async (c) => {
+  const rows = await db
+    .select({
+      articleId: articles.id,
+      title: articles.title,
+      source: articles.source,
+      author: articles.author,
+      coverImage: articles.coverImage,
+      userId: articleMetadata.userId,
+      username: sql<string | null>`(SELECT "username" FROM "users" WHERE "id" = ${articleMetadata.userId})`,
+      sourceType: articleMetadata.sourceType,
+      deletedAt: articleMetadata.updatedAt,
+    })
+    .from(articles)
+    .innerJoin(articleMetadata, eq(articleMetadata.articleId, articles.id))
+    .where(eq(articleMetadata.isDeleted, true))
+    .orderBy(desc(articleMetadata.updatedAt));
+
+  return c.json({ items: rows, total: rows.length });
+});
+
+/** 管理员：恢复回收站文章（清除该文章全部用户的删除标记）。 */
+authRoutes.post('/admin/trash/:articleId/restore', requireAdmin, async (c) => {
+  const articleId = Number(c.req.param('articleId'));
+  if (!Number.isFinite(articleId) || articleId <= 0) return c.json({ error: { code: 'BAD_REQUEST', message: '文章 ID 无效' } }, 400);
+
+  const restored = await db
+    .update(articleMetadata)
+    .set({ isDeleted: false, updatedAt: new Date() })
+    .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.isDeleted, true)))
+    .returning({ userId: articleMetadata.userId });
+  if (restored.length === 0) return c.json({ error: { code: 'NOT_FOUND', message: '回收站中没有这篇文章' } }, 404);
+
+  await writeAdminAudit({
+    actorUserId: getCurrentUser(c).id,
+    articleId,
+    action: 'article_restored',
+    detail: { restored_users: restored.length },
+  });
+  return c.json({ article_id: articleId, restored_users: restored.length });
+});
+
+/** 管理员：彻底删除回收站文章（物理删除元数据与原始文章，不可恢复）。 */
+authRoutes.delete('/admin/trash/:articleId', requireAdmin, async (c) => {
+  const articleId = Number(c.req.param('articleId'));
+  if (!Number.isFinite(articleId) || articleId <= 0) return c.json({ error: { code: 'BAD_REQUEST', message: '文章 ID 无效' } }, 400);
+
+  const [exists] = await db.select({ id: articles.id }).from(articles).where(eq(articles.id, articleId)).limit(1);
+  if (!exists) return c.json({ error: { code: 'NOT_FOUND', message: '回收站中没有这篇文章' } }, 404);
+
+  await db.delete(articleMetadata).where(eq(articleMetadata.articleId, articleId));
+  await db.delete(articles).where(eq(articles.id, articleId));
+  await writeAdminAudit({
+    actorUserId: getCurrentUser(c).id,
+    articleId,
+    action: 'article_purged',
+  });
+  return c.json({ article_id: articleId, deleted: true, scope: 'permanent' });
+});
+
 /** 管理员：查看跨用户管理行为审计记录。 */
 authRoutes.get('/admin/audit-logs', requireAdmin, async (c) => {
   const targetUserParam = c.req.query('target_user_id');

@@ -180,8 +180,8 @@ struct AppModelTests {
     }
 
     @Test func 管理员设置按固定顺序提供用户与MCP管理() {
-        #expect(AdminSettingsTab.allCases == [.users, .mcp])
-        #expect(AdminSettingsTab.allCases.map(\.title) == ["用户管理", "MCP 管理"])
+        #expect(AdminSettingsTab.allCases == [.users, .mcp, .trash])
+        #expect(AdminSettingsTab.allCases.map(\.title) == ["用户管理", "MCP 管理", "回收站"])
     }
 
     @Test func 仅管理员账号可以打开管理员设置() {
