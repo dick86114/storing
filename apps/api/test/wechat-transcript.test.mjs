@@ -79,7 +79,9 @@ test('html mirrors the WeChat record layout with inline media', () => {
 test('unmatched media placeholders degrade to plain text', () => {
   const records = parseWeChatTranscript('·张三\n2026年1月2日 09:05\n[图片] missing.jpg');
   const markdown = renderWeChatTranscriptMarkdown({ records, mediaMap });
-  assert.match(markdown, /\[图片\] missing\.jpg/);
+  const html = renderWeChatTranscriptHtml({ records, mediaMap });
+  assert.match(markdown, /> 图片（未随聊天记录导出）/);
+  assert.match(html, /（图片未随聊天记录导出）/);
 });
 
 test('zip entry names with traversal or control characters are rejected', () => {

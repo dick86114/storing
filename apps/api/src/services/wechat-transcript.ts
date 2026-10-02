@@ -114,6 +114,9 @@ export function renderWeChatTranscriptMarkdown(input: {
         } else {
           lines.push(`> ${placeholder.label} ${placeholder.filename}（未能上传到图床）`);
         }
+      } else if (placeholder) {
+        // 微信导出时过期媒体不会打进 ZIP，只留下占位符。
+        lines.push(`> ${placeholder.label}（未随聊天记录导出）`);
       } else if (line.trim()) {
         lines.push(line);
       }
@@ -164,6 +167,9 @@ export function renderWeChatTranscriptHtml(input: {
         const attachment = placeholder ? input.mediaMap.get(placeholder.filename) : undefined;
         if (placeholder && attachment) {
           return renderMediaHtml(placeholder.filename, attachment, placeholder.label);
+        }
+        if (placeholder) {
+          return `<p class="wechat-missing">（${escapeHtml(placeholder.label)}未随聊天记录导出）</p>`;
         }
         return line.trim() ? `<p>${renderInline(line)}</p>` : '';
       })
