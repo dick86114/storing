@@ -15,7 +15,8 @@ test('macOS 工程固定最新平台且不包含分享扩展权限', () => {
   assert.match(project, /SWIFT_STRICT_CONCURRENCY: complete/);
   assert.match(project, /ARCHS: arm64/);
   assert.match(project, /PRODUCT_BUNDLE_IDENTIFIER: com\.idickies\.storing\.macos/);
-  assert.doesNotMatch(project, /QiankunjieShareExtension|application-groups/);
+  // 微信分享扩展不用 App Group：共享目录模式对 Developer ID 与本地构建都稳定。
+  assert.doesNotMatch(project, /application-groups/);
   assert.match(packageJson, /macos:generate/);
   assert.match(packageJson, /macos:test/);
   assert.match(packageJson, /macos:build/);
@@ -36,6 +37,7 @@ test('QiankunjieKit 暴露全部原生模块占位', () => {
     'QiankunjieReader',
     'QiankunjieDesignSystem',
     'QiankunjieUpdating',
+    'QiankunjieWeChat',
   ]) {
     assert.match(manifest, new RegExp(module));
   }
@@ -76,4 +78,34 @@ test('DMG 包含中文首次运行说明且校验请求始终直连 GitHub', () 
   assert.match(build, /更新失败/);
   assert.match(updater, /Self\.applyMirror\(release\.downloadURL/);
   assert.doesNotMatch(updater, /applyMirror\(checksumURL/);
+});
+
+test('微信分享扩展保持沙盒、无网络且只写共享 Inbox', () => {
+  const project = read('../macos/project.yml');
+  const info = read('../macos/QiankunjieShare/Info.plist');
+  const entitlements = read('../macos/QiankunjieShare/QiankunjieShare.entitlements');
+  const share = read('../macos/QiankunjieShare/ShareViewController.swift');
+  const coordinator = read('../macos/QiankunjieMac/App/WeChatImportCoordinator.swift');
+
+  // 分享入口只声明接收文件，出现在微信「转发到其他应用」列表。
+  assert.match(project, /QiankunjieShare:/);
+  assert.match(project, /type: app-extension/);
+  assert.match(project, /com\.apple\.share-services/);
+  assert.match(info, /NSExtensionActivationSupportsFileWithMaxCount/);
+  assert.match(info, /<integer>32<\/integer>/);
+
+  // Extension 无网络权限；唯一文件写入例外是共享 Inbox。
+  assert.match(entitlements, /com\.apple\.security\.app-sandbox/);
+  assert.match(entitlements, /WeChatInbox/);
+  assert.doesNotMatch(entitlements, /com\.apple\.security\.network\.client/);
+
+  // Extension 只落盘并原子提交；解析与上传由主应用完成。
+  assert.match(share, /WeChatInbox\.standard\(\)/);
+  assert.match(share, /staging\.commit\(manifest:/);
+  assert.doesNotMatch(share, /URLSession|URLRequest/);
+
+  // 主应用上传成功后清理批次，失败保留重试。
+  assert.match(coordinator, /WeChatInboxWatcher/);
+  assert.match(coordinator, /repository\.importFiles\(files\)/);
+  assert.match(coordinator, /removeBatch\(at: batchDirectory\)/);
 });

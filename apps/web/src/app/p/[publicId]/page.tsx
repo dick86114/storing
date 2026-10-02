@@ -162,6 +162,7 @@ export default function PublicPublicationPage({ params }: { params: Promise<{ pu
   const SourceIcon = sourceIcon.Icon;
   const sourceText = getArticleSourceText(article);
   const originalUrl = article.originalUrl || '';
+  const canOpenOriginal = /^https?:\/\//i.test(originalUrl);
   const displayTime = article.publishedAt || article.publishTime;
 
   return (
@@ -191,7 +192,7 @@ export default function PublicPublicationPage({ params }: { params: Promise<{ pu
                   <CopyOutlined style={{ fontSize: 16 }} />
                   <span>复制链接</span>
                 </button>
-                {originalUrl && (
+                {canOpenOriginal && (
                   <button className="app-menu-item detail-more-menu-item" role="menuitem" type="button" onClick={handleOpenOriginal}>
                     <ExportOutlined style={{ fontSize: 16 }} />
                     <span>打开原文</span>

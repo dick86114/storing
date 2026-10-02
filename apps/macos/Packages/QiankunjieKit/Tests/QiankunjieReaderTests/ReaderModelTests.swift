@@ -194,9 +194,16 @@ struct ReaderModelTests {
             isPerformingAction: true,
             originalURLText: "https://example.com/article"
         )
+        let importedWeChatURL = ReaderActionPolicy.availability(
+            articleID: 96,
+            isGuest: true,
+            isPerformingAction: false,
+            originalURLText: "qiankunjie://wechat-import/8B0E6A5E"
+        )
 
         #expect(unsafeGuestURL.originalURL == nil)
         #expect(performingGuestURL.originalURL == nil)
+        #expect(importedWeChatURL.originalURL == nil)
     }
 
     @Test func 登录用户在文章就绪时启用账户动作() {

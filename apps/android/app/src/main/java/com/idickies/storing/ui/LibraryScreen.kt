@@ -390,6 +390,10 @@ internal val categoryAssignmentPresentation = CategoryAssignmentPresentation(
 
 internal fun isLibraryPagerUserScrollEnabled(categoryStripPressed: Boolean): Boolean = !categoryStripPressed
 
+/** 微信导入等内部内容使用 qiankunjie:// 标识，不能当作网页原文打开或分享。 */
+private fun isWebOriginalUrl(url: String?): Boolean =
+  url?.startsWith("http://") == true || url?.startsWith("https://") == true
+
 private fun Modifier.pauseLibraryPagerWhilePressed(onPressedChanged: (Boolean) -> Unit): Modifier =
   pointerInput(onPressedChanged) {
     awaitEachGesture {
@@ -2250,10 +2254,10 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
           Text(article.source ?: "乾坤戒阅读", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         },
         navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回资料库") } },
-        actions = {
+          actions = {
           IconButton(
             onClick = { article.originalUrl?.let { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) } },
-            enabled = !article.originalUrl.isNullOrBlank(),
+            enabled = isWebOriginalUrl(article.originalUrl),
           ) { Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = "打开原网页") }
           if (canManage && article.isArchived) {
             IconButton(onClick = { categoryPickerOpen = true }, enabled = processingAction == null) {
@@ -2275,7 +2279,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                 text = { Text("分享原网页", style = MaterialTheme.typography.bodyLarge) },
                 onClick = { moreExpanded = false; shareOriginalUrl() },
                 leadingIcon = { Icon(Icons.Outlined.IosShare, contentDescription = null) },
-                enabled = !article.originalUrl.isNullOrBlank(),
+                enabled = isWebOriginalUrl(article.originalUrl),
               )
               if (article.isPublished && publicUrl != null) DropdownMenuItem(
                 text = { Text("复制公开链接", style = MaterialTheme.typography.bodyLarge) },

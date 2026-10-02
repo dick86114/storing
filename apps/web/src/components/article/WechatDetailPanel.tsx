@@ -2436,6 +2436,7 @@ function DetailContent({
     { revalidateOnFocus: false }
   );
   const originalUrl = article?.originalUrl || fallbackArticle?.originalUrl || '';
+  const canOpenOriginal = /^https?:\/\//i.test(originalUrl);
   const originalLinkStatus = articleError ? '原文链接暂时不可用' : '原文链接加载中';
   const sourceArticle = article || fallbackArticle;
   const sourceIcon = getArticleSourceIcon(sourceArticle);
@@ -2828,7 +2829,7 @@ function DetailContent({
                       <CopyOutlined />
                       <span>复制原文链接</span>
                     </button>
-                    {originalUrl && (
+                    {canOpenOriginal && (
                       <button className="app-menu-item detail-more-menu-item" type="button" onClick={handleOpenOriginalUrl}>
                         <ExportOutlined />
                         <span>打开原文</span>
@@ -2852,7 +2853,7 @@ function DetailContent({
                       <CopyOutlined />
                       <span>复制链接</span>
                     </button>
-                    {originalUrl && (
+                    {canOpenOriginal && (
                       <button className="app-menu-item detail-more-menu-item" type="button" onClick={handleOpenOriginalUrl}>
                         <ExportOutlined />
                         <span>打开正文</span>

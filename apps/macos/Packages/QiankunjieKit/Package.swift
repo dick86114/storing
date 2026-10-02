@@ -18,6 +18,13 @@ let package = Package(
                 "QiankunjieReader",
                 "QiankunjieDesignSystem",
                 "QiankunjieUpdating",
+                "QiankunjieWeChat",
+            ]
+        ),
+        .library(
+            name: "QiankunjieWeChat",
+            targets: [
+                "QiankunjieWeChat",
             ]
         ),
     ],
@@ -64,6 +71,14 @@ let package = Package(
         ),
         .target(name: "QiankunjieDesignSystem", path: "Sources/QiankunjieDesignSystem"),
         .target(name: "QiankunjieUpdating", path: "Sources/QiankunjieUpdating"),
+        .target(
+            name: "QiankunjieWeChat",
+            dependencies: [
+                "QiankunjieCore",
+                "QiankunjieNetworking",
+            ],
+            path: "Sources/QiankunjieWeChat"
+        ),
         .testTarget(
             name: "QiankunjieCoreTests",
             dependencies: [
@@ -141,6 +156,13 @@ let package = Package(
                 "QiankunjieUpdating",
             ],
             path: "Tests/QiankunjieKitTests"
+        ),
+        .testTarget(
+            name: "QiankunjieWeChatTests",
+            dependencies: [
+                "QiankunjieWeChat",
+            ],
+            path: "Tests/QiankunjieWeChatTests"
         ),
     ],
     swiftLanguageModes: [.v6]

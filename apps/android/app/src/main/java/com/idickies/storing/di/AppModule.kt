@@ -17,6 +17,7 @@ import com.idickies.storing.network.MobileCollectApi
 import com.idickies.storing.mcp.McpApi
 import com.idickies.storing.admin.AdminApi
 import com.idickies.storing.network.MobileReleaseApi
+import com.idickies.storing.network.WeChatImportApi
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -102,6 +103,10 @@ object AppModule {
   @Provides
   @Singleton
   fun provideMobileCollectApi(retrofit: Retrofit): MobileCollectApi = retrofit.create(MobileCollectApi::class.java)
+
+  @Provides
+  @Singleton
+  fun provideWeChatImportApi(retrofit: Retrofit): WeChatImportApi = retrofit.create(WeChatImportApi::class.java)
 
   @Provides
   @Singleton
