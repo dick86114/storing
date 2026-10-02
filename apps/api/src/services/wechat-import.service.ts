@@ -9,6 +9,7 @@ import {
   guessWeChatMime,
   parseWeChatTranscript,
   renderWeChatTranscriptMarkdown,
+  renderWeChatTranscriptHtml,
   safeZipEntryName,
   WeChatMediaKind,
   WeChatTranscriptRecord,
@@ -217,6 +218,8 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
     ? renderWeChatTranscriptMarkdown({ records, media: uploadedUrls })
     : '';
   if (!markdown) throw new WeChatImportError('没有识别到聊天记录或媒体文件', 'UNSUPPORTED');
+  // 阅读器默认请求 HTML 正文；微信导入没有可抓取的外部源，落库时直接生成。
+  const html = renderWeChatTranscriptHtml({ records, media: uploadedUrls });
 
   const articleId = await getNextArticleId();
   const now = new Date();
@@ -227,6 +230,7 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
     source: '微信',
     originalUrl,
     contentMarkdown: markdown,
+    contentHtml: html,
     content: {
       type: 'wechat_chat',
       platform: options.source,
@@ -254,7 +258,7 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
   if (existingMeta) {
     await db
       .update(articleMetadata)
-      .set({ contentMd: markdown, isDeleted: false, isArchived: false, updatedAt: now })
+      .set({ contentMd: markdown, contentHtml: html, isDeleted: false, isArchived: false, updatedAt: now })
       .where(eq(articleMetadata.id, existingMeta.id));
   } else {
     await db.insert(articleMetadata).values({
@@ -262,6 +266,7 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
       userId: options.userId,
       sourceType: `wechat_${options.source}`,
       contentMd: markdown,
+      contentHtml: html,
       isFavorited: false,
       isArchived: false,
       createdAt: now,

@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   parseWeChatTranscript,
   renderWeChatTranscriptMarkdown,
+  renderWeChatTranscriptHtml,
   safeZipEntryName,
 } from '../src/services/wechat-transcript.ts';
 
@@ -58,4 +59,22 @@ test('zip entry names with traversal or control characters are rejected', () => 
   assert.equal(safeZipEntryName('back\\slash.txt'), null);
   assert.equal(safeZipEntryName('bad\u0000name.txt'), null);
   assert.equal(safeZipEntryName('directory/'), null);
+});
+
+test('renders records and media into reader-ready html', () => {
+  const records = parseWeChatTranscript(sample);
+  const html = renderWeChatTranscriptHtml({
+    records,
+    media: [
+      { name: 'photo.jpg', url: 'https://img.example/p/photo.jpg', kind: 'image' },
+      { name: 'doc.pdf', url: null, kind: 'file' },
+    ],
+  });
+
+  assert.match(html, /<div class="wechat-message">/);
+  assert.match(html, /<strong>张三<\/strong> · 2026年1月2日 09:05/);
+  assert.match(html, /第一条消息<br>正文第二行/);
+  assert.match(html, /<img src="https:\/\/img\.example\/p\/photo\.jpg"/);
+  assert.match(html, /doc\.pdf（未能上传到图床）/);
+  assert.doesNotMatch(html, /<script/);
 });

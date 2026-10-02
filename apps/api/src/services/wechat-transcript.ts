@@ -75,6 +75,55 @@ export function renderWeChatTranscriptMarkdown(input: {
   return lines.join('\n').trim();
 }
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** 行内加粗与转义；聊天正文不包含更复杂的 Markdown 结构。 */
+function renderInline(text: string): string {
+  return escapeHtml(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+}
+
+/**
+ * 聊天记录渲染为阅读器可直接使用的 HTML。
+ * 与 Markdown 渲染保持同一结构：消息列表 + 媒体附件，方便两种格式互相对应。
+ */
+export function renderWeChatTranscriptHtml(input: {
+  records: WeChatTranscriptRecord[];
+  media: Array<{ name: string; url: string | null; kind: WeChatMediaKind }>;
+}): string {
+  const messages = input.records.map((record) => {
+    const meta = `<p class="wechat-message-meta"><strong>${renderInline(record.sender)}</strong> · ${escapeHtml(record.dateText)}</p>`;
+    const body = record.text
+      .split('\n')
+      .map((line) => renderInline(line))
+      .join('<br>');
+    return `<div class="wechat-message">${meta}${body ? `<p>${body}</p>` : ''}</div>`;
+  });
+
+  const mediaBlocks = input.media.map((item) => {
+    if (item.kind === 'image' && item.url) {
+      return `<p><img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.name)}" /></p>`;
+    }
+    const label = item.kind === 'video' ? '视频' : item.kind === 'audio' ? '语音' : '文件';
+    if (item.url) {
+      return `<p><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${label}：${escapeHtml(item.name)}</a></p>`;
+    }
+    return `<p>${escapeHtml(item.name)}（未能上传到图床）</p>`;
+  });
+
+  const mediaSection =
+    input.media.length > 0
+      ? `<hr /><h3>媒体附件</h3>${mediaBlocks.join('')}`
+      : '';
+
+  return `<div class="wechat-chat">${messages.join('')}${mediaSection}</div>`;
+}
+
 export function detectWeChatMediaKind(filename: string): WeChatMediaKind {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
   if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif', 'heic'].includes(ext)) return 'image';
