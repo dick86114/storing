@@ -92,8 +92,9 @@ jobs:
               rf"\g<1>{version}",
               text,
           )
-          if count != 1:
-              raise SystemExit(f"project.yml 中 MARKETING_VERSION 数量异常：{count}")
+          # 主应用与分享扩展各自声明版本，发版时全部同步更新。
+          if count < 1:
+              raise SystemExit("project.yml 中缺少 MARKETING_VERSION")
           path.write_text(updated, encoding="utf-8")
           PY
 
