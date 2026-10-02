@@ -80,7 +80,7 @@ targets:
     info:
       path: QiankunjieShare/Info.plist
       properties:
-        CFBundleDisplayName: 乾坤戒
+        CFBundleDisplayName: $(EXTENSION_DISPLAY_NAME)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
@@ -100,10 +100,12 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         SKIP_INSTALL: YES
         CODE_SIGN_ENTITLEMENTS: QiankunjieShare/QiankunjieShare.entitlements
+        EXTENSION_DISPLAY_NAME: 乾坤戒
         PRODUCT_BUNDLE_IDENTIFIER: com.idickies.storing.macos.share
       configs:
         Debug:
           PRODUCT_BUNDLE_IDENTIFIER: com.idickies.storing.macos.debug.share
+          EXTENSION_DISPLAY_NAME: 乾坤戒 Debug
 
 schemes:
   QiankunjieMac:

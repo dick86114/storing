@@ -39,4 +39,17 @@ struct WeChatShareSettingsTests {
         )
         #expect(WeChatShareSettingsModel.extensionBundleURL.lastPathComponent == "storing.appex")
     }
+
+    @Test func 开关切换使用带标识参数的pluginkit调用() {
+        let identifier = "com.idickies.storing.macos.share"
+
+        #expect(
+            WeChatShareSettingsModel.setArguments(enabled: true, identifier: identifier)
+                == ["-e", "use", "-i", identifier]
+        )
+        #expect(
+            WeChatShareSettingsModel.setArguments(enabled: false, identifier: identifier)
+                == ["-e", "ignore", "-i", identifier]
+        )
+    }
 }

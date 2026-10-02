@@ -1417,6 +1417,14 @@ export async function getArticleContent(
       );
       return meta.contentHtml;
     }
+
+    // 微信导入的聊天记录保存在本地，没有可抓取的外部源；
+    // 存量文章缺 HTML 缓存时从 Markdown 现场生成并写回。
+    const wechatHtml = await buildWeChatHtmlFromCache(articleId, meta?.contentMd);
+    if (wechatHtml) {
+      await saveArticleContentCache(articleId, 'html', wechatHtml, htmlVariant, userId);
+      return wechatHtml;
+    }
   } else {
     // Markdown 格式：检查缓存（排除本地资源引用的脏缓存）
     if (meta?.contentMd) {
@@ -1442,6 +1450,65 @@ export async function getArticleContent(
   await saveArticleContentCache(articleId, format, content, htmlVariant, userId)
 
   return content;
+}
+
+/** 微信导入文章的存量兜底：从已保存的 Markdown 生成 HTML 正文。 */
+async function buildWeChatHtmlFromCache(articleId: number, contentMd: string | null): Promise<string | null> {
+  if (!contentMd) return null;
+  const [article] = await db
+    .select({ contentMeta: articles.content })
+    .from(articles)
+    .where(eq(articles.id, articleId));
+  const contentType = (article?.contentMeta as { type?: string } | null)?.type;
+  if (contentType !== 'wechat_chat') return null;
+  return renderWeChatTranscriptHtmlFromMarkdown(contentMd);
+}
+
+/**
+ * 把聊天记录 Markdown 还原为 HTML。
+ * 只处理导入器自己产出的结构：发送人行、正文、媒体附件区。
+ */
+function renderWeChatTranscriptHtmlFromMarkdown(md: string): string | null {
+  const escapeHtml = (text: string) =>
+    text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const inline = (text: string) =>
+    escapeHtml(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+  const blocks = md.split(/\n{2,}/);
+  const messagePattern = /^\*\*([^*]+)\*\* · (\d{4}年\d{1,2}月\d{1,2}日 \d{2}:\d{2})$/;
+  const mediaIndex = blocks.findIndex((block) => block.trim() === '### 媒体附件');
+  const messageBlocks = (mediaIndex >= 0 ? blocks.slice(0, mediaIndex) : blocks).filter((block) => block.trim() && block.trim() !== '---');
+
+  if (messageBlocks.length === 0) return null;
+
+  const messages = messageBlocks
+    .map((block) => {
+      const lines = block.split('\n');
+      const header = messagePattern.exec(lines[0].trim());
+      if (!header) return `<p>${inline(block.trim())}</p>`;
+      const body = lines.slice(1).join('<br>');
+      return `<div class="wechat-message"><p class="wechat-message-meta"><strong>${escapeHtml(header[1])}</strong> · ${escapeHtml(header[2])}</p>${body ? `<p>${inline(body)}</p>` : ''}</div>`;
+    })
+    .join('');
+
+  const mediaSection =
+    mediaIndex >= 0
+      ? `<hr /><h3>媒体附件</h3>${blocks
+          .slice(mediaIndex + 1)
+          .filter((line) => line.trim())
+          .map((line) => {
+            const image = /^!\[([^\]]*)\]\(([^)]+)\)$/.exec(line.trim());
+            if (image) return `<p><img src="${escapeHtml(image[2])}" alt="${escapeHtml(image[1])}" /></p>`;
+            const link = /^\[([^\]]+)：([^\]]+)\]\(([^)]+)\)$/.exec(line.trim());
+            if (link) return `<p><a href="${escapeHtml(link[3])}" target="_blank" rel="noopener noreferrer">${inline(`${link[1]}：${link[2]}`)}</a></p>`;
+            const missing = /^- (.+)（未能上传到图床）$/.exec(line.trim());
+            if (missing) return `<p>${escapeHtml(missing[1])}（未能上传到图床）</p>`;
+            return `<p>${inline(line.trim())}</p>`;
+          })
+          .join('')}`
+      : '';
+
+  return `<div class="wechat-chat">${messages}${mediaSection}</div>`;
 }
 
 /** 从 markdown 中提取第一张图片 URL */

@@ -10,6 +10,8 @@ final class WeChatShareSettingsModel {
     private(set) var isExtensionInstalled = false
     private(set) var isExtensionEnabled: Bool?
     private(set) var pendingBatchCount = 0
+    private(set) var isSwitching = false
+    private(set) var switchFailed = false
     private let inbox: WeChatInbox
 
     init(inbox: WeChatInbox = .standard()) {
@@ -35,6 +37,10 @@ final class WeChatShareSettingsModel {
         return false
     }
 
+    nonisolated static func setArguments(enabled: Bool, identifier: String) -> [String] {
+        ["-e", enabled ? "use" : "ignore", "-i", identifier]
+    }
+
     func refresh() {
         isExtensionInstalled = FileManager.default.fileExists(atPath: Self.extensionBundleURL.path)
         pendingBatchCount = inbox.readyBatchDirectories().count
@@ -44,10 +50,17 @@ final class WeChatShareSettingsModel {
         }
     }
 
-    func enableExtension() {
+    func setEnabled(_ enabled: Bool) {
+        guard !isSwitching else { return }
+        isSwitching = true
+        switchFailed = false
         Task {
-            await Self.runPluginkit(["-e", "use", Self.extensionIdentifier])
-            isExtensionEnabled = await Self.queryExtensionEnabled()
+            await Self.runPluginkit(Self.setArguments(enabled: enabled, identifier: Self.extensionIdentifier))
+            let actual = await Self.queryExtensionEnabled()
+            isExtensionEnabled = actual
+            isSwitching = false
+            // pluginkit -e 无论 pkd 是否接受都返回 0，回读结果才是真相。
+            switchFailed = actual != enabled
         }
     }
 
@@ -85,26 +98,40 @@ final class WeChatShareSettingsModel {
 struct WeChatShareSettingsView: View {
     @State private var model = WeChatShareSettingsModel()
 
+    private var toggleBinding: Binding<Bool> {
+        Binding(
+            get: { model.isExtensionEnabled == true },
+            set: { model.setEnabled($0) }
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            LabeledContent(
-                "微信「转发到其他应用」入口",
-                value: statusText
-            )
-
-            if model.isExtensionEnabled != true {
-                HStack {
-                    Button("启用乾坤戒转发") {
-                        model.enableExtension()
-                    }
-                    Button("打开系统扩展设置") {
-                        model.openSystemSettings()
+            if model.isExtensionInstalled {
+                LabeledContent {
+                    Toggle("微信「转发到其他应用」入口", isOn: toggleBinding)
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                        .disabled(model.isSwitching)
+                } label: {
+                    Text("微信「转发到其他应用」入口")
+                    if model.isExtensionEnabled != true {
+                        Text(statusText)
                     }
                 }
-                Text("在微信中多选聊天记录，选择「合并转发 → 转发到其他应用」，再点选乾坤戒即可保存。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+            } else {
+                LabeledContent("微信「转发到其他应用」入口", value: statusText)
             }
+
+            if model.switchFailed {
+                Label("开关未能生效，请到系统设置 → 通用 → 登录项与扩展 → 共享里手动打开乾坤戒。", systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+            }
+
+            Text("在微信中多选聊天记录，选择「合并转发 → 转发到其他应用」，再点选乾坤戒即可保存。")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
 
             if model.pendingBatchCount > 0 {
                 Text("有 \(model.pendingBatchCount) 批微信转发等待保存；服务端更新后会自动完成上传。")
@@ -121,6 +148,9 @@ struct WeChatShareSettingsView: View {
         if !model.isExtensionInstalled {
             return "当前版本未包含"
         }
-        return model.isExtensionEnabled == true ? "已启用" : "未启用"
+        if model.isExtensionEnabled == nil {
+            return "检查中…"
+        }
+        return "未启用"
     }
 }

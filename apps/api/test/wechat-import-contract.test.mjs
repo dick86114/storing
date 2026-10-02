@@ -19,6 +19,19 @@ test('WeChat import route is registered and keeps parsing, uploads and persisten
   assert.match(service, /generateSummaryAndTags\(articleId, options\.userId\)/);
 });
 
+test('WeChat import persists html body so the reader never needs to fetch an internal url', () => {
+  const service = read('src/services/wechat-import.service.ts');
+  const reader = read('src/services/reader.service.ts');
+
+  assert.match(service, /renderWeChatTranscriptHtml\(\{ records, media: uploadedUrls \}\)/);
+  assert.match(service, /contentHtml: html/);
+
+  // 存量文章缺 HTML 缓存时从 Markdown 现场生成，而不是去抓取 qiankunjie:// 内部地址。
+  assert.match(reader, /buildWeChatHtmlFromCache\(articleId, meta\?\.contentMd\)/);
+  assert.match(reader, /contentType !== 'wechat_chat'/);
+  assert.match(reader, /renderWeChatTranscriptHtmlFromMarkdown\(contentMd\)/);
+});
+
 test('WeChat import validates ZIP entry names and enforces size limits', () => {
   const service = read('src/services/wechat-import.service.ts');
   const transcript = read('src/services/wechat-transcript.ts');
