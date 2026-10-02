@@ -175,12 +175,22 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$NOTES" > "$RUNNER_TEMP/release-notes.md"
-          gh release create "$TAG" \
-            "macos-release/Qiankunjie.dmg" \
-            "macos-release/Qiankunjie-${VERSION}-arm64.dmg" \
-            "macos-release/Qiankunjie.dmg.sha256" \
-            "macos-release/Qiankunjie-${VERSION}-arm64.dmg.sha256" \
-            --target "$TARGET_COMMIT" \
-            --title "乾坤戒 macOS v${VERSION}" \
-            --notes-file "$RUNNER_TEMP/release-notes.md" \
-            --latest
+          # GitHub API 偶发 403（token 瞬时权限抖动），自动重试三次。
+          for attempt in 1 2 3; do
+            if gh release create "$TAG" \
+              "macos-release/Qiankunjie.dmg" \
+              "macos-release/Qiankunjie-${VERSION}-arm64.dmg" \
+              "macos-release/Qiankunjie.dmg.sha256" \
+              "macos-release/Qiankunjie-${VERSION}-arm64.dmg.sha256" \
+              --target "$TARGET_COMMIT" \
+              --title "乾坤戒 macOS v${VERSION}" \
+              --notes-file "$RUNNER_TEMP/release-notes.md" \
+              --latest
+            then
+              exit 0
+            fi
+            echo "第 $attempt 次创建 Release 失败，稍后重试…" >&2
+            sleep $((attempt * 10))
+          done
+          echo "连续三次创建 Release 失败。" >&2
+          exit 1
