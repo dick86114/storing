@@ -42,7 +42,12 @@ xcodebuild \
 
 # CODE_SIGNING_ALLOWED=NO 时只有链接器级别的临时签名，bundle 签名不完整：
 # codesign --verify 会报 "code has no resources but signature indicates they must be present"，
-# 文件带上网络下载隔离属性后会被 Gatekeeper 直接判为“已损坏”。这里补一次完整签名。
+# 文件带上网络下载隔离属性后会被 Gatekeeper 直接判为“已损坏”。这里补一次完整签名；
+# 内嵌分享扩展必须先签，主程序签名时才能把它的摘要封进去。
+for extension_path in "${app_path}/Contents/PlugIns/"*.appex; do
+  [[ -e "${extension_path}" ]] || continue
+  codesign --force --sign - --timestamp=none "${extension_path}"
+done
 codesign --force --sign - --timestamp=none "${app_path}"
 codesign --verify --deep --strict "${app_path}"
 
