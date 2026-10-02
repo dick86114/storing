@@ -228,6 +228,12 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
   if (!markdown) throw new WeChatImportError('没有识别到聊天记录或媒体文件', 'UNSUPPORTED');
   // 阅读器默认请求 HTML 正文；微信导入没有可抓取的外部源，落库时直接生成。
   const html = renderWeChatTranscriptHtml({ records, mediaMap });
+  // 有正文图片：封面交给封面处理器取第一张图；
+  // 纯文字记录：使用乾坤戒插画作为列表封面。
+  const hasInlineImage = uploadedUrls.some(
+    (file) => file.kind === 'image' && file.url && records.some((record) => record.text.includes(file.name)),
+  );
+  const coverImage = hasInlineImage ? null : WECHAT_DEFAULT_COVER;
 
   const articleId = await getNextArticleId();
   const now = new Date();
@@ -240,7 +246,7 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
     originalUrl,
     contentMarkdown: markdown,
     contentHtml: html,
-    coverImage: WECHAT_DEFAULT_COVER,
+    coverImage,
     content: {
       type: 'wechat_chat',
       platform: options.source,
@@ -277,8 +283,8 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
       sourceType: `wechat_${options.source}`,
       contentMd: markdown,
       contentHtml: html,
-      coverImage: WECHAT_DEFAULT_COVER,
-      coverVersion: COVER_IMAGE_PROCESSING_VERSION,
+      coverImage,
+      coverVersion: hasInlineImage ? 0 : COVER_IMAGE_PROCESSING_VERSION,
       isFavorited: false,
       isArchived: false,
       createdAt: now,
