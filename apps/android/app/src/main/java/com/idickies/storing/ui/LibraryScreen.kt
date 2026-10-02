@@ -2436,6 +2436,10 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                     )
                   }
                   SwipeRefreshLayout(webContext).apply {
+                    // WebView 未持焦点时，第一下滑动会被用于获取焦点而不是滚动；
+                    // 让父容器先行持有触摸焦点，避免详情页首次滑动失效。
+                    descendantFocusability = ViewGroup.FOCUS_BEFORE_DESCENDANTS
+                    isFocusableInTouchMode = true
                     setColorSchemeColors(refreshColor)
                     setProgressBackgroundColorSchemeColor(refreshBackground)
                     setOnRefreshListener(onRefresh)
