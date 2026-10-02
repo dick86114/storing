@@ -1,4 +1,5 @@
 name: Release Android APK
+run-name: "Android ${{ inputs.release_tag }} | ${{ inputs.release_notes }}"
 
 on:
   workflow_dispatch:
