@@ -8,6 +8,14 @@ export interface WeChatTranscriptRecord {
 
 export type WeChatMediaKind = 'image' | 'video' | 'audio' | 'file';
 
+export interface WeChatMediaAttachment {
+  url: string | null;
+  kind: WeChatMediaKind;
+}
+
+/** 文件名 → 附件；微信 TXT 里媒体消息以「[图片] 文件名」形式引用。 */
+export type WeChatMediaMap = Map<string, WeChatMediaAttachment>;
+
 /**
  * 解析 macOS 微信合并转发导出的「聊天记录.txt」。
  * 每条消息的固定格式：
@@ -47,34 +55,6 @@ export function parseWeChatTranscript(body: string): WeChatTranscriptRecord[] {
   return records;
 }
 
-/** 聊天记录渲染为 Markdown；媒体统一追加到文末，图床 URL 失败时保留原文件名标注。 */
-export function renderWeChatTranscriptMarkdown(input: {
-  records: WeChatTranscriptRecord[];
-  media: Array<{ name: string; url: string | null; kind: WeChatMediaKind }>;
-}): string {
-  const lines: string[] = [];
-  for (const record of input.records) {
-    lines.push(`**${record.sender}** · ${record.dateText}`);
-    if (record.text) lines.push(record.text);
-    lines.push('');
-  }
-  if (input.media.length > 0) {
-    lines.push('---', '', '### 媒体附件', '');
-    for (const item of input.media) {
-      if (item.url) {
-        if (item.kind === 'image') lines.push(`![${item.name}](${item.url})`);
-        else if (item.kind === 'video') lines.push(`[视频：${item.name}](${item.url})`);
-        else if (item.kind === 'audio') lines.push(`[语音：${item.name}](${item.url})`);
-        else lines.push(`[文件：${item.name}](${item.url})`);
-      } else {
-        lines.push(`- ${item.name}（未能上传到图床）`);
-      }
-    }
-    lines.push('');
-  }
-  return lines.join('\n').trim();
-}
-
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -88,40 +68,147 @@ function renderInline(text: string): string {
   return escapeHtml(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 }
 
+/** 从「[图片] 文件名」格式的正文行提取媒体引用。 */
+function matchMediaPlaceholder(line: string): { label: string; filename: string } | null {
+  const match = /^\[(图片|视频|语音|文件)\]\s*(.+?)\s*$/.exec(line.trim());
+  if (!match) return null;
+  return { label: match[1], filename: match[2] };
+}
+
+function messageTime(dateText: string): string {
+  return dateText.split(' ').pop() ?? dateText;
+}
+
+function headDate(records: WeChatTranscriptRecord[]): string | undefined {
+  return records[0] ? /^\d{4}年\d{1,2}月\d{1,2}日/.exec(records[0].dateText)?.[0] : undefined;
+}
+
+/** 聊天记录渲染为 Markdown：微信时间线排版，媒体按消息顺序内联。 */
+export function renderWeChatTranscriptMarkdown(input: {
+  records: WeChatTranscriptRecord[];
+  mediaMap: WeChatMediaMap;
+}): string {
+  const used = new Set<string>();
+  const lines: string[] = [];
+
+  if (input.records.length > 0) {
+    lines.push('# 聊天记录');
+    const date = headDate(input.records);
+    if (date) lines.push(date);
+    lines.push('');
+  }
+
+  for (const record of input.records) {
+    lines.push(`**${record.sender}** · ${messageTime(record.dateText)}`);
+    for (const line of record.text.split('\n')) {
+      const placeholder = matchMediaPlaceholder(line);
+      const attachment = placeholder ? input.mediaMap.get(placeholder.filename) : undefined;
+      if (placeholder && attachment) {
+        used.add(placeholder.filename);
+        if (attachment.url) {
+          lines.push(
+            attachment.kind === 'image'
+              ? `![${placeholder.filename}](${attachment.url})`
+              : `[${placeholder.label}：${placeholder.filename}](${attachment.url})`,
+          );
+        } else {
+          lines.push(`> ${placeholder.label} ${placeholder.filename}（未能上传到图床）`);
+        }
+      } else if (line.trim()) {
+        lines.push(line);
+      }
+    }
+    lines.push('', '---', '');
+  }
+
+  const leftovers = [...input.mediaMap.entries()].filter(([name]) => !used.has(name));
+  if (leftovers.length > 0) {
+    lines.push('### 其他附件', '');
+    for (const [name, attachment] of leftovers) {
+      if (attachment.url) {
+        lines.push(attachment.kind === 'image' ? `![${name}](${attachment.url})` : `[${name}](${attachment.url})`);
+      } else {
+        lines.push(`- ${name}（未能上传到图床）`);
+      }
+    }
+  }
+  return lines.join('\n').trim();
+}
+
 /**
  * 聊天记录渲染为阅读器可直接使用的 HTML。
- * 与 Markdown 渲染保持同一结构：消息列表 + 媒体附件，方便两种格式互相对应。
+ * 微信「聊天记录」样式：发送人 + 时间头部、正文按消息顺序内联媒体、消息间分隔线。
  */
 export function renderWeChatTranscriptHtml(input: {
   records: WeChatTranscriptRecord[];
-  media: Array<{ name: string; url: string | null; kind: WeChatMediaKind }>;
+  mediaMap: WeChatMediaMap;
 }): string {
+  const used = new Set<string>();
+
+  const renderMediaHtml = (filename: string, attachment: WeChatMediaAttachment, label: string): string => {
+    used.add(filename);
+    if (!attachment.url) {
+      return `<p class="wechat-missing">${escapeHtml(`${label} ${filename}（未能上传到图床）`)}</p>`;
+    }
+    if (attachment.kind === 'image') {
+      return `<p><img src="${escapeHtml(attachment.url)}" alt="${escapeHtml(filename)}" /></p>`;
+    }
+    return `<p><a href="${escapeHtml(attachment.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(`${label}：${filename}`)}</a></p>`;
+  };
+
   const messages = input.records.map((record) => {
-    const meta = `<p class="wechat-message-meta"><strong>${renderInline(record.sender)}</strong> · ${escapeHtml(record.dateText)}</p>`;
     const body = record.text
       .split('\n')
-      .map((line) => renderInline(line))
-      .join('<br>');
-    return `<div class="wechat-message">${meta}${body ? `<p>${body}</p>` : ''}</div>`;
+      .map((line) => {
+        const placeholder = matchMediaPlaceholder(line);
+        const attachment = placeholder ? input.mediaMap.get(placeholder.filename) : undefined;
+        if (placeholder && attachment) {
+          return renderMediaHtml(placeholder.filename, attachment, placeholder.label);
+        }
+        return line.trim() ? `<p>${renderInline(line)}</p>` : '';
+      })
+      .join('');
+    return [
+      '<div class="wechat-msg">',
+      `<div class="wechat-msg-head"><span class="wechat-msg-sender">${renderInline(record.sender)}</span><span class="wechat-msg-time">${escapeHtml(messageTime(record.dateText))}</span></div>`,
+      `<div class="wechat-msg-body">${body}</div>`,
+      '</div>',
+    ].join('');
   });
 
-  const mediaBlocks = input.media.map((item) => {
-    if (item.kind === 'image' && item.url) {
-      return `<p><img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.name)}" /></p>`;
-    }
-    const label = item.kind === 'video' ? '视频' : item.kind === 'audio' ? '语音' : '文件';
-    if (item.url) {
-      return `<p><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${label}：${escapeHtml(item.name)}</a></p>`;
-    }
-    return `<p>${escapeHtml(item.name)}（未能上传到图床）</p>`;
-  });
-
-  const mediaSection =
-    input.media.length > 0
-      ? `<hr /><h3>媒体附件</h3>${mediaBlocks.join('')}`
+  const leftovers = [...input.mediaMap.entries()].filter(([name]) => !used.has(name));
+  const leftoverSection =
+    leftovers.length > 0
+      ? [
+          '<hr />',
+          '<h3>其他附件</h3>',
+          ...leftovers.map(([name, attachment]) => renderMediaHtml(name, attachment, '附件')),
+        ].join('')
       : '';
 
-  return `<div class="wechat-chat">${messages.join('')}${mediaSection}</div>`;
+  const date = headDate(input.records);
+  const head =
+    input.records.length > 0
+      ? `<div class="wechat-chat-head"><p class="wechat-chat-title">聊天记录</p>${date ? `<p class="wechat-chat-date">${escapeHtml(date)}</p>` : ''}</div>`
+      : '';
+
+  return [
+    '<style>',
+    '.wechat-chat{max-width:100%;}',
+    '.wechat-chat-head{text-align:center;padding:8px 0 4px;}',
+    '.wechat-chat-title{font-size:15px;font-weight:600;margin:0;}',
+    '.wechat-chat-date{font-size:12px;opacity:.6;margin:4px 0 12px;}',
+    '.wechat-msg{padding:12px 0;border-bottom:1px solid rgba(128,128,128,.18);}',
+    '.wechat-msg-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}',
+    '.wechat-msg-sender{font-size:13px;font-weight:600;}',
+    '.wechat-msg-time{font-size:12px;opacity:.55;}',
+    '.wechat-msg-body{font-size:15px;line-height:1.6;}',
+    '.wechat-msg-body p{margin:0 0 8px;}',
+    '.wechat-msg-body img{max-width:100%;border-radius:8px;}',
+    '.wechat-missing{opacity:.65;}',
+    '</style>',
+    `<div class="wechat-chat">${head}${messages.join('')}${leftoverSection}</div>`,
+  ].join('');
 }
 
 export function detectWeChatMediaKind(filename: string): WeChatMediaKind {

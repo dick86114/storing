@@ -23,13 +23,16 @@ test('WeChat import persists html body so the reader never needs to fetch an int
   const service = read('src/services/wechat-import.service.ts');
   const reader = read('src/services/reader.service.ts');
 
-  assert.match(service, /renderWeChatTranscriptHtml\(\{ records, media: uploadedUrls \}\)/);
+  assert.match(service, /const mediaMap: WeChatMediaMap = new Map/);
+  assert.match(service, /renderWeChatTranscriptHtml\(\{ records, mediaMap \}\)/);
   assert.match(service, /contentHtml: html/);
 
   // 存量文章缺 HTML 缓存时从 Markdown 现场生成，而不是去抓取 qiankunjie:// 内部地址。
   assert.match(reader, /buildWeChatHtmlFromCache\(articleId, meta\?\.contentMd\)/);
-  assert.match(reader, /contentType !== 'wechat_chat'/);
-  assert.match(reader, /renderWeChatTranscriptHtmlFromMarkdown\(contentMd\)/);
+  assert.match(reader, /buildWeChatHtmlFromCache\(articleId, meta\?\.contentMd\)/);
+  assert.match(reader, /content\?\.type !== 'wechat_chat'/);
+  assert.match(reader, /parseWeChatTranscript\(content\.transcript\)/);
+  assert.match(reader, /renderWeChatTranscriptHtml\(\{ records, mediaMap \}\)/);
 });
 
 test('WeChat import validates ZIP entry names and enforces size limits', () => {
@@ -53,6 +56,7 @@ test('WeChat transcript parser and markdown renderer preserve the exported forma
   assert.match(service, /from '\.\/wechat-transcript\.js'/);
   assert.match(transcript, /export function parseWeChatTranscript/);
   assert.match(transcript, /export function renderWeChatTranscriptMarkdown/);
-  assert.match(transcript, /### 媒体附件/);
+  assert.match(transcript, /export function renderWeChatTranscriptHtml/);
+  assert.match(transcript, /matchMediaPlaceholder/);
   assert.match(transcript, /未能上传到图床/);
 });

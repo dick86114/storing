@@ -4,6 +4,7 @@ import { getAdminUserId } from './metadata-scope.service.js';
 import { and, eq, sql } from 'drizzle-orm';
 import { JSDOM } from 'jsdom';
 import { assertSafeOutboundUrl } from './outbound-url-policy.service.js';
+import { parseWeChatTranscript, renderWeChatTranscriptHtml, WeChatMediaKind } from './wechat-transcript.js';
 import {
   extractTextFromHtml,
   extractPreferredCoverImage,
@@ -1452,15 +1453,32 @@ export async function getArticleContent(
   return content;
 }
 
-/** 微信导入文章的存量兜底：从已保存的 Markdown 生成 HTML 正文。 */
+/** 微信导入文章的存量兜底：用保存的原始聊天记录按最新排版重新渲染正文。 */
 async function buildWeChatHtmlFromCache(articleId: number, contentMd: string | null): Promise<string | null> {
-  if (!contentMd) return null;
   const [article] = await db
     .select({ contentMeta: articles.content })
     .from(articles)
     .where(eq(articles.id, articleId));
-  const contentType = (article?.contentMeta as { type?: string } | null)?.type;
-  if (contentType !== 'wechat_chat') return null;
+  const content = article?.contentMeta as
+    | { type?: string; transcript?: string | null; mediaFiles?: Array<{ name: string; url?: string | null; kind?: string }> }
+    | null;
+  if (content?.type !== 'wechat_chat') return null;
+
+  if (content.transcript) {
+    const records = parseWeChatTranscript(content.transcript);
+    if (records.length > 0) {
+      const mediaMap = new Map(
+        (content.mediaFiles ?? []).map((file) => [
+          file.name,
+          { url: file.url ?? null, kind: (file.kind as WeChatMediaKind | undefined) ?? 'file' },
+        ]),
+      );
+      return renderWeChatTranscriptHtml({ records, mediaMap });
+    }
+  }
+
+  // 极老的导入可能没有 transcript 快照，退回从 Markdown 还原。
+  if (!contentMd) return null;
   return renderWeChatTranscriptHtmlFromMarkdown(contentMd);
 }
 
