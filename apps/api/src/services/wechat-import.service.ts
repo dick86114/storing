@@ -4,6 +4,7 @@ import yauzl from 'yauzl';
 import { db } from '../db/index.js';
 import { articleMetadata, articles } from '../db/schema.js';
 import { generateSummaryAndTags } from './ai.service.js';
+import { COVER_IMAGE_PROCESSING_VERSION } from './reader.service.js';
 import {
   detectWeChatMediaKind,
   guessWeChatMime,
@@ -19,6 +20,9 @@ import {
 /** 图床服务配置，与 reader.service 保持一致的部署变量。 */
 const IMG_HOST = process.env.IMG_HOST || 'https://img.ali.idickies.cc';
 const IMG_API_KEY = process.env.IMG_API_KEY || '';
+/** 微信转发内容没有原网页封面，列表使用统一的乾坤戒插画。 */
+const WECHAT_DEFAULT_COVER = 'https://img.ali.idickies.cc/i/4373e919-76c4-468a-b6e4-fc3c69f13562.webp';
+const WECHAT_AUTHOR = '微信聊天记录';
 
 /** 导入规模上限：微信单次合并转发不会超过这些量级，防止异常请求打爆内存。 */
 const MAX_FILE_COUNT = 32;
@@ -231,10 +235,12 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
   await db.insert(articles).values({
     id: articleId,
     title,
+    author: WECHAT_AUTHOR,
     source: '微信',
     originalUrl,
     contentMarkdown: markdown,
     contentHtml: html,
+    coverImage: WECHAT_DEFAULT_COVER,
     content: {
       type: 'wechat_chat',
       platform: options.source,
@@ -271,6 +277,8 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
       sourceType: `wechat_${options.source}`,
       contentMd: markdown,
       contentHtml: html,
+      coverImage: WECHAT_DEFAULT_COVER,
+      coverVersion: COVER_IMAGE_PROCESSING_VERSION,
       isFavorited: false,
       isArchived: false,
       createdAt: now,

@@ -345,6 +345,8 @@ struct UILabReaderClient: ReaderNetworkClient {
     func delete(articleID: Int) async throws -> ReaderDeleteResult {
         ReaderDeleteResult(deleted: false)
     }
+
+    func renameArticle(articleID: Int, title: String) async throws {}
 }
 
 extension UILabFixtures {

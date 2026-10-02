@@ -18,6 +18,10 @@ struct ReaderPaneView: View {
     @State private var model: ReaderModel
     @State private var pendingAction: ReaderArticleAction?
     @State private var selectedImageURL: URL?
+    @State private var titleHovered = false
+    @State private var isRenaming = false
+    @State private var renameDraft = ""
+    @State private var titleCopied = false
     @Environment(\.colorScheme) private var colorScheme
 
     init(
@@ -75,6 +79,18 @@ struct ReaderPaneView: View {
             }
         }
         .animation(.easeOut(duration: 0.16), value: selectedImageURL)
+        .alert("修改标题", isPresented: $isRenaming) {
+            TextField("标题", text: $renameDraft)
+            Button("保存") {
+                Task {
+                    await model.rename(title: renameDraft)
+                    onLibraryDidChange()
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("修改后会在所有设备同步显示。")
+        }
         .task(id: selection) {
             if let selection {
                 await model.open(selection)
@@ -84,7 +100,7 @@ struct ReaderPaneView: View {
 
     private func reader(_ article: ReaderArticle) -> some View {
         VStack(spacing: 0) {
-            header(article)
+            header(article, displayTitle: model.titleOverride ?? article.title)
             Divider()
             ArticleActionBar(
                 model: model,
@@ -195,13 +211,49 @@ struct ReaderPaneView: View {
         .padding(.vertical, 12)
     }
 
-    private func header(_ article: ReaderArticle) -> some View {
+    private func header(_ article: ReaderArticle, displayTitle: String?) -> some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
-                Text(article.title ?? "未命名文章")
-                    .qiankunjieFont(.headlineSmall)
-                    .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
-                    .lineLimit(2)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(displayTitle ?? article.title ?? "未命名文章")
+                        .qiankunjieFont(.headlineSmall)
+                        .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+                        .lineLimit(2)
+
+                    if selection?.isGuest == false {
+                        HStack(spacing: 2) {
+                            Button {
+                                renameDraft = displayTitle ?? article.title ?? ""
+                                isRenaming = true
+                            } label: {
+                                Image(systemName: "pencil")
+                                    .font(.system(size: 11))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                            .help("修改标题")
+
+                            Button {
+                                let title = displayTitle ?? article.title ?? ""
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(title, forType: .string)
+                                titleCopied = true
+                                Task {
+                                    try? await Task.sleep(for: .seconds(1.2))
+                                    titleCopied = false
+                                }
+                            } label: {
+                                Image(systemName: titleCopied ? "checkmark" : "doc.on.doc")
+                                    .font(.system(size: 11))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                            .help("复制标题")
+                        }
+                        .opacity(titleHovered || isRenaming ? 1 : 0)
+                    }
+                }
+                .onHover { titleHovered = $0 || isRenaming }
 
                 HStack(spacing: 8) {
                     Text(article.source ?? "乾坤戒")
@@ -226,11 +278,7 @@ struct ReaderPaneView: View {
                             .qiankunjieFont(.labelMedium)
                             .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                     } else {
-                        LazyVGrid(
-                            columns: [GridItem(.adaptive(minimum: 68), spacing: 6)],
-                            alignment: .leading,
-                            spacing: 6
-                        ) {
+                        TagFlowLayout(spacing: 6) {
                             ForEach(article.aiTags, id: \.self) { tag in
                                 Text(tag)
                                     .qiankunjieFont(.labelMedium)
