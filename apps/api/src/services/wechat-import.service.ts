@@ -11,6 +11,7 @@ import {
   renderWeChatTranscriptMarkdown,
   renderWeChatTranscriptHtml,
   safeZipEntryName,
+  WeChatMediaMap,
   WeChatMediaKind,
   WeChatTranscriptRecord,
 } from './wechat-transcript.js';
@@ -208,6 +209,9 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
     kind: detectWeChatMediaKind(file.name),
     url: await uploadMediaToImgHost({ data: file.data, filename: file.name, mime: file.mime }),
   }));
+  const mediaMap: WeChatMediaMap = new Map(
+    uploadedUrls.map((file) => [file.name, { url: file.url, kind: file.kind as WeChatMediaKind }]),
+  );
 
   const records = transcriptText ? parseWeChatTranscript(transcriptText) : [];
   const firstDate = records.find((record) => record.date)?.date ?? new Date();
@@ -215,11 +219,11 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
     ? `微信聊天记录：${options.chatName.trim()}`
     : `微信转发内容 ${formatDateTime(firstDate)}`;
   const markdown = transcriptText || uploadedUrls.length > 0
-    ? renderWeChatTranscriptMarkdown({ records, media: uploadedUrls })
+    ? renderWeChatTranscriptMarkdown({ records, mediaMap })
     : '';
   if (!markdown) throw new WeChatImportError('没有识别到聊天记录或媒体文件', 'UNSUPPORTED');
   // 阅读器默认请求 HTML 正文；微信导入没有可抓取的外部源，落库时直接生成。
-  const html = renderWeChatTranscriptHtml({ records, media: uploadedUrls });
+  const html = renderWeChatTranscriptHtml({ records, mediaMap });
 
   const articleId = await getNextArticleId();
   const now = new Date();
