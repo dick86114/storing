@@ -39,4 +39,14 @@ struct CompactArticleListLayoutTests {
         #expect(visibleTags.map(\.id) == [firstTag, secondTag, "离线"])
         #expect(visibleTags.map(\.text) == [firstTag, secondTag, "离线"])
     }
+
+    @Test func 微信转发与公众号文章都使用微信来源图标() {
+        #expect(CompactArticleListView.sourceSystemImage("微信") == "person.2")
+        #expect(CompactArticleListView.sourceSystemImage("微信公众号") == "person.2")
+    }
+
+    @Test func 非微信来源继续使用通用文档图标() {
+        #expect(CompactArticleListView.sourceSystemImage("少数派") == "doc.text")
+        #expect(CompactArticleListView.sourceSystemImage(nil) == "doc.text")
+    }
 }

@@ -51,7 +51,8 @@ fun ReaderActionBar(
   onShare: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  val originalEnabled = !originalUrl.isNullOrBlank()
+  // 微信导入等内部内容使用 qiankunjie:// 标识，不能当作网页原文打开。
+  val originalEnabled = originalUrl?.let { it.startsWith("http://") || it.startsWith("https://") } == true
   val originalTint = if (originalEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
   QiankunjieCompactBottomBar(modifier = modifier) {
     Row(

@@ -32,6 +32,7 @@ targets:
     dependencies:
       - package: QiankunjieKit
         product: QiankunjieKit
+      - target: QiankunjieShare
     settings:
       base:
         CURRENT_PROJECT_VERSION: 1
@@ -66,6 +67,43 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.idickies.storing.macos.tests
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/storing.app/Contents/MacOS/storing"
         BUNDLE_LOADER: "$(TEST_HOST)"
+
+  QiankunjieShare:
+    type: app-extension
+    platform: macOS
+    deploymentTarget: "27.0"
+    sources:
+      - path: QiankunjieShare
+    dependencies:
+      - package: QiankunjieKit
+        product: QiankunjieWeChat
+    info:
+      path: QiankunjieShare/Info.plist
+      properties:
+        CFBundleDisplayName: 乾坤戒
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSExtension:
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationDictionaryVersion: 2
+              NSExtensionActivationSupportsFileWithMaxCount: 32
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+    settings:
+      base:
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 0.1.0
+        PRODUCT_MODULE_NAME: QiankunjieShare
+        ENABLE_APP_SANDBOX: YES
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+        CODE_SIGN_ENTITLEMENTS: QiankunjieShare/QiankunjieShare.entitlements
+        PRODUCT_BUNDLE_IDENTIFIER: com.idickies.storing.macos.share
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.idickies.storing.macos.debug.share
 
 schemes:
   QiankunjieMac:

@@ -30,6 +30,12 @@ function sourceTypeInfo(value: string | null | undefined) {
   const sources: Record<string, { label: string; description: string }> = {
     legacy: { label: '历史导入', description: '旧版本数据迁移后保留的文章记录。' },
     web: { label: '网页采集', description: '由网页端采集流程保存。' },
+    android: { label: '安卓客户端', description: '由安卓客户端发起并保存。' },
+    android_share: { label: '安卓分享', description: '通过安卓系统分享入口保存。' },
+    browser_extension: { label: '浏览器扩展', description: '由浏览器扩展保存。' },
+    macos: { label: 'macOS 客户端', description: '由 macOS 客户端发起并保存。' },
+    wechat_android: { label: '微信·安卓', description: '从安卓微信转发的聊天记录与媒体。' },
+    wechat_macos: { label: '微信·macOS', description: '从 macOS 微信转发的聊天记录与媒体。' },
     mcp: { label: 'MCP 采集', description: '由 MCP Client 发起并保存。' },
     agent: { label: '外部 Agent', description: '由外部 Agent 或自动化导入。' },
     system: { label: '系统任务', description: '由系统维护或自动化任务写入。' },

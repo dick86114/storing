@@ -52,6 +52,7 @@ struct SettingsWindow: View {
             }
             appearanceSection
             shortcutSection
+            weChatShareSection
             if isAuthenticated {
                 accountToolsSection
             } else {
@@ -109,6 +110,12 @@ struct SettingsWindow: View {
                     .font(.footnote)
                     .foregroundStyle(.red)
             }
+        }
+    }
+
+    private var weChatShareSection: some View {
+        Section("微信转发") {
+            WeChatShareSettingsView()
         }
     }
 

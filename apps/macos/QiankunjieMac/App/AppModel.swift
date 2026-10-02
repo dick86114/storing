@@ -6,6 +6,7 @@ import QiankunjieCore
 import QiankunjieLibrary
 import QiankunjieNetworking
 import QiankunjieReader
+import QiankunjieWeChat
 
 enum AppDestination: String, CaseIterable, Hashable, Sendable {
     case inbox
@@ -120,6 +121,7 @@ final class AppModel {
     private(set) var libraryModel: LibraryModel
     private(set) var collectModel: CollectModel
     let searchModel: LibraryModel
+    private var weChatImportCoordinator: WeChatImportCoordinator?
 
     var user: AuthenticatedUser?
     var destination: AppDestination = .published
@@ -185,6 +187,16 @@ final class AppModel {
     }
 
     func start() async {
+        if weChatImportCoordinator == nil {
+            weChatImportCoordinator = WeChatImportCoordinator(
+                repository: WeChatImportRepository(apiClient: collectAPIClient),
+                isAuthenticated: { [weak self] in self?.user != nil },
+                onImported: { [weak self] _ in
+                    await self?.libraryModel.load(reset: true)
+                }
+            )
+        }
+        weChatImportCoordinator?.start()
         await authModel.restore()
         await synchronizeWithAuthentication()
     }
@@ -320,6 +332,7 @@ final class AppModel {
             view: destination.libraryView ?? .published
         )
         collectModel.prepareUser(userID: user?.id)
+        weChatImportCoordinator?.processPendingBatches()
         if previousLibraryUserID != user?.id {
             await libraryModel.clearUserScope(userID: previousLibraryUserID)
         }

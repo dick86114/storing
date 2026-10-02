@@ -14,6 +14,14 @@ class ArticleSourceIconTest {
   }
 
   @Test
+  fun `imported wechat chat records use the wechat icon without fetching a favicon`() {
+    val icon = articleSourceIcon(source = "微信", originalUrl = "qiankunjie://wechat-import/8b0e6a5e")
+
+    assertEquals(ArticleSourceIconType.Wechat, icon.type)
+    assertNull(icon.faviconUrl)
+  }
+
+  @Test
   fun `website sources load their own favicon and fall back in the UI when unavailable`() {
     val icon = articleSourceIcon(source = "少数派", originalUrl = "https://sspai.com/post/123")
 

@@ -111,7 +111,7 @@ struct CompactArticleListView: View {
                     HStack(spacing: 8) {
                         Label(
                             article.source ?? "未知来源",
-                            systemImage: sourceSystemImage(article.source)
+                            systemImage: Self.sourceSystemImage(article.source)
                         )
                         if let time = displayTime(article) {
                             Label(time, systemImage: "clock")
@@ -160,7 +160,7 @@ struct CompactArticleListView: View {
                     HStack(spacing: 8) {
                         Label(
                             article.source ?? "未知来源",
-                            systemImage: sourceSystemImage(article.source)
+                            systemImage: Self.sourceSystemImage(article.source)
                         )
 
                         if let time = displayTime(article) {
@@ -505,8 +505,9 @@ private struct ArticleCoverImageView<Fallback: View>: View {
         }
     }
 
-    private func sourceSystemImage(_ source: String?) -> String {
-        source == "微信公众号" ? "person.2" : "doc.text"
+    static func sourceSystemImage(_ source: String?) -> String {
+        // 覆盖「微信」转发导入与「微信公众号」网页采集两类来源。
+        source?.contains("微信") == true ? "person.2" : "doc.text"
 }
 
 }

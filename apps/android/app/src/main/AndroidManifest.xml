@@ -20,12 +20,23 @@
       <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/update_file_paths" />
     </provider>
     <activity
-        android:name=".ShareReceiverActivity"
-        android:exported="true">
+      android:name=".ShareReceiverActivity"
+      android:exported="true">
       <intent-filter>
         <action android:name="android.intent.action.SEND" />
         <category android:name="android.intent.category.DEFAULT" />
         <data android:mimeType="text/plain" />
+      </intent-filter>
+      <!-- 微信转发的聊天记录 ZIP、图片、视频与文件统一进入导入流程。 -->
+      <intent-filter>
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="*/*" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.SEND_MULTIPLE" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="*/*" />
       </intent-filter>
     </activity>
     <activity
