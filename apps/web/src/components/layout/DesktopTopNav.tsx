@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, PlusCircleOutlined, HeartOutlined, FolderOutlined, SunOutlined, MoonOutlined, DesktopOutlined, CloudUploadOutlined, SettingOutlined, MoreOutlined } from '@ant-design/icons';
+import { SearchOutlined, UserOutlined, DownOutlined, LogoutOutlined, LockOutlined, PlusCircleOutlined, HeartOutlined, FolderOutlined, SunOutlined, MoonOutlined, DesktopOutlined, CloudUploadOutlined, SettingOutlined, MoreOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { LoginModal } from '@/components/auth/LoginModal';
@@ -391,6 +391,15 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
                           >
                             <UserOutlined style={{ fontSize: '16px' }} />
                             用户管理
+                          </button>
+                          <button
+                            className="app-menu-item app-menu-item--trash-admin"
+                            onClick={() => { setMenuOpen(false); router.push('/admin/trash'); }}
+                            type="button"
+                            style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 16px', textAlign: 'left', background: 'transparent', border: 'none', fontSize: '16px', color: '#fff', cursor: 'pointer' }}
+                          >
+                            <DeleteOutlined style={{ fontSize: '16px' }} />
+                            回收站
                           </button>
                           <button
                           className="app-menu-item app-menu-item--mcp-admin"

@@ -12614,6 +12614,22 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
 .mcp-section-title h2 { margin: 0; font-family: var(--font-display); font-size: 26px; letter-spacing: -.025em; }
 .mcp-section-title p { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
 .mcp-empty-state { display: grid; place-items: center; min-height: 280px; padding: 36px; border: 1px dashed var(--border); border-radius: 16px; background: color-mix(in oklch, var(--surface) 65%, transparent); text-align: center; }
+
+.admin-trash-list { display: grid; gap: 14px; margin-top: 22px; }
+.admin-trash-card {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  padding: 16px 18px; border: 1px solid var(--border); border-radius: 14px;
+  background: color-mix(in srgb, var(--card-bg) 88%, transparent); backdrop-filter: blur(14px);
+}
+.admin-trash-card-main { display: grid; gap: 6px; min-width: 0; }
+.admin-trash-title { margin: 0; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.admin-trash-meta { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; color: var(--text-muted); font-size: 12.5px; }
+.admin-trash-card-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.mcp-modal-overlay { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 22px; background: color-mix(in oklch, var(--fg) 35%, transparent); backdrop-filter: blur(8px); }
+.mcp-modal-panel {
+  width: min(460px, 100%); padding: 22px; border: 1px solid var(--border); border-radius: 16px;
+  background: var(--card-bg); display: grid; gap: 14px;
+}
 .mcp-empty-state > svg { margin-bottom: 12px; color: var(--accent); font-size: 28px; }
 .mcp-empty-icon { display: grid; place-items: center; width: 56px; height: 56px; margin-bottom: 14px; border-radius: 18px; background: var(--accent-soft); color: var(--accent); font-size: 23px; }
 .mcp-empty-state h2 { margin: 0; font-family: var(--font-display); font-size: 27px; }

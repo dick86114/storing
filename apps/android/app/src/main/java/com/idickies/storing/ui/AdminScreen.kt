@@ -96,6 +96,7 @@ fun AdminScreen(
         Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("用户(${state.users.size})") }, icon = { Icon(Icons.Outlined.Person, contentDescription = null, modifier = Modifier.size(18.dp)) })
         Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("MCP 平台") }, icon = { Icon(Icons.Outlined.Security, contentDescription = null, modifier = Modifier.size(18.dp)) })
         Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("审计日志") }, icon = { Icon(Icons.Outlined.History, contentDescription = null, modifier = Modifier.size(18.dp)) })
+        Tab(selected = selectedTab == 3, onClick = { selectedTab = 3 }, text = { Text("回收站(${state.trashItems.size})") }, icon = { Icon(Icons.Outlined.DeleteOutline, contentDescription = null, modifier = Modifier.size(18.dp)) })
       }
 
       when {
@@ -119,6 +120,12 @@ fun AdminScreen(
             onUpdateLimits = { perMin, perDay, concurrent -> viewModel.updateMcpLimits(perMin, perDay, concurrent) },
           )
           2 -> AdminAuditTab(logs = state.auditLogs)
+          3 -> AdminTrashTab(
+            items = state.trashItems,
+            submitting = state.submitting,
+            onRestore = { viewModel.restoreTrash(it) },
+            onPurge = { viewModel.purgeTrash(it) },
+          )
         }
       }
 
@@ -348,6 +355,76 @@ private fun AdminAuditTab(logs: List<AdminAuditLog>) {
         }
       }
     }
+  }
+}
+
+@Composable
+private fun AdminTrashTab(
+  items: List<com.idickies.storing.admin.AdminTrashItem>,
+  submitting: Boolean,
+  onRestore: (Int) -> Unit,
+  onPurge: (Int) -> Unit,
+) {
+  var pendingPurge by remember { mutableStateOf<com.idickies.storing.admin.AdminTrashItem?>(null) }
+
+  if (items.isEmpty()) {
+    Column(
+      modifier = Modifier.fillMaxSize().padding(24.dp),
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
+    ) {
+      Icon(Icons.Outlined.DeleteOutline, contentDescription = null, modifier = Modifier.size(40.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+      Text("回收站是空的", style = MaterialTheme.typography.titleMedium)
+      Text("用户删除的文章会进入这里，可以恢复或彻底删除。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    return
+  }
+
+  LazyColumn(
+    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+    verticalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    items(items, key = { "${it.articleId}-${it.userId}" }) { item ->
+      Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+          Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(item.title ?: "未命名文章", style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+              listOfNotNull(
+                item.source,
+                item.username?.let { "用户：$it" } ?: "用户 #${item.userId}",
+                item.deletedAt?.take(19),
+              ).joinToString(" · "),
+              style = MaterialTheme.typography.labelSmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
+          Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.End) {
+            TextButton(onClick = { onRestore(item.articleId) }, enabled = !submitting) { Text("恢复") }
+            TextButton(onClick = { onPurge(item.articleId) }, enabled = !submitting) {
+              Text("彻底删除", color = MaterialTheme.colorScheme.error)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  pendingPurge?.let { item ->
+    QiankunjieAlertDialog(
+      onDismissRequest = { if (!submitting) pendingPurge = null },
+      icon = { Icon(Icons.Outlined.WarningAmber, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+      title = { Text("彻底删除「${item.title ?: "未命名文章"}」？") },
+      text = {
+        Text("正文、媒体引用和所有用户的记录都会从服务器清除，此操作无法恢复。", style = MaterialTheme.typography.bodySmall)
+      },
+      confirmButton = {
+        Button(onClick = { pendingPurge = null; onPurge(item.articleId) }, enabled = !submitting, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
+          Text("彻底删除")
+        }
+      },
+      dismissButton = { TextButton(onClick = { pendingPurge = null }, enabled = !submitting) { Text("取消") } },
+    )
   }
 }
 
