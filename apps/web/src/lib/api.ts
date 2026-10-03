@@ -182,6 +182,16 @@ export type AdminTrashItem = {
   content_preview: string | null;
 };
 
+export type AdminTrashOrphanItem = {
+  article_id: number;
+  title: string | null;
+  source: string | null;
+  author: string | null;
+  source_type: string | null;
+  created_at: string | null;
+  content_preview: string | null;
+};
+
 
 type ApiRequestInit = RequestInit & {
   timeoutMs?: number;
@@ -252,6 +262,12 @@ export const api = {
 
   getAdminTrash: () =>
     fetchJSON<{ items: AdminTrashItem[]; total: number }>('/admin/trash'),
+
+  getAdminTrashOrphans: () =>
+    fetchJSON<{ items: AdminTrashOrphanItem[]; total: number }>('/admin/trash/orphans'),
+
+  adoptAdminTrashOrphan: (articleId: number) =>
+    fetchJSON<{ article_id: number; adopted: boolean }>(`/admin/trash/${articleId}/adopt`, { method: 'POST' }),
 
   restoreAdminTrashArticle: (articleId: number) =>
     fetchJSON<{ article_id: number; restored_users: number }>(`/admin/trash/${articleId}/restore`, { method: 'POST' }),

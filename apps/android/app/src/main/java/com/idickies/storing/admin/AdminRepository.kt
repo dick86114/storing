@@ -41,6 +41,10 @@ class AdminRepository @Inject constructor(
 
   suspend fun trash() = authenticatedRequest { api.trash().items }
 
+  suspend fun trashOrphans() = authenticatedRequest { api.trashOrphans().items }
+
+  suspend fun adoptTrashOrphan(articleId: Int) = authenticatedRequest { api.adoptTrashOrphan(articleId) }
+
   suspend fun restoreTrash(articleId: Int) = authenticatedRequest { api.restoreTrash(articleId) }
 
   suspend fun purgeTrash(articleId: Int) = authenticatedRequest { api.purgeTrash(articleId) }
