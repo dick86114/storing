@@ -412,7 +412,7 @@ private fun AdminTrashTab(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
-        items(orphans, key = { "${it.articleId}-${it.userId}" }) { item ->
+        items(orphans, key = { it.articleId }) { item ->
           Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
               Text(item.title ?: "未命名文章", style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -437,25 +437,26 @@ private fun AdminTrashTab(
         verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
         items(items, key = { "${it.articleId}-${it.userId}" }) { item ->
-        Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth()) {
-          Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-              Text(item.title ?: "未命名文章", style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-              Text(
-                listOfNotNull(
-                  item.source,
-                  item.username?.let { "用户：$it" } ?: "用户 #${item.userId}",
-                  item.deletedAt?.take(19),
-                ).joinToString(" · "),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-              )
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.End) {
-              TextButton(onClick = { detailItem = item }) { Text("详情") }
-              TextButton(onClick = { onRestore(item.articleId) }, enabled = !submitting) { Text("恢复") }
-              TextButton(onClick = { onPurge(item.articleId) }, enabled = !submitting) {
-                Text("彻底删除", color = MaterialTheme.colorScheme.error)
+          Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth()) {
+            Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+              Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(item.title ?: "未命名文章", style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                  listOfNotNull(
+                    item.source,
+                    item.username?.let { "用户：$it" } ?: "用户 #${item.userId}",
+                    item.deletedAt?.take(19),
+                  ).joinToString(" · "),
+                  style = MaterialTheme.typography.labelSmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+              Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.End) {
+                TextButton(onClick = { detailItem = item }) { Text("详情") }
+                TextButton(onClick = { onRestore(item.articleId) }, enabled = !submitting) { Text("恢复") }
+                TextButton(onClick = { onPurge(item.articleId) }, enabled = !submitting) {
+                  Text("彻底删除", color = MaterialTheme.colorScheme.error)
+                }
               }
             }
           }
