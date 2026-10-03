@@ -4198,6 +4198,26 @@ body.detail-panel-open .bottom-tab-bar {
   margin: 0 auto;
 }
 
+/* 移动端详情面板：左右留白减半。
+   正文内边距由组件内联的 16px 提供，这里额外叠加的
+   max-width: calc(100% - 32px) + margin: auto 又占掉 16px，合计 32px 偏宽；
+   移动端去掉外侧这段，仅保留 16px 内边距。 */
+@media (max-width: 809px) {
+  .mobile-detail-panel .detail-panel-content,
+  .mobile-detail-panel .article-content-wrap {
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  /* 单文件抓取是整页截图，保留原有 16px 外边距，避免内容贴死屏幕边缘 */
+  .mobile-detail-panel .article-content-wrap--captured {
+    max-width: min(1080px, calc(100% - 32px));
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
 .ai-summary-block {
   background: var(--tag-bg) !important;
   border: 1px solid var(--glass-border);
