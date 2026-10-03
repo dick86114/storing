@@ -16682,6 +16682,23 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   }
 }
 
+/* 移动端：工具条紧跟导航条，吸顶背景用不透明底色，
+   避免列表卡片封面从工具条与导航之间的缝隙透出。 */
+@media (max-width: 809px) {
+  .mobile-content-frame:has(.list-toolbar) {
+    padding-top: 0 !important;
+  }
+
+  .list-toolbar {
+    top: var(--app-top-nav-h, 56px);
+    margin-top: 0;
+    padding: 4px 0;
+    background: var(--bg);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
 /* 弹层菜单内的正文统一跟随菜单前景色（浅色模式下菜单已是浅底） */
 .app-menu .detail-more-menu-item {
   color: var(--menu-text);
