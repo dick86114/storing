@@ -50,6 +50,12 @@ interface AdminApi {
   @POST("admin/trash/{id}/restore")
   suspend fun restoreTrash(@Path("id") id: Int): AdminTrashActionResponse
 
+  @GET("admin/trash/orphans")
+  suspend fun trashOrphans(): AdminTrashOrphansResponse
+
+  @POST("admin/trash/{id}/adopt")
+  suspend fun adoptTrashOrphan(@Path("id") id: Int): AdminTrashActionResponse
+
   @DELETE("admin/trash/{id}")
   suspend fun purgeTrash(@Path("id") id: Int): AdminTrashActionResponse
 }

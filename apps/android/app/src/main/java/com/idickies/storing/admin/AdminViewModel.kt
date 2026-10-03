@@ -16,6 +16,7 @@ data class AdminUiState(
   val users: List<AdminUser> = emptyList(),
   val auditLogs: List<AdminAuditLog> = emptyList(),
   val trashItems: List<AdminTrashItem> = emptyList(),
+  val trashOrphans: List<AdminTrashOrphan> = emptyList(),
   val mcpClients: List<AdminMcpClient> = emptyList(),
   val mcpLogs: List<AdminMcpRequestLog> = emptyList(),
   val mcpLimits: AdminMcpPlatformLimits? = null,
@@ -42,8 +43,9 @@ class AdminViewModel @Inject constructor(
         val mcpLogs = repository.mcpRequestLogs()
         val mcpLimits = repository.mcpDefaultLimits()
         val trashItems = runCatching { repository.trash() }.getOrDefault(emptyList())
+        val trashOrphans = runCatching { repository.trashOrphans() }.getOrDefault(emptyList())
         mutableState.update {
-          it.copy(loading = false, users = users, auditLogs = logs, mcpClients = mcpClients, mcpLogs = mcpLogs, mcpLimits = mcpLimits, trashItems = trashItems)
+          it.copy(loading = false, users = users, auditLogs = logs, mcpClients = mcpClients, mcpLogs = mcpLogs, mcpLimits = mcpLimits, trashItems = trashItems, trashOrphans = trashOrphans)
         }
       }.onFailure { error ->
         val message = error.message ?: "加载失败"
@@ -132,6 +134,24 @@ class AdminViewModel @Inject constructor(
           load()
         }
         .onFailure { error -> mutableState.update { it.copy(submitting = false, error = error.message ?: "彻底删除失败") } }
+    }
+  }
+
+  fun adoptTrashOrphan(articleId: Int) {
+    if (mutableState.value.submitting) return
+    viewModelScope.launch {
+      mutableState.update { it.copy(submitting = true, error = null) }
+      runCatching { repository.adoptTrashOrphan(articleId) }
+        .onSuccess {
+          mutableState.update { state ->
+            state.copy(
+              submitting = false,
+              trashOrphans = state.trashOrphans.filter { it.articleId != articleId },
+              notice = "已领养到你的资料库",
+            )
+          }
+        }
+        .onFailure { error -> mutableState.update { it.copy(submitting = false, error = error.message ?: "领养失败") } }
     }
   }
 

@@ -168,3 +168,20 @@ data class AdminTrashActionResponse(
   @SerialName("restored_users") val restoredUsers: Int? = null,
   val deleted: Boolean? = null,
 )
+
+@Serializable
+data class AdminTrashOrphan(
+  @SerialName("article_id") val articleId: Int,
+  val title: String? = null,
+  val source: String? = null,
+  val author: String? = null,
+  @SerialName("source_type") val sourceType: String? = null,
+  @SerialName("created_at") val createdAt: String? = null,
+  @SerialName("content_preview") val contentPreview: String? = null,
+)
+
+@Serializable
+data class AdminTrashOrphansResponse(
+  val items: List<AdminTrashOrphan> = emptyList(),
+  val total: Int = 0,
+)

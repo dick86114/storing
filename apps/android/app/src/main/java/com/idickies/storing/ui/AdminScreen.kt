@@ -122,10 +122,12 @@ fun AdminScreen(
           2 -> AdminAuditTab(logs = state.auditLogs)
           3 -> AdminTrashTab(
             items = state.trashItems,
+            orphans = state.trashOrphans,
             submitting = state.submitting,
             onRefresh = { viewModel.load() },
             onRestore = { viewModel.restoreTrash(it) },
             onPurge = { viewModel.purgeTrash(it) },
+            onAdoptOrphan = { viewModel.adoptTrashOrphan(it) },
           )
         }
       }
@@ -362,13 +364,18 @@ private fun AdminAuditTab(logs: List<AdminAuditLog>) {
 @Composable
 private fun AdminTrashTab(
   items: List<com.idickies.storing.admin.AdminTrashItem>,
+  orphans: List<com.idickies.storing.admin.AdminTrashOrphan>,
   submitting: Boolean,
   onRefresh: () -> Unit,
   onRestore: (Int) -> Unit,
   onPurge: (Int) -> Unit,
+  onAdoptOrphan: (Int) -> Unit,
 ) {
   var pendingPurge by remember { mutableStateOf<com.idickies.storing.admin.AdminTrashItem?>(null) }
   var detailItem by remember { mutableStateOf<com.idickies.storing.admin.AdminTrashItem?>(null) }
+  var showOrphans by remember { mutableStateOf(false) }
+  var detailOrphan by remember { mutableStateOf<com.idickies.storing.admin.AdminTrashOrphan?>(null) }
+  var pendingPurgeOrphan by remember { mutableStateOf<com.idickies.storing.admin.AdminTrashOrphan?>(null) }
 
   if (items.isEmpty()) {
     Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
@@ -395,14 +402,41 @@ private fun AdminTrashTab(
       horizontalArrangement = Arrangement.spacedBy(10.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      Text("共 ${items.size} 条", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+      Text(if (showOrphans) "孤儿文章（${orphans.size} 条）" else "已删除（${items.size} 条）", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
       TextButton(onClick = onRefresh, enabled = !submitting) { Text("刷新") }
+      FilterChip(selected = !showOrphans, onClick = { showOrphans = false }, label = { Text("已删除") }, enabled = !submitting)
+      FilterChip(selected = showOrphans, onClick = { showOrphans = true }, label = { Text("孤儿文章") }, enabled = !submitting)
     }
-    LazyColumn(
-      contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-      verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      items(items, key = { "${it.articleId}-${it.userId}" }) { item ->
+    if (showOrphans) {
+      LazyColumn(
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        items(orphans, key = { "${it.articleId}-${it.userId}" }) { item ->
+          Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+              Text(item.title ?: "未命名文章", style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+              Text(
+                listOfNotNull(item.source, item.author, item.createdAt?.take(19)).joinToString(" · "),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+              Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(onClick = { onAdoptOrphan(item.articleId) }, enabled = !submitting) { Text("领养") }
+                TextButton(onClick = { onPurge(item.articleId) }, enabled = !submitting) {
+                  Text("彻底删除", color = MaterialTheme.colorScheme.error)
+                }
+              }
+            }
+          }
+        }
+      }
+    } else {
+      LazyColumn(
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        items(items, key = { "${it.articleId}-${it.userId}" }) { item ->
         Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth()) {
           Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {

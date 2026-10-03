@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { DeleteOutlined, ExclamationCircleOutlined, InboxOutlined, ReloadOutlined, UserOutlined } from '@ant-design/icons';
-import { api, type AdminTrashItem } from '@/lib/api';
+import { api, type AdminTrashItem, type AdminTrashOrphanItem } from '@/lib/api';
 import { useAuth } from '@/components/providers/AuthContext';
 
 function deletedAtText(value: string | null) {
@@ -19,8 +19,11 @@ export function AdminTrashContent() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [purgeTarget, setPurgeTarget] = useState<AdminTrashItem | null>(null);
+  const [purgeTarget, setPurgeTarget] = useState<{ article_id: number; title: string | null } | null>(null);
   const [detailTarget, setDetailTarget] = useState<AdminTrashItem | null>(null);
+  const [orphans, setOrphans] = useState<AdminTrashOrphanItem[]>([]);
+  const [section, setSection] = useState<'deleted' | 'orphans'>('deleted');
+  const [detailOrphan, setDetailOrphan] = useState<AdminTrashOrphanItem | null>(null);
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -28,6 +31,8 @@ export function AdminTrashContent() {
     try {
       const res = await api.getAdminTrash();
       setItems(res.items);
+      const orphansRes = await api.getAdminTrashOrphans();
+      setOrphans(orphansRes.items);
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载回收站失败');
     } finally {
@@ -60,7 +65,21 @@ export function AdminTrashContent() {
     }
   }, [refresh]);
 
-  const purge = useCallback(async (item: AdminTrashItem) => {
+  const adoptOrphan = useCallback(async (articleId: number) => {
+    setBusyId(articleId);
+    setError(null);
+    try {
+      await api.adoptAdminTrashOrphan(articleId);
+      setOrphans((prev) => prev.filter((entry) => entry.article_id !== articleId));
+      setNotice('孤儿文章已领养到你的资料库。');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '领养失败');
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
+
+  const purge = useCallback(async (item: { article_id: number; title: string | null }) => {
     setBusyId(item.article_id);
     setError(null);
     try {
@@ -108,10 +127,52 @@ export function AdminTrashContent() {
         </div>
       </header>
 
+      <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+        <button type="button" className="mcp-btn" style={{ opacity: section === 'deleted' ? 1 : 0.55 }} onClick={() => setSection('deleted')}>
+          已删除（{items.length}）
+        </button>
+        <button type="button" className="mcp-btn" style={{ opacity: section === 'orphans' ? 1 : 0.55 }} onClick={() => setSection('orphans')}>
+          孤儿文章（{orphans.length}）
+        </button>
+      </div>
+
       {error && <div className="mcp-inline-alert is-error">{error}</div>}
       {notice && <div className="mcp-inline-alert is-ok">{notice}</div>}
       {isLoading ? (
         <div className="admin-library-loading">正在打开回收站…</div>
+      ) : section === 'orphans' ? (
+        orphans.length === 0 ? (
+          <div className="mcp-empty-state">
+            <InboxOutlined />
+            <h2>没有孤儿文章</h2>
+            <p>导入时元数据写入失败的文章会出现在这里，可以领养到你的资料库或彻底删除。</p>
+          </div>
+        ) : (
+          <div className="admin-trash-list">
+            {orphans.map((item) => (
+              <article key={item.article_id} className="admin-trash-card">
+                <div className="admin-trash-card-main">
+                  <p className="admin-trash-title">{item.title ?? '未命名文章'}</p>
+                  <p className="admin-trash-meta">
+                    <span>{item.source ?? '乾坤戒'}</span>
+                    <span>创建于 {deletedAtText(item.created_at)}</span>
+                  </p>
+                </div>
+                <div className="admin-trash-card-actions">
+                  <button type="button" className="mcp-btn mcp-btn-quiet" onClick={() => setDetailOrphan(item)}>
+                    <InboxOutlined /> 详情
+                  </button>
+                  <button type="button" className="mcp-btn mcp-btn-quiet" disabled={busyId === item.article_id} onClick={() => adoptOrphan(item.article_id)}>
+                    <UserOutlined /> 领养
+                  </button>
+                  <button type="button" className="mcp-btn mcp-btn-danger" disabled={busyId === item.article_id} onClick={() => setPurgeTarget(item)}>
+                    <DeleteOutlined /> 彻底删除
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )
       ) : items.length === 0 ? (
         <div className="mcp-empty-state">
           <InboxOutlined />
@@ -192,6 +253,31 @@ export function AdminTrashContent() {
             </div>
             <div className="mcp-form-actions" style={{ justifyContent: 'flex-end' }}>
               <button type="button" className="mcp-btn mcp-btn-quiet" onClick={() => setDetailTarget(null)}>关闭</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {detailOrphan && (
+        <div className="mcp-modal-overlay" role="presentation" onClick={() => setDetailOrphan(null)}>
+          <div className="mcp-modal-panel" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+            <div>
+              <p className="mcp-kicker">孤儿文章详情</p>
+              <h2 style={{ margin: '4px 0 8px' }}>{detailOrphan.title ?? '未命名文章'}</h2>
+              <p className="mcp-muted">
+                {[detailOrphan.source ?? '乾坤戒', detailOrphan.author, `创建于 ${deletedAtText(detailOrphan.created_at)}`]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            </div>
+            <div>
+              <p style={{ margin: '0 0 6px', fontWeight: 600 }}>正文预览</p>
+              <pre style={{ margin: 0, maxHeight: 320, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13 }}>
+                {detailOrphan.content_preview?.trim() || '（无正文）'}
+              </pre>
+            </div>
+            <div className="mcp-form-actions" style={{ justifyContent: 'flex-end' }}>
+              <button type="button" className="mcp-btn mcp-btn-quiet" onClick={() => setDetailOrphan(null)}>关闭</button>
             </div>
           </div>
         </div>
