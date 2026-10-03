@@ -135,6 +135,10 @@ class AdminRepositoryAuthenticationTest {
 
     override suspend fun purgeTrash(articleId: Int): AdminTrashActionResponse = AdminTrashActionResponse(articleId = articleId, deleted = true)
 
+    override suspend fun trashOrphans(): AdminTrashOrphansResponse = AdminTrashOrphansResponse()
+
+    override suspend fun adoptTrashOrphan(id: Int): AdminTrashActionResponse = AdminTrashActionResponse(articleId = id)
+
     private fun user() = AdminUser(id = 1, username = "admin", role = "admin", status = "active")
   }
 }
