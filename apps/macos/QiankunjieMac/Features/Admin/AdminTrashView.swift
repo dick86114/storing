@@ -61,13 +61,16 @@ struct AdminTrashOrphanItem: Identifiable, Equatable, Decodable, Sendable {
     let contentPreview: String?
 
     enum CodingKeys: String, CodingKey {
-        case articleId = "article_id"
+        // 解码统一走 JSONDecoder.qiankunjie（keyDecodingStrategy = .convertFromSnakeCase），
+        // 服务端的 article_id 会先被转成 articleId 再匹配，这里必须写转换后的驼峰名；
+        // 写成原始蛇形名会直接抛 keyNotFound，导致整个孤儿响应解码失败、列表恒为空。
+        case articleId
         case title
         case source
         case author
-        case sourceType = "source_type"
-        case createdAt = "created_at"
-        case contentPreview = "content_preview"
+        case sourceType
+        case createdAt
+        case contentPreview
     }
 
     init(from decoder: Decoder) throws {
