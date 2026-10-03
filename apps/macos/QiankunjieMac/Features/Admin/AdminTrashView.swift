@@ -95,6 +95,7 @@ final class AdminTrashModel {
             )
             items.removeAll { $0.articleId == item.articleId }
             noticeMessage = "「\(item.title ?? "未命名文章")」已恢复到原用户的资料库。"
+            await load()
         } catch let error as AppError {
             // 404：可能已恢复过或已不在回收站，按已处理收尾。
             if case .contentUnavailable = error {
@@ -116,6 +117,7 @@ final class AdminTrashModel {
             // 404 说明第一次点击已删除成功；按"已删除"收尾，避免误报服务不可用。
             items.removeAll { $0.articleId == item.articleId }
             noticeMessage = "「\(item.title ?? "未命名文章")」已从服务器彻底删除。"
+            await load()
         } catch {
             if case AppError.contentUnavailable = error {
                 items.removeAll { $0.articleId == item.articleId }
