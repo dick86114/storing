@@ -207,6 +207,7 @@ import com.idickies.storing.library.LibraryView
 import com.idickies.storing.library.LibrarySort
 import com.idickies.storing.library.librarySortOrderOptions
 import com.idickies.storing.library.LibraryViewModel
+import com.idickies.storing.library.LibraryLayoutViewModel
 import com.idickies.storing.library.LibraryUiState
 import com.idickies.storing.library.shouldLoadMore
 import com.idickies.storing.library.canManageArticle
@@ -803,6 +804,7 @@ fun LibraryScreen(
   collectViewModel: ShareCollectViewModel = hiltViewModel(),
   jobsViewModel: CollectJobsViewModel = hiltViewModel(),
   readerPreferencesViewModel: ReaderPreferencesViewModel = hiltViewModel(),
+  libraryLayoutViewModel: LibraryLayoutViewModel = hiltViewModel(),
 ) {
   val isDarkAppearance = isQiankunjieDarkTheme()
   val state by libraryViewModel.state.collectAsState()
@@ -827,7 +829,8 @@ fun LibraryScreen(
   var showAbout by remember { mutableStateOf(false) }
   var moreExpanded by remember { mutableStateOf(false) }
   var showLibrarySearch by rememberSaveable { mutableStateOf(false) }
-  var presentationMode by rememberSaveable { mutableStateOf(ArticleListPresentationMode.default) }
+  // 布局偏好持久化在 SharedPreferences 里，冷启动也能沿用上次选择。
+  val presentationMode by libraryLayoutViewModel.presentationMode.collectAsState()
   val inboxListState = rememberLazyListState()
   val favoritesListState = rememberLazyListState()
   val archiveListState = rememberLazyListState()
@@ -1112,7 +1115,7 @@ fun LibraryScreen(
                       onDismissRequest = { moreExpanded = false },
                       activeJobCount = jobsState.activeJobCount,
                       presentationMode = presentationMode,
-                      onPresentationModeChange = { presentationMode = it },
+                      onPresentationModeChange = libraryLayoutViewModel::setPresentationMode,
                       themeMode = themeMode,
                       onThemeModeChange = onThemeModeChange,
                       onOpenTasks = { showTasks = true },
@@ -1233,7 +1236,7 @@ fun LibraryScreen(
           collectSubmitting = collectState.submitting, collectMessage = collectState.message, activeJobCount = jobsState.activeJobCount,
           onOpenTasks = { showTasks = true }, onSort = libraryViewModel::selectSort, onToggleSortOrder = libraryViewModel::toggleSortOrder,
           onResetSort = libraryViewModel::resetSort, sortOrder = state.sortOrder, presentationMode = presentationMode,
-          onPresentationModeChange = { presentationMode = it }, onArchiveSources = libraryViewModel::selectArchiveSources, onArchiveTags = libraryViewModel::selectArchiveTags, onArchiveCategory = libraryViewModel::selectArchiveCategory,
+          onPresentationModeChange = libraryLayoutViewModel::setPresentationMode, onArchiveSources = libraryViewModel::selectArchiveSources, onArchiveTags = libraryViewModel::selectArchiveTags, onArchiveCategory = libraryViewModel::selectArchiveCategory,
           onBatchMoveToCategory = { articleIds, categoryId, onComplete -> libraryViewModel.moveToCategory(articleIds, categoryId, onComplete) }, onBatchReclassify = { articleIds, onComplete -> libraryViewModel.reclassify(articleIds, onComplete) }, batchCategoryUpdating = state.batchCategoryUpdating,
           onCreateCategory = libraryViewModel::createArchiveCategory,
           onCategoryStripPressedChanged = { pressed -> categoryStripPressed = pressed },
