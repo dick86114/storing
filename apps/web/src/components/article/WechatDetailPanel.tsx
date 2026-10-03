@@ -184,6 +184,12 @@ function scopeCapturedCss(css: string) {
 function getReadableArticleHtml(html: string) {
   if (typeof document === 'undefined' || !html.trim()) return html;
 
+  // 微信聊天记录是服务端定制排版，样式内嵌在 <style> 中：
+  // 通用清洗会剥掉样式标签，必须原样保留。
+  if (html.includes('class="wechat-chat"') || html.includes("class='wechat-chat'")) {
+    return html;
+  }
+
   if (html.includes('data-storing-capture="singlefile"') || html.includes("data-storing-capture='singlefile'")) {
     const parsed = new DOMParser().parseFromString(html, 'text/html');
     parsed.querySelectorAll('script,noscript').forEach((node) => node.remove());
