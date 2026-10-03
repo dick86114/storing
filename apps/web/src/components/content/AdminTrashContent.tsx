@@ -33,7 +33,7 @@ export function AdminTrashContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [refresh]);
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated && user?.role === 'admin') void refresh();
@@ -80,7 +80,7 @@ export function AdminTrashContent() {
       setBusyId(null);
       setPurgeTarget(null);
     }
-  }, []);
+  }, [refresh]);
 
   if (!isAuthenticated || user?.role !== 'admin') {
     return (
