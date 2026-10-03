@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.idickies.storing.collect.ShareCollectViewModel
 import com.idickies.storing.collect.SharedImportFile
+import com.idickies.storing.collect.SharedUrlExtractor
 import com.idickies.storing.ui.theme.QiankunjieTheme
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
@@ -75,13 +76,17 @@ import kotlin.math.max
 class ShareReceiverActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    val importFiles = readSharedFiles()
+    var importFiles = readSharedFiles()
     val sharedText =
       if (importFiles.isEmpty()) {
         intent?.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString().orEmpty()
       } else {
         ""
       }
+    // 微信单条文本转发不会生成 ZIP：包装成 TXT 走统一的文本导入管线。
+    if (importFiles.isEmpty() && sharedText.isNotBlank() && SharedUrlExtractor.extract(sharedText).isEmpty()) {
+      sharedTextAsImportFile(sharedText)?.let { importFiles = listOf(it) }
+    }
     setContent {
       QiankunjieTheme {
         ShareReceiverScreen(sharedText = sharedText, importFiles = importFiles, onFinished = ::finish)
@@ -128,6 +133,20 @@ class ShareReceiverActivity : ComponentActivity() {
       if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
     }
   }.getOrNull()
+
+  private fun sharedTextAsImportFile(text: String): SharedImportFile? {
+    if (text.isBlank()) return null
+    return runCatching {
+      val directory = File(cacheDir, "wechat-import").apply { mkdirs() }
+      val target = File(directory, "${System.currentTimeMillis()}-share-text.txt")
+      target.writeText(text)
+      SharedImportFile(
+        displayName = "分享文本.txt",
+        cacheFile = target,
+        size = target.length(),
+      )
+    }.getOrNull()
+  }
 }
 
 @Composable
