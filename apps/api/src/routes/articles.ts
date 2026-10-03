@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
 import { db } from '../db/index.js';
-import { articles, articleMetadata, categories, users } from '../db/schema.js';
+import { adminAuditLogs, articles, articleMetadata, categories, collectJobs, users } from '../db/schema.js';
 import { eq, and, asc, desc, count, sql, or, gt, inArray } from 'drizzle-orm';
 import { classifyStoredArticleForArchive, generateSummaryAndTags } from '../services/ai.service.js';
 import { getCategoryById, getPendingCategory, moveArticlesToCategory } from '../services/category.service.js';
@@ -1009,7 +1009,10 @@ articlesRoutes.delete('/articles/:id/permanent', requireAuth, async (c) => {
     .from(articleMetadata)
     .where(and(eq(articleMetadata.articleId, id), sql`${articleMetadata.userId} != ${userId}`));
   if (Number(remaining) === 0) {
-    // 无其他用户引用，彻底删除 metadata + 原始文章
+    // 无其他用户引用，彻底删除 metadata + 原始文章；
+    // collect_jobs 与 admin_audit_logs 的外键会阻止删除，先解除引用保留历史。
+    await db.update(collectJobs).set({ articleId: null }).where(eq(collectJobs.articleId, id));
+    await db.update(adminAuditLogs).set({ articleId: null }).where(eq(adminAuditLogs.articleId, id));
     await db.delete(articleMetadata).where(eq(articleMetadata.articleId, id));
     await db.delete(articles).where(eq(articles.id, id));
   } else {
