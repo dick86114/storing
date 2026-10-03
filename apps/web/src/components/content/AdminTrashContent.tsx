@@ -33,7 +33,7 @@ export function AdminTrashContent() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [refresh]);
 
   useEffect(() => {
     if (isAuthenticated && user?.role === 'admin') void refresh();
@@ -46,12 +46,19 @@ export function AdminTrashContent() {
       await api.restoreAdminTrashArticle(item.article_id);
       setItems((prev) => prev.filter((entry) => entry.article_id !== item.article_id));
       setNotice(`「${item.title ?? '未命名文章'}」已恢复到原用户的资料库。`);
+      void refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '恢复失败');
+      if (e instanceof Error && e.message.includes('不存在')) {
+        setItems((prev) => prev.filter((entry) => entry.article_id !== item.article_id));
+        setNotice(`「${item.title ?? '未命名文章'}」已在资料库中。`);
+        void refresh();
+      } else {
+        setError(e instanceof Error ? e.message : '恢复失败');
+      }
     } finally {
       setBusyId(null);
     }
-  }, []);
+  }, [refresh]);
 
   const purge = useCallback(async (item: AdminTrashItem) => {
     setBusyId(item.article_id);
@@ -60,8 +67,15 @@ export function AdminTrashContent() {
       await api.purgeAdminTrashArticle(item.article_id);
       setItems((prev) => prev.filter((entry) => entry.article_id !== item.article_id));
       setNotice(`「${item.title ?? '未命名文章'}」已从服务器彻底删除。`);
+      void refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '彻底删除失败');
+      if (e instanceof Error && e.message.includes('不存在')) {
+        setItems((prev) => prev.filter((entry) => entry.article_id !== item.article_id));
+        setNotice(`「${item.title ?? '未命名文章'}」已从服务器删除。`);
+        void refresh();
+      } else {
+        setError(e instanceof Error ? e.message : '彻底删除失败');
+      }
     } finally {
       setBusyId(null);
       setPurgeTarget(null);

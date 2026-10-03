@@ -110,6 +110,7 @@ class AdminViewModel @Inject constructor(
               trashItems = state.trashItems.filter { it.articleId != articleId },
             )
           }
+          load()
         }
         .onFailure { error -> mutableState.update { it.copy(submitting = false, error = error.message ?: "恢复失败") } }
     }
@@ -128,6 +129,7 @@ class AdminViewModel @Inject constructor(
               notice = "已从服务器彻底删除",
             )
           }
+          load()
         }
         .onFailure { error -> mutableState.update { it.copy(submitting = false, error = error.message ?: "彻底删除失败") } }
     }

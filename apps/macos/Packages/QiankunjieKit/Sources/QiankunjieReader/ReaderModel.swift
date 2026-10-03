@@ -440,8 +440,13 @@ public final class ReaderModel {
 
     public func delete() async {
         await performAction { articleID, actionGeneration in
-            let result = try await self.client.delete(articleID: articleID)
-            if result.deleted, isCurrentAction(actionGeneration) {
+            do {
+                let result = try await self.client.delete(articleID: articleID)
+                guard result.deleted, isCurrentAction(actionGeneration) else { return }
+            } catch AppError.contentUnavailable {
+                // 文章已不存在时按删除完成收尾，避免阅读器停留在一篇已删文章上。
+            }
+            if isCurrentAction(actionGeneration) {
                 self.isDeleted = true
                 self.positionStore.remove(articleID: articleID)
                 self.onDeleted?()
@@ -451,7 +456,11 @@ public final class ReaderModel {
 
     public func deletePermanent() async {
         await performAction { articleID, actionGeneration in
-            try await self.client.permanentDelete(articleID: articleID)
+            do {
+                try await self.client.permanentDelete(articleID: articleID)
+            } catch AppError.contentUnavailable {
+                // 首次请求可能已删除成功但响应丢失；404 视为已彻底删除。
+            }
             if isCurrentAction(actionGeneration) {
                 self.isDeleted = true
                 self.positionStore.remove(articleID: articleID)
