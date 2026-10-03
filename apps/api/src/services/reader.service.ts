@@ -716,9 +716,13 @@ export async function repairArticleDisplayMeta(articleId: number, userId?: numbe
     : { source: null, author: null };
 
   const fallbackRawSource = cleanText((article.content as any)?.source);
-  const cachedPublishTime =
-    (article.contentMarkdown ? extractPublishTimeFromMarkdown(article.contentMarkdown) : null)
-    || (article.contentHtml ? extractPublishTimeFromCachedHtml(article.contentHtml) : null);
+  // 微信转发的聊天记录没有"发布时间"概念：正文里的日期是聊天发生时间，
+  // 不能当作发布时间填入，否则列表会显示成几个月前。
+  const isWeChatChat = (article.content as { type?: string } | null)?.type === 'wechat_chat';
+  const cachedPublishTime = isWeChatChat
+    ? null
+    : (article.contentMarkdown ? extractPublishTimeFromMarkdown(article.contentMarkdown) : null)
+      || (article.contentHtml ? extractPublishTimeFromCachedHtml(article.contentHtml) : null);
 
   const nextTitle = article.title || fetchedMeta?.title || null;
   const nextSource = article.source || fetchedMeta?.source || markdownMeta.source || fallbackRawSource || null;
