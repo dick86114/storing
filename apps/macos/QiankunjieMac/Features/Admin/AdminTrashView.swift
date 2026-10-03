@@ -51,6 +51,42 @@ struct AdminTrashResponse: Decodable, Sendable {
     let total: Int
 }
 
+struct AdminTrashOrphanItem: Identifiable, Equatable, Decodable, Sendable {
+    let id: Int
+    let title: String?
+    let source: String?
+    let author: String?
+    let sourceType: String?
+    let createdAt: String?
+    let contentPreview: String?
+
+    enum CodingKeys: String, CodingKey {
+        case articleId = "article_id"
+        case title
+        case source
+        case author
+        case sourceType = "source_type"
+        case createdAt = "created_at"
+        case contentPreview = "content_preview"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .articleId)
+        title = try container.decodeIfPresent(String.self, forKey: .title)
+        source = try container.decodeIfPresent(String.self, forKey: .source)
+        author = try container.decodeIfPresent(String.self, forKey: .author)
+        sourceType = try container.decodeIfPresent(String.self, forKey: .sourceType)
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        contentPreview = try container.decodeIfPresent(String.self, forKey: .contentPreview)
+    }
+}
+
+struct AdminTrashOrphansResponse: Decodable, Sendable {
+    let items: [AdminTrashOrphanItem]
+    let total: Int
+}
+
 /// 恢复/彻底删除的响应体不参与业务判断：2xx 即成功，404 视为已不在回收站。
 struct AdminTrashActionResponse: Decodable, Sendable {}
 
@@ -58,6 +94,7 @@ struct AdminTrashActionResponse: Decodable, Sendable {}
 @Observable
 final class AdminTrashModel {
     private(set) var items: [AdminTrashItem] = []
+    private(set) var orphanItems: [AdminTrashOrphanItem] = []
     private(set) var isLoading = false
     private(set) var busyArticleId: Int?
     var errorMessage: String?
@@ -79,6 +116,36 @@ final class AdminTrashModel {
         do {
             let response: AdminTrashResponse = try await client.get("admin/trash")
             items = response.items
+            let orphans: AdminTrashOrphansResponse = try await client.get("admin/trash/orphans")
+            orphanItems = orphans.items
+        } catch {
+            errorMessage = managementErrorMessage(for: error)
+        }
+    }
+
+    func adopt(_ orphan: AdminTrashOrphanItem) async {
+        busyArticleId = orphan.id
+        defer { busyArticleId = nil }
+        do {
+            let _: AdminTrashActionResponse = try await client.send(
+                "admin/trash/\(orphan.id)/adopt",
+                method: .post,
+                body: EmptyBody()
+            )
+            orphanItems.removeAll { $0.id == orphan.id }
+            noticeMessage = "「\(orphan.title ?? "未命名文章")」已领养到你的资料库。"
+        } catch {
+            errorMessage = managementErrorMessage(for: error)
+        }
+    }
+
+    func purgeOrphan(_ orphan: AdminTrashOrphanItem) async {
+        busyArticleId = orphan.id
+        defer { busyArticleId = nil }
+        do {
+            let _: AdminTrashActionResponse = try await client.delete("admin/trash/\(orphan.id)")
+            orphanItems.removeAll { $0.id == orphan.id }
+            noticeMessage = "「\(orphan.title ?? "未命名文章")」已从服务器彻底删除。"
         } catch {
             errorMessage = managementErrorMessage(for: error)
         }
@@ -134,6 +201,9 @@ private struct EmptyBody: Encodable, Sendable {}
 struct AdminTrashView: View {
     @State private var model: AdminTrashModel
     @Environment(\.colorScheme) private var colorScheme
+    @State private var showsOrphans = false
+    @State private var detailOrphan: AdminTrashOrphanItem?
+    @State private var purgeOrphanTarget: AdminTrashOrphanItem?
 
     init(client: ManagementAPIClient) {
         _model = State(initialValue: AdminTrashModel(client: client))
@@ -144,12 +214,12 @@ struct AdminTrashView: View {
             if model.isLoading {
                 ProgressView("正在加载回收站…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if model.items.isEmpty {
+            } else if showsOrphans ? model.orphanItems.isEmpty : model.items.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "trash")
                         .font(.system(size: 28))
                         .foregroundStyle(.secondary)
-                    Text("回收站是空的")
+                    Text(showsOrphans ? "没有孤儿文章" : "回收站是空的")
                         .font(.headline)
                     Text("用户删除的文章会进入这里，可以恢复或彻底删除。")
                         .font(.footnote)
@@ -157,15 +227,28 @@ struct AdminTrashView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                trashList
+                showsOrphans ? AnyView(orphanList) : AnyView(trashList)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .task { await model.load() }
         .refreshable { await model.load() }
+        .safeAreaInset(edge: .top) {
+            Picker("视图", selection: $showsOrphans) {
+                Text("已删除").tag(false)
+                Text("孤儿文章").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
         .overlay {
             if let purgeConfirmItem = model.purgeConfirmItem {
                 purgeConfirmation(item: purgeConfirmItem)
+            }
+            if let purgeOrphanTarget = purgeOrphanTarget {
+                purgeOrphanConfirmation(orphan: purgeOrphanTarget)
             }
         }
         .overlay {
@@ -215,6 +298,75 @@ struct AdminTrashView: View {
             }
             .padding(.bottom, 12)
         }
+    }
+
+    private var orphanList: some View {
+        List {
+            Section {
+                HStack {
+                    Text("共 \(model.orphanItems.count) 条")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        Task { await model.load() }
+                    } label: {
+                        Label("刷新", systemImage: "arrow.clockwise")
+                    }
+                }
+            }
+            Section {
+                ForEach(model.orphanItems) { orphan in
+                    orphanRow(orphan)
+                }
+            } footer: {
+                Text("孤儿文章是导入时元数据写入失败的记录，所有端都不可见。领养后会进入你的资料库并正常显示。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func orphanRow(_ orphan: AdminTrashOrphanItem) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(orphan.title ?? "未命名文章")
+                    .font(.headline)
+                Text(
+                    [
+                        orphan.source ?? "乾坤戒",
+                        orphan.author,
+                        "创建于 \(orphan.createdAt ?? "—")",
+                    ]
+                    .compactMap { $0 }
+                    .joined(separator: " · ")
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                Button("详情") {
+                    detailOrphan = orphan
+                }
+                .buttonStyle(.bordered)
+
+                Button("领养") {
+                    Task { await model.adopt(orphan) }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(model.busyArticleId != nil)
+
+                Button("彻底删除", role: .destructive) {
+                    purgeOrphanTarget = orphan
+                }
+                .buttonStyle(.bordered)
+                .disabled(model.busyArticleId != nil)
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     private func row(_ item: AdminTrashItem) -> some View {
@@ -289,6 +441,39 @@ struct AdminTrashView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(QiankunjieColors.surface(for: colorScheme))
                 .shadow(radius: 18)
+        }
+        .padding(40)
+    }
+
+    private func purgeOrphanConfirmation(orphan: AdminTrashOrphanItem) -> some View {
+        VStack(spacing: 14) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 30))
+                .foregroundStyle(.orange)
+            Text("彻底删除「\(orphan.title ?? "未命名文章")」？")
+                .font(.headline)
+            Text("这篇孤儿文章没有任何用户元数据，删除后原始内容将从服务器清除，无法恢复。")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            HStack(spacing: 10) {
+                Button("取消") {
+                    purgeOrphanTarget = nil
+                }
+                .keyboardShortcut(.cancelAction)
+                Button("彻底删除", role: .destructive) {
+                    Task { await model.purgeOrphan(orphan) }
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(model.busyArticleId != nil)
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: 380)
+        .background {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(QiankunjieColors.surface(for: colorScheme))
+                .shadow(color: .black.opacity(0.18), radius: 18)
         }
         .padding(40)
     }
