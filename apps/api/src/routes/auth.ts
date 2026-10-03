@@ -960,13 +960,15 @@ authRoutes.delete('/admin/trash/:articleId', requireAdmin, async (c) => {
   const [exists] = await db.select({ id: articles.id }).from(articles).where(eq(articles.id, articleId)).limit(1);
   if (!exists) return c.json({ error: { code: 'NOT_FOUND', message: '回收站中没有这篇文章' } }, 404);
 
-  await db.delete(articleMetadata).where(eq(articleMetadata.articleId, articleId));
-  await db.delete(articles).where(eq(articles.id, articleId));
+  // 审计必须先于删除写入：audit_logs.article_id 有外键，文章删除后就写不进去了。
   await writeAdminAudit({
     actorUserId: getCurrentUser(c).id,
     articleId,
     action: 'article_purged',
   });
+
+  await db.delete(articleMetadata).where(eq(articleMetadata.articleId, articleId));
+  await db.delete(articles).where(eq(articles.id, articleId));
   return c.json({ article_id: articleId, deleted: true, scope: 'permanent' });
 });
 
