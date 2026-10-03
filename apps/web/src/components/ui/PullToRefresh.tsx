@@ -115,7 +115,9 @@ export function PullToRefresh({ children, onRefresh, disabled = false, className
       onTouchEnd={handleTouchEnd}
       style={{
         position: 'relative',
-        transform: distance ? `translateY(${distance}px)` : 'translateY(0)',
+        // transform 会在祖先链上创建新的包含块，破坏内部 position:sticky 的
+        // 视口吸附参照——仅在下拉时才设置，避免常驻 transform 阻断吸附。
+        transform: distance ? `translateY(${distance}px)` : undefined,
         transition: state === 'pulling' || state === 'ready' ? 'none' : 'transform 220ms ease',
         willChange: distance ? 'transform' : 'auto',
       }}
