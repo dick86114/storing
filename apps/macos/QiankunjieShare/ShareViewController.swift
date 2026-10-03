@@ -47,8 +47,8 @@ final class ShareViewController: NSViewController {
 
         var items: [WeChatBatchManifest.Item] = []
         do {
-            for provider in providers {
-                let item = try await importAttachment(provider, into: staging)
+            for (index, provider) in providers.enumerated() {
+                let item = try await importAttachment(provider, index: index, into: staging)
                 items.append(item)
             }
             let manifest = WeChatBatchManifest(batchID: staging.batchID, items: items)
@@ -67,10 +67,15 @@ final class ShareViewController: NSViewController {
     /// 系统提供的临时文件在回调返回后即被删除，复制必须发生在回调内。
     private static func importAttachment(
         _ provider: NSItemProvider,
+        index: Int,
         into staging: WeChatBatchStaging
     ) async throws -> WeChatBatchManifest.Item {
         let typeIdentifier = provider.registeredTypeIdentifiers.first { identifier in
             identifier == UTType.data.identifier || identifier == UTType.fileURL.identifier
+        } ?? provider.registeredTypeIdentifiers.first { identifier in
+            identifier == UTType.utf8PlainText.identifier
+                || identifier == UTType.plainText.identifier
+                || identifier == UTType.text.identifier
         } ?? provider.registeredTypeIdentifiers.first
 
         guard let typeIdentifier else {
@@ -83,6 +88,12 @@ final class ShareViewController: NSViewController {
             let url = try await loadFileURL(provider, typeIdentifier: typeIdentifier)
             data = try Data(contentsOf: url)
             filename = url.lastPathComponent
+        } else if typeIdentifier == UTType.utf8PlainText.identifier
+            || typeIdentifier == UTType.plainText.identifier
+            || typeIdentifier == UTType.text.identifier {
+            let text = try await loadTextRepresentation(provider, typeIdentifier: typeIdentifier)
+            data = Data(text.utf8)
+            filename = index == 0 ? "分享文本.txt" : "分享文本-\(index + 1).txt"
         } else {
             (data, filename) = try await loadFileRepresentation(
                 provider,
@@ -115,6 +126,33 @@ final class ShareViewController: NSViewController {
                 } catch {
                     continuation.resume(throwing: error)
                 }
+            }
+        }
+    }
+
+    private static func loadTextRepresentation(
+        _ provider: NSItemProvider,
+        typeIdentifier: String
+    ) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            provider.loadItem(forTypeIdentifier: typeIdentifier) { item, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                if let string = item as? String {
+                    continuation.resume(returning: string)
+                    return
+                }
+                if let data = item as? Data, let string = String(data: data, encoding: .utf8) {
+                    continuation.resume(returning: string)
+                    return
+                }
+                if let url = item as? URL, let string = try? String(contentsOf: url, encoding: .utf8) {
+                    continuation.resume(returning: string)
+                    return
+                }
+                continuation.resume(throwing: ImportError.emptyFile)
             }
         }
     }

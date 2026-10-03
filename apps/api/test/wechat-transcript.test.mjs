@@ -4,6 +4,7 @@ import {
   parseWeChatTranscript,
   renderWeChatTranscriptMarkdown,
   renderWeChatTranscriptHtml,
+  renderWeChatPlainTextHtml,
   safeZipEntryName,
 } from '../src/services/wechat-transcript.ts';
 
@@ -82,6 +83,15 @@ test('unmatched media placeholders degrade to plain text', () => {
   const html = renderWeChatTranscriptHtml({ records, mediaMap });
   assert.match(markdown, /> 图片（未随聊天记录导出）/);
   assert.match(html, /（图片未随聊天记录导出）/);
+});
+
+test('plain shared text renders as a readable article', () => {
+  const html = renderWeChatPlainTextHtml('第一段文字\n第二行\n\n第二段落');
+
+  assert.match(html, /wechat-plain-text/);
+  assert.match(html, /<p>第一段文字<br>第二行<\/p>/);
+  assert.match(html, /<p>第二段落<\/p>/);
+  assert.doesNotMatch(html, /<script/);
 });
 
 test('zip entry names with traversal or control characters are rejected', () => {

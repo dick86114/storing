@@ -9,6 +9,7 @@ import {
   detectWeChatMediaKind,
   guessWeChatMime,
   parseWeChatTranscript,
+  renderWeChatPlainTextHtml,
   renderWeChatTranscriptMarkdown,
   renderWeChatTranscriptHtml,
   safeZipEntryName,
@@ -219,15 +220,23 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
 
   const records = transcriptText ? parseWeChatTranscript(transcriptText) : [];
   const firstDate = records.find((record) => record.date)?.date ?? new Date();
-  const title = options.chatName?.trim()
+  // 单条文本转发不是「·昵称/时间」聊天记录格式；保留原文作为文本笔记。
+  const isPlainText = Boolean(transcriptText) && records.length === 0;
+  const title = isPlainText
+    ? `微信转发文本 ${formatDateTime(new Date())}`
+    : options.chatName?.trim()
     ? `微信聊天记录：${options.chatName.trim()}`
     : `微信转发内容 ${formatDateTime(firstDate)}`;
-  const markdown = transcriptText || uploadedUrls.length > 0
+  const markdown = isPlainText
+    ? transcriptText ?? ''
+    : transcriptText || uploadedUrls.length > 0
     ? renderWeChatTranscriptMarkdown({ records, mediaMap })
     : '';
   if (!markdown) throw new WeChatImportError('没有识别到聊天记录或媒体文件', 'UNSUPPORTED');
   // 阅读器默认请求 HTML 正文；微信导入没有可抓取的外部源，落库时直接生成。
-  const html = renderWeChatTranscriptHtml({ records, mediaMap });
+  const html = isPlainText
+    ? renderWeChatPlainTextHtml(transcriptText ?? '')
+    : renderWeChatTranscriptHtml({ records, mediaMap });
   // 有正文图片：封面交给封面处理器取第一张图；
   // 纯文字记录：使用乾坤戒插画作为列表封面。
   const hasInlineImage = uploadedUrls.some(

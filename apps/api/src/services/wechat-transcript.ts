@@ -217,6 +217,27 @@ export function renderWeChatTranscriptHtml(input: {
   ].join('');
 }
 
+/** 非聊天记录格式的纯文本分享：保留原文段落结构，套用同一套阅读样式。 */
+export function renderWeChatPlainTextHtml(text: string): string {
+  const paragraphs = text
+    .replace(/^\uFEFF/, '')
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => {
+      const body = escapeHtml(paragraph).replace(/\n/g, '<br>');
+      return `<p>${body}</p>`;
+    });
+
+  return [
+    '<style>',
+    '.wechat-chat{max-width:100%;}',
+    '.wechat-plain-text p{font-size:15px;line-height:1.7;margin:0 0 14px;}',
+    '</style>',
+    `<div class="wechat-chat wechat-plain-text">${paragraphs.join('') || '<p>（无正文）</p>'}</div>`,
+  ].join('');
+}
+
 export function detectWeChatMediaKind(filename: string): WeChatMediaKind {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
   if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif', 'heic'].includes(ext)) return 'image';
