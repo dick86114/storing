@@ -140,6 +140,48 @@ jobs:
       - name: Run browser extension tests
         run: pnpm --filter browser-extension test
 
+  android:
+    name: Android Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          # runner 的新版 sdkmanager 已移除废弃的 tools 包，只装仍然有效的 platform-tools。
+          packages: platform-tools
+
+      - name: Install Android platform
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('apps/android/**/*.gradle*', 'apps/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # 发版走的是 release 变体，这里编译同一个变体，避免只在发版时才暴露编译错误。
+      - name: Compile release sources
+        working-directory: apps/android
+        run: ./gradlew :app:compileReleaseKotlin --no-daemon
+
+      - name: Run Android unit tests
+        working-directory: apps/android
+        run: ./gradlew :app:testDebugUnitTest --no-daemon
+
   security-check:
     name: Security Check
     runs-on: ubuntu-latest
