@@ -970,6 +970,61 @@ authRoutes.delete('/admin/trash/:articleId', requireAdmin, async (c) => {
   return c.json({ article_id: articleId, deleted: true, scope: 'permanent' });
 });
 
+/** 管理员：孤儿文章——原始文章存在，但没有任何用户的元数据记录，所有端均不可见。 */
+authRoutes.get('/admin/trash/orphans', requireAdmin, async (c) => {
+  const rows = await db
+    .select({
+      article_id: articles.id,
+      title: articles.title,
+      source: articles.source,
+      author: articles.author,
+      cover_image: articles.coverImage,
+      source_type: sql<string | null>`${articles.content} ->> 'platform'`,
+      created_at: articles.createdAt,
+      updated_at: articles.updatedAt,
+      content_preview: sql<string | null>`left(${articles.contentMarkdown}, 2000)`,
+    })
+    .from(articles)
+    .leftJoin(articleMetadata, eq(articleMetadata.articleId, articles.id))
+    .where(isNull(articleMetadata.id))
+    .orderBy(desc(articles.updatedAt))
+    .limit(200);
+
+  return c.json({ items: rows, total: rows.length });
+});
+
+/** 管理员：领养孤儿文章（为其创建管理员自己的元数据记录，恢复可见）。 */
+authRoutes.post('/admin/trash/:articleId/adopt', requireAdmin, async (c) => {
+  const articleId = Number(c.req.param('articleId'));
+  if (!Number.isFinite(articleId) || articleId <= 0) return c.json({ error: { code: 'BAD_REQUEST', message: '文章 ID 无效' } }, 400);
+
+  const actorUserId = getCurrentUser(c).id;
+  const [article] = await db.select({ id: articles.id }).from(articles).where(eq(articles.id, articleId)).limit(1);
+  if (!article) return c.json({ error: { code: 'NOT_FOUND', message: '文章不存在' } }, 404);
+
+  const [existing] = await db
+    .select({ id: articleMetadata.id })
+    .from(articleMetadata)
+    .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, actorUserId)))
+    .limit(1);
+  if (existing) return c.json({ error: { code: 'ALREADY_ADOPTED', message: '该文章已在你的资料库中' } }, 409);
+
+  await db.insert(articleMetadata).values({
+    articleId,
+    userId: actorUserId,
+    sourceType: 'orphan_adopted',
+    isFavorited: false,
+    isArchived: false,
+    coverVersion: 0,
+  });
+  await writeAdminAudit({
+    actorUserId,
+    articleId,
+    action: 'orphan_adopted',
+  });
+  return c.json({ article_id: articleId, adopted: true, user_id: actorUserId });
+});
+
 /** 管理员：查看跨用户管理行为审计记录。 */
 authRoutes.get('/admin/audit-logs', requireAdmin, async (c) => {
   const targetUserParam = c.req.query('target_user_id');
