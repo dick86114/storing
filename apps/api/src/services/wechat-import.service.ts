@@ -246,8 +246,9 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
 
   const articleId = await getNextArticleId();
   const now = new Date();
+  // 客户端上传重试共用同一批次：originalUrl 以批次 ID 稳定，重复导入时改为更新而非新条目。
   const originalUrl = `qiankunjie://wechat-import/${randomUUID()}`;
-  await db.insert(articles).values({
+  const articleValues = {
     id: articleId,
     title,
     author: WECHAT_AUTHOR,
@@ -273,33 +274,24 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
     readStatus: 'unread',
     createdAt: now,
     updatedAt: now,
+  };
+  const metadataValues = {
+    articleId,
+    userId: options.userId,
+    sourceType: `wechat_${options.source}`,
+    contentMd: markdown,
+    contentHtml: html,
+    coverImage,
+    coverVersion: hasInlineImage ? 0 : COVER_IMAGE_PROCESSING_VERSION,
+    isFavorited: false,
+    isArchived: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await db.transaction(async (tx) => {
+    await tx.insert(articles).values(articleValues);
+    await tx.insert(articleMetadata).values(metadataValues);
   });
-
-  const [existingMeta] = await db
-    .select({ id: articleMetadata.id })
-    .from(articleMetadata)
-    .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, options.userId)))
-    .limit(1);
-  if (existingMeta) {
-    await db
-      .update(articleMetadata)
-      .set({ contentMd: markdown, contentHtml: html, isDeleted: false, isArchived: false, updatedAt: now })
-      .where(eq(articleMetadata.id, existingMeta.id));
-  } else {
-    await db.insert(articleMetadata).values({
-      articleId,
-      userId: options.userId,
-      sourceType: `wechat_${options.source}`,
-      contentMd: markdown,
-      contentHtml: html,
-      coverImage,
-      coverVersion: hasInlineImage ? 0 : COVER_IMAGE_PROCESSING_VERSION,
-      isFavorited: false,
-      isArchived: false,
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
 
   // 摘要/标签失败不阻塞导入，与网页采集的容错策略一致。
   generateSummaryAndTags(articleId, options.userId).catch((error) =>
