@@ -16683,14 +16683,17 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
 }
 
 /* 移动端：工具条紧跟导航条，吸顶背景用不透明底色，
-   避免列表卡片封面从工具条与导航之间的缝隙透出。 */
+   避免列表卡片封面从工具条与导航之间的缝隙透出。
+   移动端滚动容器是 main.app-main，而它本身就从导航条下方开始（main 顶边 = 导航条底边），
+   所以吸顶偏移必须是 0；若沿用顶栏高度会叠加成两倍，未滚动时工具条被强行下推一整条导航高度，
+   列表卡片还会上移压到工具条底部。桌面端（>=810px）滚动容器是窗口，偏移仍用顶栏高度。 */
 @media (max-width: 809px) {
   .mobile-content-frame:has(.list-toolbar) {
     padding-top: 0 !important;
   }
 
   .list-toolbar {
-    top: var(--app-top-nav-h, 56px);
+    top: 0;
     margin-top: 0;
     padding: 4px 0;
     background: var(--bg);
