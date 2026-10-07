@@ -22,7 +22,7 @@ interface MobileTopNavProps {
 
 export function MobileTopNav({ onAddClick, onNavigate }: MobileTopNavProps) {
   const router = useRouter();
-  const { isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated, user, logout, bootState, retryBoot } = useAuth();
   const { theme, setTheme, colorScheme } = useTheme();
   const { showToast } = useToast();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -138,6 +138,17 @@ export function MobileTopNav({ onAddClick, onNavigate }: MobileTopNavProps) {
 
         {/* 右侧：采集 + 搜索 + 用户菜单 */}
         <div ref={menuWrapRef} onBlurCapture={handleMenuBlur} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {bootState.status === 'bootFailed' && (
+            <button
+              type="button"
+              onClick={retryBoot}
+              className="mobile-top-action"
+              aria-label="网络暂时不可用，重试登录校验"
+              style={{ color: 'var(--text)', fontSize: '13px', width: 'auto', padding: '0 8px' }}
+            >
+              重试
+            </button>
+          )}
           {isAuthenticated && (
             <button className="mobile-top-action" onClick={handleCollectClick} type="button" aria-label="采集文章">
               <CloudUploadOutlined />

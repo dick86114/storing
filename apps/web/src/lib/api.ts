@@ -197,24 +197,52 @@ type ApiRequestInit = RequestInit & {
   timeoutMs?: number;
 };
 
+export class ApiRequestError extends Error {
+  readonly status: number;
+  readonly errorCode?: string;
+
+  constructor(message: string, status: number, errorCode?: string) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+    this.errorCode = errorCode;
+  }
+}
+
+export function parseApiErrorResponse(status: number, body: unknown, fallback: string): ApiRequestError {
+  const errorBody = typeof body === 'object' && body !== null
+    ? body as { error?: { code?: unknown; message?: unknown } }
+    : null;
+  const errorCode = typeof errorBody?.error?.code === 'string' ? errorBody.error.code : undefined;
+  const message = typeof errorBody?.error?.message === 'string' && errorBody.error.message
+    ? errorBody.error.message
+    : fallback;
+  return new ApiRequestError(message, status, errorCode);
+}
+
 async function fetchJSON<T>(path: string, init?: ApiRequestInit): Promise<T> {
   const controller = new AbortController();
   const { timeoutMs = REQUEST_TIMEOUT_MS, ...fetchInit } = init ?? {};
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
 
-  const res = await fetch(`${BASE}${path}`, {
-    ...fetchInit,
-    signal: controller.signal,
-    credentials: 'same-origin',
-    headers: {
-      'Content-Type': 'application/json',
-      ...fetchInit.headers,
-    },
-  }).finally(() => window.clearTimeout(timeout));
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      ...fetchInit,
+      signal: controller.signal,
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        ...fetchInit.headers,
+      },
+    });
+  } finally {
+    window.clearTimeout(timeout);
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body?.error?.message || `Request failed: ${res.status}`);
+    throw parseApiErrorResponse(res.status, body, `Request failed: ${res.status}`);
   }
   return res.json();
 }
@@ -228,7 +256,9 @@ export const api = {
     }),
 
   verifyToken: () =>
-    fetchJSON<{ valid: boolean; user?: { id: number; username: string; role?: string; status?: string } }>('/verify'),
+    fetchJSON<{ valid: boolean; user?: { id: number; username: string; role?: string; status?: string } }>('/verify', {
+      timeoutMs: 10_000,
+    }),
 
   logout: () =>
     fetchJSON<{ message: string }>('/logout', { method: 'POST' }),

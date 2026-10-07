@@ -24,7 +24,7 @@ interface DesktopTopNavProps {
 
 export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: DesktopTopNavProps) {
   const router = useRouter();
-  const { isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated, user, logout, bootState, retryBoot } = useAuth();
   const { theme, setTheme, colorScheme } = useTheme();
   const { showToast } = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -246,6 +246,26 @@ export function DesktopTopNav({ onSearchOpen, counts, activeKey, onNavigate }: D
 
         {/* 右侧：采集操作 + 搜索 + 用户菜单 */}
         <div className="desktop-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, marginLeft: 'auto' }}>
+          {bootState.status === 'bootFailed' && (
+            <button
+              type="button"
+              onClick={retryBoot}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                minHeight: '32px',
+                padding: '0 12px',
+                borderRadius: '6px',
+                border: '1px solid var(--border)',
+                background: 'var(--bg)',
+                color: 'var(--text)',
+                fontSize: '13px',
+                cursor: 'pointer',
+              }}
+            >
+              网络暂时不可用
+            </button>
+          )}
           {isAuthenticated && (
             <button className="desktop-collect-trigger" onClick={() => navigateTo('collect')} type="button" aria-label="采集文章" title="采集文章">
               <CloudUploadOutlined />
