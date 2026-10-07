@@ -51,7 +51,7 @@ function RouteSwitchLoading({ label }: { label: string }) {
 function MainContent({ children }: { children: ReactNode }) {
   const counts = useCounts();
   const { selectedId, closeArticle, mutateList } = useArticleContext();
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, bootState, retryBoot } = useAuth();
   const { layout } = useTheme();
   const pathname = usePathname();
 
@@ -89,13 +89,13 @@ function MainContent({ children }: { children: ReactNode }) {
  
   // 游客访问私有路由时重定向到发布页
   useEffect(() => {
-     if (!isAuthenticated && !isLoading) {
+     if (bootState.status === 'unauthenticated') {
        const privateRoutes = ['/inbox', '/favorites', '/archive', '/collect', '/settings', '/admin'];
        if (privateRoutes.some(route => pathname === route || pathname.startsWith(`${route}/`))) {
          window.location.href = '/published';
        }
      }
-   }, [isAuthenticated, isLoading, pathname]);
+   }, [bootState.status, pathname]);
 
   // 搜索弹窗状态（桌面端）
   const [searchOpen, setSearchOpen] = useState(false);
@@ -104,6 +104,41 @@ function MainContent({ children }: { children: ReactNode }) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
         <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>加载中...</span>
+      </div>
+  );
+  }
+
+  if (bootState.status === 'bootFailed') {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'grid',
+          placeItems: 'center',
+          background: 'var(--bg)',
+          color: 'var(--text)',
+          padding: '24px',
+        }}
+      >
+        <div style={{ textAlign: 'center' }}>
+          <h1 style={{ fontSize: '20px', marginBottom: '8px' }}>网络暂时不可用，请重试</h1>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>你的登录状态不会被清除。</p>
+          <button
+            type="button"
+            onClick={retryBoot}
+            style={{
+              minHeight: '40px',
+              padding: '0 24px',
+              borderRadius: '8px',
+              border: '1px solid var(--border)',
+              background: 'var(--accent)',
+              color: '#fff',
+              cursor: 'pointer',
+            }}
+          >
+            重试
+          </button>
+        </div>
       </div>
     );
   }
