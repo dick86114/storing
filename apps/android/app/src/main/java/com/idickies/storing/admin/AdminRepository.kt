@@ -1,6 +1,9 @@
 package com.idickies.storing.admin
 
 import com.idickies.storing.auth.MobileSessionAuthenticator
+import com.idickies.storing.auth.MobileAuthResult
+import com.idickies.storing.auth.MobileAccountForbiddenException
+import com.idickies.storing.auth.MobileNetworkUnavailableException
 import retrofit2.HttpException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -50,7 +53,7 @@ class AdminRepository @Inject constructor(
   suspend fun purgeTrash(articleId: Int) = authenticatedRequest { api.purgeTrash(articleId) }
 
   private suspend fun <T> authenticatedRequest(request: suspend () -> T): T {
-    if (!sessionAuthenticator.ensureValidAccessToken()) throw AdminAuthenticationRequiredException()
+    requireAuthenticated(sessionAuthenticator.ensureValidAccessToken())
 
     try {
       return request()
@@ -58,12 +61,21 @@ class AdminRepository @Inject constructor(
       if (error.code() != 401) throw error
     }
 
-    if (!sessionAuthenticator.refreshAccessToken()) throw AdminAuthenticationRequiredException()
+    requireAuthenticated(sessionAuthenticator.refreshAccessToken())
     try {
       return request()
     } catch (error: HttpException) {
       if (error.code() == 401) throw AdminAuthenticationRequiredException()
       throw error
+    }
+  }
+
+  private suspend fun requireAuthenticated(result: MobileAuthResult) {
+    when (result) {
+      is MobileAuthResult.Available -> Unit
+      MobileAuthResult.Offline -> throw MobileNetworkUnavailableException()
+      MobileAuthResult.Forbidden -> throw MobileAccountForbiddenException()
+      MobileAuthResult.AuthenticationRequired -> throw AdminAuthenticationRequiredException()
     }
   }
 }

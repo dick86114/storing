@@ -1,6 +1,8 @@
 package com.idickies.storing.collect
 
 import com.idickies.storing.auth.MobileSessionAuthenticator
+import com.idickies.storing.auth.MobileAuthResult
+import com.idickies.storing.network.MobileUser
 import com.idickies.storing.network.MobileCollectApi
 import com.idickies.storing.network.MobileCollectDeleteResponse
 import com.idickies.storing.network.MobileCollectJob
@@ -63,15 +65,17 @@ class CollectRepositoryAuthenticationTest {
     var ensureCalls = 0
     var refreshCalls = 0
 
-    override suspend fun ensureValidAccessToken(): Boolean {
+    override suspend fun ensureValidAccessToken(): MobileAuthResult {
       ensureCalls += 1
-      return ensureResult
+      return if (ensureResult) available() else MobileAuthResult.AuthenticationRequired
     }
 
-    override suspend fun refreshAccessToken(): Boolean {
+    override suspend fun refreshAccessToken(): MobileAuthResult {
       refreshCalls += 1
-      return refreshResult
+      return if (refreshResult) available() else MobileAuthResult.AuthenticationRequired
     }
+
+    private fun available() = MobileAuthResult.Available(MobileUser(1, "reader", "user", "active"))
   }
 
   private class FakeMobileCollectApi(

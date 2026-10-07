@@ -14,10 +14,14 @@ data class DeviceIdentity(
   val appVersion: String,
 )
 
-class DeviceIdentityProvider(context: Context) {
+fun interface DeviceIdentitySource {
+  fun current(): DeviceIdentity
+}
+
+class DeviceIdentityProvider(context: Context) : DeviceIdentitySource {
   private val prefs = context.getSharedPreferences(DEVICE_PREFS, Context.MODE_PRIVATE)
 
-  fun current(): DeviceIdentity {
+  override fun current(): DeviceIdentity {
     val deviceId = prefs.getString(DEVICE_ID_KEY, null)
       ?: UUID.randomUUID().toString().also { prefs.edit().putString(DEVICE_ID_KEY, it).apply() }
     val deviceName = listOfNotNull(Build.MANUFACTURER, Build.MODEL)

@@ -1,6 +1,8 @@
 package com.idickies.storing.admin
 
 import com.idickies.storing.auth.MobileSessionAuthenticator
+import com.idickies.storing.auth.MobileAuthResult
+import com.idickies.storing.network.MobileUser
 import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -72,15 +74,17 @@ class AdminRepositoryAuthenticationTest {
     var ensureCalls = 0
     var refreshCalls = 0
 
-    override suspend fun ensureValidAccessToken(): Boolean {
+    override suspend fun ensureValidAccessToken(): MobileAuthResult {
       ensureCalls += 1
-      return ensureResult
+      return if (ensureResult) available() else MobileAuthResult.AuthenticationRequired
     }
 
-    override suspend fun refreshAccessToken(): Boolean {
+    override suspend fun refreshAccessToken(): MobileAuthResult {
       refreshCalls += 1
-      return refreshResult
+      return if (refreshResult) available() else MobileAuthResult.AuthenticationRequired
     }
+
+    private fun available() = MobileAuthResult.Available(MobileUser(1, "admin", "admin", "active"))
   }
 
   private class FakeAdminApi(

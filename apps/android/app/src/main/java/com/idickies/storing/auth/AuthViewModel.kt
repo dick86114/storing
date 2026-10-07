@@ -15,6 +15,7 @@ data class AuthUiState(
   val user: MobileUser? = null,
   val submitting: Boolean = false,
   val errorMessage: String? = null,
+  val statusMessage: String? = null,
 )
 
 @HiltViewModel
@@ -26,8 +27,18 @@ class AuthViewModel @Inject constructor(
 
   init {
     viewModelScope.launch {
-      val user = authRepository.restoreSession()
-      mutableState.update { it.copy(checkingSession = false, user = user) }
+      val result = authRepository.restoreSession()
+      mutableState.update {
+        it.copy(
+          checkingSession = false,
+          user = (result as? MobileAuthResult.Available)?.user,
+          statusMessage = when (result) {
+            MobileAuthResult.Offline -> "网络暂不可用，登录状态将在恢复后自动验证"
+            MobileAuthResult.Forbidden -> "账号已被禁用，请联系管理员"
+            else -> null
+          },
+        )
+      }
     }
   }
 
