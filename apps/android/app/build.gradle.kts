@@ -102,6 +102,7 @@ dependencies {
   implementation(libs.compose.material.icons.extended)
   implementation(libs.hilt.android)
   implementation(libs.hilt.navigation.compose)
+  implementation(libs.androidx.hilt.work)
   implementation(libs.room.runtime)
   implementation(libs.room.ktx)
   implementation(libs.retrofit)
@@ -116,6 +117,7 @@ dependencies {
   implementation(libs.androidx.biometric)
   implementation(libs.androidx.swipe.refresh.layout)
   ksp(libs.hilt.compiler)
+  ksp(libs.androidx.hilt.compiler)
   ksp(libs.room.compiler)
 
   testImplementation(libs.junit)
