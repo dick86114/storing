@@ -1,6 +1,10 @@
 package com.idickies.storing.collect
 
 import android.content.Context
+import com.idickies.storing.auth.AuthRepository
+import com.idickies.storing.auth.LoginCredentials
+import com.idickies.storing.auth.MobileAuthResult
+import com.idickies.storing.auth.MobileNetworkUnavailableException
 import com.idickies.storing.auth.SessionStore
 import com.idickies.storing.database.PendingCollectSubmission
 import com.idickies.storing.database.PendingCollectSubmissionDao
@@ -36,7 +40,13 @@ data class ShareCollectUiState(
   val submittedJobId: Int? = null,
   val importedArticleId: Int? = null,
   val submissionAccepted: Boolean = false,
+  val loginRequired: Boolean = false,
 )
+
+internal sealed interface PendingShareAction {
+  data class CollectUrl(val url: String, val source: String) : PendingShareAction
+  data class ImportFiles(val files: List<SharedImportFile>) : PendingShareAction
+}
 
 internal fun shouldDismissManualCollectDialog(
   submittedByThisDialog: Boolean,
@@ -49,10 +59,12 @@ class ShareCollectViewModel @Inject constructor(
   private val weChatImportRepository: WeChatImportRepository,
   private val sessionStore: SessionStore,
   private val pendingSubmissionDao: PendingCollectSubmissionDao,
+  private val authRepository: AuthRepository,
   @ApplicationContext private val context: Context,
 ) : ViewModel() {
   private val mutableState = MutableStateFlow(ShareCollectUiState())
   val state = mutableState.asStateFlow()
+  private var pendingAction: PendingShareAction? = null
 
   fun receiveSharedText(text: String) {
     val content = ShareTargetContent.from(text)
@@ -119,12 +131,14 @@ class ShareCollectViewModel @Inject constructor(
           }
         }
         .onFailure { error ->
-          val message = if (error is MobileAuthenticationRequiredException) {
-            error.message
+          if (error is MobileAuthenticationRequiredException) {
+            pendingAction = PendingShareAction.ImportFiles(files)
+            mutableState.update { it.copy(submitting = false, loginRequired = true, message = "登录后将继续导入所选文件") }
+          } else if (error is MobileNetworkUnavailableException) {
+            mutableState.update { it.copy(submitting = false, message = "网络连接失败，请稍后重试") }
           } else {
-            error.message ?: "微信内容导入失败"
+            mutableState.update { it.copy(submitting = false, message = error.message ?: "微信内容导入失败") }
           }
-          mutableState.update { it.copy(submitting = false, message = message) }
         }
     }
   }
@@ -140,7 +154,10 @@ class ShareCollectViewModel @Inject constructor(
         }
         .onFailure { error ->
           if (error is MobileAuthenticationRequiredException) {
-            mutableState.update { it.copy(submitting = false, message = error.message) }
+            pendingAction = PendingShareAction.CollectUrl(url, source)
+            mutableState.update { it.copy(submitting = false, loginRequired = true, message = "登录后将继续采集该链接") }
+          } else if (error is MobileNetworkUnavailableException) {
+            mutableState.update { it.copy(submitting = false, message = "网络连接失败，请稍后重试") }
           } else if (PendingCollectSubmissionPolicy.shouldQueue(error) && queueForRetry(url, source)) {
             mutableState.update { it.copy(submitting = false, message = "网络不可用，已保存，恢复连接后会自动提交", submissionAccepted = true) }
           } else {
@@ -158,6 +175,31 @@ class ShareCollectViewModel @Inject constructor(
   }
 
   fun resumePendingSubmissions() = PendingCollectSubmissionScheduler.schedule(context)
+
+  fun cancelLogin() = mutableState.update { it.copy(loginRequired = false) }
+
+  fun login(credentials: LoginCredentials) {
+    if (!credentials.isSubmittable || mutableState.value.submitting) return
+    viewModelScope.launch {
+      mutableState.update { it.copy(submitting = true) }
+      val result = runCatching { authRepository.login(credentials.normalizedUsername, credentials.password) }
+      val value = result.getOrNull()
+      if (value != null) {
+        mutableState.update { it.copy(submitting = false, loginRequired = false, message = "登录成功，正在继续采集") }
+        submitAfterLogin()
+      } else {
+        mutableState.update { it.copy(submitting = false, message = "登录失败，请检查账号密码") }
+      }
+    }
+  }
+
+  private fun submitAfterLogin() {
+    when (val action = pendingAction) {
+      is PendingShareAction.CollectUrl -> submitUrl(action.url, action.source)
+      is PendingShareAction.ImportFiles -> submitImport()
+      null -> Unit
+    }
+  }
 
   private fun guessMediaType(filename: String) =
     when (filename.substringAfterLast('.', "").lowercase()) {
