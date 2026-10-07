@@ -96,6 +96,19 @@ public struct DefaultAuthClient: AuthClient {
         return response.user
     }
 
+    public func migrateLegacy(
+        refreshToken: String,
+        device: AuthDevice?
+    ) async throws -> AuthSessionResponse {
+        let body = try JSONEncoder().encode(
+            RefreshRequest(refreshToken: refreshToken, device: device)
+        )
+        return try await apiClient.send(
+            .post("macos/auth/migrate-legacy", body: body),
+            authenticated: false
+        )
+    }
+
     private func sendWithLegacyFallback<T: Decodable & Sendable>(
         _ primary: APIRequest,
         fallback: APIRequest,
@@ -109,6 +122,15 @@ public struct DefaultAuthClient: AuthClient {
         }
     }
 }
+
+public protocol LegacyMacAuthClient: AuthClient {
+    func migrateLegacy(
+        refreshToken: String,
+        device: AuthDevice?
+    ) async throws -> AuthSessionResponse
+}
+
+extension DefaultAuthClient: LegacyMacAuthClient {}
 
 public actor AuthRepository: TokenRefreshing {
     public private(set) var currentUser: AuthenticatedUser?
@@ -125,7 +147,7 @@ public actor AuthRepository: TokenRefreshing {
 
     public init(
         client: any AuthClient = DefaultAuthClient(),
-        store: any SessionStore = FileSessionStore(),
+        store: any SessionStore = MigratingSessionStore(primary: FileSessionStore(), legacy: KeychainSessionStore()),
         device: AuthDevice? = nil
     ) {
         self.client = client
@@ -167,6 +189,7 @@ public actor AuthRepository: TokenRefreshing {
         try await store.save(
             SessionTokens(accessToken: "", refreshToken: response.refreshToken)
         )
+        await clearLegacySessionStorage()
         guard generation == sessionGeneration else {
             await reconcileStoredSession(staleClaim: storageClaim)
             throw AppError.authenticationRequired
@@ -194,6 +217,9 @@ public actor AuthRepository: TokenRefreshing {
         do {
             try await refreshTokens()
         } catch AppError.authenticationRequired {
+            if let migratedUser = try await migrateLegacySession(generation: sessionGeneration) {
+                return migratedUser
+            }
             guard generation == sessionGeneration else {
                 return nil
             }
@@ -329,6 +355,7 @@ public actor AuthRepository: TokenRefreshing {
         try await store.save(
             SessionTokens(accessToken: "", refreshToken: response.refreshToken)
         )
+        await clearLegacySessionStorage()
         guard generation == sessionGeneration else {
             await reconcileStoredSession(staleClaim: storageClaim)
             throw StaleSessionError()
@@ -337,6 +364,58 @@ public actor AuthRepository: TokenRefreshing {
         tokens = nextTokens
         currentUser = response.user
         setCurrentSessionID(response.session.id)
+    }
+
+    private func migrateLegacySession(generation: Int) async throws -> AuthenticatedUser? {
+        guard let migratingStore = store as? MigratingSessionStore,
+              await migratingStore.hasLegacyOrigin(),
+              let legacyClient = client as? LegacyMacAuthClient,
+              let storedTokens = try await store.read(),
+              !storedTokens.refreshToken.isEmpty
+        else {
+            return nil
+        }
+
+        let response: AuthSessionResponse
+        do {
+            response = try await legacyClient.migrateLegacy(
+                refreshToken: storedTokens.refreshToken,
+                device: device
+            )
+        } catch AppError.authenticationRequired {
+            _ = await migratingStore.takeLegacyOrigin()
+            throw AppError.authenticationRequired
+        }
+
+        let storageClaim = PersistedSessionClaim(
+            generation: generation,
+            refreshToken: response.refreshToken
+        )
+        persistedSessionClaim = storageClaim
+        try await store.save(
+            SessionTokens(accessToken: "", refreshToken: response.refreshToken)
+        )
+        _ = await migratingStore.takeLegacyOrigin()
+        await clearLegacySessionStorage()
+
+        guard generation == sessionGeneration else {
+            await reconcileStoredSession(staleClaim: storageClaim)
+            throw StaleSessionError()
+        }
+
+        tokens = SessionTokens(
+            accessToken: response.accessToken,
+            refreshToken: response.refreshToken
+        )
+        currentUser = response.user
+        setCurrentSessionID(response.session.id)
+        return response.user
+    }
+
+    private func clearLegacySessionStorage() async {
+        if let legacyStore = store as? LegacySessionStore {
+            try? await legacyStore.clearLegacy()
+        }
     }
 
     private func clearRefreshTask(_ taskID: UUID) {
