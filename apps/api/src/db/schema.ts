@@ -16,13 +16,17 @@ export const users = pgTable('users', {
 });
 
 
-/** Revocable device sessions used by native and browser-extension clients. */
+/** 可撤销会话表，供原生客户端、浏览器扩展和 Web 共用。 */
 export const mobileSessions = pgTable('mobile_sessions', {
   id: text('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id),
   deviceId: text('device_id').notNull(),
   deviceName: text('device_name').notNull(),
   refreshTokenHash: text('refresh_token_hash').notNull().unique(),
+  previousRefreshTokenHash: text('previous_refresh_token_hash'),
+  rotationGraceUntil: timestamp('rotation_grace_until'),
+  rotationCount: integer('rotation_count').notNull().default(0),
+  absoluteExpiresAt: timestamp('absolute_expires_at').notNull(),
   appVersion: text('app_version').notNull(),
   clientType: text('client_type').notNull().default('android'),
   createdAt: timestamp('created_at').defaultNow(),
