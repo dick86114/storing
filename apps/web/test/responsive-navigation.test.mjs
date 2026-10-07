@@ -32,7 +32,7 @@ test('mobile search and collect controls share the same action-button treatment'
 
   assert.match(topNav, /className="mobile-top-action"[\s\S]{0,180}aria-label="采集文章"/);
   assert.match(topNav, /className="mobile-top-action"[\s\S]{0,180}aria-label="搜索"/);
-  assert.equal((topNav.match(/className="mobile-top-action"/g) ?? []).length, 4);
+  assert.equal((topNav.match(/className="mobile-top-action"/g) ?? []).length, 5);
   assert.match(styles, /\.mobile-top-action \{[\s\S]*?border: 0;[\s\S]*?background: transparent;[\s\S]*?color: var\(--text\);/);
   assert.doesNotMatch(styles, /\.mobile-collect-trigger \{/);
   assert.doesNotMatch(topNav, /<SearchOutlined style=\{\{ fontSize: '22px', color: 'var\(--text\)' \}\} \/>/);
