@@ -1,15 +1,19 @@
 import Foundation
 
-public protocol LegacySessionStore: SessionStore {
+public protocol LegacySessionReading: Sendable {
+    func read() async throws -> SessionTokens?
+}
+
+public protocol LegacySessionStore: LegacySessionReading {
     func clearLegacy() async throws
 }
 
 public actor MigratingSessionStore: SessionStore, LegacySessionStore {
     private let primary: any SessionStore
-    private let legacy: any SessionStore
+    private let legacy: any LegacySessionStore
     private var legacyOrigin = false
 
-    public init(primary: any SessionStore, legacy: any SessionStore) {
+    public init(primary: any SessionStore, legacy: any LegacySessionStore) {
         self.primary = primary
         self.legacy = legacy
     }
@@ -27,7 +31,7 @@ public actor MigratingSessionStore: SessionStore, LegacySessionStore {
     }
 
     public func clearLegacy() async throws {
-        try await legacy.clear()
+        try await legacy.clearLegacy()
         legacyOrigin = false
     }
 

@@ -1,6 +1,13 @@
 import Observation
 import QiankunjieCore
 
+public enum AuthBootState: Equatable, Sendable {
+    case loading
+    case authenticated
+    case offline
+    case authenticationRequired
+}
+
 @MainActor
 @Observable
 public final class AuthModel {
@@ -8,6 +15,7 @@ public final class AuthModel {
     public private(set) var isRestoring = false
     public private(set) var isSubmitting = false
     public private(set) var errorMessage: String?
+    public private(set) var bootState: AuthBootState = .loading
 
     public let repository: AuthRepository
 
@@ -28,11 +36,14 @@ public final class AuthModel {
         defer { isRestoring = false }
 
         do {
-            user = try await repository.restore()
+            let restoredUser = try await repository.restore()
+            user = restoredUser
             errorMessage = nil
+            bootState = restoredUser == nil ? .authenticationRequired : .authenticated
         } catch {
             user = nil
             errorMessage = Self.message(for: error)
+            bootState = error is AppError && (error as? AppError) == .network ? .offline : .authenticationRequired
         }
     }
 
@@ -52,9 +63,11 @@ public final class AuthModel {
                 device: device
             )
             errorMessage = nil
+            bootState = .authenticated
             return true
         } catch {
             user = nil
+            bootState = .authenticationRequired
             errorMessage = Self.loginMessage(for: error)
             return false
         }
@@ -67,6 +80,7 @@ public final class AuthModel {
         await repository.logout()
         user = nil
         errorMessage = nil
+        bootState = .authenticationRequired
     }
 
     private static func message(for error: any Error) -> String {

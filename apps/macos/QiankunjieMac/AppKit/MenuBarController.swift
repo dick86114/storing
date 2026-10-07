@@ -120,6 +120,14 @@ public final class MenuBarController: NSObject {
         onShowMainWindow: @escaping @MainActor () -> Void,
         actions: MenuBarActions? = nil
     ) {
+        let panel = QuickCollectPanel(
+            model: appModel.collectModel,
+            authModel: appModel.authModel,
+            onAuthenticated: { [weak appModel] in
+                appModel?.didAuthenticate()
+            },
+            onOpenMainWindow: onShowMainWindow
+        )
         let notificationService = CollectNotificationService(
             onOpenArticle: { [weak appModel] job in
                 appModel?.openCollectArticle(job)
@@ -132,8 +140,12 @@ public final class MenuBarController: NSObject {
         )
         self.init(
             model: appModel.collectModel,
+            panel: panel,
+            hotKeys: GlobalHotKeyManager { [weak panel] in
+                panel?.present(from: nil)
+            },
+            observerCenter: AppObserverCenter(),
             shortcut: shortcut,
-            onOpenMainWindow: onShowMainWindow,
             notifications: notificationService,
             actions: actions
         )
