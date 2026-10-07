@@ -168,6 +168,22 @@ function macosAuthResponse(user: { id: number; username: string; role: string; s
   };
 }
 
+async function handleInactiveRefreshUser(c: any, userId: number, clientType: 'android' | 'browser_extension' | 'macos') {
+  const [user] = await db
+    .select({ id: users.id, status: users.status })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  await revokeMobileSessionsForUser(userId, clientType);
+  if (!user) {
+    return c.json({ error: { code: 'INVALID_REFRESH_TOKEN', message: '登录已失效，请重新登录' } }, 401);
+  }
+  if (user.status !== 'active') {
+    return c.json({ error: { code: 'USER_DISABLED', message: '用户已禁用' } }, 403);
+  }
+  return c.json({ error: { code: 'INVALID_REFRESH_TOKEN', message: '登录已失效，请重新登录' } }, 401);
+}
+
 async function getAdminTargetUser(targetUserId: number) {
   const [targetUser] = await db
     .select({ id: users.id, username: users.username, role: users.role, status: users.status })
@@ -259,7 +275,7 @@ authRoutes.post('/extension/auth/refresh', async (c) => {
   const [user] = await db.select({ id: users.id, username: users.username, role: users.role, status: users.status }).from(users).where(eq(users.id, rotated.userId)).limit(1);
   if (!user || user.status !== 'active') {
     if (user) await revokeMobileSessionsForUser(user.id, 'browser_extension');
-    return c.json({ error: { code: user ? 'USER_DISABLED' : 'INVALID_REFRESH_TOKEN', message: user ? '用户已禁用' : '登录已失效，请重新登录' } }, user ? 403 : 401);
+    return handleInactiveRefreshUser(c, rotated.userId, 'android');
   }
 
   return c.json(extensionAuthResponse(user, rotated.session, rotated.refreshToken));
@@ -335,7 +351,7 @@ authRoutes.post('/mobile/auth/refresh', async (c) => {
   const [user] = await db.select({ id: users.id, username: users.username, role: users.role, status: users.status }).from(users).where(eq(users.id, rotated.userId)).limit(1);
   if (!user || user.status !== 'active') {
     if (user) await revokeMobileSessionsForUser(user.id);
-    return c.json({ error: { code: user ? 'USER_DISABLED' : 'INVALID_REFRESH_TOKEN', message: user ? '用户已禁用' : '登录已失效，请重新登录' } }, user ? 403 : 401);
+    return handleInactiveRefreshUser(c, rotated.userId, 'browser_extension');
   }
 
   return c.json(mobileAuthResponse(user, rotated.session, rotated.refreshToken));
@@ -418,7 +434,7 @@ authRoutes.post('/macos/auth/refresh', async (c) => {
   const [user] = await db.select({ id: users.id, username: users.username, role: users.role, status: users.status }).from(users).where(eq(users.id, rotated.userId)).limit(1);
   if (!user || user.status !== 'active') {
     if (user) await revokeMobileSessionsForUser(user.id, 'macos');
-    return c.json({ error: { code: user ? 'USER_DISABLED' : 'INVALID_REFRESH_TOKEN', message: user ? '用户已禁用' : '登录已失效，请重新登录' } }, user ? 403 : 401);
+    return handleInactiveRefreshUser(c, rotated.userId, 'macos');
   }
 
   return c.json(macosAuthResponse(user, rotated.session, rotated.refreshToken));
