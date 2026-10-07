@@ -160,7 +160,13 @@ function asSummary(row: typeof mobileSessions.$inferSelect): MobileSessionSummar
   };
 }
 
-export async function createMobileSession(input: { userId: number; device: MobileDevice; clientType?: ClientSessionType; sessionId?: string }) {
+export async function createMobileSession(input: {
+  userId: number;
+  device: MobileDevice;
+  clientType?: ClientSessionType;
+  sessionId?: string;
+  credentialHash?: string;
+}) {
   const refreshToken = createMobileRefreshToken();
   const now = new Date();
   const windows = calculateSessionWindows(now, now);
@@ -169,7 +175,7 @@ export async function createMobileSession(input: { userId: number; device: Mobil
     userId: input.userId,
     deviceId: input.device.deviceId,
     deviceName: input.device.deviceName,
-    refreshTokenHash: hashMobileRefreshToken(refreshToken),
+    refreshTokenHash: input.credentialHash ?? hashMobileRefreshToken(refreshToken),
     appVersion: input.device.appVersion,
     clientType: input.clientType ?? 'android',
     createdAt: now,
@@ -177,7 +183,7 @@ export async function createMobileSession(input: { userId: number; device: Mobil
     ...windows,
   }).returning();
 
-  return { refreshToken, session: asSummary(session) };
+  return { refreshToken: input.credentialHash ? '' : refreshToken, session: asSummary(session) };
 }
 
 export async function rotateMobileSession(

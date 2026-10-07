@@ -57,6 +57,7 @@ export async function createWebSession(userId: number) {
     userId,
     sessionId,
     clientType: 'web',
+    credentialHash: hashMobileRefreshToken(cookieSecret),
     device: {
       deviceId: sessionId,
       deviceName: 'Web 浏览器',
