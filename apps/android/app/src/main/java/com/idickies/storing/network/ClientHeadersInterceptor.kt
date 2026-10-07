@@ -1,11 +1,11 @@
 package com.idickies.storing.network
 
-import com.idickies.storing.auth.DeviceIdentityProvider
+import com.idickies.storing.auth.DeviceIdentitySource
 import okhttp3.Interceptor
 import okhttp3.Response
 
 class ClientHeadersInterceptor(
-  private val deviceIdentityProvider: DeviceIdentityProvider,
+  private val deviceIdentityProvider: DeviceIdentitySource,
 ) : Interceptor {
   override fun intercept(chain: Interceptor.Chain): Response {
     val identity = deviceIdentityProvider.current()

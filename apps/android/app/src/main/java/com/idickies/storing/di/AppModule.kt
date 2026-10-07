@@ -40,6 +40,10 @@ object AppModule {
 
   @Provides
   @Singleton
+  fun provideDeviceIdentitySource(provider: DeviceIdentityProvider): com.idickies.storing.auth.DeviceIdentitySource = provider
+
+  @Provides
+  @Singleton
   fun provideSessionStore(@ApplicationContext context: Context): SessionStore = KeystoreSessionStore(context)
 
   @Provides
