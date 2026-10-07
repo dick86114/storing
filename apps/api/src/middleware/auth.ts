@@ -88,9 +88,21 @@ function verifyClientToken(token: string): ClientTokenPayload | null {
   }
 }
 
-async function isClientSessionActive(payload: ClientTokenPayload) {
+type ClientSessionState = 'active' | 'expired' | 'revoked' | 'missing';
+
+function clientSessionErrorResponse(c: Context, state: Exclude<ClientSessionState, 'active'>) {
+  if (state === 'expired') {
+    return c.json({ error: { code: 'SESSION_EXPIRED', message: '登录会话已过期，请重新登录' } }, 401);
+  }
+  if (state === 'revoked') {
+    return c.json({ error: { code: 'SESSION_REVOKED', message: '登录会话已撤销，请重新登录' } }, 401);
+  }
+  return c.json({ error: { code: 'INVALID_TOKEN', message: 'Token 无效或已过期' } }, 401);
+}
+
+async function getSessionFailureReason(payload: ClientTokenPayload): Promise<ClientSessionState> {
   const [session] = await db
-    .select({ id: mobileSessions.id })
+    .select({ id: mobileSessions.id, revokedAt: mobileSessions.revokedAt, expiresAt: mobileSessions.expiresAt, absoluteExpiresAt: mobileSessions.absoluteExpiresAt })
     .from(mobileSessions)
     .where(and(
       eq(mobileSessions.id, payload.sessionId),
@@ -100,7 +112,11 @@ async function isClientSessionActive(payload: ClientTokenPayload) {
       gt(mobileSessions.expiresAt, new Date()),
     ))
     .limit(1);
-  return Boolean(session);
+  if (!session) return 'missing';
+  if (session.revokedAt) return 'revoked';
+  const now = new Date();
+  if (session.expiresAt <= now || session.absoluteExpiresAt <= now) return 'expired';
+  return 'active';
 }
 
 async function authenticateWebSession(c: Context) {
@@ -132,8 +148,9 @@ export async function requireAuth(c: Context, next: Next) {
 
   const userId = verifyToken(token);
   const clientPayload = verifyClientToken(token);
-  if (clientPayload && !(await isClientSessionActive(clientPayload))) {
-    return c.json({ error: { code: 'SESSION_REVOKED', message: '登录会话已撤销，请重新登录' } }, 401);
+  if (clientPayload) {
+    const state = await getSessionFailureReason(clientPayload);
+    if (state !== 'active') return clientSessionErrorResponse(c, state);
   }
   if (!userId) {
     return c.json({ error: { code: 'INVALID_TOKEN', message: 'Token 无效或已过期' } }, 401);
@@ -167,7 +184,7 @@ export async function optionalAuth(c: Context, next: Next) {
   if (token) {
     const userId = verifyToken(token);
     const clientPayload = verifyClientToken(token);
-    if (clientPayload && !(await isClientSessionActive(clientPayload))) {
+    if (clientPayload && await getSessionFailureReason(clientPayload) !== 'active') {
       return;
     }
     if (userId) {
@@ -197,8 +214,9 @@ export async function requireAdmin(c: Context, next: Next) {
 
   const userId = verifyToken(token);
   const clientPayload = verifyClientToken(token);
-  if (clientPayload && !(await isClientSessionActive(clientPayload))) {
-    return c.json({ error: { code: 'SESSION_REVOKED', message: '登录会话已撤销，请重新登录' } }, 401);
+  if (clientPayload) {
+    const state = await getSessionFailureReason(clientPayload);
+    if (state !== 'active') return clientSessionErrorResponse(c, state);
   }
   if (!userId) {
     return c.json({ error: { code: 'INVALID_TOKEN', message: 'Token 无效或已过期' } }, 401);
@@ -263,8 +281,12 @@ export function createClientSessionAuth(expectedClient: ClientSessionType) {
     }
 
     const payload = verifyClientToken(token);
-    if (!payload || payload.client !== expectedClient || !(await isClientSessionActive(payload))) {
+    if (!payload || payload.client !== expectedClient) {
       return c.json({ error: { code: 'SESSION_REVOKED', message: '登录会话已撤销，请重新登录' } }, 401);
+    }
+    const state = await getSessionFailureReason(payload);
+    if (state !== 'active') {
+      return clientSessionErrorResponse(c, state);
     }
 
     const [user] = await db
