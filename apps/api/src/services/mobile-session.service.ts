@@ -4,7 +4,10 @@ import { db } from '../db/index.js';
 import { mobileSessions } from '../db/schema.js';
 
 const REFRESH_TOKEN_BYTES = 32;
-const REFRESH_TOKEN_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+export const SESSION_IDLE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+export const SESSION_ABSOLUTE_TTL_MS = 365 * 24 * 60 * 60 * 1000;
+export const REFRESH_ROTATION_GRACE_MS = 60 * 1000;
+export const MAX_REFRESH_ROTATION_RECOVERIES = 3;
 const DEVICE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type MobileDevice = {
@@ -13,7 +16,7 @@ export type MobileDevice = {
   appVersion: string;
 };
 
-export type ClientSessionType = 'android' | 'browser_extension' | 'macos';
+export type ClientSessionType = 'android' | 'browser_extension' | 'macos' | 'web';
 
 export type MobileSessionSummary = {
   id: string;
@@ -24,8 +27,28 @@ export type MobileSessionSummary = {
   createdAt: Date | null;
   lastUsedAt: Date | null;
   expiresAt: Date;
+  absoluteExpiresAt: Date;
+  rotationGraceUntil: Date | null;
+  rotationCount: number;
   revokedAt: Date | null;
 };
+
+export function calculateSessionWindows(now: Date, createdAt: Date) {
+  return {
+    expiresAt: new Date(now.getTime() + SESSION_IDLE_TTL_MS),
+    absoluteExpiresAt: new Date(createdAt.getTime() + SESSION_ABSOLUTE_TTL_MS),
+  };
+}
+
+export function canRecoverRotatedRefreshToken(
+  session: Pick<MobileSessionSummary, 'revokedAt' | 'rotationGraceUntil' | 'rotationCount'>,
+  now: Date,
+) {
+  return session.revokedAt === null
+    && session.rotationGraceUntil !== null
+    && session.rotationGraceUntil > now
+    && session.rotationCount < MAX_REFRESH_ROTATION_RECOVERIES;
+}
 
 export function createMobileRefreshToken() {
   return randomBytes(REFRESH_TOKEN_BYTES).toString('base64url');
@@ -61,10 +84,21 @@ export async function initMobileSessionSchema() {
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       last_used_at TIMESTAMP NOT NULL DEFAULT NOW(),
       expires_at TIMESTAMP NOT NULL,
+      absolute_expires_at TIMESTAMP NOT NULL,
+      previous_refresh_token_hash TEXT,
+      rotation_grace_until TIMESTAMP,
+      rotation_count INTEGER NOT NULL DEFAULT 0,
       revoked_at TIMESTAMP
     )
   `));
   await db.execute(sql.raw(`ALTER TABLE mobile_sessions ADD COLUMN IF NOT EXISTS client_type TEXT NOT NULL DEFAULT 'android'`));
+  await db.execute(sql.raw(`ALTER TABLE mobile_sessions ADD COLUMN IF NOT EXISTS absolute_expires_at TIMESTAMP`));
+  await db.execute(sql.raw(`UPDATE mobile_sessions SET absolute_expires_at = COALESCE(created_at, expires_at, NOW()) + INTERVAL '365 days' WHERE absolute_expires_at IS NULL`));
+  await db.execute(sql.raw(`ALTER TABLE mobile_sessions ALTER COLUMN absolute_expires_at SET NOT NULL`));
+  await db.execute(sql.raw(`ALTER TABLE mobile_sessions ADD COLUMN IF NOT EXISTS previous_refresh_token_hash TEXT`));
+  await db.execute(sql.raw(`ALTER TABLE mobile_sessions ADD COLUMN IF NOT EXISTS rotation_grace_until TIMESTAMP`));
+  await db.execute(sql.raw(`ALTER TABLE mobile_sessions ADD COLUMN IF NOT EXISTS rotation_count INTEGER NOT NULL DEFAULT 0`));
+  await db.execute(sql.raw(`CREATE UNIQUE INDEX IF NOT EXISTS mobile_sessions_previous_refresh_token_hash_idx ON mobile_sessions(previous_refresh_token_hash)`));
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS mobile_sessions_user_active_idx ON mobile_sessions(user_id, last_used_at DESC) WHERE revoked_at IS NULL`));
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS mobile_sessions_expiry_idx ON mobile_sessions(expires_at) WHERE revoked_at IS NULL`));
 }
@@ -83,6 +117,9 @@ function asSummary(row: typeof mobileSessions.$inferSelect): MobileSessionSummar
     createdAt: row.createdAt,
     lastUsedAt: row.lastUsedAt,
     expiresAt: row.expiresAt,
+    absoluteExpiresAt: row.absoluteExpiresAt,
+    rotationGraceUntil: row.rotationGraceUntil,
+    rotationCount: row.rotationCount,
     revokedAt: row.revokedAt,
   };
 }
@@ -90,7 +127,7 @@ function asSummary(row: typeof mobileSessions.$inferSelect): MobileSessionSummar
 export async function createMobileSession(input: { userId: number; device: MobileDevice; clientType?: ClientSessionType }) {
   const refreshToken = createMobileRefreshToken();
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + REFRESH_TOKEN_TTL_MS);
+  const windows = calculateSessionWindows(now, now);
   const [session] = await db.insert(mobileSessions).values({
     id: createSessionId(),
     userId: input.userId,
@@ -101,7 +138,7 @@ export async function createMobileSession(input: { userId: number; device: Mobil
     clientType: input.clientType ?? 'android',
     createdAt: now,
     lastUsedAt: now,
-    expiresAt,
+    ...windows,
   }).returning();
 
   return { refreshToken, session: asSummary(session) };
@@ -123,11 +160,18 @@ export async function rotateMobileSession(refreshToken: string, device?: MobileD
   if (!current || (clientType && current.clientType !== clientType)) return null;
 
   const nextRefreshToken = createMobileRefreshToken();
-  const expiresAt = new Date(now.getTime() + REFRESH_TOKEN_TTL_MS);
+  const windows = calculateSessionWindows(now, current.createdAt ?? now);
+  const absoluteExpiresAt = windows.expiresAt > windows.absoluteExpiresAt
+    ? windows.absoluteExpiresAt
+    : windows.expiresAt;
   const values: Partial<typeof mobileSessions.$inferInsert> = {
     refreshTokenHash: hashMobileRefreshToken(nextRefreshToken),
     lastUsedAt: now,
-    expiresAt,
+    expiresAt: absoluteExpiresAt,
+    absoluteExpiresAt: windows.absoluteExpiresAt,
+    previousRefreshTokenHash: currentHash,
+    rotationGraceUntil: new Date(now.getTime() + REFRESH_ROTATION_GRACE_MS),
+    rotationCount: 0,
   };
   if (device) {
     values.deviceId = device.deviceId;
