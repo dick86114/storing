@@ -1,7 +1,6 @@
 import { Context, Next } from 'hono';
 import { createRequire } from 'module';
-import { randomBytes } from 'crypto';
-import { getCookie } from 'hono/cookie';
+import { getCookie, setCookie } from 'hono/cookie';
 const require = createRequire(import.meta.url);
 const jwt = require('jsonwebtoken');
 import { db } from '../db/index.js';
@@ -10,22 +9,16 @@ import { eq, and, gt, isNull } from 'drizzle-orm';
 import { isAllowedBrowserExtensionOrigin } from '../services/browser-extension-origin.service.js';
 import { mobileSessions } from '../db/schema.js';
 import type { ClientSessionType } from '../services/mobile-session.service.js';
+import { formatWebSessionCookie, getRequiredJwtSecret, verifyWebSessionCookie } from '../services/web-session.service.js';
 
-export function getRequiredJwtSecret() {
-  const configured = process.env.JWT_SECRET?.trim();
-  if (configured && configured.length >= 32) return configured;
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET must be configured with at least 32 characters in production');
-  }
-  return randomBytes(32).toString('hex');
-}
+const WEB_SESSION_COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
 
 const JWT_SECRET = getRequiredJwtSecret();
 
 function getRequestToken(c: Context) {
   const authHeader = c.req.header('Authorization');
   if (authHeader?.startsWith('Bearer ')) return authHeader.slice('Bearer '.length).trim();
-  return getCookie(c, 'storing_token');
+  return getCookie(c, 'storing_token') || getCookie(c, 'storing_session');
 }
 
 function cookieAuthAllowedOrigins() {
@@ -38,7 +31,7 @@ function cookieAuthAllowedOrigins() {
 export async function requireCsrfProtection(c: Context, next: Next) {
   if (['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) return next();
   if (c.req.header('Authorization')?.startsWith('Bearer ')) return next();
-  if (!getCookie(c, 'storing_token')) return next();
+  if (!getCookie(c, 'storing_token') && !getCookie(c, 'storing_session')) return next();
 
   const origin = c.req.header('Origin');
   const fetchSite = c.req.header('Sec-Fetch-Site');
@@ -110,10 +103,27 @@ async function isClientSessionActive(payload: ClientTokenPayload) {
   return Boolean(session);
 }
 
+async function authenticateWebSession(c: Context) {
+  const authenticated = await verifyWebSessionCookie(getCookie(c, 'storing_session'));
+  if (!authenticated) return false;
+  if (authenticated.rotatedCookieSecret) {
+    setCookie(c, 'storing_session', formatWebSessionCookie(authenticated.session.id, authenticated.rotatedCookieSecret), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'Lax',
+      path: '/',
+      maxAge: WEB_SESSION_COOKIE_MAX_AGE,
+    });
+  }
+  c.set('user', authenticated.user);
+  return true;
+}
+
 /**
  * 必须登录的中间件
  */
 export async function requireAuth(c: Context, next: Next) {
+  if (await authenticateWebSession(c)) return next();
   const token = getRequestToken(c);
 
   if (!token) {
@@ -151,6 +161,7 @@ export async function requireAuth(c: Context, next: Next) {
  * 提取用户信息但不强制要求登录
  */
 export async function optionalAuth(c: Context, next: Next) {
+  if (await authenticateWebSession(c)) return next();
   const token = getRequestToken(c);
 
   if (token) {
@@ -177,6 +188,7 @@ export async function optionalAuth(c: Context, next: Next) {
  * 必须为管理员的中间件
  */
 export async function requireAdmin(c: Context, next: Next) {
+  if (await authenticateWebSession(c)) return next();
   const token = getRequestToken(c);
 
   if (!token) {
@@ -225,13 +237,6 @@ export function getCurrentUser(c: Context) {
  */
 export function isAuthenticated(c: Context) {
   return !!c.get('user');
-}
-
-/**
- * 生成 JWT token
- */
-export function generateToken(userId: number) {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
 }
 
 /** Short-lived access token for a revocable client refresh session. */

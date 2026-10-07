@@ -5,14 +5,15 @@ import test from 'node:test';
 const workspaceRoot = new URL('../../../', import.meta.url);
 const apiRoot = new URL('../', import.meta.url);
 const read = (root, path) => readFileSync(new URL(path, root), 'utf8');
+const authRoute = read(apiRoot, 'src/routes/auth.ts');
+const apiClient = read(workspaceRoot, 'apps/web/src/lib/api.ts');
+const authContext = read(workspaceRoot, 'apps/web/src/components/providers/AuthContext.tsx');
+const middleware = read(apiRoot, 'src/middleware/auth.ts');
+const webSessionService = read(apiRoot, 'src/services/web-session.service.ts');
 
 test('login delivers the JWT only in an HttpOnly cookie and the browser client does not persist tokens in localStorage', () => {
-  const authRoute = read(apiRoot, 'src/routes/auth.ts');
-  const apiClient = read(workspaceRoot, 'apps/web/src/lib/api.ts');
-  const authContext = read(workspaceRoot, 'apps/web/src/components/providers/AuthContext.tsx');
-
-  assert.match(authRoute, /setCookie\(c, 'storing_token'/);
-  assert.match(authRoute, /httpOnly:\s*true/);
+  assert.match(authRoute, /setCookie\(c, 'storing_session'/);
+  assert.match(authRoute, /httpOnly: true/);
   assert.doesNotMatch(apiClient, /localStorage\.getItem\('token'\)/);
   assert.doesNotMatch(authContext, /localStorage\.setItem\('token'/);
 });
@@ -51,4 +52,33 @@ test('same-origin browser writes remain valid behind a reverse proxy even when A
   assert.match(middleware, /const fetchSite = c\.req\.header\('Sec-Fetch-Site'\);/);
   assert.match(middleware, /fetchSite === 'same-origin'/);
   assert.match(middleware, /originAllowed \|\| extensionOriginAllowed \|\| sameOriginBrowserRequest/);
+});
+
+test('Web 登录使用可撤销 HttpOnly 数据库会话 Cookie', () => {
+  const login = authRoute.match(/authRoutes\.post\('\/login'[\s\S]*?(?=authRoutes\.)/)?.[0];
+  const verify = authRoute.match(/authRoutes\.get\('\/verify'[\s\S]*?(?=authRoutes\.)/)?.[0];
+  const logout = authRoute.match(/authRoutes\.post\('\/logout'[\s\S]*?(?=authRoutes\.)/)?.[0];
+  const changePassword = authRoute.match(/authRoutes\.post\('\/change-password'[\s\S]*?(?=authRoutes\.)/)?.[0];
+
+  assert.match(webSessionService, /export function formatWebSessionCookie/);
+  assert.match(webSessionService, /export function parseWebSessionCookie/);
+  assert.match(webSessionService, /export async function createWebSession/);
+  assert.match(webSessionService, /export async function verifyWebSessionCookie/);
+  assert.match(webSessionService, /export async function upgradeLegacyWebJwt/);
+  assert.doesNotMatch(webSessionService, /console\.(?:log|info)[^\n]*(?:refreshToken|accessToken|cookieSecret|authorization|password)/i);
+
+  assert.match(login, /createWebSession\(user\.id\)/);
+  assert.match(login, /writeWebSessionCookie\(c, session\.session\.id, session\.cookieSecret\)/);
+  assert.match(authRoute, /setCookie\(c, 'storing_session'/);
+  assert.match(authRoute, /httpOnly: true/);
+  assert.match(authRoute, /sameSite: 'Lax'/);
+  assert.match(authRoute, /path: '\/'/);
+
+  assert.match(verify, /verifyWebSessionCookie/);
+  assert.match(verify, /upgradeLegacyWebJwt/);
+  assert.match(logout, /deleteCookie\(c, 'storing_session'/);
+  assert.match(logout, /deleteCookie\(c, 'storing_token'/);
+  assert.match(changePassword, /revokeMobileSessionsForUser\(user\.id, 'web'\)/);
+  assert.match(middleware, /getCookie\(c, 'storing_session'\)/);
+  assert.match(middleware, /!getCookie\(c, 'storing_token'\) && !getCookie\(c, 'storing_session'\)/);
 });
