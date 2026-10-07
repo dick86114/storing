@@ -8,6 +8,9 @@ import com.idickies.storing.auth.MobileNetworkUnavailableException
 import com.idickies.storing.auth.SessionStore
 import com.idickies.storing.database.PendingCollectSubmission
 import com.idickies.storing.database.PendingCollectSubmissionDao
+import com.idickies.storing.database.PendingAuthActionDao
+import com.idickies.storing.database.PendingAuthActionEntity
+import com.idickies.storing.database.PendingAuthActionFileEntity
 import com.idickies.storing.network.WeChatImportResult
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -48,6 +51,16 @@ internal sealed interface PendingShareAction {
   data class ImportFiles(val files: List<SharedImportFile>) : PendingShareAction
 }
 
+internal fun com.idickies.storing.database.PendingAuthActionWithFiles.toPendingShareAction(
+  resolveExistingFile: (String) -> File?,
+): PendingShareAction? = when (action.kind) {
+  "collect_url" -> action.url?.let { PendingShareAction.CollectUrl(it, action.source ?: "android_share") }
+  "import_files" -> files.mapNotNull { file ->
+    resolveExistingFile(file.filePath)?.let { SharedImportFile(file.displayName, it, file.sizeBytes) }
+  }.takeIf { it.isNotEmpty() }?.let(PendingShareAction::ImportFiles)
+  else -> null
+}
+
 internal fun shouldDismissManualCollectDialog(
   submittedByThisDialog: Boolean,
   submissionAccepted: Boolean,
@@ -59,6 +72,7 @@ class ShareCollectViewModel @Inject constructor(
   private val weChatImportRepository: WeChatImportRepository,
   private val sessionStore: SessionStore,
   private val pendingSubmissionDao: PendingCollectSubmissionDao,
+  private val pendingAuthActionDao: PendingAuthActionDao,
   private val authRepository: AuthRepository,
   @ApplicationContext private val context: Context,
 ) : ViewModel() {
@@ -66,7 +80,69 @@ class ShareCollectViewModel @Inject constructor(
   val state = mutableState.asStateFlow()
   private var pendingAction: PendingShareAction? = null
 
+  init {
+    viewModelScope.launch { restorePendingAction() }
+  }
+
+  private suspend fun restorePendingAction() {
+    val saved = pendingAuthActionDao.latestWithFiles() ?: return
+    val action = saved.toPendingShareAction { path ->
+      File(path).takeIf { it.exists() }
+    } ?: run {
+      pendingAuthActionDao.clearAll()
+      return
+    }
+    pendingAction = action
+    mutableState.update { current ->
+      when (action) {
+        is PendingShareAction.CollectUrl -> current.copy(
+          urls = listOf(action.url),
+          selectedUrl = action.url,
+          loginRequired = true,
+          message = "登录后将继续采集该链接",
+        )
+        is PendingShareAction.ImportFiles -> current.copy(
+          importFiles = action.files,
+          loginRequired = true,
+          message = "登录后将继续导入所选文件",
+        )
+      }
+    }
+  }
+
+  private suspend fun persistPendingAction(action: PendingShareAction) {
+    when (action) {
+      is PendingShareAction.CollectUrl -> pendingAuthActionDao.save(
+        PendingAuthActionEntity(kind = KIND_URL, url = action.url, source = action.source),
+        emptyList(),
+      )
+      is PendingShareAction.ImportFiles -> pendingAuthActionDao.save(
+        PendingAuthActionEntity(kind = KIND_IMPORT),
+        action.files.mapIndexed { index, file ->
+          PendingAuthActionFileEntity(
+            actionId = 0,
+            sortOrder = index,
+            displayName = file.displayName,
+            filePath = file.cacheFile.absolutePath,
+            sizeBytes = file.size,
+          )
+        },
+      )
+    }
+  }
+
+  private suspend fun clearPendingAction() {
+    pendingAction = null
+    pendingAuthActionDao.clearAll()
+  }
+
+  private companion object {
+    const val KIND_URL = "collect_url"
+    const val KIND_IMPORT = "import_files"
+  }
+
   fun receiveSharedText(text: String) {
+    if (pendingAction != null && mutableState.value.loginRequired) return
     val content = ShareTargetContent.from(text)
     mutableState.value = ShareCollectUiState(
       urls = content.urls,
@@ -76,6 +152,7 @@ class ShareCollectViewModel @Inject constructor(
   }
 
   fun receiveSharedFiles(files: List<SharedImportFile>) {
+    if (pendingAction != null && mutableState.value.loginRequired) return
     mutableState.value = ShareCollectUiState(
       importFiles = files,
       message = if (files.isEmpty()) "没有收到可导入的文件" else null,
@@ -121,6 +198,7 @@ class ShareCollectViewModel @Inject constructor(
         weChatImportRepository.import(parts, manifest)
       }
         .onSuccess { result: WeChatImportResult ->
+          clearPendingAction()
           mutableState.update {
             it.copy(
               submitting = false,
@@ -132,7 +210,9 @@ class ShareCollectViewModel @Inject constructor(
         }
         .onFailure { error ->
           if (error is MobileAuthenticationRequiredException) {
-            pendingAction = PendingShareAction.ImportFiles(files)
+            val action = PendingShareAction.ImportFiles(files)
+            pendingAction = action
+            persistPendingAction(action)
             mutableState.update { it.copy(submitting = false, loginRequired = true, message = "登录后将继续导入所选文件") }
           } else if (error is MobileNetworkUnavailableException) {
             mutableState.update { it.copy(submitting = false, message = "网络连接失败，请稍后重试") }
@@ -149,12 +229,15 @@ class ShareCollectViewModel @Inject constructor(
       mutableState.update { it.copy(submitting = true, message = null, submittedJobId = null, submissionAccepted = false) }
       runCatching { collectRepository.submit(url, source) }
         .onSuccess { job ->
+          clearPendingAction()
           CollectTrackingScheduler.schedule(context, job.id)
           mutableState.update { it.copy(submitting = false, message = "已加入采集队列 #${job.id}", submittedJobId = job.id, submissionAccepted = true) }
         }
         .onFailure { error ->
           if (error is MobileAuthenticationRequiredException) {
-            pendingAction = PendingShareAction.CollectUrl(url, source)
+            val action = PendingShareAction.CollectUrl(url, source)
+            pendingAction = action
+            persistPendingAction(action)
             mutableState.update { it.copy(submitting = false, loginRequired = true, message = "登录后将继续采集该链接") }
           } else if (error is MobileNetworkUnavailableException) {
             mutableState.update { it.copy(submitting = false, message = "网络连接失败，请稍后重试") }

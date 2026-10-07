@@ -58,6 +58,9 @@ object AppModule {
   fun providePendingCollectSubmissionDao(database: ArticleCacheDatabase) = database.pendingCollectSubmissionDao()
 
   @Provides
+  fun providePendingAuthActionDao(database: ArticleCacheDatabase) = database.pendingAuthActionDao()
+
+  @Provides
   fun provideReadingPositionDao(database: ArticleCacheDatabase) = database.readingPositionDao()
 
   @Provides
