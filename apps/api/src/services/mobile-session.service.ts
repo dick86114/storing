@@ -263,6 +263,72 @@ export async function rotateMobileSession(
   });
 }
 
+export async function migrateLegacyMacSession(
+  refreshToken: string,
+  device?: MobileDevice,
+): Promise<MobileSessionRotation | null> {
+  const currentHash = hashMobileRefreshToken(refreshToken);
+  const now = new Date();
+
+  return db.transaction(async (tx) => {
+    const [session] = await tx
+      .select()
+      .from(mobileSessions)
+      .where(and(
+        eq(mobileSessions.refreshTokenHash, currentHash),
+        eq(mobileSessions.clientType, 'android'),
+        isNull(mobileSessions.revokedAt),
+        gt(mobileSessions.expiresAt, now),
+      ))
+      .limit(1);
+    if (!session) return null;
+
+    const nextRefreshToken = createMobileRefreshToken();
+    const rotation = buildMobileSessionRotation({
+      session,
+      presentedTokenHash: currentHash,
+      nextTokenHash: hashMobileRefreshToken(nextRefreshToken),
+      now,
+      recovery: false,
+    });
+    const values: Partial<typeof mobileSessions.$inferInsert> = {
+      ...rotation.values,
+      clientType: 'macos' as const,
+    };
+    if (device) {
+      values.deviceId = device.deviceId;
+      values.deviceName = device.deviceName;
+      values.appVersion = device.appVersion;
+    }
+
+    const [updated] = await tx
+      .update(mobileSessions)
+      .set(values)
+      .where(and(
+        eq(mobileSessions.id, session.id),
+        eq(mobileSessions.refreshTokenHash, currentHash),
+        eq(mobileSessions.clientType, 'android'),
+        isNull(mobileSessions.revokedAt),
+      ))
+      .returning();
+    if (!updated) return null;
+
+    logAuthEvent({
+      userId: updated.userId,
+      sessionId: updated.id,
+      clientType: 'macos',
+      event: 'macos_legacy_session_migrated',
+    });
+
+    return {
+      refreshToken: nextRefreshToken,
+      session: asSummary(updated),
+      userId: updated.userId,
+      recoveredByRotationGrace: false,
+    };
+  });
+}
+
 
 export async function revokeMobileSession(sessionId: string, userId: number, clientType?: ClientSessionType) {
   const [revoked] = await db

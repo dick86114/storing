@@ -15,6 +15,7 @@ test('macOS 认证使用可撤销的 macos 会话，并保持 Android 与扩展�
   for (const path of [
     '/macos/auth/login',
     '/macos/auth/refresh',
+    '/macos/auth/migrate-legacy',
     '/macos/auth/logout',
     '/macos/auth/session',
     '/macos/auth/sessions',
@@ -27,6 +28,15 @@ test('macOS 认证使用可撤销的 macos 会话，并保持 Android 与扩展�
   assert.match(route, /listMobileSessions\(user\.id, 'macos'\)/);
   assert.match(route, /revokeMobileSession\(id, user\.id, 'macos'\)/);
   assert.match(route, /revokeMobileSessionsForUser\(user\.id, 'macos'\)/);
+});
+
+test('旧 Android Mac 会话迁移为 macOS 会话并保留轮换宽限', () => {
+  assert.match(service, /export async function migrateLegacyMacSession/);
+  assert.match(service, /eq\(mobileSessions\.clientType, 'android'\)/);
+  assert.match(service, /clientType: 'macos' as const/);
+  assert.match(service, /macos_legacy_session_migrated/);
+  assert.match(service, /previous_refresh_token_hash/);
+  assert.match(service, /rotation_grace_until/);
 });
 
 test('macOS 会话轮换与恢复使用事务和认证遥测', () => {

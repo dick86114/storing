@@ -10,7 +10,7 @@ import { getConfiguredAdminStatus, resetConfiguredAdminPassword } from '../servi
 import { writeAdminAudit } from '../services/admin-audit.service.js';
 import { generateSummaryAndTags } from '../services/ai.service.js';
 import { checkLoginRateLimit, clearLoginFailures, getLoginRateLimitKey, recordLoginFailure } from '../services/login-rate-limit.service.js';
-import { createMobileSession, listMobileSessions, revokeMobileSession, revokeMobileSessionByRefreshToken, revokeMobileSessionsForUser, rotateMobileSession, validateMobileDevice } from '../services/mobile-session.service.js';
+import { createMobileSession, listMobileSessions, migrateLegacyMacSession, revokeMobileSession, revokeMobileSessionByRefreshToken, revokeMobileSessionsForUser, rotateMobileSession, validateMobileDevice } from '../services/mobile-session.service.js';
 import { createWebSession, formatWebSessionCookie, revokeWebSessionByCookie, upgradeLegacyWebJwt, verifyWebSessionCookie } from '../services/web-session.service.js';
 
 export const authRoutes = new Hono();
@@ -438,6 +438,30 @@ authRoutes.post('/macos/auth/refresh', async (c) => {
   }
 
   return c.json(macosAuthResponse(user, rotated.session, rotated.refreshToken));
+});
+
+/** POST /macos/auth/migrate-legacy */
+authRoutes.post('/macos/auth/migrate-legacy', async (c) => {
+  const parsed = mobileRefreshSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: { code: 'BAD_REQUEST', message: parsed.error.errors[0]?.message || '参数错误' } }, 400);
+
+  let device;
+  try {
+    device = parsed.data.device ? validateMobileDevice(parsed.data.device) : undefined;
+  } catch (error) {
+    return c.json({ error: { code: 'BAD_REQUEST', message: error instanceof Error ? error.message : '设备信息无效' } }, 400);
+  }
+
+  const migrated = await migrateLegacyMacSession(parsed.data.refresh_token, device);
+  if (!migrated) return c.json({ error: { code: 'INVALID_REFRESH_TOKEN', message: '登录已失效，请重新登录' } }, 401);
+
+  const [user] = await db.select({ id: users.id, username: users.username, role: users.role, status: users.status }).from(users).where(eq(users.id, migrated.userId)).limit(1);
+  if (!user || user.status !== 'active') {
+    await revokeMobileSessionsForUser(migrated.userId, 'macos');
+    return handleInactiveRefreshUser(c, migrated.userId, 'macos');
+  }
+
+  return c.json(macosAuthResponse(user, migrated.session, migrated.refreshToken));
 });
 
 /** POST /macos/auth/logout */
