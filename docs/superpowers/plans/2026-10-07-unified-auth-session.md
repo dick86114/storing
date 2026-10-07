@@ -34,7 +34,7 @@
 
 ---
 
-### 任务 1：通用会话表策略与刷新宽限基础
+### Task 1：通用会话表策略与刷新宽限基础
 
 **文件：**
 
@@ -123,7 +123,7 @@ git add apps/api/src/db/schema.ts apps/api/src/services/mobile-session.service.t
 git commit -m "feat(api): 建立通用会话窗口与刷新宽限基础"
 ```
 
-### 任务 2：事务化令牌轮换与会话恢复
+### Task 2：事务化令牌轮换与会话恢复
 
 **文件：**
 
@@ -194,7 +194,7 @@ git add apps/api/src/services/mobile-session.service.ts apps/api/src/services/au
 git commit -m "feat(api): 事务化刷新令牌轮换与宽限恢复"
 ```
 
-### 任务 3：Web 数据库会话与旧 JWT 迁移
+### Task 3：Web 数据库会话与旧 JWT 迁移
 
 **文件：**
 
@@ -282,7 +282,7 @@ git add apps/api/src/services/web-session.service.ts apps/api/src/middleware/aut
 git commit -m "feat(api): Web 改用可撤销滑动数据库会话"
 ```
 
-### 任务 4：认证错误码契约与 API 回归
+### Task 4：认证错误码契约与 API 回归
 
 **文件：**
 
@@ -328,7 +328,7 @@ git add apps/api/src/middleware/auth.ts apps/api/src/routes/auth.ts apps/api/src
 git commit -m "feat(api): 统一认证错误码契约"
 ```
 
-### 任务 5：Android 类型化认证协调器
+### Task 5：Android 类型化认证协调器
 
 **文件：**
 
@@ -421,7 +421,7 @@ git add apps/android/app/src/main/java/com/idickies/storing/auth apps/android/ap
 git commit -m "feat(android): 类型化串行会话刷新与网络失败保留令牌"
 ```
 
-### 任务 6：Android Worker 统一认证入口
+### Task 6：Android Worker 统一认证入口
 
 **文件：**
 
@@ -475,7 +475,7 @@ git add apps/android/app/build.gradle.kts apps/android/gradle/libs.versions.toml
 git commit -m "refactor(android): 后台采集统一复用会话认证协调器"
 ```
 
-### 任务 7：Android 采集未登录页内续跑
+### Task 7：Android 采集未登录页内续跑
 
 **文件：**
 
@@ -560,7 +560,7 @@ git add apps/android/app/src/main/java/com/idickies/storing apps/android/app/src
 git commit -m "feat(android): 采集登录后自动续跑原任务"
 ```
 
-### 任务 8：macOS 会话存储与旧类型迁移
+### Task 8：macOS 会话存储与旧类型迁移
 
 **文件：**
 
@@ -650,7 +650,7 @@ git add apps/macos/Packages/QiankunjieKit/Sources/QiankunjieAuth apps/macos/Pack
 git commit -m "feat(macos): 自动迁移历史会话存储与客户端类型"
 ```
 
-### 任务 9：macOS 离线状态与 QuickCollect 登录续跑
+### Task 9：macOS 离线状态与 QuickCollect 登录续跑
 
 **文件：**
 
@@ -729,7 +729,7 @@ git add apps/macos/Packages/QiankunjieKit/Sources/QiankunjieAuth apps/macos/Qian
 git commit -m "feat(macos): 采集面板页内登录并自动续跑"
 ```
 
-### 任务 10：Web 启动状态机与慢网防误判
+### Task 10：Web 启动状态机与慢网防误判
 
 **文件：**
 
@@ -811,7 +811,7 @@ git add apps/web/src/lib/api.ts apps/web/src/components/providers/AuthContext.ts
 git commit -m "fix(web): 慢网启动不再误判登录失效"
 ```
 
-### 任务 11：跨端集成验证与发布准备
+### Task 11：跨端集成验证与发布准备
 
 **文件：**
 
@@ -899,7 +899,7 @@ git add docs/superpowers/specs/2026-10-07-unified-auth-session-design.md docs/su
 git commit -m "test: 记录三端统一认证验证结果"
 ```
 
-### 任务 12：合并前审查与发布顺序确认
+### Task 12：合并前审查与发布顺序确认
 
 **文件：**
 
@@ -950,7 +950,7 @@ pnpm build
 
 如审查产生修正，按内容单独提交；无修正则不产生空提交。
 
-### 任务 13：兼容期结束后的清理
+### Task 13：兼容期结束后的清理
 
 **触发条件：**
 
