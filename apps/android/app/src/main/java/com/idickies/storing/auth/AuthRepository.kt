@@ -26,7 +26,7 @@ class AuthRepository @Inject constructor(
   private var cachedUser: MobileUser? = null
   private var lastRefreshedToken: String? = null
 
-  fun currentTokens(): SessionTokens? = sessionStore.read()
+  override fun currentTokens(): SessionTokens? = sessionStore.read()
 
   suspend fun login(username: String, password: String): MobileUser {
     val response = api.login(MobileLoginRequest(username, password, deviceIdentitySource.current().toPayload()))

@@ -117,10 +117,87 @@ interface PendingCollectSubmissionDao {
   suspend fun delete(id: Long)
 }
 
-@Database(entities = [CachedArticleCard::class, PendingCollectSubmission::class, ReadingPosition::class, OfflineArticle::class], version = 4, exportSchema = false)
+@Entity(tableName = "pending_auth_actions")
+data class PendingAuthActionEntity(
+  @androidx.room.PrimaryKey(autoGenerate = true) val id: Long = 0,
+  val kind: String,
+  val url: String? = null,
+  val source: String? = null,
+  val createdAtEpochMs: Long = System.currentTimeMillis(),
+)
+
+@Entity(
+  tableName = "pending_auth_action_files",
+  primaryKeys = ["actionId", "sortOrder"],
+  foreignKeys = [
+    androidx.room.ForeignKey(
+      entity = PendingAuthActionEntity::class,
+      parentColumns = ["id"],
+      childColumns = ["actionId"],
+      onDelete = androidx.room.ForeignKey.CASCADE,
+    ),
+  ],
+)
+data class PendingAuthActionFileEntity(
+  val actionId: Long,
+  val sortOrder: Int,
+  val displayName: String,
+  val filePath: String,
+  val sizeBytes: Long,
+)
+
+data class PendingAuthActionWithFiles(
+  val action: PendingAuthActionEntity,
+  val files: List<PendingAuthActionFileEntity>,
+)
+
+@Dao
+interface PendingAuthActionDao {
+  @Insert
+  suspend fun insertAction(action: PendingAuthActionEntity): Long
+
+  @Insert
+  suspend fun insertFiles(files: List<PendingAuthActionFileEntity>)
+
+  @Query("SELECT * FROM pending_auth_actions ORDER BY id DESC LIMIT 1")
+  suspend fun latestAction(): PendingAuthActionEntity?
+
+  @Query("SELECT * FROM pending_auth_action_files WHERE actionId = :actionId ORDER BY sortOrder ASC")
+  suspend fun files(actionId: Long): List<PendingAuthActionFileEntity>
+
+  @Query("DELETE FROM pending_auth_actions")
+  suspend fun clearAll()
+
+  @Transaction
+  suspend fun save(action: PendingAuthActionEntity, files: List<PendingAuthActionFileEntity>) {
+    clearAll()
+    val actionId = insertAction(action.copy(id = 0))
+    insertFiles(files.map { it.copy(actionId = actionId) })
+  }
+
+  @Transaction
+  suspend fun latestWithFiles(): PendingAuthActionWithFiles? {
+    val action = latestAction() ?: return null
+    return PendingAuthActionWithFiles(action, files(action.id))
+  }
+}
+
+@Database(
+  entities = [
+    CachedArticleCard::class,
+    PendingCollectSubmission::class,
+    ReadingPosition::class,
+    OfflineArticle::class,
+    PendingAuthActionEntity::class,
+    PendingAuthActionFileEntity::class,
+  ],
+  version = 5,
+  exportSchema = false,
+)
 abstract class ArticleCacheDatabase : RoomDatabase() {
   abstract fun articleCacheDao(): ArticleCacheDao
   abstract fun pendingCollectSubmissionDao(): PendingCollectSubmissionDao
+  abstract fun pendingAuthActionDao(): PendingAuthActionDao
   abstract fun readingPositionDao(): ReadingPositionDao
   abstract fun offlineArticleDao(): OfflineArticleDao
 
@@ -154,9 +231,39 @@ abstract class ArticleCacheDatabase : RoomDatabase() {
       }
     }
 
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+      override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+          """
+          CREATE TABLE IF NOT EXISTS pending_auth_actions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            kind TEXT NOT NULL,
+            url TEXT,
+            source TEXT,
+            createdAtEpochMs INTEGER NOT NULL
+          )
+          """.trimIndent(),
+        )
+        database.execSQL(
+          """
+          CREATE TABLE IF NOT EXISTS pending_auth_action_files (
+            actionId INTEGER NOT NULL,
+            sortOrder INTEGER NOT NULL,
+            displayName TEXT NOT NULL,
+            filePath TEXT NOT NULL,
+            sizeBytes INTEGER NOT NULL,
+            PRIMARY KEY(actionId, sortOrder),
+            FOREIGN KEY(actionId) REFERENCES pending_auth_actions(id) ON DELETE CASCADE
+          )
+          """.trimIndent(),
+        )
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_pending_auth_action_files_actionId_sortOrder ON pending_auth_action_files(actionId, sortOrder)")
+      }
+    }
+
     fun create(context: Context): ArticleCacheDatabase =
       Room.databaseBuilder(context.applicationContext, ArticleCacheDatabase::class.java, "qiankunjie_article_cache")
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
         .build()
   }
 }
