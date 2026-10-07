@@ -37,8 +37,8 @@ test('阅读器原生头部展示 ArticleDetail 的完整元数据', () => {
 test('macOS 更新安装前必须让用户确认或稍后处理', () => {
   const view = read('apps/macos/QiankunjieMac/Features/Settings/UpdateSettingsView.swift');
 
-  assert.match(view, /isInstallConfirmationPresented/);
-  assert.match(view, /立即退出并安装/);
+  assert.match(view, /pendingUpdate = checkedRelease/);
+  assert.match(view, /立即更新/);
   assert.match(view, /稍后/);
 });
 
