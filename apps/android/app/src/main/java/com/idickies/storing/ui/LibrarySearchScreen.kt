@@ -93,7 +93,7 @@ internal fun LibrarySearchScreen(
     }
     history.removeAll { it.equals(normalized, true) }
     history.add(0, normalized)
-    while (history.size > 20) history.removeLast()
+    while (history.size > 20) history.removeAt(history.lastIndex)
     persist()
     dispatchSearch(normalized)
   }

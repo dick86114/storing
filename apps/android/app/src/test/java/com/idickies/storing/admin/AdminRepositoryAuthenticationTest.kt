@@ -73,6 +73,7 @@ class AdminRepositoryAuthenticationTest {
   ) : MobileSessionAuthenticator {
     var ensureCalls = 0
     var refreshCalls = 0
+    override fun currentTokens(): com.idickies.storing.auth.SessionTokens? = null
 
     override suspend fun ensureValidAccessToken(): MobileAuthResult {
       ensureCalls += 1
