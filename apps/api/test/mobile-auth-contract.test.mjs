@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const apiRoot = new URL('../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, apiRoot), 'utf8');
+const route = read('src/routes/auth.ts');
 const telemetry = read('src/services/auth-telemetry.service.ts');
 
 test('mobile authentication uses a separately revocable session table and additive startup initializer', () => {
@@ -49,6 +50,14 @@ test('changing a password revokes active mobile refresh sessions', () => {
   assert.match(changePassword, /revokeMobileSessionsForUser\(user\.id, 'android'\)/);
   assert.match(changePassword, /revokeMobileSessionsForUser\(user\.id, 'browser_extension'\)/);
   assert.match(changePassword, /revokeMobileSessionsForUser\(user\.id, 'macos'\)/);
+});
+
+test('mobile refresh does not revoke inactive sessions as browser-extension sessions', () => {
+  const refresh = route.match(/authRoutes\.post\('\/mobile\/auth\/refresh'[\s\S]*?(?=authRoutes\.)/)?.[0];
+
+  assert.ok(refresh, 'mobile refresh route should exist');
+  assert.match(refresh, /handleInactiveRefreshUser\(c, rotated\.userId, 'android'\)/);
+  assert.doesNotMatch(refresh, /handleInactiveRefreshUser\(c, rotated\.userId, 'browser_extension'\)/);
 });
 
 test('认证遥测只输出安全字段且不记录凭据', () => {

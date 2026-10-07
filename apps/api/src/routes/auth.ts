@@ -350,8 +350,7 @@ authRoutes.post('/mobile/auth/refresh', async (c) => {
 
   const [user] = await db.select({ id: users.id, username: users.username, role: users.role, status: users.status }).from(users).where(eq(users.id, rotated.userId)).limit(1);
   if (!user || user.status !== 'active') {
-    if (user) await revokeMobileSessionsForUser(user.id);
-    return handleInactiveRefreshUser(c, rotated.userId, 'browser_extension');
+    return handleInactiveRefreshUser(c, rotated.userId, 'android');
   }
 
   return c.json(mobileAuthResponse(user, rotated.session, rotated.refreshToken));
