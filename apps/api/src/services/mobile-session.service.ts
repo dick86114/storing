@@ -21,6 +21,7 @@ export type ClientSessionType = 'android' | 'browser_extension' | 'macos' | 'web
 
 export type MobileSessionSummary = {
   id: string;
+  userId: number;
   deviceId: string;
   deviceName: string;
   appVersion: string;
@@ -144,6 +145,7 @@ function createSessionId() {
 function asSummary(row: typeof mobileSessions.$inferSelect): MobileSessionSummary {
   return {
     id: row.id,
+    userId: row.userId,
     deviceId: row.deviceId,
     deviceName: row.deviceName,
     appVersion: row.appVersion,
@@ -158,12 +160,12 @@ function asSummary(row: typeof mobileSessions.$inferSelect): MobileSessionSummar
   };
 }
 
-export async function createMobileSession(input: { userId: number; device: MobileDevice; clientType?: ClientSessionType }) {
+export async function createMobileSession(input: { userId: number; device: MobileDevice; clientType?: ClientSessionType; sessionId?: string }) {
   const refreshToken = createMobileRefreshToken();
   const now = new Date();
   const windows = calculateSessionWindows(now, now);
   const [session] = await db.insert(mobileSessions).values({
-    id: createSessionId(),
+    id: input.sessionId ?? createSessionId(),
     userId: input.userId,
     deviceId: input.device.deviceId,
     deviceName: input.device.deviceName,

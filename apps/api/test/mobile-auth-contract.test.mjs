@@ -19,12 +19,12 @@ test('mobile authentication uses a separately revocable session table and additi
   assert.match(index, /initMobileSessionSchema\(\)/);
 });
 
-test('mobile auth endpoints issue short access tokens, rotate refresh tokens, and do not alter cookie login', () => {
+test('mobile auth endpoints issue short access tokens and rotate refresh tokens while Web login uses a database session', () => {
   const route = read('src/routes/auth.ts');
   const login = route.match(/authRoutes\.post\('\/login'[\s\S]*?(?=authRoutes\.)/)?.[0];
 
   assert.ok(login, 'browser login route should exist');
-  assert.match(login, /setCookie\(c, 'storing_token'/);
+  assert.match(login, /writeWebSessionCookie\(c, session\.session\.id, session\.cookieSecret\)/);
   assert.doesNotMatch(login, /refresh_token/);
 
   for (const path of [

@@ -1,20 +1,40 @@
 import { Hono } from 'hono';
-import { deleteCookie, setCookie } from 'hono/cookie';
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { db } from '../db/index.js';
 import { adminAuditLogs, articleMetadata, articles, collectJobs, mcpClients, mcpRequestLogs, mobileSessions, users } from '../db/schema.js';
 import { and, count, desc, eq, gt, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
-import { requireAuth, requireAdmin, requireAndroidAuth, requireExtensionAuth, requireMacOSAuth, getCurrentUser, generateClientAccessToken, generateMacOSAccessToken, generateMobileAccessToken, generateToken } from '../middleware/auth.js';
+import { requireAuth, requireAdmin, requireAndroidAuth, requireExtensionAuth, requireMacOSAuth, getCurrentUser, generateClientAccessToken, generateMacOSAccessToken, generateMobileAccessToken } from '../middleware/auth.js';
 import { getConfiguredAdminStatus, resetConfiguredAdminPassword } from '../services/admin-bootstrap.service.js';
 import { writeAdminAudit } from '../services/admin-audit.service.js';
 import { generateSummaryAndTags } from '../services/ai.service.js';
 import { checkLoginRateLimit, clearLoginFailures, getLoginRateLimitKey, recordLoginFailure } from '../services/login-rate-limit.service.js';
 import { createMobileSession, listMobileSessions, revokeMobileSession, revokeMobileSessionByRefreshToken, revokeMobileSessionsForUser, rotateMobileSession, validateMobileDevice } from '../services/mobile-session.service.js';
+import { createWebSession, formatWebSessionCookie, revokeWebSessionByCookie, upgradeLegacyWebJwt, verifyWebSessionCookie } from '../services/web-session.service.js';
 
 export const authRoutes = new Hono();
 
 const PASSWORD_HASH_COST = 12;
+const WEB_SESSION_COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
+
+function writeWebSessionCookie(c: any, sessionId: string, cookieSecret: string) {
+  setCookie(c, 'storing_session', formatWebSessionCookie(sessionId, cookieSecret), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Lax',
+    path: '/',
+    maxAge: WEB_SESSION_COOKIE_MAX_AGE,
+  });
+}
+
+function clearLegacyWebCookie(c: any) {
+  deleteCookie(c, 'storing_token', {
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Lax',
+    path: '/',
+  });
+}
 
 const adminCreateUserSchema = z.object({
   username: z.string().trim().min(2, '用户名至少 2 个字符').max(64, '用户名过长'),
@@ -480,15 +500,9 @@ authRoutes.post('/login', async (c) => {
 
     await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
 
-    // 生成 token 并仅通过 HttpOnly Cookie 交付给浏览器。
-    const token = generateToken(user.id);
-    setCookie(c, 'storing_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'Lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60,
-    });
+    const session = await createWebSession(user.id);
+    writeWebSessionCookie(c, session.session.id, session.cookieSecret);
+    clearLegacyWebCookie(c);
 
     return c.json({
       user: {
@@ -509,7 +523,26 @@ authRoutes.post('/login', async (c) => {
  * GET /auth/verify
  */
 authRoutes.get('/verify', requireAuth, async (c) => {
-  const user = getCurrentUser(c);
+  const authenticated = await verifyWebSessionCookie(getCookie(c, 'storing_session'));
+  if (authenticated) {
+    if (authenticated.rotatedCookieSecret) {
+      writeWebSessionCookie(c, authenticated.session.id, authenticated.rotatedCookieSecret);
+    }
+    return c.json({ valid: true, user: authenticated.user });
+  }
+
+  const legacyToken = getCookie(c, 'storing_token');
+  const upgraded = legacyToken ? await upgradeLegacyWebJwt(legacyToken) : null;
+  if (!upgraded) {
+    return c.json({ error: { code: 'UNAUTHORIZED', message: '请先登录' } }, 401);
+  }
+
+  const [user] = await db
+    .select({ id: users.id, username: users.username, role: users.role, status: users.status })
+    .from(users)
+    .where(eq(users.id, upgraded.session.userId));
+  writeWebSessionCookie(c, upgraded.session.id, upgraded.cookieSecret);
+  clearLegacyWebCookie(c);
   return c.json({ valid: true, user });
 });
 
@@ -565,6 +598,7 @@ authRoutes.post('/change-password', requireAuth, async (c) => {
     await revokeMobileSessionsForUser(user.id, 'android');
     await revokeMobileSessionsForUser(user.id, 'browser_extension');
     await revokeMobileSessionsForUser(user.id, 'macos');
+    await revokeMobileSessionsForUser(user.id, 'web');
 
     return c.json({ message: '密码已更新' });
   } catch (err) {
@@ -578,6 +612,12 @@ authRoutes.post('/change-password', requireAuth, async (c) => {
  * POST /auth/logout
  */
 authRoutes.post('/logout', async (c) => {
+  await revokeWebSessionByCookie(getCookie(c, 'storing_session'));
+  deleteCookie(c, 'storing_session', {
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Lax',
+    path: '/',
+  });
   deleteCookie(c, 'storing_token', {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'Lax',
