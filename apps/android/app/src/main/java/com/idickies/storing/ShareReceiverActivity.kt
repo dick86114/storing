@@ -66,6 +66,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.idickies.storing.collect.ShareCollectViewModel
 import com.idickies.storing.collect.SharedImportFile
 import com.idickies.storing.collect.SharedUrlExtractor
+import com.idickies.storing.ui.LoginScreen
 import com.idickies.storing.ui.theme.QiankunjieTheme
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
@@ -165,6 +166,15 @@ private fun ShareReceiverScreen(
   }
 
   Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize()) {
+    if (state.loginRequired) {
+      LoginScreen(
+        submitting = state.submitting,
+        errorMessage = state.message,
+        onLogin = viewModel::login,
+        onBack = viewModel::cancelLogin,
+      )
+      return@Surface
+    }
     Column(
       modifier = Modifier
         .fillMaxSize()
