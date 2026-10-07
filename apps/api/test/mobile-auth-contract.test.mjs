@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const apiRoot = new URL('../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, apiRoot), 'utf8');
+const telemetry = read('src/services/auth-telemetry.service.ts');
 
 test('mobile authentication uses a separately revocable session table and additive startup initializer', () => {
   const schema = read('src/db/schema.ts');
@@ -48,4 +49,12 @@ test('changing a password revokes active mobile refresh sessions', () => {
   assert.match(changePassword, /revokeMobileSessionsForUser\(user\.id, 'android'\)/);
   assert.match(changePassword, /revokeMobileSessionsForUser\(user\.id, 'browser_extension'\)/);
   assert.match(changePassword, /revokeMobileSessionsForUser\(user\.id, 'macos'\)/);
+});
+
+test('认证遥测只输出安全字段且不记录凭据', () => {
+  for (const field of ['userId', 'sessionId', 'clientType', 'event', 'errorCode', 'durationMs']) {
+    assert.match(telemetry, new RegExp(field));
+  }
+  assert.doesNotMatch(telemetry, /refreshToken|accessToken|cookie|authorization|password/i);
+  assert.doesNotMatch(telemetry, /console\.log/);
 });

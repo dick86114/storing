@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID } from 'crypto';
 import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { mobileSessions } from '../db/schema.js';
+import { logAuthEvent } from './auth-telemetry.service.js';
 
 const REFRESH_TOKEN_BYTES = 32;
 export const SESSION_IDLE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
@@ -33,6 +34,13 @@ export type MobileSessionSummary = {
   revokedAt: Date | null;
 };
 
+export type MobileSessionRotation = {
+  refreshToken: string;
+  session: MobileSessionSummary;
+  userId: number;
+  recoveredByRotationGrace: boolean;
+};
+
 export function calculateSessionWindows(now: Date, createdAt: Date) {
   return {
     expiresAt: new Date(now.getTime() + SESSION_IDLE_TTL_MS),
@@ -48,6 +56,32 @@ export function canRecoverRotatedRefreshToken(
     && session.rotationGraceUntil !== null
     && session.rotationGraceUntil > now
     && session.rotationCount < MAX_REFRESH_ROTATION_RECOVERIES;
+}
+
+export function buildMobileSessionRotation(input: {
+  session: Pick<MobileSessionSummary, 'createdAt' | 'absoluteExpiresAt' | 'rotationCount'>;
+  presentedTokenHash: string;
+  nextTokenHash: string;
+  now: Date;
+  recovery: boolean;
+}) {
+  const windows = calculateSessionWindows(input.now, input.session.createdAt ?? input.now);
+  const absoluteExpiresAt = input.session.absoluteExpiresAt > windows.absoluteExpiresAt
+    ? input.session.absoluteExpiresAt
+    : windows.absoluteExpiresAt;
+
+  return {
+    recoveredByRotationGrace: input.recovery,
+    values: {
+      refreshTokenHash: input.nextTokenHash,
+      previousRefreshTokenHash: input.presentedTokenHash,
+      rotationGraceUntil: new Date(input.now.getTime() + REFRESH_ROTATION_GRACE_MS),
+      rotationCount: input.recovery ? input.session.rotationCount + 1 : 0,
+      lastUsedAt: input.now,
+      expiresAt: absoluteExpiresAt > windows.expiresAt ? windows.expiresAt : absoluteExpiresAt,
+      absoluteExpiresAt,
+    },
+  };
 }
 
 export function createMobileRefreshToken() {
@@ -144,54 +178,89 @@ export async function createMobileSession(input: { userId: number; device: Mobil
   return { refreshToken, session: asSummary(session) };
 }
 
-export async function rotateMobileSession(refreshToken: string, device?: MobileDevice, clientType?: ClientSessionType) {
+export async function rotateMobileSession(
+  refreshToken: string,
+  device?: MobileDevice,
+  clientType?: ClientSessionType,
+): Promise<MobileSessionRotation | null> {
   const currentHash = hashMobileRefreshToken(refreshToken);
   const now = new Date();
-  const [current] = await db
-    .select()
-    .from(mobileSessions)
-    .where(and(
-      eq(mobileSessions.refreshTokenHash, currentHash),
-      isNull(mobileSessions.revokedAt),
-      gt(mobileSessions.expiresAt, now),
-    ))
-    .limit(1);
 
-  if (!current || (clientType && current.clientType !== clientType)) return null;
+  return db.transaction(async (tx) => {
+    const selectValidSession = async (
+      hashColumn: typeof mobileSessions.refreshTokenHash | typeof mobileSessions.previousRefreshTokenHash,
+    ) => {
+      const [session] = await tx
+        .select()
+        .from(mobileSessions)
+        .where(and(
+          eq(hashColumn, currentHash),
+          isNull(mobileSessions.revokedAt),
+          gt(mobileSessions.expiresAt, now),
+        ))
+        .limit(1);
+      return session;
+    };
 
-  const nextRefreshToken = createMobileRefreshToken();
-  const windows = calculateSessionWindows(now, current.createdAt ?? now);
-  const absoluteExpiresAt = windows.expiresAt > windows.absoluteExpiresAt
-    ? windows.absoluteExpiresAt
-    : windows.expiresAt;
-  const values: Partial<typeof mobileSessions.$inferInsert> = {
-    refreshTokenHash: hashMobileRefreshToken(nextRefreshToken),
-    lastUsedAt: now,
-    expiresAt: absoluteExpiresAt,
-    absoluteExpiresAt: windows.absoluteExpiresAt,
-    previousRefreshTokenHash: currentHash,
-    rotationGraceUntil: new Date(now.getTime() + REFRESH_ROTATION_GRACE_MS),
-    rotationCount: 0,
-  };
-  if (device) {
-    values.deviceId = device.deviceId;
-    values.deviceName = device.deviceName;
-    values.appVersion = device.appVersion;
-  }
+    const current = await selectValidSession(mobileSessions.refreshTokenHash);
+    let recovery = false;
+    let session = current;
 
-  const [updated] = await db
-    .update(mobileSessions)
-    .set(values)
-    .where(and(
-      eq(mobileSessions.id, current.id),
-      eq(mobileSessions.refreshTokenHash, currentHash),
-      isNull(mobileSessions.revokedAt),
-    ))
-    .returning();
+    if (!session) {
+      const previous = await selectValidSession(mobileSessions.previousRefreshTokenHash);
+      if (!previous || !canRecoverRotatedRefreshToken(previous, now)) return null;
+      session = previous;
+      recovery = true;
+    }
 
-  if (!updated) return null;
-  return { refreshToken: nextRefreshToken, session: asSummary(updated), userId: updated.userId };
+    if (clientType && session.clientType !== clientType) return null;
+
+    const nextRefreshToken = createMobileRefreshToken();
+    const rotation = buildMobileSessionRotation({
+      session,
+      presentedTokenHash: currentHash,
+      nextTokenHash: hashMobileRefreshToken(nextRefreshToken),
+      now,
+      recovery,
+    });
+
+    if (device) {
+      Object.assign(rotation.values, {
+        deviceId: device.deviceId,
+        deviceName: device.deviceName,
+        appVersion: device.appVersion,
+      });
+    }
+
+    const [updated] = await tx
+      .update(mobileSessions)
+      .set(rotation.values)
+      .where(and(
+        eq(mobileSessions.id, session.id),
+        recovery
+          ? eq(mobileSessions.previousRefreshTokenHash, currentHash)
+          : eq(mobileSessions.refreshTokenHash, currentHash),
+        isNull(mobileSessions.revokedAt),
+      ))
+      .returning();
+
+    if (!updated) return null;
+    logAuthEvent({
+      userId: updated.userId,
+      sessionId: updated.id,
+      clientType: updated.clientType,
+      event: recovery ? 'refresh_rotation_recovered' : 'refresh_rotation',
+    });
+
+    return {
+      refreshToken: nextRefreshToken,
+      session: asSummary(updated),
+      userId: updated.userId,
+      recoveredByRotationGrace: recovery,
+    };
+  });
 }
+
 
 export async function revokeMobileSession(sessionId: string, userId: number, clientType?: ClientSessionType) {
   const [revoked] = await db
