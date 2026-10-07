@@ -1,4 +1,5 @@
 import AppKit
+import QiankunjieAuth
 import QiankunjieCollect
 import QiankunjieCore
 import QiankunjieDesignSystem
@@ -28,6 +29,8 @@ extension QuickCollectPresenting {
 @MainActor
 final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
     let model: CollectModel
+    let authModel: AuthModel?
+    let onAuthenticated: @MainActor () -> Void
     private let onOpenMainWindow: @MainActor () -> Void
     private var outsideClickMonitor: Any?
     private var localClickMonitor: Any?
@@ -42,9 +45,13 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
 
     init(
         model: CollectModel,
+        authModel: AuthModel? = nil,
+        onAuthenticated: @escaping @MainActor () -> Void = {},
         onOpenMainWindow: @escaping @MainActor () -> Void
     ) {
         self.model = model
+        self.authModel = authModel
+        self.onAuthenticated = onAuthenticated
         self.onOpenMainWindow = onOpenMainWindow
 
         super.init(
@@ -65,6 +72,8 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
         contentView = NSHostingController(
             rootView: QuickCollectView(
                 model: model,
+                authModel: authModel,
+                onAuthenticated: onAuthenticated,
                 onOpenMainWindow: onOpenMainWindow
             )
         ).view
@@ -222,8 +231,11 @@ final class QuickCollectFormState {
 
 private struct QuickCollectView: View {
     @Bindable var model: CollectModel
+    let authModel: AuthModel?
+    let onAuthenticated: @MainActor () -> Void
     let onOpenMainWindow: @MainActor () -> Void
     @State private var form = QuickCollectFormState()
+    @State private var isLoginPresented = false
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -241,7 +253,9 @@ private struct QuickCollectView: View {
             }
 
             if model.userID == nil {
-                loginPrompt
+                loginPrompt {
+                    isLoginPresented = true
+                }
             } else {
                 collectForm
             }
@@ -258,14 +272,45 @@ private struct QuickCollectView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(QiankunjieColors.outline(for: colorScheme))
         }
+        .overlay {
+            if isLoginPresented, let authModel {
+                ZStack {
+                    Rectangle()
+                        .fill(.black.opacity(0.46))
+                        .contentShape(Rectangle())
+                        .onTapGesture { isLoginPresented = false }
+
+                    LoginView(
+                        authModel: authModel,
+                        onAuthenticated: {
+                            if let userID = authModel.user?.id {
+                                model.prepareUser(userID: userID)
+                            }
+                            onAuthenticated()
+                            isLoginPresented = false
+                            Task { await submitSavedURL() }
+                        },
+                        onCancel: { isLoginPresented = false }
+                    )
+                    .onTapGesture {}
+                }
+                .transition(.opacity)
+            }
+        }
     }
 
-    private var loginPrompt: some View {
+    private func loginPrompt(onLogin: @escaping () -> Void) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Label("登录后才能采集网页", systemImage: "person.badge.key")
                 .qiankunjieFont(.titleMedium)
                 .foregroundStyle(QiankunjieColors.onBackground(for: colorScheme))
-            Text("可以在主窗口完成登录，采集状态会在这里同步显示。")
+            Button {
+                onLogin()
+            } label: {
+                Label("登录后继续采集", systemImage: "person.badge.key")
+            }
+            .buttonStyle(.borderedProminent)
+            Text("登录成功后会自动提交当前链接。")
                 .qiankunjieFont(.bodyMedium)
                 .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
         }
@@ -379,6 +424,19 @@ private struct QuickCollectView: View {
         let url = form.confirmedURL
         Task {
             await model.submit(url)
+            if model.submitErrorMessage == "登录已失效，请重新登录" {
+                isLoginPresented = true
+            }
+            form.isConfirmed = false
+            form.confirmedURL = ""
+        }
+    }
+
+    private func submitSavedURL() async {
+        guard form.canSubmit else { return }
+        let url = form.confirmedURL
+        await model.submit(url)
+        if model.submitErrorMessage == nil {
             form.isConfirmed = false
             form.confirmedURL = ""
         }

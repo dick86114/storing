@@ -458,29 +458,6 @@ private extension AuthDevice {
     #expect(await repository.currentAccessToken() == nil)
 }
 
-@Test func Keychain会话存储只保存刷新令牌() async throws {
-    let store = KeychainSessionStore(
-        service: "com.idickies.storing.macos.tests.\(UUID().uuidString)"
-    )
-    try await store.clear()
-
-    do {
-        try await store.save(
-            SessionTokens(accessToken: "must-not-persist", refreshToken: "stored-refresh-token")
-        )
-        let stored = try #require(try await store.read())
-
-        #expect(stored.accessToken.isEmpty)
-        #expect(stored.refreshToken == "stored-refresh-token")
-
-        try await store.clear()
-        #expect(try await store.read() == nil)
-    } catch {
-        try? await store.clear()
-        throw error
-    }
-}
-
 @Test @MainActor func 认证模型登录失败不保留用户并显示凭据错误() async {
     let repository = AuthRepository(
         client: 模拟认证客户端(loginResult: .failure(.authenticationRequired)),

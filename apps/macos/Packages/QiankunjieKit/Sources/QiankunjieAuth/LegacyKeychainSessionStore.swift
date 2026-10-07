@@ -2,7 +2,9 @@ import Foundation
 import QiankunjieCore
 import Security
 
-public actor KeychainSessionStore: SessionStore {
+/// 只读旧 Keychain 令牌，用于从历史版本迁移到文件存储。
+/// 新代码禁止通过该类型写入钥匙串。
+public actor LegacyKeychainSessionStore: LegacySessionStore {
     private let service: String
     private let account: String
 
@@ -33,34 +35,10 @@ public actor KeychainSessionStore: SessionStore {
         else {
             throw AppError.server
         }
-
         return SessionTokens(accessToken: "", refreshToken: refreshToken)
     }
 
-    public func save(_ tokens: SessionTokens) async throws {
-        let data = Data(tokens.refreshToken.utf8)
-        let updateAttributes: [String: Any] = [
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
-        ]
-        let updateStatus = SecItemUpdate(baseQuery as CFDictionary, updateAttributes as CFDictionary)
-        if updateStatus == errSecSuccess {
-            return
-        }
-        guard updateStatus == errSecItemNotFound else {
-            throw AppError.server
-        }
-
-        var addQuery = baseQuery
-        for (key, value) in updateAttributes {
-            addQuery[key] = value
-        }
-        guard SecItemAdd(addQuery as CFDictionary, nil) == errSecSuccess else {
-            throw AppError.server
-        }
-    }
-
-    public func clear() async throws {
+    public func clearLegacy() async throws {
         let status = SecItemDelete(baseQuery as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw AppError.server

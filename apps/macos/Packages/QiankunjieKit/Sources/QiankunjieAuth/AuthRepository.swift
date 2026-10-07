@@ -147,7 +147,7 @@ public actor AuthRepository: TokenRefreshing {
 
     public init(
         client: any AuthClient = DefaultAuthClient(),
-        store: any SessionStore = MigratingSessionStore(primary: FileSessionStore(), legacy: KeychainSessionStore()),
+        store: any SessionStore = MigratingSessionStore(primary: FileSessionStore(), legacy: LegacyKeychainSessionStore()),
         device: AuthDevice? = nil
     ) {
         self.client = client
