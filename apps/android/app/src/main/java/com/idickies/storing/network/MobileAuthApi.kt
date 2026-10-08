@@ -115,6 +115,6 @@ interface MobileAuthApi {
   @DELETE("mobile/auth/sessions/{id}")
   suspend fun revokeSession(@Path("id") sessionId: String): MobileLogoutResponse
 
-  @POST("auth/change-password")
+  @POST("change-password")
   suspend fun changePassword(@Body request: ChangePasswordRequest): okhttp3.ResponseBody
 }

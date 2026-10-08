@@ -57,6 +57,9 @@ data class ChangePasswordUiState(
   val success: Boolean = false,
 )
 
+internal fun passwordVisibilityIcon(showPassword: Boolean) =
+  if (showPassword) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff
+
 @HiltViewModel
 class ChangePasswordViewModel @Inject constructor(
   private val authRepository: AuthRepository,
@@ -199,7 +202,7 @@ private fun PasswordField(
     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = imeAction),
     trailingIcon = {
       IconButton(onClick = onToggleShow) {
-        Icon(if (showPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility, contentDescription = if (showPassword) "隐藏密码" else "显示密码")
+        Icon(passwordVisibilityIcon(showPassword), contentDescription = if (showPassword) "隐藏密码" else "显示密码")
       }
     },
     leadingIcon = { Icon(Icons.Outlined.Lock, contentDescription = null) },

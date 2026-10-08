@@ -15,6 +15,10 @@ struct ResetPasswordView: View {
     @State private var errorMessage: String?
     @State private var didSave = false
 
+    static func passwordVisibilitySymbol(isVisible: Bool) -> String {
+        isVisible ? "eye" : "eye.slash"
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -90,32 +94,36 @@ struct ResetPasswordView: View {
                 .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
                 .frame(width: 92, alignment: .leading)
 
-            Group {
-                if isVisible.wrappedValue {
-                    TextField(placeholder, text: text)
-                } else {
-                    SecureField(placeholder, text: text)
+            ZStack(alignment: .trailing) {
+                Group {
+                    if isVisible.wrappedValue {
+                        TextField(placeholder, text: text)
+                    } else {
+                        SecureField(placeholder, text: text)
+                    }
                 }
-            }
-            .textFieldStyle(.plain)
-            .font(.body)
-            .padding(.horizontal, 12)
-            .frame(height: 36)
-            .background(QiankunjieColors.background(for: colorScheme), in: RoundedRectangle(cornerRadius: QiankunjieRadius.control))
-            .overlay {
-                RoundedRectangle(cornerRadius: QiankunjieRadius.control)
-                    .strokeBorder(QiankunjieColors.outline(for: colorScheme))
-            }
+                .textFieldStyle(.plain)
+                .font(.body)
+                .padding(.leading, 12)
+                .padding(.trailing, 44)
+                .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                .background(QiankunjieColors.background(for: colorScheme), in: RoundedRectangle(cornerRadius: QiankunjieRadius.control))
+                .overlay {
+                    RoundedRectangle(cornerRadius: QiankunjieRadius.control)
+                        .strokeBorder(QiankunjieColors.outline(for: colorScheme))
+                }
 
-            Button {
-                isVisible.wrappedValue.toggle()
-            } label: {
-                Image(systemName: isVisible.wrappedValue ? "eye.slash" : "eye")
-                    .frame(width: 28, height: 28)
+                Button {
+                    isVisible.wrappedValue.toggle()
+                } label: {
+                    Image(systemName: Self.passwordVisibilitySymbol(isVisible: isVisible.wrappedValue))
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                .help(isVisible.wrappedValue ? "隐藏密码" : "显示密码")
+                .padding(.trailing, 8)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-            .help(isVisible.wrappedValue ? "隐藏密码" : "显示密码")
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
@@ -211,7 +219,7 @@ struct ResetPasswordView: View {
 
         do {
             let _: MessageResponse = try await client.send(
-                "auth/change-password",
+                ManagementAPIRoute.changePassword,
                 method: .post,
                 body: ChangePasswordRequest(
                     currentPassword: currentPassword,
