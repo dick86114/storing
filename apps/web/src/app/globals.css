@@ -2255,8 +2255,8 @@ body {
 }
 
 .detail-panel-category-review {
-  display: inline-flex;
-  align-items: baseline;
+  display: flex;
+  align-items: flex-start;
   min-width: 0;
   gap: 6px;
   color: var(--text-secondary);
@@ -2270,10 +2270,11 @@ body {
 }
 
 .detail-panel-category-review-reason {
-  max-width: min(340px, 100%);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex: 1 1 auto;
+  max-width: 100%;
+  line-height: 1.45;
+  word-break: break-word;
+  white-space: normal;
 }
 
 @media (max-width: 640px) {
@@ -6061,6 +6062,8 @@ body.detail-panel-open {
 }
 
 body.detail-panel-open .detail-panel.wechat-detail-panel:not(.mobile-detail-panel) {
+  padding-bottom: 66px;
+  box-sizing: border-box;
   overflow-y: auto !important;
   overflow-x: hidden !important;
   scrollbar-width: none !important;
@@ -6089,8 +6092,8 @@ body.detail-panel-open .detail-panel.wechat-detail-panel:not(.mobile-detail-pane
 
 body.detail-panel-open .detail-panel.wechat-detail-panel:not(.mobile-detail-panel) .detail-panel-footer {
   right: 0 !important;
-  left: 0 !important;
-  width: 100% !important;
+  left: auto !important;
+  width: inherit !important;
   margin-right: 0 !important;
   margin-left: 0 !important;
   padding-right: 16px !important;
@@ -17264,12 +17267,14 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
 }
 
 .detail-panel-ai-status {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  padding: 10px 12px;
+  width: fit-content;
+  max-width: 100%;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 6px 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--tag-bg);

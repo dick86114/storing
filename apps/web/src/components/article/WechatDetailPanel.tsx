@@ -10,7 +10,7 @@ import { useArticle, useArticleMeta } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/providers/AuthContext';
 import { DateText } from '@/lib/formatDate';
-import { api, type ArchiveCategory } from '@/lib/api';
+import { api, type ArchiveCategory, type ArticleHtmlVariant } from '@/lib/api';
 import { useBookmark } from '@/hooks/useBookmark';
 import { BookmarkButton } from '@/components/ui/BookmarkButton';
 import { useTheme, type ColorScheme } from '@/components/providers/ThemeProvider';
@@ -24,6 +24,8 @@ const DETAIL_PANEL_MIN_WIDTH = 560;
 const DETAIL_PANEL_MIN_WIDTH_PUSH = 480;
 const DETAIL_PUSH_RESERVED_WIDTH = 64 + 420 + 40;
 const DETAIL_PANEL_WIDTH_STORAGE_KEY = 'storing:detail-panel-width';
+const AI_POLL_INTERVAL_MS = 1000;
+const AI_POLL_TIMEOUT_MS = 90_000;
 
 interface WechatDetailPanelProps {
   articleId: number | null;
@@ -81,6 +83,25 @@ function isLeadingPromoBlock(element: Element) {
 
 function getArticleDisplayTime(article: any) {
   return article?.publishTime || (article?.isArchived ? article?.archivedAt || null : null);
+}
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForArticleAiCompletion(articleId: number, htmlVariant: ArticleHtmlVariant) {
+  const startedAt = Date.now();
+  let latest = await api.getArticle(articleId, 'html', htmlVariant);
+
+  while (
+    (latest.aiStatus === 'queued' || latest.aiStatus === 'running')
+      && Date.now() - startedAt < AI_POLL_TIMEOUT_MS
+  ) {
+    await sleep(AI_POLL_INTERVAL_MS);
+    latest = await api.getArticle(articleId, 'html', htmlVariant);
+  }
+
+  return latest;
 }
 
 function formatArticleHeaderTime(dateStr: string | null) {
@@ -875,6 +896,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
             mutateArticle={mutateArticle}
             showToast={showToast}
             isAuthenticated={isAuthenticated}
+            htmlVariant={htmlVariant}
             refreshCounts={refreshCounts}
             getScrollPosition={getScrollPosition}
             saveBookmark={saveBookmark}
@@ -934,6 +956,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
         mutateArticle={mutateArticle}
         showToast={showToast}
         isAuthenticated={isAuthenticated}
+        htmlVariant={htmlVariant}
         refreshCounts={refreshCounts}
         getScrollPosition={getScrollPosition}
         saveBookmark={saveBookmark}
@@ -2404,6 +2427,7 @@ function DetailContent({
   mutateArticle,
   showToast,
   isAuthenticated,
+  htmlVariant,
   refreshCounts,
   getScrollPosition,
   saveBookmark,
@@ -2420,6 +2444,7 @@ function DetailContent({
   mutateArticle: () => void;
   showToast: (msg: string) => void;
   isAuthenticated: boolean;
+  htmlVariant: ArticleHtmlVariant;
   refreshCounts: () => void;
   getScrollPosition: () => number;
   saveBookmark: (bookmark: { view: 'inbox' | 'archive' | 'favorites'; articleId: number; scrollPosition: number; listScrollPosition?: number; articleTitle?: string; timestamp: number }) => void;
@@ -2610,8 +2635,13 @@ function DetailContent({
     await runArticleAction('ai', async () => {
       await api.regenerateArticleAI(article.id);
       await mutateArticle();
+      const settled = await waitForArticleAiCompletion(article.id, htmlVariant);
+      await mutateArticle();
       onMutate();
-      showToast('摘要和标签已重新生成');
+      if (settled.aiStatus === 'failed') {
+        throw new Error(settled.aiErrorMessage || settled.aiErrorCode || '重新生成摘要失败');
+      }
+      showToast(settled.aiStatus === 'succeeded' ? '摘要和标签已重新生成' : 'AI 生成仍在后台执行');
     }, '重新生成摘要失败');
   }
 
@@ -3142,10 +3172,12 @@ function DetailContent({
           padding: '12px 16px',
           background: 'var(--nav-bg)',
           borderTop: '0.5px solid var(--divider)',
-          position: 'sticky',
+          position: 'fixed',
           bottom: 0,
+          right: 0,
+          left: 'auto',
+          width: 'inherit',
           zIndex: 40,
-          width: '100%',
           boxSizing: 'border-box',
           marginBottom: '-1px',
         }}
