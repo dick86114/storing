@@ -41,9 +41,15 @@ test('Docker deployment allows its public Origin and logout clears the same prod
   const authContext = read(workspaceRoot, 'apps/web/src/components/providers/AuthContext.tsx');
 
   assert.match(compose, /APP_ORIGIN=\$\{APP_ORIGIN:-https:\/\/storing\.idickies\.cc\}/);
-  assert.match(authRoute, /deleteCookie\(c, 'storing_token', \{[\s\S]*?secure: process\.env\.NODE_ENV === 'production',[\s\S]*?sameSite: 'Lax',[\s\S]*?path: '\/'/);
+  assert.match(authRoute, /deleteCookie\(c, 'storing_token', \{[\s\S]*?secure: isSecureWebRequest\(c\),[\s\S]*?sameSite: 'Lax',[\s\S]*?path: '\/'/);
   assert.match(authContext, /logout: \(\) => Promise<void>/);
   assert.match(authContext, /const logout = useCallback\(async \(\) => \{\s*await api\.logout\(\);\s*setUser\(null\);/);
+});
+
+test('production Web cookies stay usable over direct HTTP while remaining Secure over HTTPS', () => {
+  assert.match(authRoute, /function isSecureWebRequest\([\s\S]*?x-forwarded-proto[\s\S]*?c\.req\.url/);
+  assert.match(authRoute, /secure: isSecureWebRequest\(c\)/);
+  assert.doesNotMatch(authRoute, /secure: process\.env\.NODE_ENV === 'production'/);
 });
 
 test('same-origin browser writes remain valid behind a reverse proxy even when APP_ORIGIN was not injected into the container', () => {
