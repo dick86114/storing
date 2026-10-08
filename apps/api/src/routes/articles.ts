@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { db } from '../db/index.js';
 import { adminAuditLogs, articles, articleMetadata, categories, collectJobs, users } from '../db/schema.js';
 import { eq, and, asc, desc, count, sql, or, gt, inArray } from 'drizzle-orm';
-import { classifyStoredArticleForArchive, generateSummaryAndTags } from '../services/ai.service.js';
+import { classifyStoredArticleForArchive } from '../services/ai.service.js';
 import { enqueueAiGeneration, queueArchiveAiIfNeeded } from '../services/ai-generation.service.js';
 import { getCategoryById, getPendingCategory, moveArticlesToCategory } from '../services/category.service.js';
 import {
@@ -837,35 +837,20 @@ articlesRoutes.post('/articles/:id/publish', requireAuth, async (c) => {
   if (!existingMetadata.isArchived) {
     const content = await getArticleContent(id, 'markdown', 'desktop', userId);
     if (!content) {
-      return c.json({ error: { code: 'PUBLICATION_NOT_READY', message: '文章正文尚未准备完成，无法发布' } }, 422);
+      return c.json({ error: { code: 'BODY_NOT_READY', message: '文章正文尚未准备完成，无法发布' } }, 422);
     }
 
     const pendingCategory = await getPendingCategory(userId);
     await db.update(articleMetadata)
       .set({ isArchived: true, archivedAt: now, categoryId: pendingCategory.id, categorySource: 'rule', categoryReviewStatus: 'needs_review', updatedAt: now })
       .where(metadataWhereCondition(id, userId));
-    classifyStoredArticleForArchive(id, userId).catch((error) => console.error('AI category failed during publish:', error.message));
     await processCoverImage(id, userId).catch((error) => console.error('Cover image process failed:', error.message));
-  }
-
-  let readyMetadata = await getArticleRecord(id, userId);
-  if (!readyMetadata) {
-    return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
-  }
-
-  if (!readyMetadata.aiSummary || !(readyMetadata.aiTags?.length)) {
-    await generateSummaryAndTags(id, userId);
-    readyMetadata = await getArticleRecord(id, userId);
-  }
-
-  if (!readyMetadata?.aiSummary || !(readyMetadata.aiTags?.length)) {
-    return c.json({ error: { code: 'PUBLICATION_NOT_READY', message: 'AI 摘要和标签尚未准备完成，无法发布' } }, 422);
   }
 
   await db.update(articleMetadata)
     .set({
       isArchived: true,
-      archivedAt: readyMetadata.archivedAt || now,
+      archivedAt: existingMetadata.isArchived ? existingMetadata.archivedAt : now,
       isPublished: true,
       publishedAt: now,
       publicId: existingMetadata.publicId || randomUUID(),
@@ -875,7 +860,7 @@ articlesRoutes.post('/articles/:id/publish', requireAuth, async (c) => {
 
   const published = await getArticleRecord(id, userId);
   if (!published?.publicId) {
-    return c.json({ error: { code: 'PUBLICATION_NOT_READY', message: '公开链接生成失败' } }, 500);
+    return c.json({ error: { code: 'PUBLIC_ID_FAILED', message: '公开链接生成失败' } }, 500);
   }
 
   return c.json({
