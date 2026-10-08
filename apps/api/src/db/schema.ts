@@ -191,3 +191,17 @@ export const adminAuditLogs = pgTable('admin_audit_logs', {
   detail: jsonb('detail'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
+
+/** 每个用户独立保存的大模型接入配置，API Key 只以 AES-256-GCM 密文落库。 */
+export const userAiSettings = pgTable('user_ai_settings', {
+  userId: integer('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  baseUrl: text('base_url'),
+  apiKeyCiphertext: text('api_key_ciphertext'),
+  apiKeyLast4: text('api_key_last4'),
+  apiKeyUpdatedAt: timestamp('api_key_updated_at'),
+  autoTriggerOnArchive: boolean('auto_trigger_on_archive').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
