@@ -49,6 +49,11 @@ export interface Article {
   aiSummary: string | null;
   aiCategory: string | null;
   aiTags: string[];
+  aiStatus?: 'not_generated' | 'disabled' | 'not_configured' | 'queued' | 'running' | 'succeeded' | 'failed';
+  aiErrorCode?: string | null;
+  aiErrorMessage?: string | null;
+  aiModel?: string | null;
+  aiTotalTokens?: number | null;
   category?: Category | null;
   categoryResult?: ArticleCategoryResult | null;
 }
@@ -68,11 +73,16 @@ export interface ArticleListItem {
   aiSummary?: string | null;
   aiTags: string[];
   aiCategory?: string | null;  // AI 分类
- isFavorited: boolean;
- isArchived?: boolean;
- isPublished?: boolean;
- publicUrl?: string | null;
- publishedAt?: string | null;
+  aiStatus?: 'not_generated' | 'disabled' | 'not_configured' | 'queued' | 'running' | 'succeeded' | 'failed';
+  aiErrorCode?: string | null;
+  aiErrorMessage?: string | null;
+  aiModel?: string | null;
+  aiTotalTokens?: number | null;
+  isFavorited: boolean;
+  isArchived?: boolean;
+  isPublished?: boolean;
+  publicUrl?: string | null;
+  publishedAt?: string | null;
   coverImage?: string | null;  // 封面图 URL（可选）
   category?: Category | null;
   categoryResult?: ArticleCategoryResult | null;

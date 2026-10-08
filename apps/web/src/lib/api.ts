@@ -125,6 +125,57 @@ export type McpRequestLog = {
   created_at: string | null;
 };
 
+export type SaveUserAiSettingsInput = {
+  provider: string;
+  model: string;
+  baseUrl?: string | null;
+  apiKey?: string;
+  autoTriggerOnArchive: boolean;
+};
+
+export type DiscoverAiModelsInput = {
+  provider: string;
+  baseUrl?: string | null;
+  apiKey?: string;
+};
+
+export type UserAiSettings = {
+  provider: string;
+  model: string;
+  baseUrl: string | null;
+  apiKeyConfigured: boolean;
+  apiKeyLast4: string | null;
+  apiKeyUpdatedAt: string | null;
+  autoTriggerOnArchive: boolean;
+  updatedAt: string;
+};
+
+export type ArticleAiStatusFields = {
+  aiStatus: 'not_generated' | 'disabled' | 'not_configured' | 'queued' | 'running' | 'succeeded' | 'failed';
+  aiErrorCode: string | null;
+  aiErrorMessage: string | null;
+  aiModel: string | null;
+  aiTotalTokens: number | null;
+};
+
+export type AiJobSummary = {
+  id: number;
+  articleId: number;
+  status: string;
+  errorCode: string | null;
+  errorMessage: string | null;
+  model: string;
+  totalTokens: number | null;
+  createdAt: string;
+  finishedAt: string | null;
+};
+
+export type AiJobsResponse = {
+  jobs: AiJobSummary[];
+  total: number;
+  usage: { totalJobs: number; succeededJobs: number; failedJobs: number; totalTokens: number };
+};
+
 export type CreateMyMcpClientInput = {
   name: string;
   scopes: string[];
@@ -259,6 +310,35 @@ export const api = {
     fetchJSON<{ valid: boolean; user?: { id: number; username: string; role?: string; status?: string } }>('/verify', {
       timeoutMs: 10_000,
     }),
+
+  getAiSettings: () =>
+    fetchJSON<{ settings: UserAiSettings | null }>('/ai/settings'),
+
+  saveAiSettings: (input: SaveUserAiSettingsInput) =>
+    fetchJSON<{ settings: UserAiSettings }>('/ai/settings', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+      timeoutMs: 30_000,
+    }),
+
+  deleteAiSettings: () =>
+    fetchJSON<{ deleted: true }>('/ai/settings', { method: 'DELETE' }),
+
+  discoverAiModels: (input: DiscoverAiModelsInput) =>
+    fetchJSON<{ models: Array<{ id: string; name: string | null }>; cached: boolean }>('/ai/models/discover', {
+      method: 'POST',
+      body: JSON.stringify(input),
+      timeoutMs: 30_000,
+    }),
+
+  testAiSettings: () =>
+    fetchJSON<{ ok: true; latencyMs: number }>('/ai/settings/test', { method: 'POST', timeoutMs: 30_000 }),
+
+  getAiJobs: (page = 1, perPage = 10) =>
+    fetchJSON<AiJobsResponse>(`/ai/jobs?page=${page}&perPage=${perPage}`),
+
+  retryAiJob: (jobId: number) =>
+    fetchJSON<{ ok: true }>(`/ai/jobs/${jobId}/retry`, { method: 'POST' }),
 
   logout: () =>
     fetchJSON<{ message: string }>('/logout', { method: 'POST' }),

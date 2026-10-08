@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { SearchOutlined, PlusOutlined, PlusCircleOutlined, UserOutlined, SunOutlined, MoonOutlined, DesktopOutlined, LockOutlined, LogoutOutlined, SettingOutlined, CloudUploadOutlined, FolderOutlined, DeleteOutlined } from '@ant-design/icons';
+import { RobotOutlined, SearchOutlined, PlusOutlined, PlusCircleOutlined, UserOutlined, SunOutlined, MoonOutlined, DesktopOutlined, LockOutlined, LogoutOutlined, SettingOutlined, CloudUploadOutlined, FolderOutlined, DeleteOutlined } from '@ant-design/icons';
 import { SearchModal } from '@/components/search/SearchModal';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
@@ -300,6 +300,15 @@ export function MobileTopNav({ onAddClick, onNavigate }: MobileTopNavProps) {
                     >
                       <SettingOutlined style={{ fontSize: '16px' }} />
                       我的 MCP
+                    </button>
+                    <button
+                      className="app-menu-item app-menu-item--ai"
+                      onClick={() => { setMenuOpen(false); router.push('/settings/ai'); }}
+                      type="button"
+                      style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '16px', color: '#fff' }}
+                    >
+                      <RobotOutlined style={{ fontSize: '16px' }} />
+                      AI 模型
                     </button>
                     <button
                       className="app-menu-item"
