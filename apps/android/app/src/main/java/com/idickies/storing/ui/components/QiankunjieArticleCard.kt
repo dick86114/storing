@@ -1,5 +1,6 @@
 package com.idickies.storing.ui.components
 
+import com.idickies.storing.ai.aiStatusText
 import com.idickies.storing.ui.theme.isQiankunjieDarkTheme
 
 import androidx.compose.foundation.background
@@ -217,6 +218,12 @@ fun QiankunjieArticleCard(
             overflow = TextOverflow.Ellipsis,
           )
         }
+        Text(
+          aiStatusText(article.aiStatus),
+          style = MaterialTheme.typography.labelMedium,
+          color = colors.onSurfaceVariant,
+          modifier = Modifier.padding(top = 10.dp),
+        )
         if (article.aiTags.isNotEmpty()) {
           Row(
             modifier = Modifier.padding(top = 14.dp).fillMaxWidth(),

@@ -180,6 +180,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.idickies.storing.R
 import com.idickies.storing.BuildConfig
+import com.idickies.storing.ai.aiStatusText
 import com.idickies.storing.collect.CollectJobsViewModel
 import com.idickies.storing.collect.ManualCollectUrl
 import com.idickies.storing.collect.shouldDismissManualCollectDialog
@@ -822,6 +823,7 @@ fun LibraryScreen(
   var showChangePassword by remember { mutableStateOf(false) }
   var showOfflineContent by remember { mutableStateOf(false) }
   var showMcp by remember { mutableStateOf(false) }
+  var showAiSettings by remember { mutableStateOf(false) }
   var showAdmin by remember { mutableStateOf(false) }
   var showDeviceSessions by remember { mutableStateOf(false) }
   var showSettings by remember { mutableStateOf(false) }
@@ -960,7 +962,7 @@ fun LibraryScreen(
     }
   }
 
-  BackHandler(enabled = showSettings || showCategoryManagement || showReaderSettings || showSharePoster || showChangePassword || showOfflineContent || showMcp || showAdmin || showDeviceSessions || showTasks || showManualCollect) {
+  BackHandler(enabled = showSettings || showCategoryManagement || showReaderSettings || showSharePoster || showChangePassword || showOfflineContent || showMcp || showAiSettings || showAdmin || showDeviceSessions || showTasks || showManualCollect) {
     when {
       showCategoryManagement -> showCategoryManagement = false
       showReaderSettings -> showReaderSettings = false
@@ -968,6 +970,7 @@ fun LibraryScreen(
       showChangePassword -> showChangePassword = false
       showOfflineContent -> showOfflineContent = false
       showMcp -> showMcp = false
+      showAiSettings -> showAiSettings = false
       showAdmin -> showAdmin = false
       showDeviceSessions -> showDeviceSessions = false
       showSettings -> showSettings = false
@@ -995,6 +998,7 @@ fun LibraryScreen(
       },
     )
     showMcp -> McpScreen(onBack = { showMcp = false })
+    showAiSettings -> AiSettingsScreen(onBack = { showAiSettings = false })
     showAdmin -> AdminScreen(onBack = { showAdmin = false })
     showChangePassword -> ChangePasswordScreen(
       onBack = { showChangePassword = false },
@@ -1013,6 +1017,7 @@ fun LibraryScreen(
       onOpenChangePassword = { showChangePassword = true },
       onOpenOfflineContent = { showOfflineContent = true },
       onOpenMcp = { showMcp = true },
+      onOpenAi = { showAiSettings = true },
       onOpenCategoryManagement = { showCategoryManagement = true },
       onOpenAdmin = if (isAdmin) ({ showAdmin = true }) else null,
       biometricAvailable = biometricAvailable,
@@ -2533,6 +2538,24 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                   Column(Modifier.padding(18.dp)) {
                     Text("AI 摘要", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     Text(summary, modifier = Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                  }
+                }
+              }
+            }
+            item {
+              Card(colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                  Text("AI 状态", style = MaterialTheme.typography.labelLarge)
+                  Text(aiStatusText(article.aiStatus), style = MaterialTheme.typography.bodyMedium)
+                  if (article.aiStatus == "failed") {
+                    Text(
+                      article.aiErrorMessage ?: article.aiErrorCode ?: "生成失败",
+                      style = MaterialTheme.typography.bodySmall,
+                      color = MaterialTheme.colorScheme.error,
+                    )
+                    article.aiModel?.let { Text("模型：$it", style = MaterialTheme.typography.bodySmall) }
+                    article.aiTotalTokens?.let { Text("用量：$it tokens", style = MaterialTheme.typography.bodySmall) }
+                    Button(onClick = { onProcess(ArticleProcessingAction.RegenerateAi) }) { Text("重试") }
                   }
                 }
               }

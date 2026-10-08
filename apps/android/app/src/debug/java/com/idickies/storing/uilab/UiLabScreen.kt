@@ -445,6 +445,7 @@ private fun UiLabSettings() {
     onOpenChangePassword = {},
     onOpenOfflineContent = {},
     onOpenMcp = {},
+    onOpenAi = {},
     onOpenCategoryManagement = {},
     onOpenAdmin = null,
     biometricAvailable = false,
