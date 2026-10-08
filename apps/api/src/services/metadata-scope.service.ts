@@ -44,6 +44,12 @@ export async function initArticleMetadataUserScope() {
     )
       AND NOT EXISTS (
         SELECT 1
+        FROM article_metadata owner_meta
+        WHERE owner_meta.article_id = a.id
+          AND owner_meta.user_id <> ${adminUserId}
+      )
+      AND NOT EXISTS (
+        SELECT 1
         FROM collect_jobs j
         WHERE j.article_id = a.id
           AND j.request_source = 'mcp'
@@ -88,6 +94,35 @@ export async function initArticleMetadataUserScope() {
         WHERE j.article_id = m.article_id
           AND j.request_source = 'web'
           AND j.save_to_inbox = true
+      )
+  `);
+
+  // Direct imports (macOS WeChat forwarding, Android sharing) do not create
+  // collect_jobs. Remove backfill-only admin copies when another user already
+  // owns the import, while preserving any row the admin explicitly acted on.
+  await db.execute(sql`
+    DELETE FROM article_metadata admin_meta
+    WHERE admin_meta.user_id = ${adminUserId}
+      AND admin_meta.source_type = 'legacy'
+      AND COALESCE(admin_meta.is_deleted, false) = false
+      AND COALESCE(admin_meta.is_archived, false) = false
+      AND COALESCE(admin_meta.is_favorited, false) = false
+      AND COALESCE(admin_meta.is_published, false) = false
+      AND admin_meta.category_id IS NULL
+      AND admin_meta.ai_summary IS NULL
+      AND admin_meta.ai_tags IS NULL
+      AND EXISTS (
+        SELECT 1
+        FROM article_metadata owner_meta
+        WHERE owner_meta.article_id = admin_meta.article_id
+          AND owner_meta.user_id <> ${adminUserId}
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM collect_jobs admin_job
+        WHERE admin_job.article_id = admin_meta.article_id
+          AND admin_job.user_id = ${adminUserId}
+          AND admin_job.save_to_inbox = true
       )
   `);
 
