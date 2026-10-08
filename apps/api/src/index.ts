@@ -21,6 +21,7 @@ import { initAdminAuditSchema } from './services/admin-audit.service.js';
 import { initMobileSessionSchema } from './services/mobile-session.service.js';
 import { ensureDatabaseIndexes } from './services/db-indexes.service.js';
 import { ensureUserAiSettingsSchema } from './services/user-ai-settings.service.js';
+import { aiRoutes } from './routes/ai.js';
 import { requireCsrfProtection } from './middleware/auth.js';
 import { createAllowedCorsOrigins, resolveAllowedCorsOrigin } from './services/browser-extension-origin.service.js';
 
@@ -50,6 +51,7 @@ app.route('/api/v1', wechatRoutes);
 app.route('/api/v1', mcpRoutes);
 app.route('/api/v1', releasesRoutes);
 app.route('/api/v1', categoriesRoutes);
+app.route('/api/v1', aiRoutes);
 
 app.onError((err, c) => {
   console.error(err);
