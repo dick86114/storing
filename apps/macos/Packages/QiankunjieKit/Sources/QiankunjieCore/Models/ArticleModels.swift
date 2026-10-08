@@ -79,6 +79,31 @@ public struct ArticleCategoryResult: Codable, Hashable, Sendable {
     }
 }
 
+public struct ArticleAiStatus: Decodable, Equatable, Sendable {
+    public let aiStatus: String
+    public let aiErrorCode: String?
+    public let aiErrorMessage: String?
+    public let aiModel: String?
+    public let aiTotalTokens: Int?
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        aiStatus = try container.decode(String.self, forKey: .aiStatus)
+        aiErrorCode = try container.decodeIfPresent(String.self, forKey: .aiErrorCode)
+        aiErrorMessage = try container.decodeIfPresent(String.self, forKey: .aiErrorMessage)
+        aiModel = try container.decodeIfPresent(String.self, forKey: .aiModel)
+        aiTotalTokens = try container.decodeIfPresent(Int.self, forKey: .aiTotalTokens)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case aiStatus
+        case aiErrorCode
+        case aiErrorMessage
+        case aiModel
+        case aiTotalTokens
+    }
+}
+
 public struct ArticleCard: Codable, Hashable, Sendable {
     public let id: Int
     public let title: String?
@@ -97,6 +122,11 @@ public struct ArticleCard: Codable, Hashable, Sendable {
     public let isFavorited: Bool
     public let isArchived: Bool
     public let isPublished: Bool
+    public let aiStatus: String?
+    public let aiErrorCode: String?
+    public let aiErrorMessage: String?
+    public let aiModel: String?
+    public let aiTotalTokens: Int?
 
     public init(
         id: Int,
@@ -115,7 +145,12 @@ public struct ArticleCard: Codable, Hashable, Sendable {
         categoryResult: ArticleCategoryResult? = nil,
         isFavorited: Bool = false,
         isArchived: Bool = false,
-        isPublished: Bool = false
+        isPublished: Bool = false,
+        aiStatus: String? = nil,
+        aiErrorCode: String? = nil,
+        aiErrorMessage: String? = nil,
+        aiModel: String? = nil,
+        aiTotalTokens: Int? = nil
     ) {
         self.id = id
         self.title = title
@@ -134,6 +169,11 @@ public struct ArticleCard: Codable, Hashable, Sendable {
         self.isFavorited = isFavorited
         self.isArchived = isArchived
         self.isPublished = isPublished
+        self.aiStatus = aiStatus
+        self.aiErrorCode = aiErrorCode
+        self.aiErrorMessage = aiErrorMessage
+        self.aiModel = aiModel
+        self.aiTotalTokens = aiTotalTokens
     }
 
     public init(from decoder: any Decoder) throws {
@@ -155,7 +195,12 @@ public struct ArticleCard: Codable, Hashable, Sendable {
             categoryResult: try container.decodeIfPresent(ArticleCategoryResult.self, forKey: .categoryResult),
             isFavorited: try container.decodeIfPresent(Bool.self, forKey: .isFavorited) ?? false,
             isArchived: try container.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false,
-            isPublished: try container.decodeIfPresent(Bool.self, forKey: .isPublished) ?? false
+            isPublished: try container.decodeIfPresent(Bool.self, forKey: .isPublished) ?? false,
+            aiStatus: try container.decodeIfPresent(String.self, forKey: .aiStatus),
+            aiErrorCode: try container.decodeIfPresent(String.self, forKey: .aiErrorCode),
+            aiErrorMessage: try container.decodeIfPresent(String.self, forKey: .aiErrorMessage),
+            aiModel: try container.decodeIfPresent(String.self, forKey: .aiModel),
+            aiTotalTokens: try container.decodeIfPresent(Int.self, forKey: .aiTotalTokens)
         )
     }
 
@@ -177,6 +222,11 @@ public struct ArticleCard: Codable, Hashable, Sendable {
         case isFavorited = "isFavorited"
         case isArchived = "isArchived"
         case isPublished = "isPublished"
+        case aiStatus = "aiStatus"
+        case aiErrorCode = "aiErrorCode"
+        case aiErrorMessage = "aiErrorMessage"
+        case aiModel = "aiModel"
+        case aiTotalTokens = "aiTotalTokens"
     }
 }
 
@@ -230,6 +280,11 @@ public struct ArticleDetail: Codable, Hashable, Sendable {
     public let isPublished: Bool
     public let contentHTML: String?
     public let contentMarkdown: String?
+    public let aiStatus: String?
+    public let aiErrorCode: String?
+    public let aiErrorMessage: String?
+    public let aiModel: String?
+    public let aiTotalTokens: Int?
 
     public init(
         id: Int,
@@ -250,7 +305,12 @@ public struct ArticleDetail: Codable, Hashable, Sendable {
         isArchived: Bool = false,
         isPublished: Bool = false,
         contentHTML: String? = nil,
-        contentMarkdown: String? = nil
+        contentMarkdown: String? = nil,
+        aiStatus: String? = nil,
+        aiErrorCode: String? = nil,
+        aiErrorMessage: String? = nil,
+        aiModel: String? = nil,
+        aiTotalTokens: Int? = nil
     ) {
         self.id = id
         self.title = title
@@ -271,6 +331,11 @@ public struct ArticleDetail: Codable, Hashable, Sendable {
         self.isPublished = isPublished
         self.contentHTML = contentHTML
         self.contentMarkdown = contentMarkdown
+        self.aiStatus = aiStatus
+        self.aiErrorCode = aiErrorCode
+        self.aiErrorMessage = aiErrorMessage
+        self.aiModel = aiModel
+        self.aiTotalTokens = aiTotalTokens
     }
 
     public init(from decoder: any Decoder) throws {
@@ -294,7 +359,12 @@ public struct ArticleDetail: Codable, Hashable, Sendable {
             isArchived: try container.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false,
             isPublished: try container.decodeIfPresent(Bool.self, forKey: .isPublished) ?? false,
             contentHTML: try container.decodeIfPresent(String.self, forKey: .contentHTML),
-            contentMarkdown: try container.decodeIfPresent(String.self, forKey: .contentMarkdown)
+            contentMarkdown: try container.decodeIfPresent(String.self, forKey: .contentMarkdown),
+            aiStatus: try container.decodeIfPresent(String.self, forKey: .aiStatus),
+            aiErrorCode: try container.decodeIfPresent(String.self, forKey: .aiErrorCode),
+            aiErrorMessage: try container.decodeIfPresent(String.self, forKey: .aiErrorMessage),
+            aiModel: try container.decodeIfPresent(String.self, forKey: .aiModel),
+            aiTotalTokens: try container.decodeIfPresent(Int.self, forKey: .aiTotalTokens)
         )
     }
 
@@ -318,6 +388,11 @@ public struct ArticleDetail: Codable, Hashable, Sendable {
         case isPublished = "isPublished"
         case contentHTML = "contentHtml"
         case contentMarkdown = "contentMd"
+        case aiStatus = "aiStatus"
+        case aiErrorCode = "aiErrorCode"
+        case aiErrorMessage = "aiErrorMessage"
+        case aiModel = "aiModel"
+        case aiTotalTokens = "aiTotalTokens"
     }
 }
 

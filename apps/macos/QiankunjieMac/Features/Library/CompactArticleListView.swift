@@ -108,6 +108,8 @@ struct CompactArticleListView: View {
                         .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                         .lineLimit(2)
 
+                    aiStatusBadge(article)
+
                     HStack(spacing: 8) {
                         Label(
                             article.source ?? "未知来源",
@@ -185,6 +187,8 @@ struct CompactArticleListView: View {
                             .multilineTextAlignment(.leading)
                     }
 
+                    aiStatusBadge(article)
+
                     tags(article)
                 }
                 .padding(14)
@@ -235,6 +239,22 @@ struct CompactArticleListView: View {
                 )
             )
             .accessibilityLabel("文章封面")
+    }
+
+    @ViewBuilder
+    private func aiStatusBadge(_ article: ArticleCard) -> some View {
+        if article.aiStatus != nil {
+            Text(aiStatusText(article.aiStatus))
+                .qiankunjieFont(.labelMedium)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(QiankunjieColors.surface(for: colorScheme))
+                .clipShape(Capsule())
+                .overlay {
+                    Capsule().strokeBorder(QiankunjieColors.outline(for: colorScheme))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private func coverImage(_ article: ArticleCard) -> some View {

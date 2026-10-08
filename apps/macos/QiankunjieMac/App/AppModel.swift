@@ -65,6 +65,7 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
 }
 
 enum SettingsTool: String, CaseIterable, Hashable, Identifiable, Sendable {
+    case aiModel
     case myMCP
     case categories
     case resetPassword
@@ -73,6 +74,7 @@ enum SettingsTool: String, CaseIterable, Hashable, Identifiable, Sendable {
 
     var title: String {
         switch self {
+        case .aiModel: "AI 模型"
         case .myMCP: "我的 MCP"
         case .categories: "分类管理"
         case .resetPassword: "重置密码"
@@ -81,6 +83,7 @@ enum SettingsTool: String, CaseIterable, Hashable, Identifiable, Sendable {
 
     var systemImage: String {
         switch self {
+        case .aiModel: "sparkles"
         case .myMCP: "point.3.connected.trianglepath.dotted"
         case .categories: "folder"
         case .resetPassword: "lock.rotation"

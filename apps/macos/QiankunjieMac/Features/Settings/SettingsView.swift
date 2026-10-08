@@ -28,6 +28,8 @@ struct SettingsView: View {
     private func destination(for tool: SettingsTool) -> some View {
         let client = ManagementAPIClient(repository: model.authModel.repository)
         switch tool {
+        case .aiModel:
+            AiSettingsView(repository: model.authModel.repository)
         case .myMCP:
             MCPManagementView(scope: .personal, client: client)
         case .categories:
