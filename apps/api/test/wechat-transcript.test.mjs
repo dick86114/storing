@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   parseWeChatTranscript,
+  parseWeChatIndividualTranscript,
   renderWeChatTranscriptMarkdown,
   renderWeChatTranscriptHtml,
   renderWeChatPlainTextHtml,
@@ -83,6 +84,33 @@ test('unmatched media placeholders degrade to plain text', () => {
   const html = renderWeChatTranscriptHtml({ records, mediaMap });
   assert.match(markdown, /> 图片（未随聊天记录导出）/);
   assert.match(html, /（图片未随聊天记录导出）/);
+});
+
+test('individual forwarded WeChat messages render as an ordered local transcript', () => {
+  const transcript = [
+    '·[图片] photo.jpg',
+    '',
+    '·看这条消息',
+    '',
+    '·第二段消息',
+    '还有第二行',
+  ].join('\n');
+  const records = parseWeChatIndividualTranscript(transcript);
+
+  assert.equal(records.length, 3);
+  assert.equal(records[0].text, '[图片] photo.jpg');
+  assert.equal(records[1].text, '看这条消息');
+  assert.equal(records[2].text, '第二段消息\n还有第二行');
+  assert.equal(records.every((record) => record.date === null), true);
+
+  const markdown = renderWeChatTranscriptMarkdown({ records, mediaMap });
+  const html = renderWeChatTranscriptHtml({ records, mediaMap });
+
+  assert.match(markdown, /!\[photo\.jpg\]\(https:\/\/img\.example\/p\/photo\.jpg\)/);
+  assert.match(markdown, /\*\*消息 2\*\*/);
+  assert.match(html, /<img src="https:\/\/img\.example\/p\/photo\.jpg"/);
+  assert.match(html, /<span class="wechat-msg-sender">消息 2<\/span>/);
+  assert.match(html, /<p>第二段消息<\/p><p>还有第二行<\/p>/);
 });
 
 test('plain shared text renders as a readable article', () => {

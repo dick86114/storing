@@ -55,6 +55,24 @@ export function parseWeChatTranscript(body: string): WeChatTranscriptRecord[] {
   return records;
 }
 
+/**
+ * 解析微信「逐条转发」导出的消息列表。
+ * 该格式只有「·消息内容」段落，不包含发送人和时间，因此用序号保留消息边界。
+ */
+export function parseWeChatIndividualTranscript(body: string): WeChatTranscriptRecord[] {
+  const normalized = body.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+  return normalized
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter((block) => block.startsWith('·'))
+    .map((block, index) => ({
+      sender: `消息 ${index + 1}`,
+      date: null,
+      dateText: '时间未提供',
+      text: block.replace(/^·/, '').trim(),
+    }));
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
