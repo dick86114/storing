@@ -18,10 +18,16 @@ export const authRoutes = new Hono();
 const PASSWORD_HASH_COST = 12;
 const WEB_SESSION_COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
 
+function isSecureWebRequest(c: any) {
+  const forwardedProto = c.req.header('x-forwarded-proto')?.split(',')[0]?.trim().toLowerCase();
+  if (forwardedProto) return forwardedProto === 'https';
+  return new URL(c.req.url).protocol === 'https:';
+}
+
 function writeWebSessionCookie(c: any, sessionId: string, cookieSecret: string) {
   setCookie(c, 'storing_session', formatWebSessionCookie(sessionId, cookieSecret), {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecureWebRequest(c),
     sameSite: 'Lax',
     path: '/',
     maxAge: WEB_SESSION_COOKIE_MAX_AGE,
@@ -30,7 +36,7 @@ function writeWebSessionCookie(c: any, sessionId: string, cookieSecret: string) 
 
 function clearLegacyWebCookie(c: any) {
   deleteCookie(c, 'storing_token', {
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecureWebRequest(c),
     sameSite: 'Lax',
     path: '/',
   });
@@ -653,12 +659,12 @@ authRoutes.post('/change-password', requireAuth, async (c) => {
 authRoutes.post('/logout', async (c) => {
   await revokeWebSessionByCookie(getCookie(c, 'storing_session'));
   deleteCookie(c, 'storing_session', {
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecureWebRequest(c),
     sameSite: 'Lax',
     path: '/',
   });
   deleteCookie(c, 'storing_token', {
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecureWebRequest(c),
     sameSite: 'Lax',
     path: '/',
   });
