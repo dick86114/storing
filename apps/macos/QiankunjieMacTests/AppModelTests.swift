@@ -175,8 +175,8 @@ struct AppModelTests {
     }
 
     @Test func 普通设置按固定顺序提供账户与工具入口() {
-        #expect(SettingsTool.allCases == [.myMCP, .categories, .resetPassword])
-        #expect(SettingsTool.allCases.map(\.title) == ["我的 MCP", "分类管理", "重置密码"])
+        #expect(SettingsTool.allCases == [.aiModel, .myMCP, .categories, .resetPassword])
+        #expect(SettingsTool.allCases.map(\.title) == ["AI 模型", "我的 MCP", "分类管理", "重置密码"])
     }
 
     @Test func 管理员设置按固定顺序提供用户与MCP管理() {

@@ -101,6 +101,22 @@ struct ReaderPaneView: View {
             }
             Divider()
 
+            if article.detail.aiStatus != nil {
+                ReaderAIStatusCard(
+                    statusText: aiStatusText(article.detail.aiStatus),
+                    errorCode: article.detail.aiErrorCode,
+                    errorMessage: article.detail.aiErrorMessage,
+                    model: article.detail.aiModel,
+                    totalTokens: article.detail.aiTotalTokens,
+                    canRetry: selection?.isGuest == false && article.detail.aiStatus == "failed",
+                    isBusy: model.isPerformingAction,
+                    onRetry: {
+                        Task { await model.regenerateAI() }
+                    }
+                )
+                Divider()
+            }
+
             if
                 let aiSummary = article.aiSummary?.trimmingCharacters(in: .whitespacesAndNewlines),
                 !aiSummary.isEmpty
@@ -542,6 +558,76 @@ private struct ReaderAISummaryCard: View {
                 .strokeBorder(accent.opacity(0.18))
         }
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+}
+
+private struct ReaderAIStatusCard: View {
+    let statusText: String
+    let errorCode: String?
+    let errorMessage: String?
+    let model: String?
+    let totalTokens: Int?
+    let canRetry: Bool
+    let isBusy: Bool
+    let onRetry: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let accent = QiankunjieColors.accent(for: colorScheme)
+
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(accent)
+
+                Text(statusText)
+                    .qiankunjieFont(.labelLarge)
+                    .foregroundStyle(accent)
+
+                Spacer(minLength: 0)
+
+                if canRetry {
+                    Button("重试") {
+                        onRetry()
+                    }
+                    .disabled(isBusy)
+                }
+            }
+
+            HStack(spacing: 10) {
+                if let model {
+                    Text("模型：\(model)")
+                }
+                if let totalTokens {
+                    Text("Token：\(totalTokens)")
+                }
+            }
+            .qiankunjieFont(.labelMedium)
+            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+
+            if let errorMessage, !errorMessage.isEmpty {
+                Text(errorCode.map { "\($0)：\(errorMessage)" } ?? errorMessage)
+                    .qiankunjieFont(.labelMedium)
+                    .foregroundStyle(
+                        colorScheme == .dark
+                            ? QiankunjieColors.darkError
+                            : QiankunjieColors.lightError
+                    )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(accent.opacity(0.08))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(accent.opacity(0.18))
+        }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
     }
