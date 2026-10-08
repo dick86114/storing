@@ -8,6 +8,7 @@ import { COVER_IMAGE_PROCESSING_VERSION } from './reader.service.js';
 import {
   detectWeChatMediaKind,
   guessWeChatMime,
+  parseWeChatIndividualTranscript,
   parseWeChatTranscript,
   renderWeChatPlainTextHtml,
   renderWeChatTranscriptMarkdown,
@@ -218,12 +219,20 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
     uploadedUrls.map((file) => [file.name, { url: file.url, kind: file.kind as WeChatMediaKind }]),
   );
 
-  const records = transcriptText ? parseWeChatTranscript(transcriptText) : [];
+  const standardRecords = transcriptText ? parseWeChatTranscript(transcriptText) : [];
+  // 逐条转发没有「发送人/时间」头部，但保留「·消息」边界，可以按本地消息列表渲染。
+  const records = standardRecords.length
+    ? standardRecords
+    : transcriptText
+    ? parseWeChatIndividualTranscript(transcriptText)
+    : [];
   const firstDate = records.find((record) => record.date)?.date ?? new Date();
-  // 单条文本转发不是「·昵称/时间」聊天记录格式；保留原文作为文本笔记。
+  // 既不是合并聊天记录，也不是逐条消息列表时，保留原文作为文本笔记。
   const isPlainText = Boolean(transcriptText) && records.length === 0;
   const title = isPlainText
     ? `微信转发文本 ${formatDateTime(new Date())}`
+    : standardRecords.length === 0 && records.length > 0
+    ? `微信逐条转发 ${formatDateTime(firstDate)}`
     : options.chatName?.trim()
     ? `微信聊天记录：${options.chatName.trim()}`
     : `微信转发内容 ${formatDateTime(firstDate)}`;

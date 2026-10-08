@@ -4,7 +4,12 @@ import { getAdminUserId } from './metadata-scope.service.js';
 import { and, eq, sql } from 'drizzle-orm';
 import { JSDOM } from 'jsdom';
 import { assertSafeOutboundUrl } from './outbound-url-policy.service.js';
-import { parseWeChatTranscript, renderWeChatTranscriptHtml, WeChatMediaKind } from './wechat-transcript.js';
+import {
+  parseWeChatIndividualTranscript,
+  parseWeChatTranscript,
+  renderWeChatTranscriptHtml,
+  WeChatMediaKind,
+} from './wechat-transcript.js';
 import {
   extractTextFromHtml,
   extractPreferredCoverImage,
@@ -189,6 +194,11 @@ function hasUsefulHtmlContent(html: string): boolean {
 
 function hasUsefulContent(content: string, format: 'markdown' | 'html'): boolean {
   return format === 'html' ? hasUsefulHtmlContent(content) : hasUsefulMarkdownContent(content);
+}
+
+/** 内部导入内容没有外部源，短聊天记录也不能套用网页抓取的“80 字有效正文”阈值。 */
+function isInternalWeChatImport(originalUrl: string | null | undefined): boolean {
+  return Boolean(originalUrl?.startsWith('qiankunjie://wechat-import/'));
 }
 
 function normalizeRawHtmlFragment(html: string): string {
@@ -1390,30 +1400,45 @@ export async function getArticleContent(
   // 先查缓存
   const [meta] = await db
     .select({
+      originalUrl: articles.originalUrl,
       contentMd: articleMetadata.contentMd,
       contentHtml: articleMetadata.contentHtml,
       contentHtmlMobile: articleMetadata.contentHtmlMobile,
     })
     .from(articleMetadata)
+    .innerJoin(articles, eq(articles.id, articleMetadata.articleId))
     .where(metadataScope);
+  const trustStoredContent = isInternalWeChatImport(meta?.originalUrl);
 
   if (format === 'html') {
     const cachedHtml = htmlVariant === 'mobile' ? meta?.contentHtmlMobile : meta?.contentHtml;
 
-    // HTML 格式：检查缓存
-    if (cachedHtml) {
-      if (!hasUsefulContent(cachedHtml, format)) {
-        const content = await fetchArticleContentFromSources(articleId, format, htmlVariant);
-        if (!content) return null;
-        await saveArticleContentCache(articleId, format, content, htmlVariant, userId)
-        return content;
+    // 内部导入按当前渲染器重建，旧版本缓存的纯文本正文也能升级为消息列表排版。
+    if (trustStoredContent) {
+      const importedHtml = await buildWeChatHtmlFromCache(articleId, meta?.contentMd);
+      if (importedHtml) {
+        if (importedHtml !== cachedHtml) {
+          await saveArticleContentCache(articleId, 'html', importedHtml, htmlVariant, userId);
+        }
+        return importedHtml;
       }
+    }
+
+    // HTML 格式：检查缓存
+    if (cachedHtml && (trustStoredContent || hasUsefulContent(cachedHtml, format))) {
       if (htmlVariant === 'desktop' && hasWechatImageRefs(cachedHtml)) {
         refreshArticleContentCache(articleId, format, htmlVariant, userId).catch((e) =>
           console.error(`Background HTML cache refresh failed for article ${articleId}:`, (e as Error).message)
         );
       }
       return cachedHtml;
+    }
+
+    if (cachedHtml) {
+      const content = await fetchArticleContentFromSources(articleId, format, htmlVariant);
+      if (!content) return null;
+      await saveArticleContentCache(articleId, format, content, htmlVariant, userId)
+      return content;
     }
 
     if (htmlVariant === 'mobile' && meta?.contentHtml && hasUsefulContent(meta.contentHtml, format)) {
@@ -1432,12 +1457,9 @@ export async function getArticleContent(
     }
   } else {
     // Markdown 格式：检查缓存（排除本地资源引用的脏缓存）
-    if (meta?.contentMd) {
+    if (meta?.contentMd && (trustStoredContent || hasUsefulContent(meta.contentMd, format))) {
       if (!hasUsefulContent(meta.contentMd, format)) {
-        const content = await fetchArticleContentFromSources(articleId, format, htmlVariant);
-        if (!content) return null;
-        await saveArticleContentCache(articleId, format, content, htmlVariant, userId)
-        return content;
+        return meta.contentMd;
       }
       if (hasLocalResourceRefs(meta.contentMd) || hasWechatImageRefs(meta.contentMd)) {
         refreshArticleContentCache(articleId, format, htmlVariant, userId).catch((e) =>
@@ -1445,6 +1467,13 @@ export async function getArticleContent(
         );
       }
       return meta.contentMd;
+    }
+
+    if (meta?.contentMd) {
+      const content = await fetchArticleContentFromSources(articleId, format, htmlVariant);
+      if (!content) return null;
+      await saveArticleContentCache(articleId, format, content, htmlVariant, userId)
+      return content;
     }
   }
 
@@ -1469,7 +1498,10 @@ async function buildWeChatHtmlFromCache(articleId: number, contentMd: string | n
   if (content?.type !== 'wechat_chat') return null;
 
   if (content.transcript) {
-    const records = parseWeChatTranscript(content.transcript);
+    const standardRecords = parseWeChatTranscript(content.transcript);
+    const records = standardRecords.length
+      ? standardRecords
+      : parseWeChatIndividualTranscript(content.transcript);
     if (records.length > 0) {
       const mediaMap = new Map(
         (content.mediaFiles ?? []).map((file) => [
