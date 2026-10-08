@@ -16,7 +16,7 @@ test('WeChat import route is registered and keeps parsing, uploads and persisten
   assert.match(route, /c\.req\.parseBody\(\{ all: true \}\)/);
   assert.match(service, /qiankunjie:\/\/wechat-import\//);
   assert.match(service, /IMG_API_KEY/);
-  assert.match(service, /generateSummaryAndTags\(articleId, options\.userId\)/);
+  assert.doesNotMatch(service, /generateSummaryAndTags\(|buildArticleSummaryResult\(|generateCombinedArticleAi\(/);
 });
 
 test('WeChat import persists html body so the reader never needs to fetch an internal url', () => {

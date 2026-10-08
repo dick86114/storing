@@ -21,7 +21,8 @@ test('article routes pass current userId into user-visible side effects', () => 
 test('collect inbox side effects pass collection user scope', () => {
   const collect = read('src/services/collect.service.ts');
   assert.match(collect, /finishArticleSideEffects\(jobId: number, articleId: number, options: \{[^}]*userId\?: number \| null/);
-  assert.match(collect, /generateSummaryAndTags\(articleId, options\.userId\)/);
+  assert.match(collect, /buildArticleSummaryResult\(articleId, options\.userId\)/);
+  assert.doesNotMatch(collect, /generateSummaryAndTags\(/);
   assert.match(collect, /processCoverImage\(articleId, options\.userId\)/);
 });
 

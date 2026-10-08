@@ -110,9 +110,8 @@ docker-compose -f docker-compose.dev.yml up -d --build
 # 数据库连接
 DATABASE_URL=postgresql://user:password@host:port/database
 
-# AI配置
-AI_PROVIDER=deepseek
-DEEPSEEK_API_KEY=your-api-key
+# AI 主加密密钥；用户模型和 API Key 在设置页按账号录入
+USER_AI_ENCRYPTION_KEY=replace-with-base64-encoded-32-byte-key
 
 # 文章抓取服务（可选）
 READER_API_BASE=https://your-reader-service
@@ -142,6 +141,15 @@ storing/
 ```
 
 ## 功能特性
+
+### 账号级 AI 与归档触发
+
+- 所有采集入口只抓取并保存正文，采集不生成 AI，归档按用户设置生成。
+- 用户在 Web、Android 或 macOS 设置中配置提供商、Base URL、模型、API Key 和自动触发开关。
+- 模型列表支持服务端发现，也支持手动输入；API Key 保存后只显示最后四位。
+- 归档任务记录排队、运行、成功、失败、重试次数、模型和 token 用量；历史 AI 结果不会被批量补生成或清空。
+- MCP `collect_url` 只保存到 owner 收件箱；`summarize_url` 显式使用 MCP client owner 的模型配置并返回临时摘要。
+- 管理员可在用户管理中为目标用户代配置和测试 AI 模型；审计记录不包含 API Key。
 
 - ✅ 文章收藏和管理
 - ✅ AI智能摘要
