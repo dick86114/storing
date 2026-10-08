@@ -40,6 +40,10 @@ export type AiGenerationUsageSummary = {
 
 export const AI_GENERATION_MAX_ATTEMPTS = 3;
 
+export function shouldWriteArticleAiMetadata(triggerType: AiGenerationTrigger): boolean {
+  return triggerType !== 'mcp_summary';
+}
+
 type AiGenerationJobRow = typeof aiGenerationJobs.$inferSelect;
 type AiGenerationDatabase = Pick<typeof db, 'update'>;
 
@@ -289,20 +293,22 @@ async function completeAiGenerationJob(
       aiContentTruncated: result.contentTruncated,
       updatedAt: new Date(),
     };
-    if (job.includeCategory && result.categoryId !== null) {
-      metadataValues.categoryId = result.categoryId;
-      metadataValues.categorySource = 'ai';
-      metadataValues.categoryConfidence = result.confidence === null ? null : String(result.confidence);
-      metadataValues.categoryReason = result.reason;
-      metadataValues.categoryReviewStatus = (result.confidence ?? 0) >= 0.75 ? 'confirmed' : 'needs_review';
-      metadataValues.categoryModelVersion = result.modelVersion;
+    if (shouldWriteArticleAiMetadata(job.triggerType as AiGenerationTrigger)) {
+      if (job.includeCategory && result.categoryId !== null) {
+        metadataValues.categoryId = result.categoryId;
+        metadataValues.categorySource = 'ai';
+        metadataValues.categoryConfidence = result.confidence === null ? null : String(result.confidence);
+        metadataValues.categoryReason = result.reason;
+        metadataValues.categoryReviewStatus = (result.confidence ?? 0) >= 0.75 ? 'confirmed' : 'needs_review';
+        metadataValues.categoryModelVersion = result.modelVersion;
+      }
+      await database.update(articleMetadata)
+        .set(metadataValues)
+        .where(and(
+          eq(articleMetadata.articleId, job.articleId),
+          eq(articleMetadata.userId, job.userId),
+        ));
     }
-    await database.update(articleMetadata)
-      .set(metadataValues)
-      .where(and(
-        eq(articleMetadata.articleId, job.articleId),
-        eq(articleMetadata.userId, job.userId),
-      ));
     await database.update(aiGenerationJobs)
       .set({
         status: 'succeeded',
