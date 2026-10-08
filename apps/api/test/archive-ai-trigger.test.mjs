@@ -33,6 +33,18 @@ test('手动生成只允许已归档文章，且不清空旧 AI 结果', () => {
   assert.doesNotMatch(route, /aiTags: \[\]/);
 });
 
+test('手动或归档任务入队后立即触发本进程生成 worker', () => {
+  const enqueueFunction = aiGeneration.match(
+    /export async function enqueueAiGeneration[\s\S]*?\n}\n\nexport async function queueArchiveAiIfNeeded/,
+  )?.[0] ?? '';
+  assert.ok(enqueueFunction, 'enqueueAiGeneration implementation should be present');
+
+  assert.match(enqueueFunction, /const startWorkers = \(\) => \{/);
+  assert.match(enqueueFunction, /void runAiGenerationWorkers\(\)\.catch/);
+  const calls = enqueueFunction.match(/startWorkers\(\);/g) ?? [];
+  assert.equal(calls.length, 2, 'active and newly created jobs must both wake a worker');
+});
+
 test('分类说明优化使用当前用户模型，不回退公共 Key', () => {
   assert.match(aiService, /export async function optimizeCategoryDescription\(\s*userId: number/);
   assert.match(aiService, /resolveUserAiRuntimeConfig\(userId\)/);

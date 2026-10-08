@@ -183,6 +183,12 @@ export async function enqueueAiGeneration(input: {
   triggerType: AiGenerationTrigger;
   includeCategory: boolean;
 }): Promise<{ jobId: number; status: AiGenerationStatus }> {
+  const startWorkers = () => {
+    void runAiGenerationWorkers().catch((error) =>
+      console.error('AI generation worker failed:', error instanceof Error ? error.message : error),
+    );
+  };
+
   await ensureAiGenerationSchema();
   const settings = await getUserAiSettingsSummary(input.userId);
   if (input.triggerType === 'archive' && settings && !settings.autoTriggerOnArchive) {
@@ -207,6 +213,7 @@ export async function enqueueAiGeneration(input: {
     .limit(1);
   if (activeJob) {
     await setAiArticleStatus(input.userId, input.articleId, activeJob.status as AiGenerationStatus);
+    startWorkers();
     return { jobId: activeJob.id, status: activeJob.status as AiGenerationStatus };
   }
 
@@ -220,6 +227,7 @@ export async function enqueueAiGeneration(input: {
     includeCategory: input.includeCategory,
   }).returning({ id: aiGenerationJobs.id });
   await setAiArticleStatus(input.userId, input.articleId, 'queued');
+  startWorkers();
   return { jobId: job.id, status: 'queued' };
 }
 
