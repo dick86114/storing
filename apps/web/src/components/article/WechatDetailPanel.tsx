@@ -16,6 +16,7 @@ import { BookmarkButton } from '@/components/ui/BookmarkButton';
 import { useTheme, type ColorScheme } from '@/components/providers/ThemeProvider';
 import { getArticleSourceIcon, getArticleSourceText } from '@/components/article/articleSourceIcon';
 import type { ArticleListMutation } from '@/components/providers/ArticleContext';
+import { aiStatusText } from '@/lib/aiStatus';
 
 const DETAIL_PANEL_DEFAULT_WIDTH = 750;
 const DETAIL_PANEL_MIN_WIDTH = 560;
@@ -3022,6 +3023,23 @@ function DetailContent({
                 )}
               </div>
             </div>
+            {article.aiStatus && (
+              <div className="detail-panel-ai-status">
+                <span>{aiStatusText(article.aiStatus)}</span>
+                {article.aiModel && <span>{article.aiModel}</span>}
+                {article.aiTotalTokens !== null && article.aiTotalTokens !== undefined && <span>{article.aiTotalTokens} tokens</span>}
+                {article.aiStatus === 'failed' && (
+                  <>
+                    {(article.aiErrorMessage || article.aiErrorCode) && (
+                      <span>{article.aiErrorMessage || article.aiErrorCode}</span>
+                    )}
+                    <button type="button" onClick={handleRegenerateAI} disabled={!!pendingAction}>
+                      重试
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
             {(showAISkeleton || article.aiTags?.length > 0 || article.aiSummary) && (
               <div className="detail-panel-intelligence">
                 {/* AI标签 */}
