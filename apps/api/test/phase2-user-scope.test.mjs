@@ -25,6 +25,17 @@ test('collect inbox side effects pass collection user scope', () => {
   assert.match(collect, /processCoverImage\(articleId, options\.userId\)/);
 });
 
+test('combined AI generation is scoped to user settings and does not fall back to shared keys', () => {
+  const ai = read('src/services/ai.service.ts');
+  const start = ai.indexOf('export async function generateCombinedArticleAi');
+  const end = ai.indexOf('export function buildCombinedAiPrompt', start);
+  const combined = ai.slice(start, end);
+
+  assert.match(combined, /resolveUserAiRuntimeConfig\(userId\)/);
+  assert.match(combined, /AI_NOT_CONFIGURED/);
+  assert.doesNotMatch(combined, /AI_PROVIDER|AI_MODEL|AI_API_KEY|ANTHROPIC_API_KEY|CUSTOM_AI/);
+});
+
 test('reader display repair uses the caller user metadata scope', () => {
   const reader = read('src/services/reader.service.ts');
   const routes = read('src/routes/articles.ts');
