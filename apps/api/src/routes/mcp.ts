@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getCurrentUser, requireAdmin, requireAuth } from '../middleware/auth.js';
 import { auditMcpRequest, requireMcpClient, requireMcpScope } from '../middleware/mcp-auth.js';
 import { createCollectJob, getCollectJob, waitForCollectJob } from '../services/collect.service.js';
+import { resolveUserAiRuntimeConfig } from '../services/user-ai-settings.service.js';
 import { checkMcpConcurrentCollectLimit, createMcpClient, deleteMcpClient, getMcpPlatformSettings, listMcpClients, listMcpRequestLogs, rotateMcpClientApiKey, updateMcpClient, updateMcpPlatformSettings } from '../services/mcp-auth.service.js';
 
 export const mcpRoutes = new Hono();
@@ -358,6 +359,10 @@ mcpRoutes.post('/mcp/summarize', requireMcpClient, auditMcpRequest('summarize_ur
   if (slotError) return slotError;
 
   const client = c.get('mcpClient');
+  const runtimeConfig = await resolveUserAiRuntimeConfig(client.ownerUserId);
+  if (!runtimeConfig) {
+    return c.json({ error: { code: 'AI_NOT_CONFIGURED', message: 'MCP client owner 尚未配置 AI 模型' } }, 400);
+  }
   const job = await createCollectJob(parsed.data.url, {
     userId: client.ownerUserId,
     clientId: client.id,

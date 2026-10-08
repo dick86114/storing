@@ -3,7 +3,6 @@ import { and, eq, sql } from 'drizzle-orm';
 import yauzl from 'yauzl';
 import { db } from '../db/index.js';
 import { articleMetadata, articles } from '../db/schema.js';
-import { generateSummaryAndTags } from './ai.service.js';
 import { COVER_IMAGE_PROCESSING_VERSION } from './reader.service.js';
 import {
   detectWeChatMediaKind,
@@ -301,11 +300,6 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
     await tx.insert(articles).values(articleValues);
     await tx.insert(articleMetadata).values(metadataValues);
   });
-
-  // 摘要/标签失败不阻塞导入，与网页采集的容错策略一致。
-  generateSummaryAndTags(articleId, options.userId).catch((error) =>
-    console.error('WeChat import AI summary failed:', error instanceof Error ? error.message : String(error)),
-  );
 
   return {
     articleId,

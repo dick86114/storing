@@ -391,17 +391,19 @@ export async function classifyArticleWithAllowedCategories(
 }
 
 /** 根据用户给出的分类名称生成可继续编辑的分类边界，不会创建或修改分类。 */
-export async function optimizeCategoryDescription(input: {
+export async function optimizeCategoryDescription(userId: number, input: {
   name: string;
   description?: string | null;
   includeExamples?: string[];
   excludeExamples?: string[];
 }): Promise<CategoryDescriptionDraft> {
-  const raw = await callAI(
+  const runtimeConfig = await resolveUserAiRuntimeConfig(userId);
+  if (!runtimeConfig) throw new Error('AI_NOT_CONFIGURED');
+  const aiResult = await callUserAi(runtimeConfig,
     '你负责协助用户定义个人知识库分类规则。不要新增分类名称，不要输出营销文案。根据分类名称给出一段清楚、简短、便于 AI 判断归档归属的说明，并提供收录边界。仅输出 JSON：{"description":"不超过 120 字","include_examples":["最多 5 条"],"exclude_examples":["最多 5 条"]}。',
     `分类名称：${input.name}\n\n现有说明：${input.description || '无'}\n\n现有适合收录示例：${JSON.stringify(input.includeExamples || [])}\n\n现有不适合收录示例：${JSON.stringify(input.excludeExamples || [])}`,
-    640,
-  );
+      640);
+  const raw = aiResult.content;
 
   try {
     const json = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
@@ -460,41 +462,9 @@ async function loadSummarySource(articleId: number) {
   return article;
 }
 
-export async function buildArticleSummaryResult(articleId: number): Promise<ArticleSummaryResult> {
-  const article = await loadSummarySource(articleId);
-  if (!article) return { summary: null, category: null, tags: [] };
-
-  const title = article.title || '';
-  const summaryFallback = article.summary || '';
-
-  const content =
-    article.contentMarkdown ||
-    (await fetchArticleContentFromSources(articleId, 'markdown').catch((e) => {
-      console.error(`Fetch markdown for summary failed for article ${articleId}:`, e.message);
-      return null;
-    })) ||
-    article.contentHtml ||
-    summaryFallback;
-
-  if (!content) return { summary: null, category: null, tags: [] };
-
-  const summary = await generateDigestText(title, content).catch((e) => {
-    console.error(`AI digest failed for article ${articleId}:`, e.message);
-    return null;
-  });
-
-  const tags = summary
-    ? await generateTagsList(title, summary).catch((e) => {
-        console.error(`AI tags failed for article ${articleId}:`, e.message);
-        return [] as string[];
-      })
-    : [];
-
-  return {
-    summary,
-    category: null,
-    tags,
-  };
+export async function buildArticleSummaryResult(articleId: number, userId: number): Promise<ArticleSummaryResult> {
+  const combined = await generateCombinedArticleAi(userId, articleId, { includeCategory: false });
+  return { summary: combined.summary, category: null, tags: combined.tags };
 }
 
 export async function generateArticleDigest(articleId: number, userId: number, title: string, content: string): Promise<void> {

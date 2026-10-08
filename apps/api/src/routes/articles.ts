@@ -4,6 +4,7 @@ import { db } from '../db/index.js';
 import { adminAuditLogs, articles, articleMetadata, categories, collectJobs, users } from '../db/schema.js';
 import { eq, and, asc, desc, count, sql, or, gt, inArray } from 'drizzle-orm';
 import { classifyStoredArticleForArchive, generateSummaryAndTags } from '../services/ai.service.js';
+import { enqueueAiGeneration, queueArchiveAiIfNeeded } from '../services/ai-generation.service.js';
 import { getCategoryById, getPendingCategory, moveArticlesToCategory } from '../services/category.service.js';
 import {
   COVER_IMAGE_PROCESSING_VERSION,
@@ -673,12 +674,12 @@ articlesRoutes.post('/articles/:id/archive', requireAuth, async (c) => {
     .set(updateValues)
     .where(metadataWhereCondition(id, userId));
 
-  // 异步触发 AI 摘要和标签生成、封面图处理
-  generateSummaryAndTags(id, userId).catch((e) => console.error('AI summary/tags failed:', e.message));
+  const existingAiReady = Boolean(ownedArticle.aiSummary && ownedArticle.aiTags?.length);
+  queueArchiveAiIfNeeded(userId, id, {
+    userSelectedCategory: Boolean(requestedCategoryId),
+    existingAiReady,
+  }).catch((error) => console.error('Archive AI trigger failed:', error instanceof Error ? error.message : error));
   processCoverImage(id, userId).catch((e) => console.error('Cover image process failed:', e.message));
-  if (!requestedCategoryId && !(ownedArticle as any).categoryId) {
-    classifyStoredArticleForArchive(id, userId).catch((e) => console.error('AI category failed:', e.message));
-  }
 
   return c.json({ articleId: id, isArchived: true, category: category ? { id: category.id, name: category.name } : null });
 });
@@ -963,12 +964,19 @@ articlesRoutes.post('/articles/:id/regenerate-ai', requireAuth, async (c) => {
   const userId = getCurrentUser(c).id;
   const ownedArticle = await getArticleRecord(id, userId);
   if (!ownedArticle) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
-  await db.update(articleMetadata)
-    .set({ aiSummary: null, aiTags: [], updatedAt: new Date() })
-    .where(metadataWhereCondition(id, userId));
-
-  await generateSummaryAndTags(id, userId);
-  return c.json({ articleId: id, ok: true });
+  if (!ownedArticle.isArchived) {
+    return c.json({ error: { code: 'ARTICLE_NOT_ARCHIVED', message: '仅已归档文章可以手动生成 AI' } }, 409);
+  }
+  const result = await enqueueAiGeneration({
+    userId,
+    articleId: id,
+    triggerType: 'manual',
+    includeCategory: false,
+  });
+  if (result.status === 'not_configured') {
+    return c.json({ error: { code: 'AI_NOT_CONFIGURED', message: '请先配置 AI 模型' } }, 400);
+  }
+  return c.json({ articleId: id, jobId: result.jobId, status: result.status });
 });
 
 /**
