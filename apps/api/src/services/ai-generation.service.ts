@@ -219,6 +219,24 @@ export async function enqueueAiGeneration(input: {
   return { jobId: job.id, status: 'queued' };
 }
 
+export async function queueArchiveAiIfNeeded(
+  userId: number,
+  articleId: number,
+  options: { userSelectedCategory: boolean; existingAiReady: boolean },
+): Promise<AiGenerationStatus> {
+  if (options.existingAiReady) {
+    await setAiArticleStatus(userId, articleId, 'succeeded');
+    return 'succeeded';
+  }
+  const result = await enqueueAiGeneration({
+    userId,
+    articleId,
+    triggerType: 'archive',
+    includeCategory: !options.userSelectedCategory,
+  });
+  return result.status;
+}
+
 async function claimNextAiGenerationJob(): Promise<AiGenerationJobRow | null> {
   return db.transaction(async (database) => {
     const result = await database.execute(sql`

@@ -2,7 +2,7 @@ import { JSDOM } from 'jsdom';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { articleMetadata, articles, collectJobs } from '../db/schema.js';
-import { buildArticleSummaryResult, classifyStoredArticleForArchive, generateSummaryAndTags } from './ai.service.js';
+import { buildArticleSummaryResult } from './ai.service.js';
 import { getPendingCategory } from './category.service.js';
 import { assertSafeOutboundUrl, normalizeOutboundUrl } from './outbound-url-policy.service.js';
 import { ensureArticleMetadataContentHtmlMobileColumn, extractWechatCoverImage, fetchArticleContentFromSources, fetchWechatJson, getArticleContent, processCoverImage, uploadImage } from './reader.service.js';
@@ -255,10 +255,6 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
 async function finishArticleSideEffects(jobId: number, articleId: number, options: { saveToInbox: boolean; isArchived?: boolean; userId?: number | null; coverProcessed?: boolean }) {
   if (options.saveToInbox) {
     if (!options.userId) throw new Error('保存文章到收件箱需要用户归属');
-    generateSummaryAndTags(articleId, options.userId).catch((e) => console.error('Collect AI summary/tags failed:', e.message));
-    if (options.isArchived) {
-      classifyStoredArticleForArchive(articleId, options.userId).catch((e) => console.error('Collect AI category failed:', e.message));
-    }
     if (!options.coverProcessed) {
       processCoverImage(articleId, options.userId).catch((e) => console.error('Collect cover image failed:', e.message));
     }
@@ -266,7 +262,8 @@ async function finishArticleSideEffects(jobId: number, articleId: number, option
   }
 
   const summaryTimeoutMs = Number(process.env.SUMMARY_ONLY_TIMEOUT_MS || 120000);
-  const result = await withTimeout(buildArticleSummaryResult(articleId), summaryTimeoutMs, '临时摘要生成');
+  if (!options.userId) throw new Error('AI_NOT_CONFIGURED');
+  const result = await withTimeout(buildArticleSummaryResult(articleId, options.userId), summaryTimeoutMs, '临时摘要生成');
   if (!result.summary) {
     throw new Error('AI 摘要生成失败');
   }

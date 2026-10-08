@@ -60,7 +60,7 @@ categoriesRoutes.post('/categories/optimize-description', requireAuth, async (c)
   const parsed = categoryDescriptionOptimizeInput.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return validationError(c, parsed.error.issues[0]?.message || '分类说明参数无效');
   try {
-    const draft = await optimizeCategoryDescription(parsed.data);
+    const draft = await optimizeCategoryDescription(getCurrentUser(c).id as number, parsed.data);
     return c.json({ draft });
   } catch (error) {
     return c.json({ error: { code: 'AI_OPTIMIZE_FAILED', message: error instanceof Error ? error.message : 'AI 优化分类说明失败' } }, 502);
