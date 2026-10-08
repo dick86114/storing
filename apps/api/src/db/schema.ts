@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, serial, integer, text, boolean, timestamp, jsonb, numeric } from 'drizzle-orm/pg-core';
+import { pgTable, serial, integer, text, boolean, timestamp, jsonb, numeric, uniqueIndex, index } from 'drizzle-orm/pg-core';
 
 /**
  * 用户表 - 存储管理员账号
@@ -136,6 +136,12 @@ export const articleMetadata = pgTable('article_metadata', {
   aiSummary: text('ai_summary'),
   aiCategory: text('ai_category'),
   aiTags: text('ai_tags').array(),
+  aiStatus: text('ai_status').notNull().default('not_generated'),
+  aiErrorCode: text('ai_error_code'),
+  aiErrorMessage: text('ai_error_message'),
+  aiModel: text('ai_model'),
+  aiTotalTokens: integer('ai_total_tokens'),
+  aiContentTruncated: boolean('ai_content_truncated').notNull().default(false),
   categoryId: integer('category_id').references(() => categories.id, { onDelete: 'restrict' }),
   categorySource: text('category_source'),
   categoryConfidence: numeric('category_confidence', { precision: 4, scale: 3 }),
@@ -205,3 +211,34 @@ export const userAiSettings = pgTable('user_ai_settings', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
+
+/** 用户级 AI 生成任务队列，每次使用创建时的模型配置快照。 */
+export const aiGenerationJobs = pgTable('ai_generation_jobs', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
+  triggerType: text('trigger_type').notNull(),
+  status: text('status').notNull().default('queued'),
+  providerSnapshot: text('provider_snapshot').notNull(),
+  modelSnapshot: text('model_snapshot').notNull(),
+  baseUrlSnapshot: text('base_url_snapshot'),
+  includeCategory: boolean('include_category').notNull().default(true),
+  errorCode: text('error_code'),
+  errorMessage: text('error_message'),
+  attempts: integer('attempts').notNull().default(0),
+  promptTokens: integer('prompt_tokens'),
+  completionTokens: integer('completion_tokens'),
+  totalTokens: integer('total_tokens'),
+  contentTruncated: boolean('content_truncated').notNull().default(false),
+  nextRunAt: timestamp('next_run_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  startedAt: timestamp('started_at'),
+  finishedAt: timestamp('finished_at'),
+}, (table) => [
+  uniqueIndex('ai_generation_jobs_user_article_active_idx')
+    .on(table.userId, table.articleId)
+    .where(sql`status IN ('queued', 'running')`),
+  index('ai_generation_jobs_user_created_idx').on(table.userId, table.createdAt),
+  index('ai_generation_jobs_status_idx').on(table.status, table.createdAt),
+]);

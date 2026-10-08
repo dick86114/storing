@@ -8,6 +8,7 @@ import {
   resolveUserAiRuntimeConfig,
 } from '../services/user-ai-settings.service.js';
 import { assertUserAiProvider, assertSafeAiBaseUrl, callUserAi, listAiModels } from '../services/ai-provider.service.js';
+import { listAiGenerationJobs, retryAiGenerationJob } from '../services/ai-generation.service.js';
 
 export const aiRoutes = new Hono();
 
@@ -71,5 +72,35 @@ aiRoutes.post('/ai/settings/test', requireAuth, async (c) => {
     return c.json({ ok: true, latencyMs: Date.now() - startedAt });
   } catch (error) {
     return c.json({ error: { code: 'AI_SETTINGS_TEST_FAILED', message: error instanceof Error ? error.message : 'AI 连通性测试失败' } }, 400);
+  }
+});
+
+aiRoutes.get('/ai/jobs', requireAuth, async (c) => {
+  const userId = getCurrentUser(c).id as number;
+  const page = Number(c.req.query('page') || 1);
+  const perPage = Number(c.req.query('perPage') || 20);
+  const result = await listAiGenerationJobs(
+    userId,
+    Number.isFinite(perPage) ? perPage : 20,
+    Number.isFinite(page) && page > 0 ? (page - 1) * perPage : 0,
+  );
+  return c.json(result);
+});
+
+aiRoutes.post('/ai/jobs/:id/retry', requireAuth, async (c) => {
+  const userId = getCurrentUser(c).id as number;
+  const jobId = Number(c.req.param('id'));
+  if (!Number.isInteger(jobId) || jobId <= 0) {
+    return c.json({ error: { code: 'AI_JOB_NOT_FOUND', message: 'AI 任务不存在' } }, 404);
+  }
+  try {
+    await retryAiGenerationJob(userId, jobId);
+    return c.json({ ok: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message === 'AI_JOB_NOT_FOUND' || message === 'AI_JOB_NOT_RETRYABLE') {
+      return c.json({ error: { code: 'AI_JOB_NOT_FOUND', message: 'AI 任务不存在或不可重试' } }, 404);
+    }
+    return c.json({ error: { code: 'AI_RETRY_FAILED', message: 'AI 任务重试失败' } }, 400);
   }
 });
