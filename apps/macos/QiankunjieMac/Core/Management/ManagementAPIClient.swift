@@ -3,6 +3,10 @@ import QiankunjieAuth
 import QiankunjieCore
 import QiankunjieNetworking
 
+enum ManagementAPIRoute {
+    static let changePassword = "change-password"
+}
+
 struct ManagementAPIClient: Sendable {
     private let client: APIClient
 

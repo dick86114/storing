@@ -467,7 +467,7 @@ internal fun LoginScreen(
             trailingIcon = {
               IconButton(onClick = { passwordVisible = !passwordVisible }, enabled = !submitting) {
                 Icon(
-                  if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                  passwordVisibilityIcon(passwordVisible),
                   contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
                   modifier = Modifier.size(18.dp),
                 )
