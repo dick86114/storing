@@ -1,29 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { db } from '../db/index.js';
 import { articles, articleMetadata } from '../db/schema.js';
 import { and, eq } from 'drizzle-orm';
-import { fetchArticleContentFromSources, getArticleContent } from './reader.service.js';
+import { getArticleContent } from './reader.service.js';
 import { applyAiCategory, listCategories } from './category.service.js';
 import { callUserAi } from './ai-provider.service.js';
 import { resolveUserAiRuntimeConfig, type UserAiRuntimeConfig } from './user-ai-settings.service.js';
-
-/** 预置 provider 配置：env 中只需写 AI_PROVIDER + 对应 API_KEY + 可选 MODEL */
-const PROVIDERS: Record<string, { baseUrl: string; defaultModel: string; envKey: string }> = {
-  deepseek:   { baseUrl: 'https://api.deepseek.com/v1',                  defaultModel: 'deepseek-v4-flash',     envKey: 'DEEPSEEK_API_KEY' },
-  zhipu:      { baseUrl: 'https://open.bigmodel.cn/api/paas/v4',         defaultModel: 'glm-4-flash',            envKey: 'ZHIPU_API_KEY' },
-  minimax:    { baseUrl: 'https://api.minimax.chat/v1',                   defaultModel: 'MiniMax-Text-01',        envKey: 'MINIMAX_API_KEY' },
-  kimi:       { baseUrl: 'https://api.moonshot.cn/v1',                    defaultModel: 'moonshot-v1-8k',         envKey: 'KIMI_API_KEY' },
-  doubao:     { baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',     defaultModel: 'doubao-pro-32k',         envKey: 'DOUBAO_API_KEY' },
-  openrouter: { baseUrl: 'https://openrouter.ai/api/v1',                 defaultModel: 'anthropic/claude-haiku-4-5-20251001', envKey: 'OPENROUTER_API_KEY' },
-  nvidia:     { baseUrl: 'https://integrate.api.nvidia.com/v1',          defaultModel: 'meta/llama-3.1-8b-instruct',        envKey: 'NVIDIA_API_KEY' },
-  aliyun:     { baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', defaultModel: 'qwen-plus',       envKey: 'ALIYUN_API_KEY' },
-  siliconflow:{ baseUrl: 'https://api.siliconflow.cn/v1',                defaultModel: 'Qwen/Qwen2.5-7B-Instruct',         envKey: 'SILICONFLOW_API_KEY' },
-};
-
-type AIProviderOptions = {
-  provider?: string;
-  model?: string;
-};
 
 export type ArticleSummaryResult = {
   summary: string | null;
@@ -251,145 +232,6 @@ export function parseCombinedAiResult(
   };
 }
 
-// 统一 AI 调用接口
-async function callAI(system: string, user: string, maxTokens = 1024, options: AIProviderOptions = {}): Promise<string> {
-  const provider = options.provider || process.env.AI_PROVIDER || 'anthropic';
-
-  if (provider === 'anthropic') {
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' });
-    const message = await anthropic.messages.create({
-      model: options.model || process.env.AI_MODEL || 'claude-haiku-4-5-20251001',
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: 'user', content: user }],
-    });
-    const block = message.content[0];
-    return block.type === 'text' ? block.text : '';
-  }
-
-  if (provider === 'custom') {
-    return callOpenAICompatible(
-      process.env.CUSTOM_AI_BASE_URL || '',
-      process.env.CUSTOM_AI_API_KEY || '',
-      options.model || process.env.CUSTOM_AI_MODEL || 'gpt-4o-mini',
-      system, user, maxTokens,
-    );
-  }
-
-  const preset = PROVIDERS[provider];
-  if (!preset) {
-    throw new Error(`Unknown AI provider: ${provider}. Supported: ${Object.keys(PROVIDERS).join(', ')}, anthropic, custom`);
-  }
-
-  const apiKey = process.env[preset.envKey] || '';
-  const model = options.model || process.env.AI_MODEL || preset.defaultModel;
-
-  return callOpenAICompatible(preset.baseUrl, apiKey, model, system, user, maxTokens);
-}
-
-async function callOpenAICompatible(
-  baseUrl: string,
-  apiKey: string,
-  model: string,
-  system: string,
-  user: string,
-  maxTokens: number,
-): Promise<string> {
-  const res = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
-    }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`AI API error (${res.status}): ${text}`);
-  }
-
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content || '';
-}
-
-async function generateDigestText(title: string, content: string): Promise<string> {
-  const system = `你是一位专业的文章分析师。请对文章进行深度分析，生成一段简洁的智能摘要。
-
-请直接输出摘要内容，不要添加任何 HTML 标签或格式标记。
-
-要求：
-- 使用与文章相同的语言
-- 3-5 句话概括全文核心内容
-- 突出文章的关键信息和价值
-- 简洁有力，不要泛泛而谈`;
-
-  const user = `文章标题：${title}
-
-文章内容：
-${content.slice(0, 8000)}`;
-
-  return callAI(system, user, 1024);
-}
-
-async function generateTagsList(title: string, summary: string): Promise<string[]> {
-  const system = 'You are a tag generator. Respond with ONLY a JSON array of strings, e.g. ["tag1", "tag2", "tag3"]. Nothing else.';
-  const user = `Generate 3-5 concise tags for this article. Tags should be:
-- In the same language as the article
-- Short (1-3 words each)
-- Specific and descriptive
-
-Title: ${title}
-Summary: ${summary}
-
-Respond with ONLY a JSON array.`;
-
-  const raw = await callAI(system, user);
-  try {
-    const tags = JSON.parse(raw.trim());
-    return Array.isArray(tags) ? tags.filter((tag) => typeof tag === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
-export async function classifyArticleWithAllowedCategories(
-  input: { title: string; content: string; categories: ControlledCategoryCandidate[] },
-): Promise<ControlledCategoryResult> {
-  if (input.categories.length === 0) return { categoryId: null, confidence: 0, reason: '没有可用的正式分类', modelVersion: process.env.AI_MODEL || null };
-  const categoryContext = input.categories.map((category) => ({
-    id: category.id,
-    name: category.name,
-    description: category.description,
-    include_examples: category.includeExamples,
-    exclude_examples: category.excludeExamples,
-  }));
-  const raw = await callAI(
-    `你负责为文章从用户预设分类中选择唯一主分类。只允许从以下分类 ID 中选择，绝不能创建新分类或输出分类名称。\n${JSON.stringify(categoryContext)}`,
-    `文章标题：${input.title}\n\n文章内容：\n${input.content.slice(0, 8000)}\n\n仅输出 JSON：{"category_id": 数字, "confidence": 0 到 1 的数字, "reason": "不超过 80 字的理由"}`,
-    512,
-  );
-  try {
-    const parsed = JSON.parse(raw.trim()) as { category_id?: unknown; confidence?: unknown; reason?: unknown };
-    const categoryId = typeof parsed.category_id === 'number' && input.categories.some((item) => item.id === parsed.category_id)
-      ? parsed.category_id
-      : null;
-    const confidence = typeof parsed.confidence === 'number' && Number.isFinite(parsed.confidence)
-      ? Math.min(1, Math.max(0, parsed.confidence))
-      : 0;
-    return { categoryId, confidence, reason: typeof parsed.reason === 'string' ? parsed.reason.slice(0, 240) : null, modelVersion: process.env.AI_MODEL || null };
-  } catch {
-    return { categoryId: null, confidence: 0, reason: 'AI 分类结果无法解析', modelVersion: process.env.AI_MODEL || null };
-  }
-}
-
 /** 根据用户给出的分类名称生成可继续编辑的分类边界，不会创建或修改分类。 */
 export async function optimizeCategoryDescription(userId: number, input: {
   name: string;
@@ -424,42 +266,28 @@ export async function optimizeCategoryDescription(userId: number, input: {
 }
 
 export async function classifyStoredArticleForArchive(articleId: number, userId: number): Promise<void> {
-  const [article] = await db.select({
-    title: articles.title,
-    summary: articles.summary,
-    contentHtml: articles.contentHtml,
-    contentMarkdown: articles.contentMarkdown,
-  }).from(articles).where(eq(articles.id, articleId));
-  if (!article) return;
-  const categories = (await listCategories(userId)).filter((category) => !category.isSystem);
-  const result = await classifyArticleWithAllowedCategories({
-    title: article.title || '',
-    content: article.contentMarkdown || article.contentHtml || article.summary || '',
-    categories,
-  });
-  await applyAiCategory(userId, articleId, {
-    categoryId: result.categoryId ?? 0,
-    confidence: result.confidence,
-    reason: result.reason,
-    modelVersion: result.modelVersion,
-  });
-}
-
-async function loadSummarySource(articleId: number) {
-  const [article] = await db
-    .select({
-      id: articles.id,
-      title: articles.title,
-      summary: articles.summary,
-      contentHtml: articles.contentHtml,
-      contentMarkdown: articles.contentMarkdown,
+  const result = await generateCombinedArticleAi(userId, articleId, { includeCategory: true });
+  if (result.categoryId !== null) {
+    await applyAiCategory(userId, articleId, {
+      categoryId: result.categoryId,
+      confidence: result.confidence ?? 0,
+      reason: result.reason,
+      modelVersion: result.modelVersion,
+    });
+  }
+  await db.update(articleMetadata)
+    .set({
+      aiSummary: result.summary,
+      aiTags: result.tags,
+      aiStatus: 'succeeded',
+      aiErrorCode: null,
+      aiErrorMessage: null,
+      aiModel: result.modelVersion,
+      aiTotalTokens: result.totalTokens,
+      aiContentTruncated: result.contentTruncated,
+      updatedAt: new Date(),
     })
-    .from(articles)
-    .where(eq(articles.id, articleId));
-
-  if (!article) return null;
-
-  return article;
+    .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, userId)));
 }
 
 export async function buildArticleSummaryResult(articleId: number, userId: number): Promise<ArticleSummaryResult> {
@@ -467,67 +295,20 @@ export async function buildArticleSummaryResult(articleId: number, userId: numbe
   return { summary: combined.summary, category: null, tags: combined.tags };
 }
 
-export async function generateArticleDigest(articleId: number, userId: number, title: string, content: string): Promise<void> {
-  const digest = await generateDigestText(title, content);
-  await db
-    .update(articleMetadata)
-    .set({ aiSummary: digest, updatedAt: new Date() })
-    .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, userId)));
-}
-
-export async function generateTags(articleId: number, userId: number, title: string, summary: string): Promise<void> {
-  const tags = await generateTagsList(title, summary);
-  if (tags.length > 0) {
-    await db
-      .update(articleMetadata)
-      .set({ aiTags: tags, updatedAt: new Date() })
-      .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, userId)));
-  }
-}
-
 export async function generateSummaryAndTags(articleId: number, userId: number): Promise<void> {
-  const [article] = await db
-    .select({
-      id: articles.id,
-      title: articles.title,
-      summary: articles.summary,
-      contentHtml: articles.contentHtml,
-      contentMarkdown: articles.contentMarkdown,
-    })
-    .from(articles)
-    .where(eq(articles.id, articleId));
-  if (!article) return;
-
-  const title = article.title || '';
-  const contentMd = await getArticleContent(articleId, 'markdown', 'desktop', userId).catch((e) => {
-    console.error('Fetch markdown failed:', e.message);
-    return null;
-  });
-
-  const content = contentMd || article.contentMarkdown || article.contentHtml || article.summary || '';
-  if (!content) return;
-
-  const digest = await generateDigestText(title, content).catch((e) => {
-    console.error('AI digest failed:', e.message);
-    return null;
-  });
-
-  if (!digest) return;
-
+  const result = await generateCombinedArticleAi(userId, articleId, { includeCategory: false });
   await db
     .update(articleMetadata)
-    .set({ aiSummary: digest, updatedAt: new Date() })
+    .set({
+      aiSummary: result.summary,
+      aiTags: result.tags,
+      aiStatus: 'succeeded',
+      aiErrorCode: null,
+      aiErrorMessage: null,
+      aiModel: result.modelVersion,
+      aiTotalTokens: result.totalTokens,
+      aiContentTruncated: result.contentTruncated,
+      updatedAt: new Date(),
+    })
     .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, userId)));
-
-  const tags = await generateTagsList(title, digest).catch((e) => {
-    console.error('AI tags failed:', e.message);
-    return [] as string[];
-  });
-
-  if (tags.length > 0) {
-    await db
-      .update(articleMetadata)
-      .set({ aiTags: tags, updatedAt: new Date() })
-      .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, userId)));
-  }
 }

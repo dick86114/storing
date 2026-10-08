@@ -13,8 +13,9 @@ cp .env.example .env
 
 **必须配置的环境变量：**
 - `DATABASE_URL` - PostgreSQL 数据库连接地址
-- `AI_PROVIDER` - AI 服务提供商（如 deepseek）
-- `DEEPSEEK_API_KEY` 或其他 AI 密钥
+- `USER_AI_ENCRYPTION_KEY` - Base64 编码后长度为 32 字节的账号级 AI 主加密密钥
+
+用户在设置页录入模型提供商、Base URL、模型和 API Key；服务端不再读取公共模型提供商 Key。主加密密钥丢失后需要重新录入用户 API Key，已有密文无法解密；文章正文和其他资料仍保留。
 
 ### 2. 构建并启动
 
