@@ -19,11 +19,12 @@ test('文章详情提供分类选择并在保存后刷新归档数据', () => {
   assert.match(detailPanel, /api\.archive\(article\.id, categoryId\)/);
 });
 
-test('详情页将当前分类和 AI 待确认状态放在同一条分类状态行', () => {
+test('详情页将当前分类和 AI 分类依据入口放在同一条分类状态行', () => {
   assert.match(detailPanel, /detail-panel-category-status/);
   assert.match(detailPanel, /detail-panel-category-current/);
   assert.match(detailPanel, /detail-panel-category-review/);
-  assert.match(detailPanel, /AI 分类待确认/);
+  assert.match(detailPanel, /detail-panel-category-reason-trigger/);
+  assert.match(detailPanel, /AI 分类依据/);
 });
 
 test('详情页将 AI 标签和智能摘要收进连续的信息区，避免叠加留白', () => {

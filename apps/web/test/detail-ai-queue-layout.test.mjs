@@ -34,6 +34,27 @@ test('详情 AI 状态使用紧凑状态条，失败原因可读', () => {
   assert.doesNotMatch(reasonRule, /white-space: nowrap|text-overflow: ellipsis/);
 });
 
+test('AI 分类依据通过图标入口和浮层展示', () => {
+  assert.match(detailPanel, /InfoCircleOutlined/);
+  assert.match(detailPanel, /categoryReasonOpen/);
+  assert.match(detailPanel, /detail-panel-category-reason-trigger/);
+  assert.match(detailPanel, /aria-expanded=\{categoryReasonOpen\}/);
+  assert.match(detailPanel, /detail-panel-category-review-popover/);
+  assert.match(detailPanel, /AI 分类依据/);
+  assert.match(detailPanel, /\{article\.categoryResult\.reason\}/);
+
+  const statusRule = css.match(/\.detail-panel-category-status\s*\{[^}]*\}/)?.[0] ?? '';
+  assert.match(statusRule, /position: relative;/);
+
+  const triggerRule = css.match(/\.detail-panel-category-reason-trigger\s*\{[^}]*\}/)?.[0] ?? '';
+  assert.match(triggerRule, /width: 20px;/);
+  assert.match(triggerRule, /height: 20px;/);
+
+  const popoverRule = css.match(/\.detail-panel-category-review-popover\s*\{[^}]*\}/)?.[0] ?? '';
+  assert.match(popoverRule, /position: absolute;/);
+  assert.match(popoverRule, /max-width: min\(520px, calc\(100vw - 80px\)\);/);
+});
+
 test('桌面详情操作栏固定在面板底部', () => {
   const footerStyle = detailPanel.match(
     /className="detail-panel-footer"[\s\S]*?position: 'fixed',[\s\S]*?bottom: 0,[\s\S]*?width: 'inherit',/,

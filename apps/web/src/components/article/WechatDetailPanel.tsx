@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useSWRConfig } from 'swr';
 import useSWR from 'swr';
 import QRCode from 'qrcode';
-import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, GlobalOutlined, DeleteOutlined, UpOutlined, DownOutlined, ExclamationCircleOutlined, CloseOutlined, PlusOutlined } from '@ant-design/icons';
+import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, GlobalOutlined, DeleteOutlined, UpOutlined, DownOutlined, ExclamationCircleOutlined, InfoCircleOutlined, CloseOutlined, PlusOutlined } from '@ant-design/icons';
 import { useArticle, useArticleMeta } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/providers/AuthContext';
@@ -2461,6 +2461,7 @@ function DetailContent({
   const [sharePoster, setSharePoster] = useState<SharePosterState | null>(null);
   const [categoryAssignmentOpen, setCategoryAssignmentOpen] = useState(false);
   const [archiveCategoryAssignmentOpen, setArchiveCategoryAssignmentOpen] = useState(false);
+  const [categoryReasonOpen, setCategoryReasonOpen] = useState(false);
   const [currentView, setCurrentView] = useState<ArticleView>('archive');
   const { data: categoryData, isLoading: categoriesLoading } = useSWR(
     isAuthenticated ? 'categories:detail-assignment' : null,
@@ -3034,7 +3035,7 @@ function DetailContent({
                     </>
                   )}
                 </div>
-                {(article.isArchived && article.category || article.categoryResult?.reviewStatus === 'needs_review') && (
+                {(article.isArchived && article.category || article.categoryResult?.reason) && (
                   <div className="detail-panel-category-status" aria-label="分类状态">
                     {article.isArchived && article.category && (
                       <button className="detail-panel-category-current" type="button" onClick={() => setCategoryAssignmentOpen(true)}>
@@ -3043,10 +3044,22 @@ function DetailContent({
                         <span className="detail-panel-category-status-value">{article.category.name}</span>
                       </button>
                     )}
-                    {article.categoryResult?.reviewStatus === 'needs_review' && (
-                      <div className="detail-panel-category-review">
-                        <span className="detail-panel-category-review-label">AI 分类待确认</span>
-                        {article.categoryResult.reason && <span className="detail-panel-category-review-reason">{article.categoryResult.reason}</span>}
+                    {article.categoryResult?.reason && (
+                      <button
+                        className="detail-panel-category-reason-trigger"
+                        type="button"
+                        aria-label="查看 AI 分类依据"
+                        title="查看 AI 分类依据"
+                        aria-expanded={categoryReasonOpen}
+                        onClick={() => setCategoryReasonOpen(open => !open)}
+                      >
+                        <InfoCircleOutlined />
+                      </button>
+                    )}
+                    {categoryReasonOpen && article.categoryResult?.reason && (
+                      <div className="detail-panel-category-review-popover" role="note">
+                        <span className="detail-panel-category-review-label">AI 分类依据</span>
+                        <span className="detail-panel-category-review-reason">{article.categoryResult.reason}</span>
                       </div>
                     )}
                   </div>
