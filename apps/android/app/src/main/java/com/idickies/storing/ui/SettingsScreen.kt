@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedTextField
@@ -74,6 +75,7 @@ fun QiankunjieSettingsScreen(
   onOpenChangePassword: () -> Unit,
   onOpenOfflineContent: () -> Unit,
   onOpenMcp: () -> Unit,
+  onOpenAi: () -> Unit,
   onOpenCategoryManagement: () -> Unit,
   onOpenAdmin: (() -> Unit)? = null,
   biometricAvailable: Boolean = false,
@@ -199,6 +201,14 @@ fun QiankunjieSettingsScreen(
           title = "分类管理",
           detail = "维护 AI 可选择的归档分类与收录边界",
           onClick = onOpenCategoryManagement,
+        )
+      }
+      item {
+        SettingsRow(
+          icon = Icons.Outlined.SmartToy,
+          title = "AI 模型",
+          detail = "配置账号级模型、自动触发和生成任务",
+          onClick = onOpenAi,
         )
       }
       item { SettingsSectionTitle("版本与更新") }

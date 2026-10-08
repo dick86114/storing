@@ -12,6 +12,7 @@ import com.idickies.storing.offline.OfflineArticleDao
 import com.idickies.storing.network.AccessTokenInterceptor
 import com.idickies.storing.network.ClientHeadersInterceptor
 import com.idickies.storing.network.ArticleApi
+import com.idickies.storing.network.AiApi
 import com.idickies.storing.network.MobileAuthApi
 import com.idickies.storing.network.MobileCollectApi
 import com.idickies.storing.mcp.McpApi
@@ -106,6 +107,10 @@ object AppModule {
   @Provides
   @Singleton
   fun provideArticleApi(retrofit: Retrofit): ArticleApi = retrofit.create(ArticleApi::class.java)
+
+  @Provides
+  @Singleton
+  fun provideAiApi(retrofit: Retrofit): AiApi = retrofit.create(AiApi::class.java)
 
   @Provides
   @Singleton
