@@ -150,6 +150,9 @@ export type UserAiSettings = {
   updatedAt: string;
 };
 
+export type AdminUserAiSettings = UserAiSettings;
+export type AdminUserAiSettingsInput = SaveUserAiSettingsInput;
+
 export type ArticleAiStatusFields = {
   aiStatus: 'not_generated' | 'disabled' | 'not_configured' | 'queued' | 'running' | 'succeeded' | 'failed';
   aiErrorCode: string | null;
@@ -366,6 +369,29 @@ export const api = {
 
   updateAdminUser: (id: number, input: UpdateAdminUserInput) =>
     fetchJSON<{ user: AdminUser }>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+
+  getAdminUserAiSettings: (userId: number) =>
+    fetchJSON<{ settings: AdminUserAiSettings | null }>(`/ai/admin/users/${userId}/settings`),
+
+  saveAdminUserAiSettings: (userId: number, input: AdminUserAiSettingsInput) =>
+    fetchJSON<{ settings: AdminUserAiSettings }>(`/ai/admin/users/${userId}/settings`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+      timeoutMs: 30_000,
+    }),
+
+  discoverAdminUserAiModels: (userId: number, input: DiscoverAiModelsInput) =>
+    fetchJSON<{ models: Array<{ id: string; name: string | null }>; cached: boolean }>(
+      `/ai/admin/users/${userId}/models/discover`,
+      { method: 'POST', body: JSON.stringify(input), timeoutMs: 30_000 },
+    ),
+
+  testAdminUserAiSettings: (userId: number, input: AdminUserAiSettingsInput) =>
+    fetchJSON<{ ok: true; latencyMs: number }>(`/ai/admin/users/${userId}/settings/test`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+      timeoutMs: 30_000,
+    }),
 
   deleteAdminUser: (id: number, confirmUsername: string) =>
     fetchJSON<AdminUserDeletionResult>(`/admin/users/${id}`, { method: 'DELETE', body: JSON.stringify({ confirm_username: confirmUsername }) }),

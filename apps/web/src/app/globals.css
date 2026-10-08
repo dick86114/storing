@@ -16253,6 +16253,8 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
 }
 .user-admin-delete-warning svg { flex: 0 0 auto; margin-top: 2px; }
 .user-admin-delete-modal .user-admin-modal-fields strong { color: var(--fg); }
+.user-admin-ai-toggle { display: flex; align-items: center; gap: 8px; }
+.user-admin-modal-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 
 /* ==========================================================================
    列表排版：html[data-layout='list']

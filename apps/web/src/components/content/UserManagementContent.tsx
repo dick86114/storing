@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { AppstoreOutlined, CloseOutlined, DeleteOutlined, EditOutlined, FolderOutlined, HeartOutlined, KeyOutlined, LockOutlined, PlusOutlined, ReloadOutlined, SafetyOutlined, SearchOutlined, SyncOutlined, UserOutlined } from '@ant-design/icons';
-import { api, type AdminBootstrapStatus, type AdminUser, type AdminUserActivity } from '@/lib/api';
+import { AppstoreOutlined, CloseOutlined, DeleteOutlined, EditOutlined, FolderOutlined, HeartOutlined, KeyOutlined, LockOutlined, PlusOutlined, ReloadOutlined, RobotOutlined, SafetyOutlined, SearchOutlined, SyncOutlined, UserOutlined } from '@ant-design/icons';
+import { api, type AdminBootstrapStatus, type AdminUser, type AdminUserActivity, type AdminUserAiSettings, type AdminUserAiSettingsInput } from '@/lib/api';
 import { useAuth } from '@/components/providers/AuthContext';
 
 type UserRole = AdminUser['role'];
@@ -12,6 +12,26 @@ type UserStatus = AdminUser['status'];
 
 const EMPTY_CREATE_FORM = { username: '', password: '', role: 'user' as UserRole };
 const ACTIVITY_PAGE_SIZE = 3;
+const EMPTY_AI_FORM: AdminUserAiSettingsInput = {
+  provider: 'deepseek',
+  model: '',
+  baseUrl: null,
+  apiKey: '',
+  autoTriggerOnArchive: false,
+};
+const AI_PROVIDERS = [
+  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'deepseek', label: 'DeepSeek' },
+  { value: 'zhipu', label: '智谱 AI' },
+  { value: 'minimax', label: 'MiniMax' },
+  { value: 'kimi', label: 'Kimi' },
+  { value: 'doubao', label: '豆包' },
+  { value: 'openrouter', label: 'OpenRouter' },
+  { value: 'nvidia', label: 'NVIDIA' },
+  { value: 'aliyun', label: '阿里云' },
+  { value: 'siliconflow', label: 'SiliconFlow' },
+  { value: 'custom', label: '自定义' },
+];
 
 function dateText(value: string | null) {
   if (!value) return '从未';
@@ -59,6 +79,14 @@ export function UserManagementContent() {
   const [editForm, setEditForm] = useState({ username: '', password: '', role: 'user' as UserRole, status: 'active' as UserStatus });
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isAdminMaintenanceOpen, setAdminMaintenanceOpen] = useState(false);
+  const [aiSettingsUser, setAiSettingsUser] = useState<AdminUser | null>(null);
+  const [aiSettings, setAiSettings] = useState<AdminUserAiSettings | null>(null);
+  const [aiForm, setAiForm] = useState<AdminUserAiSettingsInput>(EMPTY_AI_FORM);
+  const [aiModels, setAiModels] = useState<Array<{ id: string; name: string | null }>>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSaving, setAiSaving] = useState(false);
+  const [aiTesting, setAiTesting] = useState(false);
+  const [aiDiscovering, setAiDiscovering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -80,12 +108,12 @@ export function UserManagementContent() {
   useEffect(() => { refresh(); }, [refresh]);
 
   useEffect(() => {
-    const hasOpenModal = isCreateModalOpen || Boolean(editingUser) || Boolean(deletingUser) || Boolean(activityUser) || isAdminMaintenanceOpen;
+    const hasOpenModal = isCreateModalOpen || Boolean(editingUser) || Boolean(deletingUser) || Boolean(activityUser) || isAdminMaintenanceOpen || Boolean(aiSettingsUser);
     if (!hasOpenModal) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = previousOverflow; };
-  }, [activityUser, deletingUser, editingUser, isAdminMaintenanceOpen, isCreateModalOpen]);
+  }, [activityUser, aiSettingsUser, deletingUser, editingUser, isAdminMaintenanceOpen, isCreateModalOpen]);
 
   const filteredUsers = useMemo(() => users.filter((item) => {
     const matchesQuery = !query.trim() || item.username.toLowerCase().includes(query.trim().toLowerCase());
@@ -124,6 +152,98 @@ export function UserManagementContent() {
     setNotice(null);
     setDeleteConfirmUsername('');
     setDeletingUser(item);
+  }
+
+  async function loadAiSettings(item: AdminUser) {
+    setAiLoading(true);
+    setError(null);
+    try {
+      const result = await api.getAdminUserAiSettings(item.id);
+      const settings = result.settings;
+      setAiSettings(settings);
+      setAiForm(settings ? {
+        provider: settings.provider,
+        model: settings.model,
+        baseUrl: settings.baseUrl,
+        apiKey: '',
+        autoTriggerOnArchive: settings.autoTriggerOnArchive,
+      } : EMPTY_AI_FORM);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加载用户 AI 配置失败');
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  function openAiSettingsModal(item: AdminUser) {
+    setError(null);
+    setNotice(null);
+    setAiSettings(null);
+    setAiForm(EMPTY_AI_FORM);
+    setAiModels([]);
+    setAiSettingsUser(item);
+    void loadAiSettings(item);
+  }
+
+  function closeAiSettingsModal() {
+    if (aiSaving || aiTesting || aiDiscovering) return;
+    setAiSettingsUser(null);
+    setAiSettings(null);
+    setAiModels([]);
+  }
+
+  async function saveAiSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!aiSettingsUser) return;
+    setAiSaving(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await api.saveAdminUserAiSettings(aiSettingsUser.id, aiForm);
+      setAiForm((current) => ({ ...current, apiKey: '' }));
+      await loadAiSettings(aiSettingsUser);
+      setNotice(`用户「${aiSettingsUser.username}」的 AI 配置已保存。`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '保存用户 AI 配置失败');
+    } finally {
+      setAiSaving(false);
+    }
+  }
+
+  async function discoverAiModels() {
+    if (!aiSettingsUser) return;
+    setAiDiscovering(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await api.discoverAdminUserAiModels(aiSettingsUser.id, {
+        provider: aiForm.provider,
+        baseUrl: aiForm.baseUrl,
+        ...(aiForm.apiKey ? { apiKey: aiForm.apiKey } : {}),
+      });
+      setAiModels(result.models);
+      setNotice(result.cached ? '已显示缓存的模型列表。' : '模型列表已更新。');
+    } catch (err) {
+      setAiModels([]);
+      setError(err instanceof Error ? err.message : '获取模型列表失败，可手动输入');
+    } finally {
+      setAiDiscovering(false);
+    }
+  }
+
+  async function testAiSettings() {
+    if (!aiSettingsUser) return;
+    setAiTesting(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await api.testAdminUserAiSettings(aiSettingsUser.id, aiForm);
+      setNotice(`AI 连接正常，耗时 ${result.latencyMs}ms。`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'AI 连接测试失败');
+    } finally {
+      setAiTesting(false);
+    }
   }
 
   function closeDeleteModal() {
@@ -319,6 +439,7 @@ export function UserManagementContent() {
               </div>
               <div className="user-admin-actions">
                 <button type="button" className="user-admin-edit-button" aria-label="编辑用户" title="编辑用户" disabled={saving} onClick={(event) => { event.stopPropagation(); openEditModal(item); }}><EditOutlined /></button>
+                <button type="button" className="mcp-btn mcp-btn-quiet" disabled={saving || aiLoading} onClick={(event) => { event.stopPropagation(); openAiSettingsModal(item); }}><RobotOutlined /> AI 配置</button>
                 {protectedAdmin ? <span className="user-admin-protected"><SafetyOutlined /> 管理员受保护</span> : <>
                   <button type="button" className="mcp-btn mcp-btn-quiet" disabled={saving} onClick={(event) => { event.stopPropagation(); toggleUser(item); }}>{item.status === 'active' ? '禁用' : '启用'}</button>
                   <button type="button" className="mcp-btn mcp-btn-danger" disabled={saving} onClick={(event) => { event.stopPropagation(); openDeleteModal(item); }}><DeleteOutlined /> 删除</button>
@@ -377,6 +498,68 @@ export function UserManagementContent() {
           <footer><button type="button" className="mcp-btn mcp-btn-quiet" onClick={closeDeleteModal} disabled={saving}>取消</button><button type="submit" className="mcp-btn mcp-btn-danger" disabled={saving || deleteConfirmUsername !== deletingUser.username}><DeleteOutlined /> 确认删除</button></footer>
         </form>
       </section>
+    </div>}
+
+    {aiSettingsUser && <div className="user-admin-modal-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeAiSettingsModal(); }}>
+      <form className="user-admin-modal user-admin-ai-modal" onSubmit={saveAiSettings}>
+        <header><div><p className="mcp-kicker">管理员代配置</p><h2>管理员代配置 AI 模型</h2></div><button type="button" className="user-admin-modal-close" onClick={closeAiSettingsModal} aria-label="关闭" disabled={aiSaving}><CloseOutlined /></button></header>
+        <p className="user-admin-modal-intro">目标用户：{aiSettingsUser.username}</p>
+        <p className="user-admin-modal-intro">管理员代配置 AI 模型。Key 留空时保留用户当前配置；保存后 API Key 不会回显。</p>
+        {aiSettingsUser.role === 'service' && <p className="user-admin-role-hint">服务账号可由管理员代配置 AI 模型。</p>}
+        {aiLoading && <p className="user-admin-modal-intro">正在加载 AI 配置…</p>}
+        <div className="user-admin-modal-fields">
+          <label>模型提供商
+            <select value={aiForm.provider} disabled={aiLoading} onChange={(event) => setAiForm({ ...aiForm, provider: event.target.value })}>
+              {AI_PROVIDERS.map((provider) => <option key={provider.value} value={provider.value}>{provider.label}</option>)}
+            </select>
+          </label>
+          <label>Base URL
+            <input
+              value={aiForm.baseUrl ?? ''}
+              placeholder="自定义服务时填写 HTTPS 地址"
+              disabled={aiLoading}
+              onChange={(event) => setAiForm({ ...aiForm, baseUrl: event.target.value || null })}
+            />
+          </label>
+          <label>API Key
+            <input
+              type="password"
+              value={aiForm.apiKey}
+              placeholder={aiSettings?.apiKeyConfigured ? `已配置 ${aiSettings.apiKeyLast4 || ''}` : '输入 API Key'}
+              autoComplete="new-password"
+              disabled={aiLoading}
+              onChange={(event) => setAiForm({ ...aiForm, apiKey: event.target.value })}
+            />
+          </label>
+          <label>模型
+            <input
+              list="admin-ai-model-options"
+              value={aiForm.model}
+              placeholder="选择或手动输入模型名"
+              disabled={aiLoading}
+              onChange={(event) => setAiForm({ ...aiForm, model: event.target.value })}
+            />
+          </label>
+          <datalist id="admin-ai-model-options">
+            {aiModels.map((model) => <option key={model.id} value={model.id} label={model.name || model.id} />)}
+          </datalist>
+          <label className="user-admin-ai-toggle">
+            <input
+              type="checkbox"
+              checked={aiForm.autoTriggerOnArchive}
+              disabled={aiLoading}
+              onChange={(event) => setAiForm({ ...aiForm, autoTriggerOnArchive: event.target.checked })}
+            />
+            自动触发
+          </label>
+        </div>
+        <div className="user-admin-modal-actions">
+          <button type="button" className="mcp-btn mcp-btn-quiet" disabled={aiDiscovering || aiLoading} onClick={discoverAiModels}><SyncOutlined /> 获取模型</button>
+          <button type="button" className="mcp-btn mcp-btn-quiet" disabled={aiTesting || aiLoading || !aiForm.model} onClick={testAiSettings}>测试生成</button>
+          <button type="submit" className="mcp-btn mcp-btn-primary" disabled={aiSaving || aiLoading || !aiForm.model}>保存配置</button>
+        </div>
+        <footer><button type="button" className="mcp-btn mcp-btn-quiet" onClick={closeAiSettingsModal} disabled={aiSaving}>关闭</button></footer>
+      </form>
     </div>}
 
     {activityUser && <div className="user-admin-modal-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeActivityModal(); }}>
