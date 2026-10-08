@@ -66,7 +66,16 @@ $darkTheme
   .qj-tags { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
   .qj-tag { font-size:11px; padding:3px 10px; border-radius:99px; background:#D0E8D8; color:#0D2B1E; }
   .qj-offline { font-size:11px; color:#1E7A3A; margin-bottom:12px; }
-  .qj-category-review { margin:-10px 0 14px; color:#8A7541; font-size:12px; line-height:1.5; }
+  details.qj-category-review { position:relative; display:inline-flex; align-items:center; color:#8A7541; font-size:12px; }
+  details.qj-category-review > summary { list-style:none; display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; cursor:pointer; outline:none; -webkit-tap-highlight-color:transparent; }
+  details.qj-category-review > summary::-webkit-details-marker { display:none; }
+  details.qj-category-review > summary svg { width:12px; height:12px; }
+  details.qj-category-review .qj-category-review-body {
+    position:absolute; top:calc(100% + 6px); left:0; z-index:30;
+    width:min(520px,calc(100vw - 32px)); padding:10px 12px; border-radius:8px;
+    background:#F8FCF9; border:1px solid rgba(104,156,120,0.24); color:#5A7062;
+    line-height:1.5; box-shadow:0 12px 28px rgba(13,43,30,0.12);
+  }
 """.trimIndent()
 
   /** 深色模式头部覆盖样式 */
@@ -83,7 +92,8 @@ $darkTheme
   .qj-ai-body { color:#9CA89F !important; }
   .qj-tag { background:#1C3A2B !important; color:#8BAA94 !important; }
   .qj-offline { color:rgba(110,231,183,0.9) !important; }
-  .qj-category-review { color:#C9A84C !important; }
+  details.qj-category-review { color:#C9A84C !important; }
+  details.qj-category-review .qj-category-review-body { background:#0E2419 !important; border-color:rgba(201,168,76,0.24) !important; color:#9CA89F !important; }
 """.trimIndent()
 
   /** 根据文章详情构建头部 HTML，注入到 WebView 正文前 */
@@ -92,6 +102,7 @@ $darkTheme
 
     val metaParts = buildList {
       article.category?.name?.takeIf { it.isNotBlank() }?.let { add("""<span class="qj-meta-source">${escapeHtml(it)}</span>""") }
+      categoryReviewControl(article.categoryResult)?.let { add(it) }
       article.source?.takeIf { it.isNotBlank() }?.let { add("""<span class="qj-meta-source">${escapeHtml(it)}</span>""") }
       article.author?.takeIf { it.isNotBlank() }?.let { add("<span>${escapeHtml(it)}</span>") }
       article.publishTime?.takeIf { it.isNotBlank() }?.let { add("<span>${escapeHtml(formatDate(it))}</span>") }
@@ -118,14 +129,6 @@ $darkTheme
       """<div class="qj-tags">${article.aiTags.joinToString("") { """<span class="qj-tag">${escapeHtml(it)}</span>""" }}</div>"""
     } else ""
 
-    val categoryReviewHtml = article.categoryResult
-      ?.takeIf { it.reviewStatus == "needs_review" }
-      ?.let { result ->
-        val reason = result.reason?.takeIf { it.isNotBlank() }?.let { "：${escapeHtml(it)}" }.orEmpty()
-        """<div class="qj-category-review">AI 分类待确认$reason</div>"""
-      }
-      .orEmpty()
-
     val offlineHtml = if (isOfflineAvailable) """<div class="qj-offline">⤓ 离线可用</div>""" else ""
 
     val darkOverride = if (colorScheme == ReaderColorScheme.Dark) "<style>$darkHeaderOverride</style>" else ""
@@ -135,12 +138,27 @@ $darkTheme
   <h1 class="qj-title">$title</h1>
   $metaHtml
   $summaryHtml
-  $categoryReviewHtml
   $tagsHtml
   $offlineHtml
 </div>
 $darkOverride
 """.trimIndent()
+  }
+
+  private fun categoryReviewControl(categoryResult: com.idickies.storing.library.ArticleCategoryResult?): String? {
+    if (categoryResult?.reviewStatus != "needs_review") return null
+    val reason = categoryResult.reason?.takeIf { it.isNotBlank() } ?: return null
+    return """
+      <details class="qj-category-review qj-category-review-trigger">
+        <summary aria-label="查看 AI 分类依据">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        </summary>
+        <div class="qj-category-review-body">
+          <span>AI 分类依据</span>
+          <span>${escapeHtml(reason)}</span>
+        </div>
+      </details>
+    """.trimIndent()
   }
 
   private fun escapeHtml(text: String): String =

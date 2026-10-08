@@ -23,6 +23,7 @@ struct ReaderPaneView: View {
     @State private var isPurgeConfirming = false
     @State private var renameDraft = ""
     @State private var titleCopied = false
+    @State private var showCategoryReason = false
     @Environment(\.colorScheme) private var colorScheme
 
     init(
@@ -350,7 +351,7 @@ struct ReaderPaneView: View {
                 .qiankunjieFont(.labelMedium)
                 .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
 
-                metadataRow(label: "分类", value: article.category?.name ?? article.aiCategory ?? "未分类")
+                categoryRow(article)
 
                 HStack(alignment: .top, spacing: 8) {
                     Text("标签")
@@ -413,6 +414,49 @@ struct ReaderPaneView: View {
             Text(value)
                 .lineLimit(1)
                 .truncationMode(.middle)
+        }
+        .qiankunjieFont(.labelMedium)
+        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+    }
+
+    private func categoryReasonPresentation(for article: ReaderArticle) -> ReaderCategoryReasonPresentation {
+        ReaderCategoryReasonPresentation(categoryResult: article.categoryResult)
+    }
+
+    @ViewBuilder
+    private func categoryRow(_ article: ReaderArticle) -> some View {
+        let reasonPresentation = categoryReasonPresentation(for: article)
+
+        HStack(spacing: 8) {
+            Text("分类")
+            Text(article.category?.name ?? article.aiCategory ?? "未分类")
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            if reasonPresentation.shouldShowTrigger, let reason = reasonPresentation.reason {
+                Button {
+                    showCategoryReason.toggle()
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                .accessibilityLabel("查看 AI 分类依据")
+                .help("查看 AI 分类依据")
+                .popover(isPresented: $showCategoryReason, arrowEdge: .bottom) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("AI 分类依据")
+                            .qiankunjieFont(.labelLarge)
+                            .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+                        Text(reason)
+                            .qiankunjieFont(.labelMedium)
+                            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                    }
+                    .padding(12)
+                    .frame(maxWidth: 420, alignment: .leading)
+                }
+            }
         }
         .qiankunjieFont(.labelMedium)
         .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))

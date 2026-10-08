@@ -69,6 +69,22 @@ public struct ArticleCategoryResult: Codable, Hashable, Sendable {
     public let reviewStatus: String
     public let modelVersion: String?
 
+    public init(
+        categoryId: Int,
+        confidence: Double? = nil,
+        reason: String? = nil,
+        source: String,
+        reviewStatus: String,
+        modelVersion: String? = nil
+    ) {
+        self.categoryId = categoryId
+        self.confidence = confidence
+        self.reason = reason
+        self.source = source
+        self.reviewStatus = reviewStatus
+        self.modelVersion = modelVersion
+    }
+
     enum CodingKeys: String, CodingKey {
         case categoryId = "categoryId"
         case confidence
