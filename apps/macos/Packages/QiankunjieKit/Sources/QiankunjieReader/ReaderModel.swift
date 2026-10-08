@@ -246,6 +246,7 @@ public struct ReaderArticle: Sendable {
     public var aiCategory: String? { detail.aiCategory }
     public var aiTags: [String] { detail.aiTags }
     public var category: ArticleCategory? { detail.category }
+    public var categoryResult: ArticleCategoryResult? { detail.categoryResult }
     public var contentHTML: String? { detail.contentHTML }
     public var contentMarkdown: String? { detail.contentMarkdown }
 }
