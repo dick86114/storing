@@ -725,7 +725,7 @@ function CollectJobCard({ job, onRetry, onDelete }: { job: CollectJob; onRetry?:
     event.stopPropagation();
     if (!job.articleId) return;
     openArticle(job.articleId);
-    router.push('/archive');
+    router.push('/inbox');
   };
 
   const handleCopyUrl = async (event: ReactMouseEvent<HTMLButtonElement>) => {

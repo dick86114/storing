@@ -3,7 +3,6 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { articleMetadata, articles, collectJobs } from '../db/schema.js';
 import { buildArticleSummaryResult } from './ai.service.js';
-import { getPendingCategory } from './category.service.js';
 import { assertSafeOutboundUrl, normalizeOutboundUrl } from './outbound-url-policy.service.js';
 import { ensureArticleMetadataContentHtmlMobileColumn, extractWechatCoverImage, fetchArticleContentFromSources, fetchWechatJson, getArticleContent, processCoverImage, uploadImage } from './reader.service.js';
 import {
@@ -42,12 +41,6 @@ type CollectMethod = 'reader' | 'singlefile';
 type CollectRequestSource = 'web' | 'android' | 'android_share' | 'browser_extension' | 'macos' | 'mcp' | 'api' | 'system';
 const FIRST_PARTY_COLLECT_SOURCES: CollectRequestSource[] = ['web', 'android', 'android_share', 'browser_extension', 'macos'];
 export const USER_COLLECT_SOURCES: CollectRequestSource[] = [...FIRST_PARTY_COLLECT_SOURCES, 'mcp'];
-
-// Web collection historically enters Archive. MCP and native Android collection are
-// explicit inbox saves, so they must not be auto-archived after capture completes.
-function shouldArchiveCollectedArticle(sourceType?: string) {
-  return sourceType === undefined || sourceType === 'web' || sourceType === 'api' || sourceType === 'system';
-}
 
 type CreateCollectJobOptions = {
   userId?: number | null;
@@ -203,7 +196,7 @@ async function upsertArticleFromCapture(input: {
     .select({ id: articleMetadata.id })
     .from(articleMetadata)
     .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, options.userId)));
-  const markArchived = options.markArchived ?? true;
+  const markArchived = false;
   const metadataValues: Partial<typeof articleMetadata.$inferInsert> = {
     // 主动重新采集表示用户希望重新纳入资料库，恢复此前删除的当前用户元数据。
     isDeleted: false,
@@ -211,12 +204,6 @@ async function upsertArticleFromCapture(input: {
     archivedAt: markArchived ? now : null,
     updatedAt: now,
   };
-  if (markArchived) {
-    const pendingCategory = await getPendingCategory(options.userId);
-    metadataValues.categoryId = pendingCategory.id;
-    metadataValues.categorySource = 'rule';
-    metadataValues.categoryReviewStatus = 'needs_review';
-  }
   if (input.contentHtml !== undefined) metadataValues.contentHtml = input.contentHtml;
   if (input.contentHtmlMobile !== undefined) metadataValues.contentHtmlMobile = input.contentHtmlMobile;
   if (input.contentMarkdown !== undefined) metadataValues.contentMd = input.contentMarkdown;
@@ -252,7 +239,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
   ]);
 }
 
-async function finishArticleSideEffects(jobId: number, articleId: number, options: { saveToInbox: boolean; isArchived?: boolean; userId?: number | null; coverProcessed?: boolean }) {
+async function finishArticleSideEffects(jobId: number, articleId: number, options: { saveToInbox: boolean; userId?: number | null; coverProcessed?: boolean }) {
   if (options.saveToInbox) {
     if (!options.userId) throw new Error('保存文章到收件箱需要用户归属');
     if (!options.coverProcessed) {
@@ -291,7 +278,7 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
     userId: options.userId,
     clientId: options.clientId,
     sourceType: options.sourceType,
-    markArchived: shouldArchiveCollectedArticle(options.sourceType),
+    markArchived: false,
   });
 
   await updateCollectJob(jobId, { stage: 'reader_fetch', captureStrategy: 'wechat_reader', articleId, title });
@@ -368,7 +355,6 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
     });
     await finishArticleSideEffects(jobId, articleId, {
       saveToInbox: true,
-      isArchived: shouldArchiveCollectedArticle(options.sourceType),
       userId: options.userId,
       coverProcessed: Boolean(coverImage),
     });
@@ -680,7 +666,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string, option
     contentMarkdown,
     coverImage: uploadedCoverImage || primaryPrepared.coverImage,
     method: 'singlefile',
-  }, { persistMetadata: true, userId: options.userId, clientId: options.clientId, sourceType: options.sourceType, markArchived: shouldArchiveCollectedArticle(options.sourceType) });
+  }, { persistMetadata: true, userId: options.userId, clientId: options.clientId, sourceType: options.sourceType, markArchived: false });
 
   await updateCollectJob(jobId, {
     status: 'completed',
@@ -691,7 +677,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string, option
     captureStrategy: capture.strategy,
     finishedAt: new Date(),
   });
-  await finishArticleSideEffects(jobId, articleId, { saveToInbox: true, isArchived: shouldArchiveCollectedArticle(options.sourceType), userId: options.userId });
+  await finishArticleSideEffects(jobId, articleId, { saveToInbox: true, userId: options.userId });
 }
 
 export async function initCollectSchema() {

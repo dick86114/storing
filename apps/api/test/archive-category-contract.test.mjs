@@ -22,7 +22,7 @@ test('分类 API、文章归档和 AI 受控分类使用同一套分类契约', 
   assert.match(articleRoutes, /articlesRoutes\.post\('\/articles\/:id\/classify'/);
   assert.match(articleRoutes, /classifyStoredArticleForArchive/);
   assert.match(articleRoutes, /getPendingCategory\(userId\)/);
-  assert.match(collectService, /getPendingCategory\(options\.userId\)/);
+  assert.doesNotMatch(collectService, /getPendingCategory\(|markArchived:\s*true/);
   assert.match(aiService, /category_id/);
   assert.match(aiService, /只能从候选分类中选择/);
   assert.match(categoryService, /moveArticlesToCategory[\s\S]*?isArchived} = TRUE/);

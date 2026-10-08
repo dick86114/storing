@@ -39,7 +39,7 @@ test('publish prepares a private archive before it exposes a public token', () =
   const routes = read('src/routes/articles.ts');
 
   assert.match(routes, /import \{ randomUUID \} from 'node:crypto';/);
-  assert.match(routes, /await generateSummaryAndTags\(id, userId\)/);
+  assert.doesNotMatch(routes, /await generateSummaryAndTags\(id, userId\)/);
   assert.match(routes, /isArchived: true/);
   assert.match(routes, /isPublished: true/);
   assert.match(routes, /publicId: existingMetadata\.publicId \|\| randomUUID\(\)/);
