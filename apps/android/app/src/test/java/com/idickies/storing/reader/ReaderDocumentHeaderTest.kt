@@ -28,4 +28,20 @@ class ReaderDocumentHeaderTest {
 
     assertFalse(header.contains("qj-source-tag"))
   }
+
+  @Test
+  fun `detail header renders the article cover before the title`() {
+    val header = ReaderDocument.buildArticleHeader(
+      article = ArticleDetail(
+        id = 2,
+        title = "带封面文章",
+        coverImage = "https://cdn.example.com/cover.jpg",
+      ),
+      colorScheme = ReaderColorScheme.Light,
+      isOfflineAvailable = false,
+    )
+
+    assertTrue(header.contains("""<img class="qj-cover" src="https://cdn.example.com/cover.jpg"""))
+    assertTrue(header.indexOf("qj-cover") < header.indexOf("qj-title"))
+  }
 }

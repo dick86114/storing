@@ -47,6 +47,7 @@ $darkTheme
   .qj-source-web { background:#E8F0F7; color:#2A5A8A; }
   .qj-source-wechat { background:#E8F4EC; color:#1E7A3A; }
   .qj-source-icon { width:12px; height:12px; flex-shrink:0; }
+  .qj-cover { display:block; width:100%; aspect-ratio:2.35; object-fit:cover; border-radius:14px; margin:0 0 20px; background:#E6F3EA; }
   .qj-title { font-size:24px; font-weight:700; line-height:1.3; margin:0 0 12px; font-family:'Noto Serif SC',serif; color:#1A2E24; }
   .qj-meta { display:flex; align-items:center; gap:8px; font-size:12px; margin-bottom:20px; flex-wrap:wrap; color:#8FA897; }
   .qj-meta-source { color:#5A7062; font-weight:500; }
@@ -96,6 +97,7 @@ $darkTheme
   private val darkHeaderOverride = """
   .qj-source-web { background:rgba(26,74,74,0.5) !important; color:rgba(110,231,183,0.9) !important; }
   .qj-source-wechat { background:rgba(30,58,44,0.6) !important; color:rgba(110,231,183,0.9) !important; }
+  .qj-cover { background:#1C3A2B !important; }
   .qj-title { color:#E8E4DC !important; }
   .qj-meta { color:#6B7A6F !important; }
   .qj-meta-source { color:#9CA89F !important; }
@@ -120,6 +122,11 @@ $darkTheme
   /** 根据文章详情构建头部 HTML，注入到 WebView 正文前 */
   fun buildArticleHeader(article: ArticleDetail, colorScheme: ReaderColorScheme, isOfflineAvailable: Boolean): String {
     val title = escapeHtml(article.displayTitle)
+    val coverHtml = article.coverImage
+      ?.trim()
+      ?.takeIf { it.isNotEmpty() }
+      ?.let { """<img class="qj-cover" src="${escapeHtml(it)}" alt="文章封面" loading="eager">""" }
+      .orEmpty()
 
     val metaParts = buildList {
       article.category?.name?.takeIf { it.isNotBlank() }?.let { add("""<span class="qj-meta-source">${escapeHtml(it)}</span>""") }
@@ -145,6 +152,7 @@ $darkTheme
 
     return """
 <div class="qj-header">
+  $coverHtml
   <h1 class="qj-title">$title</h1>
   $metaHtml
   $summaryHtml

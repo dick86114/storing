@@ -1259,6 +1259,21 @@ h4 {
   margin-bottom: var(--gap-lg);
 }
 
+.detail-panel-cover {
+  width: 100%;
+  margin-bottom: var(--gap-lg);
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--tag-bg);
+}
+
+.detail-panel-cover img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2.35;
+  object-fit: cover;
+}
+
 .detail-panel-tags {
   display: flex;
   flex-wrap: wrap;

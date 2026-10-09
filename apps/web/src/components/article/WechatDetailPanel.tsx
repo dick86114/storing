@@ -611,6 +611,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
   const [isDetailPanelFullscreen, setIsDetailPanelFullscreen] = useState(false);
   const [isResizingDetailPanel, setIsResizingDetailPanel] = useState(false);
   const isManualCapturedArticle = useMemo(() => isSingleFileCaptureHtml(article?.contentHtml), [article?.contentHtml]);
+  const detailCoverImage = article?.coverImage || article?.cover_image || null;
   const readableContentHtml = useMemo(
     () => (article?.contentHtml && !isManualCapturedArticle ? getReadableArticleHtml(article.contentHtml) : ''),
     [article?.contentHtml, isManualCapturedArticle]
@@ -912,6 +913,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
             article={article}
             fallbackArticle={fallbackArticle}
             readableContentHtml={readableContentHtml}
+            coverImage={detailCoverImage}
             articleError={articleError}
             isLoading={isLoading}
             onClose={onClose}
@@ -972,6 +974,7 @@ export function WechatDetailPanel({ articleId, onClose, onMutate, isDesktop }: W
         article={article}
         fallbackArticle={fallbackArticle}
         readableContentHtml={readableContentHtml}
+        coverImage={detailCoverImage}
         articleError={articleError}
         isLoading={isLoading}
         onClose={onClose}
@@ -2443,6 +2446,7 @@ function DetailContent({
   article,
   fallbackArticle,
   readableContentHtml,
+  coverImage,
   articleError,
   isLoading,
   onClose,
@@ -2460,6 +2464,7 @@ function DetailContent({
   article: any;
   fallbackArticle: any;
   readableContentHtml: string;
+  coverImage: string | null;
   articleError?: Error;
   isLoading: boolean;
   onClose: () => void;
@@ -3046,6 +3051,11 @@ function DetailContent({
         <>
           {/* 文章头部 */}
           <div className="detail-panel-content" style={{ padding: '16px' }}>
+            {coverImage && (
+              <div className="detail-panel-cover">
+                <img src={coverImage} alt="文章封面" loading="eager" decoding="async" />
+              </div>
+            )}
             <h1 className="detail-panel-title" style={{ fontSize: '20px', fontWeight: 500, color: 'var(--text)', lineHeight: 1.5, marginBottom: '8px' }}>
               {article.title}
             </h1>

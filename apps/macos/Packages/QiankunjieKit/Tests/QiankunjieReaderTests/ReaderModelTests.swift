@@ -42,6 +42,17 @@ struct ReaderModelTests {
         #expect(model.errorMessage == nil)
     }
 
+    @Test func 阅读器详情暴露封面图() async {
+        let client = 模拟阅读客户端(
+            detail: 文章详情(id: 41, coverImage: "https://cdn.example.com/cover.jpg")
+        )
+        let model = ReaderModel(client: client)
+
+        await model.open(articleID: 41)
+
+        #expect(model.article?.coverImage == "https://cdn.example.com/cover.jpg")
+    }
+
     @Test func 游客公开卡片使用公开文章路由() async {
         let client = 模拟阅读客户端()
         let model = ReaderModel(client: client)
@@ -259,6 +270,7 @@ struct ReaderModelTests {
                 id: 21,
                 title: "快速入门",
                 source: "乾坤戒",
+                coverImage: "https://cdn.example.com/cover.jpg",
                 contentMarkdown: "第一段正文\n\n第二段 <正文>",
                 aiSummary: "这是摘要"
             )
@@ -269,6 +281,8 @@ struct ReaderModelTests {
 
         let html = model.displayHTML
         #expect(html.contains("<title>快速入门</title>"))
+        #expect(html.contains(#"class="storing-cover""#))
+        #expect(html.contains(#"src="https://cdn.example.com/cover.jpg""#))
         #expect(html.contains("来源：乾坤戒"))
         #expect(html.contains("这是摘要"))
         #expect(html.contains("<p>第一段正文</p>"))
@@ -575,6 +589,7 @@ private func 文章详情(
     id: Int,
     title: String? = nil,
     source: String? = nil,
+    coverImage: String? = nil,
     contentMarkdown: String? = nil,
     aiSummary: String? = nil
 ) -> ArticleDetail {
@@ -582,6 +597,7 @@ private func 文章详情(
         id: id,
         title: title,
         source: source,
+        coverImage: coverImage,
         aiSummary: aiSummary,
         contentMarkdown: contentMarkdown
     )

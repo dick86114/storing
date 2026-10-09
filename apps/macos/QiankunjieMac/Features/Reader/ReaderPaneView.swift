@@ -784,7 +784,7 @@ private struct ReaderAISummaryCard: View {
     let canRetry: Bool
     let isBusy: Bool
     let onRetry: () -> Void
-    @State private var isExpanded = true
+    @State private var isExpanded = false
     @State private var summaryCopied = false
     @Environment(\.colorScheme) private var colorScheme
 
