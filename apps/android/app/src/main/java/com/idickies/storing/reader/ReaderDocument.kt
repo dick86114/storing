@@ -9,6 +9,8 @@ import com.idickies.storing.library.ArticleDetail
 enum class ReaderColorScheme { Light, Dark }
 
 object ReaderDocument {
+  const val categoryReasonURL = "qiankunjie-reader://category-reason"
+
   private fun mobileHead(colorScheme: ReaderColorScheme, preferences: ReaderPreferences): String {
     val darkTheme = if (colorScheme == ReaderColorScheme.Dark) """
   html { color-scheme:dark; background:#071A12 !important; }
@@ -77,20 +79,9 @@ $darkTheme
   .qj-tags { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
   .qj-tag { font-size:11px; padding:3px 10px; border-radius:99px; background:#D0E8D8; color:#0D2B1E; }
   .qj-offline { font-size:11px; color:#1E7A3A; margin-bottom:12px; }
-  details.qj-category-review { position:relative; display:inline-flex; align-items:center; color:#8A7541; font-size:12px; }
-  details.qj-category-review > summary { list-style:none; display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; cursor:pointer; outline:none; -webkit-tap-highlight-color:transparent; }
-  details.qj-category-review > summary::-webkit-details-marker { display:none; }
-  details.qj-category-review > summary svg { width:12px; height:12px; }
-  details.qj-category-review .qj-category-review-body {
-    position:fixed; top:50%; left:16px; right:16px; z-index:80;
-    width:auto; max-width:520px; margin:0 auto; padding:14px 16px; border-radius:12px;
-    transform:translateY(-50%);
-    background:#F8FCF9; border:1px solid rgba(104,156,120,0.24); color:#5A7062;
-    line-height:1.6; box-shadow:0 12px 28px rgba(13,43,30,0.16);
-    overflow-wrap:anywhere; word-break:break-word;
-  }
-  .qj-category-review-title { display:block; margin-bottom:6px; font-weight:600; color:#8A7541; }
-  .qj-category-review-reason { display:block; overflow-wrap:anywhere; word-break:break-word; }
+  a.qj-category-review { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:99px;
+    background:#FFF6DA; color:#8A6A18; font-size:12px; font-weight:600; text-decoration:none; line-height:1.4; }
+  a.qj-category-review svg { width:12px; height:12px; flex-shrink:0; }
 """.trimIndent()
 
   /** 深色模式头部覆盖样式 */
@@ -114,9 +105,7 @@ $darkTheme
   .qj-ai-meta { color:#819287 !important; }
   .qj-tag { background:#1C3A2B !important; color:#8BAA94 !important; }
   .qj-offline { color:rgba(110,231,183,0.9) !important; }
-  details.qj-category-review { color:#C9A84C !important; }
-  details.qj-category-review .qj-category-review-body { background:#0E2419 !important; border-color:rgba(201,168,76,0.24) !important; color:#9CA89F !important; }
-  .qj-category-review-title { color:#C9A84C !important; }
+  a.qj-category-review { background:#3A3117 !important; color:#E7C766 !important; }
 """.trimIndent()
 
   /** 根据文章详情构建头部 HTML，注入到 WebView 正文前 */
@@ -165,17 +154,12 @@ $darkOverride
 
   private fun categoryReviewControl(categoryResult: com.idickies.storing.library.ArticleCategoryResult?): String? {
     if (categoryResult?.reviewStatus != "needs_review") return null
-    val reason = categoryResult.reason?.takeIf { it.isNotBlank() } ?: return null
+    if (categoryResult.reason.isNullOrBlank()) return null
     return """
-      <details class="qj-category-review qj-category-review-trigger">
-        <summary aria-label="查看 AI 分类依据">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-        </summary>
-        <div class="qj-category-review-body">
-          <strong class="qj-category-review-title">AI 分类依据</strong>
-          <span class="qj-category-review-reason">${escapeHtml(reason)}</span>
-        </div>
-      </details>
+      <a class="qj-category-review qj-category-review-trigger" href="$categoryReasonURL" aria-label="查看 AI 分类依据">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span>AI 依据</span>
+      </a>
     """.trimIndent()
   }
 
