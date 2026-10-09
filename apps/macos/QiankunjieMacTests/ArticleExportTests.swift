@@ -79,6 +79,20 @@ struct ArticleExportTests {
         #expect(!name.contains("?"))
     }
 
+    @Test func 导出WebView基础地址只接受HTTP协议() {
+        let weChatImport = ArticleExportDocument(
+            title: "微信转发内容",
+            originalURL: "qiankunjie://wechat-import/b2737420-c8c8-4403-9b53-b4f3efece30"
+        )
+        let httpsArticle = ArticleExportDocument(
+            title: "普通文章",
+            originalURL: "https://example.com/article"
+        )
+
+        #expect(weChatImport.webExportBaseURL == nil)
+        #expect(httpsArticle.webExportBaseURL?.absoluteString == "https://example.com/article")
+    }
+
     @Test func HTML导出生成可独立打开的完整文档() {
         let document = ArticleExportDocument(
             title: "HTML 文章",
@@ -116,6 +130,19 @@ struct ArticleExportTests {
         #expect(!result.contains("prefers-color-scheme"))
     }
 
+    @Test func HTML导出不把自定义协议渲染为链接() {
+        let document = ArticleExportDocument(
+            title: "微信转发内容",
+            originalURL: "qiankunjie://wechat-import/b2737420-c8c8-4403-9b53-b4f3efece30",
+            contentHTML: "<p>正文</p>"
+        )
+
+        let result = HTMLArticleRenderer().render(document)
+
+        #expect(!result.contains("<a href=\"qiankunjie://"))
+        #expect(result.contains("原文链接：qiankunjie://wechat-import/"))
+    }
+
     @Test func 纯文本导出去除HTML标签() {
         let document = ArticleExportDocument(
             title: "纯文本文章",
@@ -146,6 +173,24 @@ struct ArticleExportTests {
         let size = attributes[.size] as? NSNumber
         #expect(size?.intValue ?? 0 > 0)
         #expect(url.pathExtension == "pdf")
+    }
+
+    @MainActor
+    @Test func PDF导出微信自定义原文链接不触发协议解析() async throws {
+        let document = ArticleExportDocument(
+            title: "微信转发内容",
+            originalURL: "qiankunjie://wechat-import/b2737420-c8c8-4403-9b53-b4f3efece30",
+            contentHTML: "<article><p>微信转发正文</p></article>"
+        )
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("storing-export-\(UUID().uuidString).pdf")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        try await PDFArticleRenderer().render(document, to: url)
+
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        let size = attributes[.size] as? NSNumber
+        #expect(size?.intValue ?? 0 > 0)
     }
 
     @MainActor

@@ -24,7 +24,7 @@ struct MarkdownArticleRenderer: Sendable {
     }
 
     private func supplementalImageMarkdown(_ document: ArticleExportDocument) -> String? {
-        let baseURL = document.originalURL.flatMap(URL.init(string:))
+        let baseURL = document.webExportBaseURL
         let markdownReferences = ArticleImageExtractor.references(
             markdown: document.preferredMarkdown,
             baseURL: baseURL

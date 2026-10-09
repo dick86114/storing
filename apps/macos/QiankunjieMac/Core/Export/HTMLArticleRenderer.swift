@@ -42,7 +42,12 @@ struct HTMLArticleRenderer: Sendable {
             document.author.map { "作者：\(escape($0))" },
             document.source.map { "来源：\(escape($0))" },
             document.publishedAt.map { "发布：\(escape($0))" },
-            document.originalURL.map { "<a href=\"\(escapeAttribute($0))\">原文链接</a>" },
+            document.originalURL.map { originalURL in
+                if document.webExportBaseURL != nil {
+                    return "<a href=\"\(escapeAttribute(originalURL))\">原文链接</a>"
+                }
+                return "原文链接：\(escape(originalURL))"
+            },
         ]
         .compactMap { $0 }
         .joined(separator: " · ")

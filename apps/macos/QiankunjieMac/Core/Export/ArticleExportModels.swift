@@ -85,6 +85,19 @@ struct ArticleExportDocument: Sendable {
 
         return ""
     }
+
+    /// WKWebView 不应把 qiankunjie:// 自定义协议当作导出资源基础地址。
+    var webExportBaseURL: URL? {
+        guard
+            let originalURL,
+            let url = URL(string: originalURL),
+            let scheme = url.scheme?.lowercased(),
+            scheme == "http" || scheme == "https"
+        else {
+            return nil
+        }
+        return url
+    }
 }
 
 func safeExportFileName(_ title: String, fallback: String = "未命名文章") -> String {

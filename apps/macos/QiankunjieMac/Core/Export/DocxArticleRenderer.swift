@@ -5,7 +5,7 @@ struct DocxArticleRenderer: Sendable {
         let references = ArticleImageExtractor.references(
             markdown: document.preferredMarkdown,
             html: document.contentHTML,
-            baseURL: document.originalURL.flatMap(URL.init(string:))
+            baseURL: document.webExportBaseURL
         )
         let images = await ArticleImageLoader().load(references)
         let fileManager = FileManager.default
@@ -66,7 +66,7 @@ struct DocxArticleRenderer: Sendable {
 
         paragraphs.append(contentsOf: markdownParagraphs(
             document.preferredMarkdown,
-            baseURL: document.originalURL.flatMap(URL.init(string:)),
+            baseURL: document.webExportBaseURL,
             images: images,
             insertedImageIDs: &insertedImageIDs
         ))
