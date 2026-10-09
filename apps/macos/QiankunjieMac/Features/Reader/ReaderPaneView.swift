@@ -102,9 +102,12 @@ struct ReaderPaneView: View {
             }
             Divider()
 
-            if article.detail.aiStatus != nil {
-                ReaderAIStatusCard(
-                    statusText: aiStatusText(article.detail.aiStatus),
+            let aiSummary = article.aiSummary?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let aiStatusPresentation = ReaderAISummaryStatusPresentation(status: article.detail.aiStatus)
+            if aiStatusPresentation != nil || !(aiSummary ?? "").isEmpty {
+                ReaderAISummaryCard(
+                    summary: aiSummary,
+                    status: aiStatusPresentation,
                     errorCode: article.detail.aiErrorCode,
                     errorMessage: article.detail.aiErrorMessage,
                     model: article.detail.aiModel,
@@ -115,14 +118,6 @@ struct ReaderPaneView: View {
                         Task { await model.regenerateAI() }
                     }
                 )
-                Divider()
-            }
-
-            if
-                let aiSummary = article.aiSummary?.trimmingCharacters(in: .whitespacesAndNewlines),
-                !aiSummary.isEmpty
-            {
-                ReaderAISummaryCard(summary: aiSummary)
                 Divider()
             }
 
@@ -546,8 +541,56 @@ struct ReaderPaneView: View {
     }
 }
 
+struct ReaderAISummaryStatusPresentation: Equatable {
+    enum Tone: Equatable {
+        case pending
+        case running
+        case failed
+        case muted
+    }
+
+    let label: String
+    let tone: Tone
+    let systemImage: String?
+    let isRunning: Bool
+    let message: String?
+
+    init?(status: String?) {
+        switch status {
+        case "queued":
+            self = .init(label: "排队中", tone: .pending, systemImage: "clock", isRunning: false, message: nil)
+        case "running":
+            self = .init(label: "生成中", tone: .running, systemImage: nil, isRunning: true, message: nil)
+        case "failed":
+            self = .init(label: "生成失败", tone: .failed, systemImage: "exclamationmark.circle", isRunning: false, message: nil)
+        case "not_configured":
+            self = .init(label: "未配置模型", tone: .muted, systemImage: "info.circle", isRunning: false, message: "还没有配置模型，生成已跳过")
+        case "disabled":
+            self = .init(label: "自动生成已关闭", tone: .muted, systemImage: "pause.circle", isRunning: false, message: "自动生成已关闭")
+        default:
+            return nil
+        }
+    }
+
+    private init(label: String, tone: Tone, systemImage: String?, isRunning: Bool, message: String?) {
+        self.label = label
+        self.tone = tone
+        self.systemImage = systemImage
+        self.isRunning = isRunning
+        self.message = message
+    }
+}
+
 private struct ReaderAISummaryCard: View {
-    let summary: String
+    let summary: String?
+    let status: ReaderAISummaryStatusPresentation?
+    let errorCode: String?
+    let errorMessage: String?
+    let model: String?
+    let totalTokens: Int?
+    let canRetry: Bool
+    let isBusy: Bool
+    let onRetry: () -> Void
     @State private var isExpanded = true
     @Environment(\.colorScheme) private var colorScheme
 
@@ -569,6 +612,21 @@ private struct ReaderAISummaryCard: View {
                         .qiankunjieFont(.labelLarge)
                         .foregroundStyle(accent)
 
+                    if let status {
+                        HStack(spacing: 3) {
+                            if status.isRunning {
+                                ProgressView()
+                                    .controlSize(.mini)
+                            } else if let systemImage = status.systemImage {
+                                Image(systemName: systemImage)
+                                    .font(.system(size: 10, weight: .semibold))
+                            }
+                        }
+                        .foregroundStyle(statusColor(status.tone))
+                        .help("AI 摘要\(status.label)")
+                        .accessibilityLabel("AI 摘要\(status.label)")
+                    }
+
                     Spacer(minLength: 0)
 
                     Image(systemName: "chevron.down")
@@ -584,13 +642,57 @@ private struct ReaderAISummaryCard: View {
             .accessibilityLabel(isExpanded ? "收起 AI 摘要" : "展开 AI 摘要")
 
             if isExpanded {
-                Text(summary)
-                    .qiankunjieFont(.bodyMedium)
-                    .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
-                    .lineSpacing(4)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 12)
+                VStack(alignment: .leading, spacing: 8) {
+                    if let summary, !summary.isEmpty {
+                        Text(summary)
+                            .qiankunjieFont(.bodyMedium)
+                            .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+                            .lineSpacing(4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else if status?.tone == .pending || status?.tone == .running {
+                        ReaderAISummaryPlaceholder()
+                    } else if let statusMessage = status?.message {
+                        Text(statusMessage)
+                            .qiankunjieFont(.labelMedium)
+                            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                    }
+
+                    if
+                        status?.tone == .failed,
+                        let errorMessage,
+                        !errorMessage.isEmpty
+                    {
+                        Text(errorCode.map { "\($0)：\(errorMessage)" } ?? errorMessage)
+                            .qiankunjieFont(.labelMedium)
+                            .foregroundStyle(
+                                colorScheme == .dark
+                                    ? QiankunjieColors.darkError
+                                    : QiankunjieColors.lightError
+                            )
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if model != nil || totalTokens != nil || canRetry {
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            if let model {
+                                Text("模型：\(model)")
+                            }
+                            if let totalTokens {
+                                Text("Token：\(totalTokens.formatted())")
+                            }
+                            Spacer(minLength: 0)
+                            if canRetry {
+                                Button("重试", action: onRetry)
+                                    .disabled(isBusy)
+                            }
+                        }
+                        .qiankunjieFont(.labelMedium)
+                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 12)
             }
         }
         .background {
@@ -605,75 +707,34 @@ private struct ReaderAISummaryCard: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
     }
+
+    private func statusColor(_ tone: ReaderAISummaryStatusPresentation.Tone) -> Color {
+        switch tone {
+        case .pending, .running:
+            QiankunjieColors.accent(for: colorScheme)
+        case .failed:
+            colorScheme == .dark ? QiankunjieColors.darkError : QiankunjieColors.lightError
+        case .muted:
+            QiankunjieColors.onSurfaceVariant(for: colorScheme)
+        }
+    }
 }
 
-private struct ReaderAIStatusCard: View {
-    let statusText: String
-    let errorCode: String?
-    let errorMessage: String?
-    let model: String?
-    let totalTokens: Int?
-    let canRetry: Bool
-    let isBusy: Bool
-    let onRetry: () -> Void
+private struct ReaderAISummaryPlaceholder: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        let accent = QiankunjieColors.accent(for: colorScheme)
-
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(accent)
-
-                Text(statusText)
-                    .qiankunjieFont(.labelLarge)
-                    .foregroundStyle(accent)
-
-                Spacer(minLength: 0)
-
-                if canRetry {
-                    Button("重试") {
-                        onRetry()
-                    }
-                    .disabled(isBusy)
-                }
-            }
-
-            HStack(spacing: 10) {
-                if let model {
-                    Text("模型：\(model)")
-                }
-                if let totalTokens {
-                    Text("Token：\(totalTokens)")
-                }
-            }
-            .qiankunjieFont(.labelMedium)
-            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-
-            if let errorMessage, !errorMessage.isEmpty {
-                Text(errorCode.map { "\($0)：\(errorMessage)" } ?? errorMessage)
-                    .qiankunjieFont(.labelMedium)
-                    .foregroundStyle(
-                        colorScheme == .dark
-                            ? QiankunjieColors.darkError
-                            : QiankunjieColors.lightError
-                    )
-            }
+        VStack(alignment: .leading, spacing: 7) {
+            placeholder(width: 132)
+            placeholder(width: 186)
+            placeholder(width: 96)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(accent.opacity(0.08))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(accent.opacity(0.18))
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+    }
+
+    private func placeholder(width: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+            .fill(QiankunjieColors.onSurfaceVariant(for: colorScheme).opacity(0.14))
+            .frame(width: width, height: 10)
     }
 }
 
