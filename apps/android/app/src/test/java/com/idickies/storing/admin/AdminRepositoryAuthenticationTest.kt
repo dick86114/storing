@@ -136,11 +136,29 @@ class AdminRepositoryAuthenticationTest {
 
     override suspend fun trash(): AdminTrashResponse = AdminTrashResponse()
 
+    override suspend fun clearTrash(): AdminTrashBulkResult = AdminTrashBulkResult(
+      scope = "deleted",
+      attempted = 0,
+      succeeded = 0,
+      failed = 0,
+      deletedMetadata = 0,
+      deletedArticles = 0,
+    )
+
     override suspend fun restoreTrash(articleId: Int): AdminTrashActionResponse = AdminTrashActionResponse(articleId = articleId)
 
     override suspend fun purgeTrash(articleId: Int): AdminTrashActionResponse = AdminTrashActionResponse(articleId = articleId, deleted = true)
 
     override suspend fun trashOrphans(): AdminTrashOrphansResponse = AdminTrashOrphansResponse()
+
+    override suspend fun clearTrashOrphans(): AdminTrashBulkResult = AdminTrashBulkResult(
+      scope = "orphans",
+      attempted = 0,
+      succeeded = 0,
+      failed = 0,
+      deletedMetadata = 0,
+      deletedArticles = 0,
+    )
 
     override suspend fun adoptTrashOrphan(id: Int): AdminTrashActionResponse = AdminTrashActionResponse(articleId = id)
 

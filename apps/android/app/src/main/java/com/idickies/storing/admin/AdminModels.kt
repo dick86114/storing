@@ -185,3 +185,35 @@ data class AdminTrashOrphansResponse(
   val items: List<AdminTrashOrphan> = emptyList(),
   val total: Int = 0,
 )
+
+@Serializable
+data class AdminTrashBulkFailure(
+  @SerialName("article_id") val articleId: Int,
+  @SerialName("user_id") val userId: Int? = null,
+  val title: String? = null,
+  val reason: String,
+)
+
+@Serializable
+data class AdminTrashBulkResult(
+  val scope: String,
+  val attempted: Int,
+  val succeeded: Int,
+  val failed: Int,
+  @SerialName("deleted_metadata") val deletedMetadata: Int,
+  @SerialName("deleted_articles") val deletedArticles: Int,
+  val failures: List<AdminTrashBulkFailure> = emptyList(),
+)
+
+fun adminTrashBulkHeadline(scope: String, succeeded: Int, failed: Int): String {
+  val scopeName = if (scope == "orphans") "孤儿文章" else "已删除文章"
+  return "${scopeName}清空完成：成功 $succeeded 条，失败 $failed 条"
+}
+
+fun adminTrashBulkSummary(deletedArticles: Int): String = "物理删除全局文章 $deletedArticles 篇。"
+
+fun adminTrashBulkFailureText(failure: AdminTrashBulkFailure): String {
+  val userText = failure.userId?.let { "，用户 #$it" }.orEmpty()
+  val title = failure.title ?: "#${failure.articleId}"
+  return "$title（#${failure.articleId}$userText）：${failure.reason}"
+}

@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { requireAuth, requireAdmin, requireAndroidAuth, requireExtensionAuth, requireMacOSAuth, getCurrentUser, generateClientAccessToken, generateMacOSAccessToken, generateMobileAccessToken } from '../middleware/auth.js';
 import { getConfiguredAdminStatus, resetConfiguredAdminPassword } from '../services/admin-bootstrap.service.js';
 import { writeAdminAudit } from '../services/admin-audit.service.js';
+import { clearAdminTrash, clearAdminTrashOrphans } from '../services/admin-trash.service.js';
 import { generateSummaryAndTags } from '../services/ai.service.js';
 import { checkLoginRateLimit, clearLoginFailures, getLoginRateLimitKey, recordLoginFailure } from '../services/login-rate-limit.service.js';
 import { createMobileSession, listMobileSessions, migrateLegacyMacSession, revokeMobileSession, revokeMobileSessionByRefreshToken, revokeMobileSessionsForUser, rotateMobileSession, validateMobileDevice } from '../services/mobile-session.service.js';
@@ -93,6 +94,23 @@ function timestampToIso(value: unknown) {
   const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(raw) ? `${raw.replace(' ', 'T')}Z` : raw;
   const date = new Date(normalized);
   return Number.isNaN(date.getTime()) ? raw : date.toISOString();
+}
+
+function serializeAdminTrashBulkResult(result: Awaited<ReturnType<typeof clearAdminTrash>>) {
+  return {
+    scope: result.scope,
+    attempted: result.attempted,
+    succeeded: result.succeeded,
+    failed: result.failed,
+    deleted_metadata: result.deletedMetadata,
+    deleted_articles: result.deletedArticles,
+    failures: result.failures.map((failure) => ({
+      article_id: failure.articleId,
+      user_id: failure.userId ?? null,
+      title: failure.title,
+      reason: failure.reason,
+    })),
+  };
 }
 
 function serializeUser(user: any) {
@@ -1035,6 +1053,18 @@ authRoutes.post('/admin/trash/:articleId/restore', requireAdmin, async (c) => {
     detail: { restored_users: restored.length },
   });
   return c.json({ article_id: articleId, restored_users: restored.length });
+});
+
+/** 管理员：一键清空已删除文章。逐项事务执行，返回成功与失败明细。 */
+authRoutes.delete('/admin/trash', requireAdmin, async (c) => {
+  const result = await clearAdminTrash(getCurrentUser(c).id);
+  return c.json(serializeAdminTrashBulkResult(result));
+});
+
+/** 管理员：一键清空孤儿文章。并发领养过的条目会作为失败项返回，不会误删。 */
+authRoutes.delete('/admin/trash/orphans', requireAdmin, async (c) => {
+  const result = await clearAdminTrashOrphans(getCurrentUser(c).id);
+  return c.json(serializeAdminTrashBulkResult(result));
 });
 
 /** 管理员：彻底删除回收站文章（物理删除元数据与原始文章，不可恢复）。 */

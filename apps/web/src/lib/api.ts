@@ -236,6 +236,23 @@ export type AdminTrashItem = {
   content_preview: string | null;
 };
 
+export type AdminTrashBulkFailure = {
+  article_id: number;
+  user_id: number | null;
+  title: string | null;
+  reason: string;
+};
+
+export type AdminTrashBulkResult = {
+  scope: 'deleted' | 'orphans';
+  attempted: number;
+  succeeded: number;
+  failed: number;
+  deleted_metadata: number;
+  deleted_articles: number;
+  failures: AdminTrashBulkFailure[];
+};
+
 export type AdminTrashOrphanItem = {
   article_id: number;
   title: string | null;
@@ -410,6 +427,12 @@ export const api = {
 
   purgeAdminTrashArticle: (articleId: number) =>
     fetchJSON<{ article_id: number; deleted: boolean }>(`/admin/trash/${articleId}`, { method: 'DELETE' }),
+
+  purgeAdminTrash: () =>
+    fetchJSON<AdminTrashBulkResult>('/admin/trash', { method: 'DELETE' }),
+
+  purgeAdminTrashOrphans: () =>
+    fetchJSON<AdminTrashBulkResult>('/admin/trash/orphans', { method: 'DELETE' }),
 
   getAdminUserActivity: (id: number, limit = 20, offset = 0) =>
     fetchJSON<AdminUserActivity>(`/admin/users/${id}/activity?limit=${limit}&offset=${offset}`),
