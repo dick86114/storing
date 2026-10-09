@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import CoreGraphics
 import Observation
 import QiankunjieAuth
@@ -221,6 +222,7 @@ final class SettingsModel {
 
     var onUserStateCleared: (@MainActor () async -> Void)?
     private(set) var appearance: AppearancePreference
+    private(set) var systemColorScheme: ColorScheme
     private(set) var appFont = AppFontPreference.standard
     private(set) var readerContentWidth = ReaderContentWidthPreference.normal
     private(set) var sessions: [DeviceSession] = []
@@ -232,6 +234,7 @@ final class SettingsModel {
 
     private let sessionService: any DeviceSessionServicing
     private let appearanceDefaults: UserDefaults
+    private var systemAppearanceObservation: NSKeyValueObservation?
     private var sessionsRequestGeneration = 0
 
     init(
@@ -257,6 +260,8 @@ final class SettingsModel {
             appearance = .system
         }
 
+        systemColorScheme = Self.colorScheme(for: NSApplication.shared.effectiveAppearance)
+
         if
             let storedValue = appearanceDefaults.string(forKey: Self.appFontStorageKey),
             let preference = AppFontPreference(rawValue: storedValue)
@@ -273,6 +278,11 @@ final class SettingsModel {
 
         // 启动就应用一次外观，保证从菜单栏等不经过主窗口的入口进入时也是正确外观。
         AppearanceApplier.apply(appearance)
+        installSystemAppearanceObserverIfNeeded()
+    }
+
+    var resolvedColorScheme: ColorScheme {
+        appearance.resolvedColorScheme(system: systemColorScheme)
     }
 
     func setAppearance(_ preference: AppearancePreference) {
@@ -295,6 +305,22 @@ final class SettingsModel {
 
         readerContentWidth = preference
         appearanceDefaults.set(preference.rawValue, forKey: Self.readerContentWidthStorageKey)
+    }
+
+    private func installSystemAppearanceObserverIfNeeded() {
+        guard systemAppearanceObservation == nil else { return }
+        systemAppearanceObservation = NSApplication.shared.observe(
+            \.effectiveAppearance,
+            options: [.new]
+        ) { [weak self] _, _ in
+            MainActor.assumeIsolated {
+                self?.systemColorScheme = Self.colorScheme(for: NSApplication.shared.effectiveAppearance)
+            }
+        }
+    }
+
+    private static func colorScheme(for appearance: NSAppearance) -> ColorScheme {
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light
     }
 
     func loadSessions() async {

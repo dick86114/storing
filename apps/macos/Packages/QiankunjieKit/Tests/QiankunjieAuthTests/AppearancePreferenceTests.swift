@@ -15,6 +15,13 @@ struct AppearancePreferenceTests {
         #expect(AppearancePreference.dark.preferredColorScheme == .dark)
     }
 
+    @Test func 跟随系统解析为明确的系统颜色方案() {
+        #expect(AppearancePreference.system.resolvedColorScheme(system: .dark) == .dark)
+        #expect(AppearancePreference.system.resolvedColorScheme(system: .light) == .light)
+        #expect(AppearancePreference.light.resolvedColorScheme(system: .dark) == .light)
+        #expect(AppearancePreference.dark.resolvedColorScheme(system: .light) == .dark)
+    }
+
     @Test func 三种取值都带有可显示的名称() {
         #expect(AppearancePreference.allCases.map(\.displayName) == ["跟随系统", "浅色", "深色"])
     }
