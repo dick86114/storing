@@ -74,7 +74,7 @@ test('文章卡片和详情展示七种 AI 状态、失败原因、模型和用�
     assert.match(aiStatus, new RegExp(status));
   }
   assert.match(card, /aiStatusText\(article\.aiStatus\)/);
-  assert.match(detail, /aiStatusText\(article\.aiStatus\)/);
+  assert.doesNotMatch(detail, /detail-panel-ai-status/);
   assert.match(detail, /aiErrorCode/);
   assert.match(detail, /aiErrorMessage/);
   assert.match(detail, /aiModel/);
