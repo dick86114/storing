@@ -26,4 +26,10 @@ struct AppearanceApplierTests {
         AppearanceApplier.apply(.system)
         #expect(NSApp.appearance == nil)
     }
+
+    @Test func 切回跟随系统会解析当前系统外观() {
+        AppearanceApplier.apply(.system)
+        let resolved = AppearanceApplier.resolvedWindowAppearance(for: .system)
+        #expect(resolved?.name == NSApp.effectiveAppearance.name)
+    }
 }
