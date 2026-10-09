@@ -9,7 +9,7 @@ final class PDFArticleRenderer: NSObject, WKNavigationDelegate {
 
     func render(_ document: ArticleExportDocument, to url: URL) async throws {
         let html = HTMLArticleRenderer().render(document)
-        let baseURL = document.originalURL.flatMap(URL.init(string:))
+        let baseURL = document.webExportBaseURL
         let configuration = WKWebViewConfiguration()
         let webView = WKWebView(
             frame: NSRect(x: 0, y: 0, width: 794, height: 1123),
