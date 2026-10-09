@@ -22,13 +22,14 @@ test('归档接口按用户设置触发 AI，不在归档请求内等待生成',
   assert.match(aiGeneration, /includeCategory: !options\.userSelectedCategory/);
 });
 
-test('手动生成只允许已归档文章，且不清空旧 AI 结果', () => {
+test('手动生成允许收件箱文章，且不清空旧 AI 结果', () => {
   const route = articles.match(/articlesRoutes\.post\('\/articles\/:id\/regenerate-ai'[\s\S]*?\n}\);/)?.[0] ?? '';
-  assert.match(route, /if \(!ownedArticle\.isArchived\)/);
+  assert.doesNotMatch(route, /ARTICLE_NOT_ARCHIVED|!ownedArticle\.isArchived/);
   assert.match(route, /enqueueAiGeneration\(/);
   assert.match(route, /triggerType: 'manual'/);
   assert.match(route, /includeCategory: false/);
   assert.match(route, /AI_NOT_CONFIGURED/);
+  assert.match(route, /ok: true/);
   assert.doesNotMatch(route, /aiSummary: null/);
   assert.doesNotMatch(route, /aiTags: \[\]/);
 });

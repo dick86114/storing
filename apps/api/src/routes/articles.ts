@@ -954,9 +954,6 @@ articlesRoutes.post('/articles/:id/regenerate-ai', requireAuth, async (c) => {
   const userId = getCurrentUser(c).id;
   const ownedArticle = await getArticleRecord(id, userId);
   if (!ownedArticle) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
-  if (!ownedArticle.isArchived) {
-    return c.json({ error: { code: 'ARTICLE_NOT_ARCHIVED', message: '仅已归档文章可以手动生成 AI' } }, 409);
-  }
   const result = await enqueueAiGeneration({
     userId,
     articleId: id,
@@ -966,7 +963,7 @@ articlesRoutes.post('/articles/:id/regenerate-ai', requireAuth, async (c) => {
   if (result.status === 'not_configured') {
     return c.json({ error: { code: 'AI_NOT_CONFIGURED', message: '请先配置 AI 模型' } }, 400);
   }
-  return c.json({ articleId: id, jobId: result.jobId, status: result.status });
+  return c.json({ articleId: id, ok: true, jobId: result.jobId, status: result.status });
 });
 
 /**
