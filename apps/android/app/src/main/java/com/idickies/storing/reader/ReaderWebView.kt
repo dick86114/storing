@@ -32,6 +32,7 @@ object ReaderWebView {
     webView: WebView,
     preferences: ReaderPreferences = ReaderPreferences.Default,
     onOpenExternalUrl: (Uri) -> Unit,
+    onCategoryReasonRequested: (() -> Unit)? = null,
     offlineResourceLoader: ((Uri) -> WebResourceResponse?)? = null,
     onPageFinished: (() -> Unit)? = null,
     onPageCommitVisible: (() -> Unit)? = null,
@@ -49,6 +50,10 @@ object ReaderWebView {
     webView.webViewClient = object : WebViewClient() {
       override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
         val uri = request?.url ?: return true
+        if (uri.toString() == ReaderDocument.categoryReasonURL) {
+          onCategoryReasonRequested?.invoke()
+          return true
+        }
         if (uri.scheme == "http" || uri.scheme == "https") onOpenExternalUrl(uri)
         return true
       }

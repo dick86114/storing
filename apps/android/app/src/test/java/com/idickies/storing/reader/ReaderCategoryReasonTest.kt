@@ -8,7 +8,7 @@ import org.junit.Test
 
 class ReaderCategoryReasonTest {
   @Test
-  fun `pending AI reason uses an inline icon control next to the category`() {
+  fun `pending AI reason uses a pill that opens the native sheet`() {
     val detail = ArticleDetail(
       id = 367,
       title = "测试",
@@ -26,8 +26,9 @@ class ReaderCategoryReasonTest {
     val header = ReaderDocument.buildArticleHeader(detail, ReaderColorScheme.Light, isOfflineAvailable = false)
 
     assertTrue(header.contains("qj-category-review-trigger"))
-    assertTrue(header.contains("AI 分类依据"))
-    assertTrue(header.contains("内容为部署自建同步服务端并配置反向代理。"))
+    assertTrue(header.contains(ReaderDocument.categoryReasonURL))
+    assertTrue(header.contains("AI 依据"))
+    assertFalse(header.contains("内容为部署自建同步服务端并配置反向代理。"))
     assertTrue(
       "categoryIndex=${header.indexOf("服务器")} triggerIndex=${header.indexOf("qj-category-review-trigger")} header=$header",
       header.indexOf("服务器") < header.indexOf("qj-category-review-trigger"),
@@ -38,11 +39,9 @@ class ReaderCategoryReasonTest {
       capturedHtml = "",
       headerHtml = header,
     )
-    assertTrue(document.contains("details.qj-category-review .qj-category-review-body"))
-    assertTrue(document.contains("position:fixed"))
-    assertTrue(document.contains("left:16px"))
-    assertTrue(document.contains("right:16px"))
-    assertTrue(document.contains("overflow-wrap:anywhere"))
+    assertTrue(document.contains("a.qj-category-review"))
+    assertFalse(document.contains("details.qj-category-review"))
+    assertFalse(document.contains("position:fixed"))
   }
 
   @Test

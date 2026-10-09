@@ -199,6 +199,7 @@ import kotlin.math.abs
 import kotlinx.coroutines.launch
 import com.idickies.storing.library.ArticleCard
 import com.idickies.storing.library.ArticleCategory
+import com.idickies.storing.library.ArticleCategoryResult
 import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.library.ArticleListPresentationMode
 import com.idickies.storing.library.ArticleProcessingAction
@@ -2268,6 +2269,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
   var confirmProcessing by remember { mutableStateOf<ArticleProcessingAction?>(null) }
   var moreExpanded by remember { mutableStateOf(false) }
   var categoryPickerOpen by remember { mutableStateOf(false) }
+  var showCategoryReason by remember { mutableStateOf(false) }
   var showLibrarySearch by rememberSaveable { mutableStateOf(false) }
   BackHandler(onBack = onBack)
   val publicUrl = article.publicId?.let { "https://storing.idickies.cc/p/$it" }
@@ -2476,6 +2478,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                       this,
                       readerPreferences,
                       onOpenExternalUrl = { uri -> webContext.startActivity(Intent(Intent.ACTION_VIEW, uri)) },
+                      onCategoryReasonRequested = { showCategoryReason = true },
                       offlineResourceLoader = if (isReadingOffline) onOpenOfflineAsset else null,
                       onPageFinished = {
                         savedReadingPosition?.let { pos -> ReaderWebView.restoreScrollPosition(this, pos) }
@@ -2579,6 +2582,15 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
             }
           }
         }
+    }
+  }
+  if (showCategoryReason) {
+    article.categoryResult?.let { categoryResult ->
+      CategoryReasonSheet(
+        category = article.category,
+        categoryResult = categoryResult,
+        onDismiss = { showCategoryReason = false },
+      )
     }
   }
   confirmProcessing?.let { action ->
