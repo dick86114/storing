@@ -243,6 +243,7 @@ public struct ReaderArticle: Sendable {
     public var author: String? { detail.author }
     public var source: String? { detail.source }
     public var originalURL: String? { detail.originalURL }
+    public var coverImage: String? { detail.coverImage }
     public var publishTime: Date? { detail.publishTime }
     public var createdAt: Date? { detail.createdAt }
     public var aiSummary: String? { detail.aiSummary }
@@ -311,10 +312,13 @@ public final class ReaderModel {
 
         if let html = article.contentHTML?.trimmingCharacters(in: .whitespacesAndNewlines),
            !html.isEmpty {
-            return html
+            return ReaderHTMLDocument.insertingCover(article.coverImage, into: html)
         }
 
-        return ReaderHTMLDocument.fallback(for: article.detail)
+        return ReaderHTMLDocument.insertingCover(
+            article.coverImage,
+            into: ReaderHTMLDocument.fallback(for: article.detail)
+        )
     }
 
     public func open(_ selection: ReaderSelection) async {
@@ -616,6 +620,38 @@ enum ReaderHTMLDocument {
             bodyText: hasBody ? bodyText : nil,
             bodyMessage: hasBody ? nil : "暂无正文，请重新抓取"
         )
+    }
+
+    static func insertingCover(
+        _ coverImage: String?,
+        into html: String
+    ) -> String {
+        guard
+            let coverImage,
+            !coverImage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return html
+        }
+
+        let cover = """
+        <figure class="storing-cover">
+          <img src="\(escaped(coverImage))" alt="文章封面" loading="eager" decoding="async">
+        </figure>
+        """
+
+        guard let bodyStart = html.range(
+            of: "<body",
+            options: [.caseInsensitive, .regularExpression]
+        ) else {
+            return cover + html
+        }
+
+        guard let bodyTagEnd = html[bodyStart.upperBound...].firstIndex(of: ">") else {
+            return cover + html
+        }
+
+        let insertionIndex = html.index(after: bodyTagEnd)
+        return html[..<insertionIndex] + "\n" + cover + html[insertionIndex...]
     }
 
     private static func fallbackDocument(

@@ -173,6 +173,16 @@ struct ReaderContentStyle {
             max-width: 100% !important;
             margin-inline: auto !important;
           }
+          .storing-cover {
+            margin: 0 0 24px !important;
+          }
+          .storing-cover img {
+            display: block !important;
+            width: 100% !important;
+            aspect-ratio: 2.35 !important;
+            object-fit: cover !important;
+            border-radius: 14px !important;
+          }
           img {
             max-width: 100% !important;
             height: auto !important;

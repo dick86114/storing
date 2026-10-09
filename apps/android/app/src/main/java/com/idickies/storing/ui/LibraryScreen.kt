@@ -166,6 +166,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -193,6 +194,7 @@ import com.idickies.storing.ui.components.LiquidGlassRole
 import com.idickies.storing.ui.components.liquidGlass
 import com.idickies.storing.ui.components.liquidGlassBackdropBrush
 import com.idickies.storing.ui.components.liquidGlassSurfaceColor
+import coil3.compose.AsyncImage
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 import com.idickies.storing.library.ArticleCard
@@ -2528,6 +2530,19 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
               contentPadding = PaddingValues(horizontal = 22.dp, vertical = 18.dp),
               verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
+            article.coverImage?.trim()?.takeIf { it.startsWith("https://") || it.startsWith("http://") }?.let { coverUrl ->
+              item {
+                AsyncImage(
+                  model = coverUrl,
+                  contentDescription = "文章封面",
+                  contentScale = ContentScale.Crop,
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(2.35f)
+                    .clip(RoundedCornerShape(14.dp)),
+                )
+              }
+            }
             item {
               Text(article.source ?: "已保存文章", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
               Text(article.displayTitle, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 8.dp))
