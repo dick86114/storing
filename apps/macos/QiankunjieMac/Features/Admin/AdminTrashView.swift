@@ -93,6 +93,83 @@ struct AdminTrashOrphansResponse: Decodable, Sendable {
 /// 恢复/彻底删除的响应体不参与业务判断：2xx 即成功，404 视为已不在回收站。
 struct AdminTrashActionResponse: Decodable, Sendable {}
 
+struct AdminTrashBulkFailure: Decodable, Equatable, Sendable {
+    let articleId: Int
+    let userId: Int?
+    let title: String?
+    let reason: String
+
+    enum CodingKeys: String, CodingKey {
+        case articleId
+        case userId
+        case title
+        case reason
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        articleId = try container.decode(Int.self, forKey: .articleId)
+        userId = try container.decodeIfPresent(Int.self, forKey: .userId)
+        title = try container.decodeIfPresent(String.self, forKey: .title)
+        reason = try container.decode(String.self, forKey: .reason)
+    }
+
+    init(articleId: Int, userId: Int? = nil, title: String?, reason: String) {
+        self.articleId = articleId
+        self.userId = userId
+        self.title = title
+        self.reason = reason
+    }
+}
+
+struct AdminTrashBulkResult: Decodable, Equatable, Sendable {
+    let scope: String
+    let attempted: Int
+    let succeeded: Int
+    let failed: Int
+    let deletedMetadata: Int
+    let deletedArticles: Int
+    let failures: [AdminTrashBulkFailure]
+
+    enum CodingKeys: String, CodingKey {
+        case scope
+        case attempted
+        case succeeded
+        case failed
+        case deletedMetadata
+        case deletedArticles
+        case failures
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        scope = try container.decode(String.self, forKey: .scope)
+        attempted = try container.decode(Int.self, forKey: .attempted)
+        succeeded = try container.decode(Int.self, forKey: .succeeded)
+        failed = try container.decode(Int.self, forKey: .failed)
+        deletedMetadata = try container.decode(Int.self, forKey: .deletedMetadata)
+        deletedArticles = try container.decode(Int.self, forKey: .deletedArticles)
+        failures = try container.decodeIfPresent([AdminTrashBulkFailure].self, forKey: .failures) ?? []
+    }
+}
+
+enum AdminTrashBulkPresentation {
+    static func headline(scope: String, succeeded: Int, failed: Int) -> String {
+        let scopeName = scope == "orphans" ? "孤儿文章" : "已删除文章"
+        return "\(scopeName)清空完成：成功 \(succeeded) 条，失败 \(failed) 条"
+    }
+
+    static func summary(deletedArticles: Int) -> String {
+        "物理删除全局文章 \(deletedArticles) 篇。"
+    }
+
+    static func failureText(_ failure: AdminTrashBulkFailure) -> String {
+        let userText = failure.userId.map { "，用户 #\($0)" } ?? ""
+        let title = failure.title ?? "#\(failure.articleId)"
+        return "\(title)（#\(failure.articleId)\(userText)）：\(failure.reason)"
+    }
+}
+
 @MainActor
 @Observable
 final class AdminTrashModel {
@@ -100,8 +177,10 @@ final class AdminTrashModel {
     private(set) var orphanItems: [AdminTrashOrphanItem] = []
     private(set) var isLoading = false
     private(set) var busyArticleId: Int?
+    private(set) var isBulkClearing = false
     var errorMessage: String?
     var noticeMessage: String?
+    var bulkResult: AdminTrashBulkResult?
     var purgeConfirmItem: AdminTrashItem?
     var detailItem: AdminTrashItem?
 
@@ -197,6 +276,35 @@ final class AdminTrashModel {
             errorMessage = managementErrorMessage(for: error)
         }
     }
+
+    func clearDeleted() async {
+        await clear(scope: "deleted") {
+            try await self.client.delete("admin/trash") as AdminTrashBulkResult
+        }
+    }
+
+    func clearOrphans() async {
+        await clear(scope: "orphans") {
+            try await self.client.delete("admin/trash/orphans") as AdminTrashBulkResult
+        }
+    }
+
+    private func clear(scope: String, operation: () async throws -> AdminTrashBulkResult) async {
+        isBulkClearing = true
+        defer { isBulkClearing = false }
+        do {
+            let result = try await operation()
+            bulkResult = result
+            noticeMessage = AdminTrashBulkPresentation.headline(
+                scope: result.scope,
+                succeeded: result.succeeded,
+                failed: result.failed
+            )
+            await load()
+        } catch {
+            errorMessage = managementErrorMessage(for: error)
+        }
+    }
 }
 
 private struct EmptyBody: Encodable, Sendable {}
@@ -207,6 +315,8 @@ struct AdminTrashView: View {
     @State private var showsOrphans = false
     @State private var detailOrphan: AdminTrashOrphanItem?
     @State private var purgeOrphanTarget: AdminTrashOrphanItem?
+    @State private var confirmClearDeleted = false
+    @State private var confirmClearOrphans = false
 
     init(client: ManagementAPIClient) {
         _model = State(initialValue: AdminTrashModel(client: client))
@@ -253,6 +363,29 @@ struct AdminTrashView: View {
             if let purgeOrphanTarget = purgeOrphanTarget {
                 purgeOrphanConfirmation(orphan: purgeOrphanTarget)
             }
+            if confirmClearDeleted {
+                bulkClearConfirmation(
+                    title: "确认清空已删除文章",
+                    message: "将处理 \(model.items.count) 条已删除记录。仍被其他用户保留的文章只清除删除记录；没有任何保留者的文章会物理删除全局内容。",
+                    cancel: { confirmClearDeleted = false }
+                ) {
+                    confirmClearDeleted = false
+                    Task { await model.clearDeleted() }
+                }
+            }
+            if confirmClearOrphans {
+                bulkClearConfirmation(
+                    title: "确认清空孤儿文章",
+                    message: "将处理 \(model.orphanItems.count) 篇孤儿文章。这些文章没有任何用户记录，原始内容会从服务器物理删除。",
+                    cancel: { confirmClearOrphans = false }
+                ) {
+                    confirmClearOrphans = false
+                    Task { await model.clearOrphans() }
+                }
+            }
+            if let bulkResult = model.bulkResult {
+                bulkResultView(bulkResult)
+            }
         }
         .overlay {
             if let detailItem = model.detailItem {
@@ -274,6 +407,10 @@ struct AdminTrashView: View {
                     } label: {
                         Label("刷新", systemImage: "arrow.clockwise")
                     }
+                    Button("清空已删除", role: .destructive) {
+                        confirmClearDeleted = true
+                    }
+                    .disabled(model.items.isEmpty || model.isBulkClearing)
                 }
             }
             Section {
@@ -316,6 +453,10 @@ struct AdminTrashView: View {
                     } label: {
                         Label("刷新", systemImage: "arrow.clockwise")
                     }
+                    Button("清空孤儿文章", role: .destructive) {
+                        confirmClearOrphans = true
+                    }
+                    .disabled(model.orphanItems.isEmpty || model.isBulkClearing)
                 }
             }
             Section {
@@ -412,6 +553,84 @@ struct AdminTrashView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private func bulkClearConfirmation(
+        title: String,
+        message: String,
+        cancel: @escaping () -> Void,
+        action: @escaping () -> Void
+    ) -> some View {
+        VStack(spacing: 14) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 30))
+                .foregroundStyle(.orange)
+            Text(title)
+                .font(.headline)
+            Text("\(message) 操作无法恢复，完成后会展示成功、失败和失败原因。")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            HStack(spacing: 10) {
+                Button("取消", action: cancel)
+                    .keyboardShortcut(.cancelAction)
+                Button("确认清空", role: .destructive, action: action)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(model.isBulkClearing)
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: 420)
+        .background {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(QiankunjieColors.surface(for: colorScheme))
+                .shadow(radius: 18)
+        }
+        .padding(40)
+    }
+
+    private func bulkResultView(_ result: AdminTrashBulkResult) -> some View {
+        VStack(spacing: 14) {
+            Image(systemName: result.failed > 0 ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                .font(.system(size: 30))
+                .foregroundStyle(result.failed > 0 ? Color.orange : Color.green)
+            Text("清空结果")
+                .font(.headline)
+            Text(AdminTrashBulkPresentation.headline(
+                scope: result.scope,
+                succeeded: result.succeeded,
+                failed: result.failed
+            ))
+            Text(AdminTrashBulkPresentation.summary(deletedArticles: result.deletedArticles))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            if !result.failures.isEmpty {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(Array(result.failures.enumerated()), id: \.offset) { _, failure in
+                            Text(AdminTrashBulkPresentation.failureText(failure))
+                                .font(.footnote)
+                                .foregroundStyle(.red)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 180)
+            }
+            Button("知道了") {
+                model.bulkResult = nil
+            }
+                .keyboardShortcut(.defaultAction)
+        }
+        .padding(24)
+        .frame(maxWidth: 460)
+        .background {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(QiankunjieColors.surface(for: colorScheme))
+                .shadow(radius: 18)
+        }
+        .padding(40)
     }
 
     private func purgeConfirmation(item: AdminTrashItem) -> some View {

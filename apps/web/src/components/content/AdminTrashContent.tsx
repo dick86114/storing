@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { DeleteOutlined, ExclamationCircleOutlined, InboxOutlined, ReloadOutlined, UserOutlined } from '@ant-design/icons';
-import { api, type AdminTrashItem, type AdminTrashOrphanItem } from '@/lib/api';
+import {
+  api,
+  type AdminTrashBulkResult,
+  type AdminTrashItem,
+  type AdminTrashOrphanItem,
+} from '@/lib/api';
 import { useAuth } from '@/components/providers/AuthContext';
 
 function deletedAtText(value: string | null) {
@@ -17,6 +22,7 @@ export function AdminTrashContent() {
   const [items, setItems] = useState<AdminTrashItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [isBulkPurging, setIsBulkPurging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [purgeTarget, setPurgeTarget] = useState<{ article_id: number; title: string | null } | null>(null);
@@ -24,6 +30,8 @@ export function AdminTrashContent() {
   const [orphans, setOrphans] = useState<AdminTrashOrphanItem[]>([]);
   const [section, setSection] = useState<'deleted' | 'orphans'>('deleted');
   const [detailOrphan, setDetailOrphan] = useState<AdminTrashOrphanItem | null>(null);
+  const [bulkPurgeSection, setBulkPurgeSection] = useState<'deleted' | 'orphans' | null>(null);
+  const [bulkPurgeResult, setBulkPurgeResult] = useState<AdminTrashBulkResult | null>(null);
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -101,6 +109,23 @@ export function AdminTrashContent() {
     }
   }, [refresh]);
 
+  const bulkPurge = useCallback(async (target: 'deleted' | 'orphans') => {
+    setIsBulkPurging(true);
+    setError(null);
+    try {
+      const result = target === 'deleted'
+        ? await api.purgeAdminTrash()
+        : await api.purgeAdminTrashOrphans();
+      setBulkPurgeResult(result);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '清空失败');
+    } finally {
+      setIsBulkPurging(false);
+      setBulkPurgeSection(null);
+    }
+  }, [refresh]);
+
   if (!isAuthenticated || user?.role !== 'admin') {
     return (
       <div className="admin-library-shell">
@@ -124,6 +149,25 @@ export function AdminTrashContent() {
         <div className="mcp-header-actions">
           <Link href="/admin/users" className="mcp-btn mcp-btn-quiet"><UserOutlined /> 用户管理</Link>
           <button type="button" className="mcp-btn mcp-btn-quiet" onClick={refresh}><ReloadOutlined /> 刷新</button>
+          {section === 'deleted' ? (
+            <button
+              type="button"
+              className="mcp-btn mcp-btn-danger"
+              disabled={isLoading || isBulkPurging || items.length === 0}
+              onClick={() => setBulkPurgeSection('deleted')}
+            >
+              <DeleteOutlined /> {isBulkPurging ? '清空中…' : '清空已删除'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="mcp-btn mcp-btn-danger"
+              disabled={isLoading || isBulkPurging || orphans.length === 0}
+              onClick={() => setBulkPurgeSection('orphans')}
+            >
+              <DeleteOutlined /> {isBulkPurging ? '清空中…' : '清空孤儿文章'}
+            </button>
+          )}
         </div>
       </header>
 
@@ -222,6 +266,66 @@ export function AdminTrashContent() {
               <button type="button" className="mcp-btn mcp-btn-danger" disabled={busyId === purgeTarget.article_id} onClick={() => purge(purgeTarget)}>
                 <DeleteOutlined /> {busyId === purgeTarget.article_id ? '删除中…' : '确认彻底删除'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkPurgeSection && (
+        <div className="mcp-modal-overlay" role="presentation">
+          <div className="mcp-modal-panel" role="dialog" aria-modal="true">
+            <div className="mcp-panel-heading">
+              <ExclamationCircleOutlined style={{ fontSize: 26, color: '#d48806' }} />
+              <div>
+                <h2>{bulkPurgeSection === 'deleted' ? '确认清空已删除文章' : '确认清空孤儿文章'}</h2>
+                <p className="mcp-muted">
+                  {bulkPurgeSection === 'deleted'
+                    ? `将处理 ${items.length} 条已删除记录。仍被其他用户保留的文章只清除删除记录；没有任何保留者的文章会物理删除全局内容。`
+                    : `将处理 ${orphans.length} 篇孤儿文章。这些文章没有任何用户记录，原始内容会从服务器物理删除。`}
+                </p>
+                <p className="mcp-muted">操作无法恢复，完成后会展示成功、失败和失败原因。</p>
+              </div>
+            </div>
+            <div className="mcp-form-actions">
+              <button type="button" className="mcp-btn mcp-btn-quiet" disabled={isBulkPurging} onClick={() => setBulkPurgeSection(null)}>取消</button>
+              <button
+                type="button"
+                className="mcp-btn mcp-btn-danger"
+                disabled={isBulkPurging}
+                onClick={() => void bulkPurge(bulkPurgeSection)}
+              >
+                <DeleteOutlined /> {isBulkPurging ? '清空中…' : '确认清空'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkPurgeResult && (
+        <div className="mcp-modal-overlay" role="presentation">
+          <div className="mcp-modal-panel" role="dialog" aria-modal="true">
+            <div className="mcp-panel-heading">
+              <ExclamationCircleOutlined style={{ fontSize: 26, color: bulkPurgeResult.failed > 0 ? '#d48806' : '#52c41a' }} />
+              <div>
+                <h2>清空结果</h2>
+                <p className="mcp-muted">
+                  成功清理 {bulkPurgeResult.succeeded} 项，失败 {bulkPurgeResult.failed} 项；
+                  物理删除全局文章 {bulkPurgeResult.deleted_articles} 篇。
+                </p>
+              </div>
+            </div>
+            {bulkPurgeResult.failures.length > 0 && (
+              <div className="admin-trash-result-list">
+                {bulkPurgeResult.failures.map((failure) => (
+                  <p key={`${failure.article_id}-${failure.user_id ?? 'orphan'}`}>
+                    {failure.title ?? `#${failure.article_id}`}
+                    {failure.user_id ? `（用户 #${failure.user_id}）` : ''}：{failure.reason}
+                  </p>
+                ))}
+              </div>
+            )}
+            <div className="mcp-form-actions">
+              <button type="button" className="mcp-btn mcp-btn-quiet" onClick={() => setBulkPurgeResult(null)}>知道了</button>
             </div>
           </div>
         </div>

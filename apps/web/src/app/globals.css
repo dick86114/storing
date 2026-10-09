@@ -12687,6 +12687,17 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
 .admin-trash-title { margin: 0; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
 .admin-trash-meta { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; color: var(--text-muted); font-size: 12.5px; }
 .admin-trash-card-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.admin-trash-result-list {
+  display: grid;
+  max-height: 260px;
+  gap: 8px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.admin-trash-result-list p { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
 .mcp-modal-overlay { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 22px; background: color-mix(in oklch, var(--fg) 35%, transparent); backdrop-filter: blur(8px); }
 .mcp-modal-panel {
   width: min(460px, 100%); padding: 22px; border: 1px solid var(--border); border-radius: 16px;

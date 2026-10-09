@@ -64,8 +64,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.idickies.storing.admin.AdminAuditLog
 import com.idickies.storing.admin.AdminMcpClient
 import com.idickies.storing.admin.AdminMcpRequestLog
+import com.idickies.storing.admin.AdminTrashBulkResult
 import com.idickies.storing.admin.AdminUser
 import com.idickies.storing.admin.AdminViewModel
+import com.idickies.storing.admin.adminTrashBulkFailureText
+import com.idickies.storing.admin.adminTrashBulkHeadline
+import com.idickies.storing.admin.adminTrashBulkSummary
 import com.idickies.storing.ui.components.liquidGlassSurfaceColor
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -123,11 +127,15 @@ fun AdminScreen(
           3 -> AdminTrashTab(
             items = state.trashItems,
             orphans = state.trashOrphans,
+            bulkResult = state.trashBulkResult,
             submitting = state.submitting,
             onRefresh = { viewModel.load() },
             onRestore = { viewModel.restoreTrash(it) },
             onPurge = { viewModel.purgeTrash(it) },
             onAdoptOrphan = { viewModel.adoptTrashOrphan(it) },
+            onClearTrash = { viewModel.clearTrash() },
+            onClearTrashOrphans = { viewModel.clearTrashOrphans() },
+            onDismissBulkResult = { viewModel.dismissTrashBulkResult() },
           )
         }
       }
@@ -365,19 +373,32 @@ private fun AdminAuditTab(logs: List<AdminAuditLog>) {
 private fun AdminTrashTab(
   items: List<com.idickies.storing.admin.AdminTrashItem>,
   orphans: List<com.idickies.storing.admin.AdminTrashOrphan>,
+  bulkResult: AdminTrashBulkResult?,
   submitting: Boolean,
   onRefresh: () -> Unit,
   onRestore: (Int) -> Unit,
   onPurge: (Int) -> Unit,
   onAdoptOrphan: (Int) -> Unit,
+  onClearTrash: () -> Unit,
+  onClearTrashOrphans: () -> Unit,
+  onDismissBulkResult: () -> Unit,
 ) {
   var pendingPurge by remember { mutableStateOf<com.idickies.storing.admin.AdminTrashItem?>(null) }
   var detailItem by remember { mutableStateOf<com.idickies.storing.admin.AdminTrashItem?>(null) }
   var showOrphans by remember { mutableStateOf(false) }
   var detailOrphan by remember { mutableStateOf<com.idickies.storing.admin.AdminTrashOrphan?>(null) }
   var pendingPurgeOrphan by remember { mutableStateOf<com.idickies.storing.admin.AdminTrashOrphan?>(null) }
+  var pendingClearTrash by remember { mutableStateOf(false) }
+  var pendingClearOrphans by remember { mutableStateOf(false) }
 
-  if (items.isEmpty()) {
+  bulkResult?.let { result ->
+    AdminTrashBulkResultDialog(
+      result = result,
+      onDismiss = onDismissBulkResult,
+    )
+  }
+
+  if (items.isEmpty() && orphans.isEmpty()) {
     Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
       Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("回收站", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
@@ -406,6 +427,12 @@ private fun AdminTrashTab(
       TextButton(onClick = onRefresh, enabled = !submitting) { Text("刷新") }
       FilterChip(selected = !showOrphans, onClick = { showOrphans = false }, label = { Text("已删除") }, enabled = !submitting)
       FilterChip(selected = showOrphans, onClick = { showOrphans = true }, label = { Text("孤儿文章") }, enabled = !submitting)
+      TextButton(
+        onClick = { if (showOrphans) pendingClearOrphans = true else pendingClearTrash = true },
+        enabled = !submitting && if (showOrphans) orphans.isNotEmpty() else items.isNotEmpty(),
+      ) {
+        Text(if (showOrphans) "清空孤儿文章" else "清空已删除", color = MaterialTheme.colorScheme.error)
+      }
     }
     if (showOrphans) {
       LazyColumn(
@@ -482,6 +509,50 @@ private fun AdminTrashTab(
     )
   }
 
+  if (pendingClearTrash) {
+    QiankunjieAlertDialog(
+      onDismissRequest = { if (!submitting) pendingClearTrash = false },
+      icon = { Icon(Icons.Outlined.WarningAmber, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+      title = { Text("确认清空已删除文章") },
+      text = {
+        Text(
+          "将处理 ${items.size} 条已删除记录。仍被其他用户保留的文章只清除删除记录；没有任何保留者的文章会物理删除全局内容。操作无法恢复。",
+          style = MaterialTheme.typography.bodySmall,
+        )
+      },
+      confirmButton = {
+        Button(
+          onClick = { pendingClearTrash = false; onClearTrash() },
+          enabled = !submitting,
+          colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+        ) { Text("确认清空") }
+      },
+      dismissButton = { TextButton(onClick = { pendingClearTrash = false }, enabled = !submitting) { Text("取消") } },
+    )
+  }
+
+  if (pendingClearOrphans) {
+    QiankunjieAlertDialog(
+      onDismissRequest = { if (!submitting) pendingClearOrphans = false },
+      icon = { Icon(Icons.Outlined.WarningAmber, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+      title = { Text("确认清空孤儿文章") },
+      text = {
+        Text(
+          "将处理 ${orphans.size} 篇孤儿文章。这些文章没有任何用户记录，原始内容会从服务器物理删除。操作无法恢复。",
+          style = MaterialTheme.typography.bodySmall,
+        )
+      },
+      confirmButton = {
+        Button(
+          onClick = { pendingClearOrphans = false; onClearTrashOrphans() },
+          enabled = !submitting,
+          colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+        ) { Text("确认清空") }
+      },
+      dismissButton = { TextButton(onClick = { pendingClearOrphans = false }, enabled = !submitting) { Text("取消") } },
+    )
+  }
+
   detailItem?.let { item ->
     QiankunjieAlertDialog(
       onDismissRequest = { detailItem = null },
@@ -508,6 +579,37 @@ private fun AdminTrashTab(
       confirmButton = { Button(onClick = { detailItem = null }) { Text("关闭") } },
     )
   }
+}
+
+@Composable
+private fun AdminTrashBulkResultDialog(
+  result: AdminTrashBulkResult,
+  onDismiss: () -> Unit,
+) {
+  QiankunjieAlertDialog(
+    onDismissRequest = onDismiss,
+    icon = {
+      Icon(
+        Icons.Outlined.CheckCircle,
+        contentDescription = null,
+        tint = if (result.failed > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+      )
+    },
+    title = { Text("清空结果") },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(adminTrashBulkHeadline(result.scope, result.succeeded, result.failed), style = MaterialTheme.typography.bodySmall)
+        Text(adminTrashBulkSummary(result.deletedArticles), style = MaterialTheme.typography.bodySmall)
+        if (result.failures.isNotEmpty()) {
+          Text("失败明细：", style = MaterialTheme.typography.labelMedium)
+          result.failures.forEach { failure ->
+            Text(adminTrashBulkFailureText(failure), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+          }
+        }
+      }
+    },
+    confirmButton = { Button(onClick = onDismiss) { Text("知道了") } },
+  )
 }
 
 @Composable

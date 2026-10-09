@@ -47,11 +47,17 @@ interface AdminApi {
   @GET("admin/trash")
   suspend fun trash(): AdminTrashResponse
 
+  @DELETE("admin/trash")
+  suspend fun clearTrash(): AdminTrashBulkResult
+
   @POST("admin/trash/{id}/restore")
   suspend fun restoreTrash(@Path("id") id: Int): AdminTrashActionResponse
 
   @GET("admin/trash/orphans")
   suspend fun trashOrphans(): AdminTrashOrphansResponse
+
+  @DELETE("admin/trash/orphans")
+  suspend fun clearTrashOrphans(): AdminTrashBulkResult
 
   @POST("admin/trash/{id}/adopt")
   suspend fun adoptTrashOrphan(@Path("id") id: Int): AdminTrashActionResponse

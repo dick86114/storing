@@ -17,6 +17,7 @@ data class AdminUiState(
   val auditLogs: List<AdminAuditLog> = emptyList(),
   val trashItems: List<AdminTrashItem> = emptyList(),
   val trashOrphans: List<AdminTrashOrphan> = emptyList(),
+  val trashBulkResult: AdminTrashBulkResult? = null,
   val mcpClients: List<AdminMcpClient> = emptyList(),
   val mcpLogs: List<AdminMcpRequestLog> = emptyList(),
   val mcpLimits: AdminMcpPlatformLimits? = null,
@@ -136,6 +137,50 @@ class AdminViewModel @Inject constructor(
         .onFailure { error -> mutableState.update { it.copy(submitting = false, error = error.message ?: "彻底删除失败") } }
     }
   }
+
+  fun clearTrash() {
+    if (mutableState.value.submitting) return
+    viewModelScope.launch {
+      mutableState.update { it.copy(submitting = true, error = null, notice = null) }
+      runCatching { repository.clearTrash() }
+        .onSuccess { response ->
+          mutableState.update { state ->
+            state.copy(
+              submitting = false,
+              trashBulkResult = response,
+              notice = adminTrashBulkHeadline(response.scope, response.succeeded, response.failed),
+            )
+          }
+          load()
+        }
+        .onFailure { error ->
+          mutableState.update { it.copy(submitting = false, error = error.message ?: "清空已删除文章失败") }
+        }
+    }
+  }
+
+  fun clearTrashOrphans() {
+    if (mutableState.value.submitting) return
+    viewModelScope.launch {
+      mutableState.update { it.copy(submitting = true, error = null, notice = null) }
+      runCatching { repository.clearTrashOrphans() }
+        .onSuccess { response ->
+          mutableState.update { state ->
+            state.copy(
+              submitting = false,
+              trashBulkResult = response,
+              notice = adminTrashBulkHeadline(response.scope, response.succeeded, response.failed),
+            )
+          }
+          load()
+        }
+        .onFailure { error ->
+          mutableState.update { it.copy(submitting = false, error = error.message ?: "清空孤儿文章失败") }
+        }
+    }
+  }
+
+  fun dismissTrashBulkResult() = mutableState.update { it.copy(trashBulkResult = null) }
 
   fun adoptTrashOrphan(articleId: Int) {
     if (mutableState.value.submitting) return
