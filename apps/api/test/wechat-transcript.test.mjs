@@ -6,6 +6,7 @@ import {
   renderWeChatTranscriptMarkdown,
   renderWeChatTranscriptHtml,
   renderWeChatPlainTextHtml,
+  buildWeChatContentFromSnapshot,
   safeZipEntryName,
 } from '../src/services/wechat-transcript.ts';
 
@@ -132,4 +133,18 @@ test('zip entry names with traversal or control characters are rejected', () => 
   assert.equal(safeZipEntryName('back\\slash.txt'), null);
   assert.equal(safeZipEntryName('bad\u0000name.txt'), null);
   assert.equal(safeZipEntryName('directory/'), null);
+});
+
+test('wechat snapshot rebuilds clean markdown and html with inline media', () => {
+  const content = buildWeChatContentFromSnapshot({
+    transcript: sample,
+    mediaFiles: [...mediaMap.entries()].map(([name, value]) => ({ name, ...value })),
+  });
+
+  assert.ok(content);
+  assert.doesNotMatch(content.markdown, /style|overflow-wrap/);
+  assert.match(content.markdown, /\*\*李四\*\* · 09:06/);
+  assert.match(content.markdown, /!\[photo\.jpg\]\(https:\/\/img\.example\/p\/photo\.jpg\)/);
+  assert.match(content.html, /<div class="wechat-msg">/);
+  assert.doesNotMatch(content.html, /<script/);
 });

@@ -22,8 +22,12 @@ struct PlainTextArticleRenderer: Sendable {
         }
 
         let body: String
-        if let markdown = document.contentMarkdown?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !markdown.isEmpty {
+        if let html = document.contentHTML,
+           WeChatArticleTranscript.isTranscript(html),
+           let transcriptText = WeChatArticleTranscript.plainText(from: html) {
+            body = transcriptText
+        } else if let markdown = document.contentMarkdown?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !markdown.isEmpty {
             body = markdown
                 .replacingOccurrences(of: "^#+\\s*", with: "", options: .regularExpression)
                 .replacingOccurrences(of: "[*_`>]", with: "", options: .regularExpression)

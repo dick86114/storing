@@ -68,7 +68,8 @@ struct DocxArticleRenderer: Sendable {
             document.preferredMarkdown,
             baseURL: document.webExportBaseURL,
             images: images,
-            insertedImageIDs: &insertedImageIDs
+            insertedImageIDs: &insertedImageIDs,
+            isWeChatTranscript: WeChatArticleTranscript.isTranscript(document.contentHTML)
         ))
         paragraphs.append(contentsOf: imageParagraphs(
             images.filter { !insertedImageIDs.contains($0.id) }
@@ -96,7 +97,8 @@ struct DocxArticleRenderer: Sendable {
         _ markdown: String,
         baseURL: URL?,
         images: [ArticleExportImage],
-        insertedImageIDs: inout Set<Int>
+        insertedImageIDs: inout Set<Int>,
+        isWeChatTranscript: Bool
     ) -> [String] {
         var result: [String] = []
         var inCode = false
@@ -114,6 +116,9 @@ struct DocxArticleRenderer: Sendable {
             if line.isEmpty {
                 continue
             }
+            if line == "---" {
+                continue
+            }
             if let imageURL = ArticleImageExtractor.markdownImageURL(in: line, baseURL: baseURL) {
                 if let image = images.first(where: { $0.reference.url == imageURL }) {
                     insertedImageIDs.insert(image.id)
@@ -124,12 +129,16 @@ struct DocxArticleRenderer: Sendable {
             if line.hasPrefix("#") {
                 let level = min(line.prefix(while: { $0 == "#" }).count, 3)
                 result.append(paragraph(String(line.dropFirst(level)).trimmingCharacters(in: .whitespaces), style: "Heading\(level)"))
+            } else if line.hasPrefix("**") && line.contains(" · ") {
+                result.append(paragraph(line, style: "ChatMeta"))
+            } else if line.range(of: #"^\d{4}年\d{1,2}月\d{1,2}日$"#, options: .regularExpression) != nil {
+                result.append(paragraph(line, style: "ChatDate"))
             } else if line.hasPrefix("- ") || line.hasPrefix("* ") {
                 result.append(paragraph("• \(String(line.dropFirst(2)))", style: "ListParagraph"))
             } else if line.hasPrefix("> ") {
                 result.append(paragraph(String(line.dropFirst(2)), style: "Quote"))
             } else {
-                result.append(paragraph(line))
+                result.append(paragraph(line, style: isWeChatTranscript ? "ChatBody" : nil))
             }
         }
         return result
@@ -141,9 +150,40 @@ struct DocxArticleRenderer: Sendable {
         } ?? ""
         let runs = text.components(separatedBy: "\n").enumerated().map { index, line in
             let breakXML = index == 0 ? "" : "<w:r><w:br/></w:r>"
-            return "\(breakXML)<w:r><w:t xml:space=\"preserve\">\(escape(line))</w:t></w:r>"
+            return breakXML + markdownRuns(line)
         }.joined()
         return "<w:p>\(styleXML)\(runs)</w:p>"
+    }
+
+    private func markdownRuns(_ line: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: #"\*\*(.+?)\*\*"#) else {
+            return textRun(line)
+        }
+
+        let range = NSRange(line.startIndex..., in: line)
+        var output = ""
+        var cursor = line.startIndex
+        for match in regex.matches(in: line, range: range) {
+            guard
+                let fullRange = Range(match.range, in: line),
+                let boldRange = Range(match.range(at: 1), in: line)
+            else {
+                continue
+            }
+
+            output += textRun(String(line[cursor..<fullRange.lowerBound]))
+            output += textRun(String(line[boldRange]), bold: true)
+            cursor = fullRange.upperBound
+        }
+
+        output += textRun(String(line[cursor...]))
+        return output
+    }
+
+    private func textRun(_ text: String, bold: Bool = false) -> String {
+        guard !text.isEmpty else { return "" }
+        let boldXML = bold ? "<w:b/>" : ""
+        return "<w:r>\(boldXML)<w:t xml:space=\"preserve\">\(escape(text))</w:t></w:r>"
     }
 
     private func write(_ relativePath: String, _ content: String, to root: URL) throws {
@@ -263,6 +303,9 @@ struct DocxArticleRenderer: Sendable {
           <w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/><w:basedOn w:val="Normal"/><w:pPr><w:ind w:left="720"/></w:pPr><w:rPr><w:i/></w:rPr></w:style>
           <w:style w:type="paragraph" w:styleId="Code"><w:name w:val="Code"/><w:basedOn w:val="Normal"/><w:rPr><w:rFonts w:ascii="Menlo" w:hAnsi="Menlo"/></w:rPr></w:style>
           <w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:pPr><w:ind w:left="720"/></w:pPr></w:style>
+          <w:style w:type="paragraph" w:styleId="ChatDate"><w:name w:val="Chat Date"/><w:basedOn w:val="Normal"/><w:pPr><w:jc w:val="center"/></w:pPr><w:rPr><w:color w:val="607064"/></w:rPr></w:style>
+          <w:style w:type="paragraph" w:styleId="ChatMeta"><w:name w:val="Chat Meta"/><w:basedOn w:val="Normal"/><w:pPr><w:pBdr><w:top w:val="single" w:sz="6" w:space="6" w:color="D9E1DB"/></w:pBdr><w:spacing w:before="240" w:after="80"/></w:pPr><w:rPr><w:color w:val="384a40"/></w:rPr></w:style>
+          <w:style w:type="paragraph" w:styleId="ChatBody"><w:name w:val="Chat Body"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="120" w:line="360" w:lineRule="auto"/></w:pPr><w:rPr><w:sz w:val="24"/></w:rPr></w:style>
         </w:styles>
         """
     }

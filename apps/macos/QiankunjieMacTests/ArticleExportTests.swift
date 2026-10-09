@@ -48,6 +48,63 @@ struct ArticleExportTests {
         #expect(result.contains("第二段"))
     }
 
+    @Test func 微信聊天记录导出清除样式并按消息内联图片() {
+        let document = ArticleExportDocument(
+            title: "微信聊天记录",
+            contentMarkdown: ".wechat-chat{max-width:100%;}聊天记录\n\nApex17:05\n\n图片后文字\n\n![图片](https://img.example.com/a.png)",
+            contentHTML: [
+                "<style>.wechat-chat{max-width:100%;}</style>",
+                "<div class=\"wechat-chat\">",
+                "<div class=\"wechat-chat-head\"><p class=\"wechat-chat-title\">聊天记录</p>",
+                "<p class=\"wechat-chat-date\">2026年5月12日</p></div>",
+                "<div class=\"wechat-msg\">",
+                "<div class=\"wechat-msg-head\"><span class=\"wechat-msg-sender\">Apex</span>",
+                "<span class=\"wechat-msg-time\">17:05</span></div>",
+                "<div class=\"wechat-msg-body\"><p>brew install rtk</p>",
+                "<p><img src=\"https://img.example.com/a.png\" alt=\"聊天截图\"></p>",
+                "<p>图片后文字</p></div></div></div>",
+            ].joined()
+        )
+
+        let markdown = MarkdownArticleRenderer().render(document)
+
+        #expect(!markdown.contains(".wechat-chat"))
+        #expect(markdown.contains("**Apex** · 17:05"))
+        let imageIndex = markdown.range(of: "![聊天截图](https://img.example.com/a.png)")?.lowerBound
+        let textIndex = markdown.range(of: "图片后文字")?.lowerBound
+        #expect(imageIndex != nil)
+        #expect(textIndex != nil)
+        if let imageIndex, let textIndex {
+            #expect(imageIndex < textIndex)
+        }
+    }
+
+    @Test func 微信聊天记录纯文本使用易读时间线排版() {
+        let document = ArticleExportDocument(
+            title: "微信聊天记录",
+            contentMarkdown: ".wechat-chat{max-width:100%;}聊天记录\n\nApex17:05\n\n安装命令",
+            contentHTML: [
+                "<style>.wechat-chat{max-width:100%;}</style>",
+                "<div class=\"wechat-chat\">",
+                "<div class=\"wechat-chat-head\"><p class=\"wechat-chat-title\">聊天记录</p>",
+                "<p class=\"wechat-chat-date\">2026年5月12日</p></div>",
+                "<div class=\"wechat-msg\">",
+                "<div class=\"wechat-msg-head\"><span class=\"wechat-msg-sender\">Apex</span>",
+                "<span class=\"wechat-msg-time\">17:05</span></div>",
+                "<div class=\"wechat-msg-body\"><p>安装命令</p>",
+                "<p><img src=\"https://img.example.com/a.png\" alt=\"聊天截图\"></p></div>",
+                "</div></div>",
+            ].joined()
+        )
+
+        let result = PlainTextArticleRenderer().render(document)
+
+        #expect(result.contains("聊天记录\n2026年5月12日"))
+        #expect(result.contains("Apex · 17:05\n安装命令"))
+        #expect(result.contains("[图片：聊天截图] https://img.example.com/a.png"))
+        #expect(!result.contains(".wechat-chat"))
+    }
+
     @Test func Markdown导出补充HTML正文图片并解析相对地址() {
         let document = ArticleExportDocument(
             title: "HTML 图片文章",
@@ -286,6 +343,45 @@ struct ArticleExportTests {
         #expect(result.output.contains("[Content_Types].xml"))
         #expect(result.output.contains("_rels/.rels"))
         #expect(result.output.contains("word/document.xml"))
+    }
+
+    @MainActor
+    @Test func 微信聊天记录Word图片在消息原位且不导出样式代码() async throws {
+        let imageURL = try 写入测试图片()
+        defer { try? FileManager.default.removeItem(at: imageURL) }
+        let document = ArticleExportDocument(
+            title: "微信聊天记录",
+            contentMarkdown: ".wechat-chat{max-width:100%;}聊天记录\n\nApex17:05\n\n图片后文字\n\n![聊天截图](\(imageURL.absoluteString))",
+            contentHTML: [
+                "<style>.wechat-chat{max-width:100%;}</style>",
+                "<div class=\"wechat-chat\">",
+                "<div class=\"wechat-chat-head\"><p class=\"wechat-chat-title\">聊天记录</p>",
+                "<p class=\"wechat-chat-date\">2026年5月12日</p></div>",
+                "<div class=\"wechat-msg\">",
+                "<div class=\"wechat-msg-head\"><span class=\"wechat-msg-sender\">Apex</span>",
+                "<span class=\"wechat-msg-time\">17:05</span></div>",
+                "<div class=\"wechat-msg-body\"><p>图片前文字</p>",
+                "<p><img src=\"\(imageURL.absoluteString)\" alt=\"聊天截图\"></p>",
+                "<p>图片后文字</p></div></div></div>",
+            ].joined()
+        )
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("storing-wechat-export-\(UUID().uuidString).docx")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        try await DocxArticleRenderer().render(document, to: url)
+
+        let result = try 运行命令("/usr/bin/unzip", ["-p", url.path, "word/document.xml"])
+        #expect(result.status == 0)
+        #expect(!result.output.contains(".wechat-chat"))
+        #expect(!result.output.contains(">图片<"))
+        let imageIndex = result.output.range(of: "rIdImage1")?.lowerBound
+        let textIndex = result.output.range(of: "图片后文字")?.lowerBound
+        #expect(imageIndex != nil)
+        #expect(textIndex != nil)
+        if let imageIndex, let textIndex {
+            #expect(imageIndex < textIndex)
+        }
     }
 
     @Test func Obsidian导出写入Markdown并追加同名序号() throws {

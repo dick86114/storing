@@ -260,6 +260,34 @@ export function renderWeChatPlainTextHtml(text: string): string {
   ].join('');
 }
 
+export interface WeChatContentSnapshot {
+  transcript: string;
+  mediaFiles?: Array<{ name: string; url?: string | null; kind?: string }>;
+}
+
+/** 用导入时保留的原始记录重建导出正文，避免旧缓存把 CSS 当作正文。 */
+export function buildWeChatContentFromSnapshot(
+  snapshot: WeChatContentSnapshot,
+): { markdown: string; html: string } | null {
+  const standardRecords = parseWeChatTranscript(snapshot.transcript);
+  const records = standardRecords.length
+    ? standardRecords
+    : parseWeChatIndividualTranscript(snapshot.transcript);
+  if (records.length === 0) return null;
+
+  const mediaMap = new Map(
+    (snapshot.mediaFiles ?? []).map((file) => [
+      file.name,
+      { url: file.url ?? null, kind: (file.kind as WeChatMediaKind | undefined) ?? 'file' },
+    ]),
+  );
+
+  return {
+    markdown: renderWeChatTranscriptMarkdown({ records, mediaMap }),
+    html: renderWeChatTranscriptHtml({ records, mediaMap }),
+  };
+}
+
 export function detectWeChatMediaKind(filename: string): WeChatMediaKind {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
   if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif', 'heic'].includes(ext)) return 'image';

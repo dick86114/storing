@@ -28,11 +28,10 @@ test('WeChat import persists html body so the reader never needs to fetch an int
   assert.match(service, /contentHtml: html/);
 
   // 存量文章缺 HTML 缓存时从 Markdown 现场生成，而不是去抓取 qiankunjie:// 内部地址。
-  assert.match(reader, /buildWeChatHtmlFromCache\(articleId, meta\?\.contentMd\)/);
-  assert.match(reader, /buildWeChatHtmlFromCache\(articleId, meta\?\.contentMd\)/);
+  assert.match(reader, /buildWeChatContentFromCache\(articleId\)/);
+  assert.match(reader, /buildWeChatContentFromSnapshot\(\{/);
   assert.match(reader, /content\?\.type !== 'wechat_chat'/);
-  assert.match(reader, /parseWeChatTranscript\(content\.transcript\)/);
-  assert.match(reader, /renderWeChatTranscriptHtml\(\{ records, mediaMap \}\)/);
+  assert.match(reader, /transcript: content\.transcript/);
 });
 
 test('WeChat import validates ZIP entry names and enforces size limits', () => {
