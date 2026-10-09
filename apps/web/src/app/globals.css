@@ -17316,18 +17316,79 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   color: var(--text);
 }
 
-.detail-panel-ai-status {
+.ai-summary-status {
   display: inline-flex;
-  flex-wrap: wrap;
+  flex: none;
   align-items: center;
-  width: fit-content;
-  max-width: 100%;
-  gap: 6px;
-  margin: 0 0 10px;
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--tag-bg);
+  justify-content: center;
+  width: 18px;
+  height: 18px;
   color: var(--text-muted);
   font-size: 13px;
+}
+
+.ai-summary-status.is-pending,
+.ai-summary-status.is-running {
+  color: var(--accent);
+}
+
+.ai-summary-status.is-failed {
+  color: var(--danger, #d5455c);
+}
+
+.ai-summary-status-message {
+  margin: 0 16px 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.ai-summary-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 0 16px 14px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ai-summary-meta > span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 5px;
+  overflow-wrap: anywhere;
+}
+
+.ai-summary-meta-label {
+  opacity: 0.72;
+}
+
+.ai-summary-meta button {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* 兼容历史聊天记录：旧 HTML 内联样式缺少超长链接换行规则。 */
+.article-body .wechat-chat,
+.article-body .wechat-chat * {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.article-body .wechat-msg-body {
+  min-width: 0;
+}
+
+.article-body .wechat-msg-head {
+  gap: 12px;
 }

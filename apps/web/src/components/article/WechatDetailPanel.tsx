@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useSWRConfig } from 'swr';
 import useSWR from 'swr';
 import QRCode from 'qrcode';
-import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, GlobalOutlined, DeleteOutlined, UpOutlined, DownOutlined, ExclamationCircleOutlined, InfoCircleOutlined, CloseOutlined, PlusOutlined } from '@ant-design/icons';
+import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, GlobalOutlined, DeleteOutlined, UpOutlined, DownOutlined, ClockCircleOutlined, LoadingOutlined, ExclamationCircleOutlined, InfoCircleOutlined, CloseOutlined, PlusOutlined } from '@ant-design/icons';
 import { useArticle, useArticleMeta } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/providers/AuthContext';
@@ -16,7 +16,6 @@ import { BookmarkButton } from '@/components/ui/BookmarkButton';
 import { useTheme, type ColorScheme } from '@/components/providers/ThemeProvider';
 import { getArticleSourceIcon, getArticleSourceText } from '@/components/article/articleSourceIcon';
 import type { ArticleListMutation } from '@/components/providers/ArticleContext';
-import { aiStatusText } from '@/lib/aiStatus';
 
 const DETAIL_PANEL_DEFAULT_WIDTH = 750;
 const DETAIL_PANEL_MIN_WIDTH = 560;
@@ -102,6 +101,30 @@ async function waitForArticleAiCompletion(articleId: number, htmlVariant: Articl
   }
 
   return latest;
+}
+
+function getAiStatusIndicator(status: string | null | undefined) {
+  if (status === 'queued') {
+    return { label: '排队中', tone: 'pending', icon: <ClockCircleOutlined /> };
+  }
+  if (status === 'running') {
+    return { label: '生成中', tone: 'running', icon: <LoadingOutlined spin /> };
+  }
+  if (status === 'failed') {
+    return { label: '生成失败', tone: 'failed', icon: <ExclamationCircleOutlined /> };
+  }
+  if (status === 'not_configured') {
+    return { label: '未配置模型', tone: 'muted', icon: <InfoCircleOutlined /> };
+  }
+  if (status === 'disabled') {
+    return { label: '自动生成已关闭', tone: 'muted', icon: <InfoCircleOutlined /> };
+  }
+  return null;
+}
+
+function formatAiTokenCount(tokenCount: number | null | undefined) {
+  if (tokenCount === null || tokenCount === undefined) return null;
+  return new Intl.NumberFormat('zh-CN').format(tokenCount);
 }
 
 function formatArticleHeaderTime(dateStr: string | null) {
@@ -2707,6 +2730,25 @@ function DetailContent({
 
   const showArticleSkeleton = isLoading || pendingAction === 'refetch';
   const showAISkeleton = pendingAction === 'ai';
+  const aiStatusIndicator = getAiStatusIndicator(article?.aiStatus);
+  const aiStatusMessage =
+    article?.aiStatus === 'failed'
+      ? article?.aiErrorMessage || article?.aiErrorCode || 'AI 生成失败'
+      : article?.aiStatus === 'not_configured'
+        ? '还没有配置模型，生成已跳过'
+        : article?.aiStatus === 'disabled'
+          ? '自动生成已关闭'
+          : null;
+  const aiTokenCount = formatAiTokenCount(article?.aiTotalTokens);
+  const aiSummaryMeta = [
+    article?.aiModel ? { key: 'model', label: '模型', value: article.aiModel } : null,
+    aiTokenCount ? { key: 'tokens', label: 'Token', value: aiTokenCount } : null,
+  ].filter(Boolean) as Array<{ key: string; label: string; value: string }>;
+  const hasAiSummaryBlock = Boolean(
+    showAISkeleton || aiStatusIndicator || article?.aiSummary || article?.aiTags?.length > 0,
+  );
+  const aiSummaryPending = showAISkeleton
+    || (!article?.aiSummary && (article?.aiStatus === 'queued' || article?.aiStatus === 'running'));
   const recordDeleteMode: DeleteConfirmMode | null = currentView === 'archive' && article?.isArchived
     ? 'archive-record'
     : currentView === 'favorites' && article?.isFavorited
@@ -3066,27 +3108,10 @@ function DetailContent({
                 )}
               </div>
             </div>
-            {article.aiStatus && (
-              <div className="detail-panel-ai-status">
-                <span>{aiStatusText(article.aiStatus)}</span>
-                {article.aiModel && <span>{article.aiModel}</span>}
-                {article.aiTotalTokens !== null && article.aiTotalTokens !== undefined && <span>{article.aiTotalTokens} tokens</span>}
-                {article.aiStatus === 'failed' && (
-                  <>
-                    {(article.aiErrorMessage || article.aiErrorCode) && (
-                      <span>{article.aiErrorMessage || article.aiErrorCode}</span>
-                    )}
-                    <button type="button" onClick={handleRegenerateAI} disabled={!!pendingAction}>
-                      重试
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-            {(showAISkeleton || article.aiTags?.length > 0 || article.aiSummary) && (
+            {hasAiSummaryBlock && (
               <div className="detail-panel-intelligence">
                 {/* AI标签 */}
-                {showAISkeleton ? (
+                {aiSummaryPending ? (
                   <div className="detail-panel-tags" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                     <div className="skeleton-line" style={{ width: 56, height: 24, borderRadius: '4px' }} />
                     <div className="skeleton-line" style={{ width: 72, height: 24, borderRadius: '4px' }} />
@@ -3103,7 +3128,7 @@ function DetailContent({
                 )}
 
                 {/* AI摘要 */}
-                {showAISkeleton ? (
+                {aiSummaryPending ? (
                   <div className="ai-summary-block" style={{ background: 'var(--tag-bg)', borderRadius: '8px' }}>
                     <div className="ai-summary-row" aria-hidden="true">
                       <div className="skeleton-line" style={{ width: 16, height: 16, borderRadius: '50%', flexShrink: 0 }} />
@@ -3115,7 +3140,7 @@ function DetailContent({
                       <div className="skeleton-line" style={{ width: '75%', height: 14 }} />
                     </div>
                   </div>
-                ) : article.aiSummary && (
+                ) : (
                   <div className={`ai-summary-block${summaryCollapsed ? ' collapsed' : ''}`} style={{ background: 'var(--tag-bg)', borderRadius: '8px' }}>
                     <button
                       className="ai-summary-row"
@@ -3127,12 +3152,44 @@ function DetailContent({
                       <span className="ai-summary-title" style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', flex: 1 }}>
                         智能摘要
                       </span>
+                      {aiStatusIndicator && (
+                        <span
+                          className={`ai-summary-status is-${aiStatusIndicator.tone}`}
+                          title={`AI摘要${aiStatusIndicator.label}`}
+                          role="status"
+                          aria-label={`AI摘要${aiStatusIndicator.label}`}
+                        >
+                          {aiStatusIndicator.icon}
+                        </span>
+                      )}
                       <span className="ai-summary-toggle" aria-hidden="true">
                         {summaryCollapsed ? <DownOutlined /> : <UpOutlined />}
                       </span>
                     </button>
                     {!summaryCollapsed && (
-                      <p className="ai-summary-text" style={{ fontSize: '15px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{article.aiSummary}</p>
+                      <>
+                        {article.aiSummary && (
+                          <p className="ai-summary-text" style={{ fontSize: '15px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{article.aiSummary}</p>
+                        )}
+                        {aiStatusMessage && (
+                          <p className="ai-summary-status-message" role="status">{aiStatusMessage}</p>
+                        )}
+                        {(aiSummaryMeta.length > 0 || article?.aiStatus === 'failed') && (
+                          <div className="ai-summary-meta">
+                            {aiSummaryMeta.map((item) => (
+                              <span key={item.key}>
+                                <span className="ai-summary-meta-label">{item.label}</span>
+                                {item.value}
+                              </span>
+                            ))}
+                            {article?.aiStatus === 'failed' && (
+                              <button type="button" onClick={handleRegenerateAI} disabled={!!pendingAction}>
+                                重试
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}

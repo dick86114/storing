@@ -218,7 +218,8 @@ export function renderWeChatTranscriptHtml(input: {
 
   return [
     '<style>',
-    '.wechat-chat{max-width:100%;}',
+    '.wechat-chat{max-width:100%;min-width:0;}',
+    '.wechat-chat, .wechat-chat *{overflow-wrap:anywhere;word-break:break-word;}',
     '.wechat-chat-head{text-align:center;padding:8px 0 4px;}',
     '.wechat-chat-title{font-size:15px;font-weight:600;margin:0;}',
     '.wechat-chat-date{font-size:12px;opacity:.6;margin:4px 0 12px;}',
@@ -227,6 +228,8 @@ export function renderWeChatTranscriptHtml(input: {
     '.wechat-msg-sender{font-size:13px;font-weight:600;}',
     '.wechat-msg-time{font-size:12px;opacity:.55;}',
     '.wechat-msg-body{font-size:15px;line-height:1.6;}',
+    '.wechat-msg-body{min-width:0;}',
+    '.wechat-msg-body p a{overflow-wrap:anywhere;}',
     '.wechat-msg-body p{margin:0 0 8px;}',
     '.wechat-msg-body img{max-width:100%;border-radius:8px;}',
     '.wechat-missing{opacity:.65;}',
@@ -249,7 +252,8 @@ export function renderWeChatPlainTextHtml(text: string): string {
 
   return [
     '<style>',
-    '.wechat-chat{max-width:100%;}',
+    '.wechat-chat{max-width:100%;min-width:0;}',
+    '.wechat-chat, .wechat-chat *{overflow-wrap:anywhere;word-break:break-word;}',
     '.wechat-plain-text p{font-size:15px;line-height:1.7;margin:0 0 14px;}',
     '</style>',
     `<div class="wechat-chat wechat-plain-text">${paragraphs.join('') || '<p>（无正文）</p>'}</div>`,
