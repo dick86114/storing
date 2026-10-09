@@ -759,6 +759,21 @@ struct ReaderAISummaryStatusPresentation: Equatable {
     }
 }
 
+@MainActor
+enum ReaderAISummaryClipboard {
+    static func copy(_ summary: String?, to pasteboard: NSPasteboard = .general) -> Bool {
+        guard
+            let text = summary?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !text.isEmpty
+        else {
+            return false
+        }
+
+        pasteboard.clearContents()
+        return pasteboard.setString(text, forType: .string)
+    }
+}
+
 private struct ReaderAISummaryCard: View {
     let summary: String?
     let status: ReaderAISummaryStatusPresentation?
@@ -770,54 +785,76 @@ private struct ReaderAISummaryCard: View {
     let isBusy: Bool
     let onRetry: () -> Void
     @State private var isExpanded = true
+    @State private var summaryCopied = false
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         let accent = QiankunjieColors.accent(for: colorScheme)
 
         VStack(spacing: 0) {
-            Button {
-                withAnimation(.easeOut(duration: 0.18)) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(accent)
+            HStack(spacing: 6) {
+                Button {
+                    toggleExpanded()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(accent)
 
-                    Text("AI 摘要")
-                        .qiankunjieFont(.labelLarge)
-                        .foregroundStyle(accent)
+                        Text("AI 摘要")
+                            .qiankunjieFont(.labelLarge)
+                            .foregroundStyle(accent)
 
-                    if let status {
-                        HStack(spacing: 3) {
-                            if status.isRunning {
-                                ProgressView()
-                                    .controlSize(.mini)
-                            } else if let systemImage = status.systemImage {
-                                Image(systemName: systemImage)
-                                    .font(.system(size: 10, weight: .semibold))
+                        if let status {
+                            HStack(spacing: 3) {
+                                if status.isRunning {
+                                    ProgressView()
+                                        .controlSize(.mini)
+                                } else if let systemImage = status.systemImage {
+                                    Image(systemName: systemImage)
+                                        .font(.system(size: 10, weight: .semibold))
+                                }
                             }
+                            .foregroundStyle(statusColor(status.tone))
+                            .help("AI 摘要\(status.label)")
+                            .accessibilityLabel("AI 摘要\(status.label)")
                         }
-                        .foregroundStyle(statusColor(status.tone))
-                        .help("AI 摘要\(status.label)")
-                        .accessibilityLabel("AI 摘要\(status.label)")
+
+                        Spacer(minLength: 0)
                     }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isExpanded ? "收起 AI 摘要" : "展开 AI 摘要")
 
-                    Spacer(minLength: 0)
+                if let summary, !summary.isEmpty {
+                    Button {
+                        copySummary(summary)
+                    } label: {
+                        Image(systemName: summaryCopied ? "checkmark" : "doc.on.doc")
+                            .font(.system(size: 11))
+                            .frame(width: 18, height: 18)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                    .help("复制 AI 摘要")
+                    .accessibilityLabel("复制 AI 摘要")
+                }
 
+                Button {
+                    toggleExpanded()
+                } label: {
                     Image(systemName: "chevron.down")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                         .rotationEffect(.degrees(isExpanded ? 0 : -90))
+                        .frame(width: 18, height: 18)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .accessibilityHidden(true)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isExpanded ? "收起 AI 摘要" : "展开 AI 摘要")
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 8) {
@@ -827,6 +864,7 @@ private struct ReaderAISummaryCard: View {
                             .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
                             .lineSpacing(4)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
                     } else if status?.tone == .pending || status?.tone == .running {
                         ReaderAISummaryPlaceholder()
                     } else if let statusMessage = status?.message {
@@ -884,6 +922,21 @@ private struct ReaderAISummaryCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+    }
+
+    private func toggleExpanded() {
+        withAnimation(.easeOut(duration: 0.18)) {
+            isExpanded.toggle()
+        }
+    }
+
+    private func copySummary(_ summary: String) {
+        guard ReaderAISummaryClipboard.copy(summary) else { return }
+        summaryCopied = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.2))
+            summaryCopied = false
+        }
     }
 
     private func statusColor(_ tone: ReaderAISummaryStatusPresentation.Tone) -> Color {
