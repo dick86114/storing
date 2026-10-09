@@ -5,4 +5,5 @@ interface MobileSessionAuthenticator {
   fun currentTokens(): SessionTokens?
   suspend fun ensureValidAccessToken(): MobileAuthResult
   suspend fun refreshAccessToken(): MobileAuthResult
+  suspend fun recoverAccessToken(): MobileAuthResult = refreshAccessToken()
 }

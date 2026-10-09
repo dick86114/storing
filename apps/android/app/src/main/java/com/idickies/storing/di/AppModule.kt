@@ -11,6 +11,7 @@ import com.idickies.storing.database.ReadingPositionDao
 import com.idickies.storing.offline.OfflineArticleDao
 import com.idickies.storing.network.AccessTokenInterceptor
 import com.idickies.storing.network.ClientHeadersInterceptor
+import com.idickies.storing.network.SessionRecoveryAuthenticator
 import com.idickies.storing.network.ArticleApi
 import com.idickies.storing.network.AiApi
 import com.idickies.storing.network.MobileAuthApi
@@ -76,10 +77,15 @@ object AppModule {
 
   @Provides
   @Singleton
-  fun provideOkHttpClient(deviceIdentityProvider: DeviceIdentityProvider, sessionStore: SessionStore): OkHttpClient =
+  fun provideOkHttpClient(
+    deviceIdentityProvider: DeviceIdentityProvider,
+    sessionStore: SessionStore,
+    sessionRecoveryAuthenticator: SessionRecoveryAuthenticator,
+  ): OkHttpClient =
     OkHttpClient.Builder()
       .addInterceptor(ClientHeadersInterceptor(deviceIdentityProvider))
       .addInterceptor(AccessTokenInterceptor(sessionStore))
+      .authenticator(sessionRecoveryAuthenticator)
       .apply {
         if (BuildConfig.ENABLE_NETWORK_LOGGING) {
           addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })

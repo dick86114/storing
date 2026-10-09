@@ -44,13 +44,17 @@ class AuthRepository @Inject constructor(
     return refreshAccessToken()
   }
 
-  override suspend fun refreshAccessToken(): MobileAuthResult = refreshMutex.withLock {
+  override suspend fun refreshAccessToken(): MobileAuthResult = refreshAccessToken(force = false)
+
+  override suspend fun recoverAccessToken(): MobileAuthResult = refreshAccessToken(force = true)
+
+  private suspend fun refreshAccessToken(force: Boolean): MobileAuthResult = refreshMutex.withLock {
     val oldTokens = sessionStore.read()
     if (oldTokens == null || !oldTokens.hasUsableRefreshToken()) {
       sessionStore.clear()
       return@withLock MobileAuthResult.AuthenticationRequired
     }
-    if (lastRefreshedToken == oldTokens.refreshToken) {
+    if (!force && lastRefreshedToken == oldTokens.refreshToken) {
       return@withLock MobileAuthResult.Available(fallbackUser(oldTokens.userId))
     }
 
