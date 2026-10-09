@@ -88,6 +88,41 @@ struct ReaderModelTests {
         #expect(model.articleID == 73)
     }
 
+    @Test func 阅读器加载分类并将文章移动到新分类() async {
+        let current = ArticleCategory(id: 21, name: "待整理")
+        let target = ArticleCategory(id: 31, name: "技术")
+        let detail = ArticleDetail(id: 12, category: current, isArchived: true)
+        let client = 模拟阅读客户端(detail: detail, categories: [current, target])
+        let model = ReaderModel(client: client)
+
+        await model.open(articleID: 12)
+        await model.loadCategories()
+        let changed = await model.moveToCategory(31)
+
+        #expect(changed)
+        #expect(await client.categoryPaths == ["categories", "articles/12/category"])
+        #expect(await client.lastMovedCategoryID == 31)
+        #expect(model.availableCategories.map(\.id) == [21, 31])
+        #expect(model.article?.category?.id == 31)
+        #expect(model.actionErrorMessage == nil)
+    }
+
+    @Test func 阅读器可以创建分类并加入可选列表() async {
+        let client = 模拟阅读客户端(
+            detail: ArticleDetail(id: 12, isArchived: true),
+            categories: []
+        )
+        let model = ReaderModel(client: client)
+        await model.open(articleID: 12)
+
+        let created = await model.createCategory(name: "  新分类  ")
+
+        #expect(created?.id == 32)
+        #expect(created?.name == "新分类")
+        #expect(await client.createdCategoryNames == ["新分类"])
+        #expect(model.availableCategories.map(\.name) == ["新分类"])
+    }
+
     @Test func API客户端游客公开路由不带认证头() async throws {
         let session = 模拟网络会话(
             data: Data(
@@ -313,8 +348,12 @@ struct ReaderModelTests {
 }
 
 private actor 模拟阅读客户端: ReaderNetworkClient {
-    private let detail: ArticleDetail
+    private var detail: ArticleDetail
     private(set) var paths: [String] = []
+    private(set) var categoryPaths: [String] = []
+    private(set) var lastMovedCategoryID: Int?
+    private(set) var createdCategoryNames: [String] = []
+    private let categories: [ArticleCategory]
     private(set) var lastHTMLVariant: String?
     private(set) var desktopRequestCount = 0
     private var shouldHoldFavorite = false
@@ -323,8 +362,12 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
     private var deleteContinuation: CheckedContinuation<ReaderDeleteResult, Error>?
     private var requestWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
 
-    init(detail: ArticleDetail = 文章详情(id: 12)) {
+    init(
+        detail: ArticleDetail = 文章详情(id: 12),
+        categories: [ArticleCategory] = []
+    ) {
         self.detail = detail
+        self.categories = categories
     }
 
     func articleDetail(articleID: Int, htmlVariant: String) async throws -> ArticleDetail {
@@ -406,6 +449,30 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
 
     func renameArticle(articleID: Int, title: String) async throws {
         paths.append("articles/\(articleID)/title")
+        notifyRequestWaiters()
+    }
+
+    func categories() async throws -> [ArticleCategory] {
+        categoryPaths.append("categories")
+        notifyRequestWaiters()
+        return categories
+    }
+
+    func createCategory(name: String) async throws -> ArticleCategory {
+        categoryPaths.append("categories")
+        notifyRequestWaiters()
+        createdCategoryNames.append(name)
+        return ArticleCategory(id: 32, name: name)
+    }
+
+    func moveArticleToCategory(articleID: Int, categoryID: Int) async throws {
+        categoryPaths.append("articles/\(articleID)/category")
+        lastMovedCategoryID = categoryID
+        detail = ArticleDetail(
+            id: articleID,
+            category: ArticleCategory(id: categoryID, name: "已移动"),
+            isArchived: true
+        )
         notifyRequestWaiters()
     }
 

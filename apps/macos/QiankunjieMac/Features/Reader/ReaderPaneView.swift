@@ -1,4 +1,5 @@
 import AppKit
+import QiankunjieCore
 import QiankunjieDesignSystem
 import QiankunjieNetworking
 import QiankunjieReader
@@ -24,6 +25,7 @@ struct ReaderPaneView: View {
     @State private var renameDraft = ""
     @State private var titleCopied = false
     @State private var showCategoryReason = false
+    @State private var isCategoryEditorPresented = false
     @Environment(\.colorScheme) private var colorScheme
 
     init(
@@ -154,6 +156,14 @@ struct ReaderPaneView: View {
             .frame(minHeight: 0)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
+        }
+        .sheet(isPresented: $isCategoryEditorPresented) {
+            ReaderCategoryEditorSheet(
+                model: model,
+                article: article
+            ) {
+                onLibraryDidChange()
+            }
         }
         .confirmationDialog(
             pendingAction?.confirmationTitle ?? "",
@@ -424,9 +434,27 @@ struct ReaderPaneView: View {
 
         HStack(spacing: 8) {
             Text("分类")
-            Text(article.category?.name ?? article.aiCategory ?? "未分类")
-                .lineLimit(1)
-                .truncationMode(.middle)
+            if selection?.isGuest == false && article.isArchived {
+                Button {
+                    isCategoryEditorPresented = true
+                } label: {
+                    HStack(spacing: 3) {
+                        Text(article.category?.name ?? article.aiCategory ?? "未分类")
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9, weight: .medium))
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+                .help("修改分类")
+                .accessibilityLabel("修改分类，当前\(article.category?.name ?? article.aiCategory ?? "未分类")")
+            } else {
+                Text(article.category?.name ?? article.aiCategory ?? "未分类")
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
 
             if reasonPresentation.shouldShowTrigger, let reason = reasonPresentation.reason {
                 Button {
@@ -538,6 +566,156 @@ struct ReaderPaneView: View {
                 onLibraryDidChange()
             }
         }
+    }
+}
+
+private struct ReaderCategoryEditorSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+    let model: ReaderModel
+    let article: ReaderArticle
+    let onChanged: () -> Void
+    @State private var newCategoryName = ""
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider()
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    if model.isLoadingCategories {
+                        HStack {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("正在加载分类…")
+                                .qiankunjieFont(.labelMedium)
+                        }
+                        .padding(.vertical, 12)
+                    } else if model.availableCategories.isEmpty {
+                        Text("暂无可用分类")
+                            .qiankunjieFont(.bodyMedium)
+                            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                            .padding(.vertical, 12)
+                    } else {
+                        ForEach(model.availableCategories) { category in
+                            categoryButton(category)
+                        }
+                    }
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Divider()
+            createCategoryForm
+        }
+        .frame(width: 440, height: 420)
+        .background(QiankunjieColors.surface(for: colorScheme))
+        .task {
+            await model.loadCategories()
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("修改分类")
+                    .qiankunjieFont(.titleMedium)
+                    .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+                Text("选择一个分类；新增后会直接应用到当前文章。")
+                    .qiankunjieFont(.labelMedium)
+                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+            }
+            Spacer()
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("关闭分类选择")
+        }
+        .padding(16)
+    }
+
+    private func categoryButton(_ category: ArticleCategory) -> some View {
+        let isSelected = category.id == article.category?.id
+
+        return Button {
+            Task {
+                if await model.moveToCategory(category.id) {
+                    onChanged()
+                    dismiss()
+                }
+            }
+        } label: {
+            HStack(spacing: 9) {
+                Circle()
+                    .fill(Color(hexString: category.color) ?? QiankunjieColors.accent(for: colorScheme))
+                    .frame(width: 9, height: 9)
+                Text(category.name)
+                    .qiankunjieFont(.bodyMedium)
+                Spacer()
+                if isSelected {
+                    Text("当前")
+                        .qiankunjieFont(.labelMedium)
+                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(QiankunjieColors.surfaceVariant(for: colorScheme).opacity(isSelected ? 1 : 0.45))
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(isSelected || model.isPerformingAction)
+        .accessibilityLabel("移动到分类 \(category.name)")
+    }
+
+    private var createCategoryForm: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let message = model.categoryErrorMessage ?? model.actionErrorMessage {
+                Text(message)
+                    .qiankunjieFont(.labelMedium)
+                    .foregroundStyle(colorScheme == .dark ? QiankunjieColors.darkError : QiankunjieColors.lightError)
+            }
+
+            HStack(spacing: 8) {
+                TextField("新增分类名称", text: $newCategoryName)
+                    .textFieldStyle(.roundedBorder)
+                    .disabled(model.isCreatingCategory || model.isPerformingAction)
+
+                Button {
+                    Task {
+                        let name = newCategoryName
+                        guard let category = await model.createCategory(name: name) else { return }
+                        newCategoryName = ""
+                        if await model.moveToCategory(category.id) {
+                            onChanged()
+                            dismiss()
+                        }
+                    }
+                } label: {
+                    if model.isCreatingCategory {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("创建并选择")
+                    }
+                }
+                .disabled(
+                    newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || model.isCreatingCategory
+                        || model.isPerformingAction
+                )
+            }
+        }
+        .padding(16)
+        .background(QiankunjieColors.surfaceVariant(for: colorScheme))
     }
 }
 
@@ -735,6 +913,17 @@ private struct ReaderAISummaryPlaceholder: View {
         RoundedRectangle(cornerRadius: 4, style: .continuous)
             .fill(QiankunjieColors.onSurfaceVariant(for: colorScheme).opacity(0.14))
             .frame(width: width, height: 10)
+    }
+}
+
+private extension Color {
+    init?(hexString: String?) {
+        guard let hexString else { return nil }
+        let cleaned = hexString.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard cleaned.count == 6, let value = UInt32(cleaned, radix: 16) else {
+            return nil
+        }
+        self.init(hex: value)
     }
 }
 

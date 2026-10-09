@@ -17,6 +17,9 @@ public protocol ReaderNetworkClient: Sendable {
     func delete(articleID: Int) async throws -> ReaderDeleteResult
     func permanentDelete(articleID: Int) async throws
     func renameArticle(articleID: Int, title: String) async throws
+    func categories() async throws -> [ArticleCategory]
+    func createCategory(name: String) async throws -> ArticleCategory
+    func moveArticleToCategory(articleID: Int, categoryID: Int) async throws
 }
 
 /// 列表选择同时保留内部 ID 和公开令牌，避免游客公开阅读丢失路由。
@@ -256,17 +259,21 @@ public struct ReaderArticle: Sendable {
 public final class ReaderModel {
     public private(set) var article: ReaderArticle?
     public private(set) var articleID: Int?
+    public private(set) var availableCategories: [ArticleCategory] = []
     /// 用户手动修改后的标题，优先于服务端详情标题展示。
     public private(set) var titleOverride: String?
     public private(set) var selection: ReaderSelection?
     public private(set) var isLoading = false
     public private(set) var isPerformingAction = false
+    public private(set) var isLoadingCategories = false
+    public private(set) var isCreatingCategory = false
     public private(set) var isDeleted = false
     public private(set) var errorMessage: String?
     public private(set) var actionErrorMessage: String?
     public private(set) var contentToken = ""
     public private(set) var savedReadingState: Data?
     public var onDeleted: (() -> Void)?
+    public private(set) var categoryErrorMessage: String?
 
     private let client: any ReaderNetworkClient
     private let positionStore: any ReaderPositionStoring
@@ -291,6 +298,8 @@ public final class ReaderModel {
         self.userID = userID
         article = nil
         articleID = nil
+        availableCategories = []
+        categoryErrorMessage = nil
         selection = nil
         savedReadingState = nil
     }
@@ -470,6 +479,50 @@ public final class ReaderModel {
         }
     }
 
+    public func loadCategories() async {
+        guard selection?.isGuest == false, !isLoadingCategories else {
+            return
+        }
+
+        isLoadingCategories = true
+        defer { isLoadingCategories = false }
+
+        do {
+            availableCategories = try await client.categories()
+            categoryErrorMessage = nil
+        } catch {
+            categoryErrorMessage = Self.message(for: error)
+        }
+    }
+
+    public func createCategory(name: String) async -> ArticleCategory? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !isCreatingCategory else {
+            return nil
+        }
+
+        isCreatingCategory = true
+        defer { isCreatingCategory = false }
+
+        do {
+            let category = try await client.createCategory(name: trimmed)
+            availableCategories.append(category)
+            categoryErrorMessage = nil
+            return category
+        } catch {
+            categoryErrorMessage = Self.message(for: error)
+            return nil
+        }
+    }
+
+    public func moveToCategory(_ categoryID: Int) async -> Bool {
+        await performAction { articleID, _ in
+            try await self.client.moveArticleToCategory(articleID: articleID, categoryID: categoryID)
+            await self.reloadCurrentArticle()
+        }
+        return actionErrorMessage == nil
+    }
+
     private func applyPublication(
         _ result: ReaderPublicationResult,
         published: Bool
@@ -644,10 +697,23 @@ extension APIClient: ReaderNetworkClient {
         let title: String
     }
 
-    private struct ReaderPermanentDeleteEnvelope: Decodable {
-        let articleId: Int
-        let deleted: Bool
-    }
+private struct ReaderPermanentDeleteEnvelope: Decodable {
+    let articleId: Int
+    let deleted: Bool
+}
+
+private struct ReaderCategoriesEnvelope: Decodable {
+    let categories: [ArticleCategory]
+}
+
+private struct ReaderCategoryEnvelope: Decodable {
+    let category: ArticleCategory
+}
+
+private struct ReaderCategoryUpdateEnvelope: Decodable {
+    let articleId: Int
+    let updatedCount: Int
+}
 
     public func permanentDelete(articleID: Int) async throws {
         let _: ReaderPermanentDeleteEnvelope = try await send(
@@ -660,6 +726,31 @@ extension APIClient: ReaderNetworkClient {
         let body = try JSONEncoder().encode(["title": title])
         let _: ReaderRenameEnvelope = try await send(
             .patch("articles/\(articleID)/title", body: body),
+            authenticated: true
+        )
+    }
+
+    public func categories() async throws -> [ArticleCategory] {
+        let envelope: ReaderCategoriesEnvelope = try await send(
+            .get("categories"),
+            authenticated: true
+        )
+        return envelope.categories
+    }
+
+    public func createCategory(name: String) async throws -> ArticleCategory {
+        let body = try JSONEncoder().encode(["name": name])
+        let envelope: ReaderCategoryEnvelope = try await send(
+            .post("categories", body: body),
+            authenticated: true
+        )
+        return envelope.category
+    }
+
+    public func moveArticleToCategory(articleID: Int, categoryID: Int) async throws {
+        let body = try JSONEncoder().encode(["categoryId": categoryID])
+        let _: ReaderCategoryUpdateEnvelope = try await send(
+            .patch("articles/\(articleID)/category", body: body),
             authenticated: true
         )
     }
