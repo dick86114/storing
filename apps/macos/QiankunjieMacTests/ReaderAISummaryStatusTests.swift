@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import QiankunjieMac
@@ -28,5 +29,27 @@ struct ReaderAISummaryStatusTests {
         #expect(failed?.tone == .failed)
         #expect(ReaderAISummaryStatusPresentation(status: "succeeded") == nil)
         #expect(ReaderAISummaryStatusPresentation(status: "not_generated") == nil)
+    }
+
+    @Test func AI摘要卡片提供复制入口并允许选择文本() throws {
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("QiankunjieMac/Features/Reader/ReaderPaneView.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        #expect(source.contains("复制 AI 摘要"))
+        #expect(source.contains(".textSelection(.enabled)"))
+    }
+
+    @MainActor
+    @Test func AI摘要复制清除首尾空白并写入剪贴板() {
+        let pasteboard = NSPasteboard(
+            name: NSPasteboard.Name("storing.reader.ai-summary.\(UUID().uuidString)")
+        )
+        defer { pasteboard.clearContents() }
+
+        #expect(ReaderAISummaryClipboard.copy("  这是摘要文本。\n", to: pasteboard))
+        #expect(pasteboard.string(forType: .string) == "这是摘要文本。")
     }
 }
