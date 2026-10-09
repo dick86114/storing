@@ -33,6 +33,16 @@ class ReaderCategoryReasonTest {
       header.indexOf("服务器") < header.indexOf("qj-category-review-trigger"),
     )
     assertFalse(header.contains("AI 分类待确认：内容为部署自建同步服务端并配置反向代理。"))
+
+    val document = ReaderDocument.forWebView(
+      capturedHtml = "",
+      headerHtml = header,
+    )
+    assertTrue(document.contains("details.qj-category-review .qj-category-review-body"))
+    assertTrue(document.contains("position:fixed"))
+    assertTrue(document.contains("left:16px"))
+    assertTrue(document.contains("right:16px"))
+    assertTrue(document.contains("overflow-wrap:anywhere"))
   }
 
   @Test

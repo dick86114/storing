@@ -74,6 +74,19 @@ class AuthRepositoryTest {
     assertEquals(0, api.refreshCalls)
   }
 
+  @Test
+  fun `认证失败后的强制恢复会绕过最近一次刷新标记`() = runBlocking {
+    val store = FakeSessionStore(tokens())
+    val api = FakeAuthApi()
+    val repository = AuthRepository(api, store, FakeDeviceIdentity)
+
+    assertTrue(repository.refreshAccessToken() is MobileAuthResult.Available)
+    assertEquals(1, api.refreshCalls)
+
+    assertTrue(repository.recoverAccessToken() is MobileAuthResult.Available)
+    assertEquals(2, api.refreshCalls)
+  }
+
   private fun tokens(refreshToken: String = "old") = SessionTokens(
     accessToken = "access",
     accessTokenExpiresAtEpochMs = Long.MAX_VALUE,

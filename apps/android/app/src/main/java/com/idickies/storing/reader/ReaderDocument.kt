@@ -58,11 +58,21 @@ $darkTheme
   .qj-ai-header { display:flex; align-items:center; gap:6px; margin-bottom:8px; padding-left:8px; }
   .qj-ai-icon { width:14px; height:14px; flex-shrink:0; }
   .qj-ai-label { font-size:12px; font-weight:600; color:#B8912A; }
-  .qj-ai-toggle { margin-left:auto; display:flex; align-items:center; padding:4px; color:#8FA897; }
+  .qj-ai-spacer { flex:1 1 auto; }
+  .qj-ai-status { display:inline-flex; align-items:center; border-radius:99px; padding:2px 8px; font-size:10px; font-weight:600; line-height:1.4; white-space:nowrap; }
+  .qj-ai-status-pending { background:#FFF6DA; color:#8A6A18; }
+  .qj-ai-status-running { background:#E6F3EA; color:#227044; }
+  .qj-ai-status-failed { background:#FCE8E6; color:#A13B35; }
+  .qj-ai-status-muted { background:#EEF2EF; color:#637368; }
+  .qj-ai-toggle { margin-left:6px; display:flex; align-items:center; padding:4px; color:#8FA897; }
   .qj-ai-toggle svg { width:16px; height:16px; transition:transform 0.2s ease; }
   details.qj-ai-card:not([open]) .qj-ai-toggle svg { transform:rotate(-90deg); }
   details.qj-ai-card:not([open]) .qj-ai-header { margin-bottom:0; }
   .qj-ai-body { font-size:13px; line-height:1.6; color:#5A7062; padding-left:8px; }
+  .qj-ai-body p { margin:0; }
+  .qj-ai-status-message { margin-top:8px; }
+  .qj-ai-error { margin-top:8px; color:#A13B35; overflow-wrap:anywhere; }
+  .qj-ai-meta { display:flex; flex-wrap:wrap; gap:10px; margin-top:8px; font-size:11px; color:#7A8D80; }
   .qj-tags { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
   .qj-tag { font-size:11px; padding:3px 10px; border-radius:99px; background:#D0E8D8; color:#0D2B1E; }
   .qj-offline { font-size:11px; color:#1E7A3A; margin-bottom:12px; }
@@ -71,11 +81,15 @@ $darkTheme
   details.qj-category-review > summary::-webkit-details-marker { display:none; }
   details.qj-category-review > summary svg { width:12px; height:12px; }
   details.qj-category-review .qj-category-review-body {
-    position:absolute; top:calc(100% + 6px); left:0; z-index:30;
-    width:min(520px,calc(100vw - 32px)); padding:10px 12px; border-radius:8px;
+    position:fixed; top:50%; left:16px; right:16px; z-index:80;
+    width:auto; max-width:520px; margin:0 auto; padding:14px 16px; border-radius:12px;
+    transform:translateY(-50%);
     background:#F8FCF9; border:1px solid rgba(104,156,120,0.24); color:#5A7062;
-    line-height:1.5; box-shadow:0 12px 28px rgba(13,43,30,0.12);
+    line-height:1.6; box-shadow:0 12px 28px rgba(13,43,30,0.16);
+    overflow-wrap:anywhere; word-break:break-word;
   }
+  .qj-category-review-title { display:block; margin-bottom:6px; font-weight:600; color:#8A7541; }
+  .qj-category-review-reason { display:block; overflow-wrap:anywhere; word-break:break-word; }
 """.trimIndent()
 
   /** 深色模式头部覆盖样式 */
@@ -90,10 +104,17 @@ $darkTheme
   .qj-ai-label { color:#C9A84C !important; }
   .qj-ai-toggle { color:rgba(201,168,76,0.6) !important; }
   .qj-ai-body { color:#9CA89F !important; }
+  .qj-ai-status-pending { background:#3A3117 !important; color:#E7C766 !important; }
+  .qj-ai-status-running { background:#173326 !important; color:#87D6A9 !important; }
+  .qj-ai-status-failed { background:#3B1F1D !important; color:#F0A09A !important; }
+  .qj-ai-status-muted { background:#1B2B22 !important; color:#9CA89F !important; }
+  .qj-ai-error { color:#F0A09A !important; }
+  .qj-ai-meta { color:#819287 !important; }
   .qj-tag { background:#1C3A2B !important; color:#8BAA94 !important; }
   .qj-offline { color:rgba(110,231,183,0.9) !important; }
   details.qj-category-review { color:#C9A84C !important; }
   details.qj-category-review .qj-category-review-body { background:#0E2419 !important; border-color:rgba(201,168,76,0.24) !important; color:#9CA89F !important; }
+  .qj-category-review-title { color:#C9A84C !important; }
 """.trimIndent()
 
   /** 根据文章详情构建头部 HTML，注入到 WebView 正文前 */
@@ -112,18 +133,7 @@ $darkTheme
       """<div class="qj-meta">${metaParts.joinToString("""<span class="qj-meta-sep">·</span>""")}</div>"""
     } else ""
 
-    val summaryHtml = article.aiSummary?.takeIf { it.isNotBlank() }?.let { summary ->
-      """
-      <details class="qj-ai-card" open>
-        <summary class="qj-ai-header">
-          <svg class="qj-ai-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8a1 1 0 0 0 .3.3L20 11l-5.8 1.9a1 1 0 0 0-.3.3L12 19l-1.9-5.8a1 1 0 0 0-.3-.3L4 11l5.8-1.9a1 1 0 0 0 .3-.3z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
-          <span class="qj-ai-label">AI 摘要</span>
-          <span class="qj-ai-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
-        </summary>
-        <div class="qj-ai-body">${escapeHtml(summary)}</div>
-      </details>
-      """.trimIndent()
-    } ?: ""
+    val summaryHtml = aiSummaryCard(article)
 
     val tagsHtml = if (article.aiTags.isNotEmpty()) {
       """<div class="qj-tags">${article.aiTags.joinToString("") { """<span class="qj-tag">${escapeHtml(it)}</span>""" }}</div>"""
@@ -154,9 +164,63 @@ $darkOverride
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
         </summary>
         <div class="qj-category-review-body">
-          <span>AI 分类依据</span>
-          <span>${escapeHtml(reason)}</span>
+          <strong class="qj-category-review-title">AI 分类依据</strong>
+          <span class="qj-category-review-reason">${escapeHtml(reason)}</span>
         </div>
+      </details>
+    """.trimIndent()
+  }
+
+  private data class AiSummaryStatus(
+    val label: String,
+    val tone: String,
+    val message: String? = null,
+  )
+
+  private fun aiSummaryCard(article: ArticleDetail): String {
+    val summary = article.aiSummary?.trim()?.takeIf { it.isNotEmpty() }
+    val status = when (article.aiStatus) {
+      "queued" -> AiSummaryStatus("排队中", "pending", "正在准备摘要…")
+      "running" -> AiSummaryStatus("生成中", "running", "正在生成 AI 摘要…")
+      "failed" -> AiSummaryStatus("生成失败", "failed")
+      "not_configured" -> AiSummaryStatus("未配置模型", "muted", "还没有配置模型，生成已跳过")
+      "disabled" -> AiSummaryStatus("自动生成已关闭", "muted", "自动生成已关闭")
+      else -> null
+    }
+    if (summary == null && status == null) return ""
+
+    val statusBadge = status?.let {
+      """<span class="qj-ai-status qj-ai-status-${it.tone}">${escapeHtml(it.label)}</span>"""
+    }.orEmpty()
+    val body = buildList {
+      if (summary != null) add("""<p>${escapeHtml(summary)}</p>""")
+      if (summary == null && status?.message != null) {
+        add("""<div class="qj-ai-status-message">${escapeHtml(status.message)}</div>""")
+      }
+      if (article.aiStatus == "failed") {
+        val detail = article.aiErrorMessage?.takeIf { it.isNotBlank() }
+          ?.let { message -> article.aiErrorCode?.takeIf { it.isNotBlank() }?.let { "$it：$message" } ?: message }
+          ?: article.aiErrorCode?.takeIf { it.isNotBlank() }
+          ?: "生成失败"
+        add("""<div class="qj-ai-error">${escapeHtml(detail)}</div>""")
+      }
+      val meta = buildList {
+        article.aiModel?.takeIf { it.isNotBlank() }?.let { add("模型：${escapeHtml(it)}") }
+        article.aiTotalTokens?.let { add("用量：$it tokens") }
+      }
+      if (meta.isNotEmpty()) add("""<div class="qj-ai-meta">${meta.joinToString("") { "<span>$it</span>" }}</div>""")
+    }.joinToString("")
+
+    return """
+      <details class="qj-ai-card" open>
+        <summary class="qj-ai-header">
+          <svg class="qj-ai-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8a1 1 0 0 0 .3.3L20 11l-5.8 1.9a1 1 0 0 0-.3.3L12 19l-1.9-5.8a1 1 0 0 0-.3-.3L4 11l5.8-1.9a1 1 0 0 0 .3-.3z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
+          <span class="qj-ai-label">AI 摘要</span>
+          <span class="qj-ai-spacer"></span>
+          $statusBadge
+          <span class="qj-ai-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+        </summary>
+        <div class="qj-ai-body">$body</div>
       </details>
     """.trimIndent()
   }
