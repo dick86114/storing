@@ -152,6 +152,22 @@ struct ReaderContentStyle {
             font-size: var(--reader-font-size) !important;
             line-height: 1.75 !important;
           }
+          html, body {
+            overflow-x: hidden !important;
+          }
+          body, body * {
+            min-width: 0 !important;
+            overflow-wrap: anywhere !important;
+            word-break: break-word !important;
+          }
+          pre, code {
+            white-space: pre-wrap !important;
+          }
+          table {
+            display: block !important;
+            max-width: 100% !important;
+            overflow-x: auto !important;
+          }
           body > main,
           body > article {
             max-width: 100% !important;
