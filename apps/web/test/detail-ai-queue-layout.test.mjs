@@ -20,12 +20,21 @@ test('手动重新生成会等待任务离开队列并报告失败原因', () =>
   assert.match(handle, /AI 生成仍在后台执行/);
 });
 
-test('详情 AI 状态使用紧凑状态条，失败原因可读', () => {
-  const aiStatusRule = css.match(/\.detail-panel-ai-status\s*\{[^}]*\}/)?.[0] ?? '';
-  assert.match(aiStatusRule, /display: inline-flex;/);
-  assert.match(aiStatusRule, /width: fit-content;/);
-  assert.match(aiStatusRule, /padding: 6px 8px;/);
-  assert.match(aiStatusRule, /max-width: 100%;/);
+test('详情 AI 状态合并到摘要控件，不再单独占块', () => {
+  assert.doesNotMatch(detailPanel, /detail-panel-ai-status/);
+  assert.match(detailPanel, /getAiStatusIndicator\(/);
+  assert.match(detailPanel, /ai-summary-status/);
+  assert.match(detailPanel, /ai-summary-status-message/);
+  assert.match(detailPanel, /ai-summary-meta/);
+  assert.match(detailPanel, /aiModel/);
+  assert.match(detailPanel, /aiTotalTokens/);
+
+  assert.doesNotMatch(css, /\.detail-panel-ai-status/);
+  const messageRule = css.match(/\.ai-summary-status-message\s*\{[^}]*\}/)?.[0] ?? '';
+  assert.match(messageRule, /overflow-wrap: anywhere;/);
+  const metaRule = css.match(/\.ai-summary-meta\s*\{[^}]*\}/)?.[0] ?? '';
+  assert.match(metaRule, /flex-wrap: wrap;/);
+  assert.match(metaRule, /font-size: 12px;/);
 
   const reasonRule = css.match(/\.detail-panel-category-review-reason\s*\{[^}]*\}/)?.[0] ?? '';
   assert.match(reasonRule, /white-space: normal;/);
