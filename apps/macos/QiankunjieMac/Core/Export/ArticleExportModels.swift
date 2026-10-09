@@ -74,6 +74,12 @@ struct ArticleExportDocument: Sendable {
     }
 
     var preferredMarkdown: String {
+        // 已加载的旧文章可能仍带着被序列化进 Markdown 的微信 CSS；阅读器 HTML 是唯一可靠来源。
+        if let contentHTML, WeChatArticleTranscript.isTranscript(contentHTML),
+           let transcriptMarkdown = WeChatArticleTranscript.markdown(from: contentHTML) {
+            return transcriptMarkdown
+        }
+
         if let contentMarkdown = contentMarkdown?.trimmingCharacters(in: .whitespacesAndNewlines),
            !contentMarkdown.isEmpty {
             return contentMarkdown
@@ -116,6 +122,11 @@ func safeExportFileName(_ title: String, fallback: String = "未命名文章") -
 enum HTMLTextConverter {
     static func markdown(from html: String) -> String {
         var text = html
+        text = text.replacingOccurrences(
+            of: "<(style|script)\\b[^>]*>.*?</\\1\\s*>",
+            with: "",
+            options: [.regularExpression, .caseInsensitive]
+        )
         text = text.replacingOccurrences(
             of: "<(br|BR)\\s*/?>",
             with: "\n",

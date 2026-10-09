@@ -12,8 +12,9 @@ test('short locally imported WeChat transcripts do not use the web-fetch quality
   assert.match(reader, /startsWith\('qiankunjie:\/\/wechat-import\/'\)/);
   assert.match(reader, /originalUrl: articles\.originalUrl/);
   assert.match(reader, /const trustStoredContent = isInternalWeChatImport\(meta\?\.originalUrl\)/);
-  assert.match(reader, /if \(trustStoredContent\) \{\s*const importedHtml = await buildWeChatHtmlFromCache\(articleId, meta\?\.contentMd\);/);
-  assert.match(reader, /saveArticleContentCache\(articleId, 'html', importedHtml, htmlVariant, userId\)/);
+  assert.match(reader, /if \(trustStoredContent\) \{\s*const importedContent = await buildWeChatContentFromCache\(articleId\);/);
+  assert.match(reader, /saveArticleContentCache\(articleId, 'html', importedContent\.html, htmlVariant, userId\)/);
+  assert.match(reader, /saveArticleContentCache\(articleId, 'markdown', importedContent\.markdown, htmlVariant, userId\)/);
   assert.match(reader, /if \(cachedHtml && \(trustStoredContent || hasUsefulContent\(cachedHtml, format\)\)\)/);
   assert.match(reader, /if \(meta\?\.contentMd && \(trustStoredContent || hasUsefulContent\(meta\.contentMd, format\)\)\)/);
 });

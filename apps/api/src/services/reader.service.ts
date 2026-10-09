@@ -4,12 +4,7 @@ import { getAdminUserId } from './metadata-scope.service.js';
 import { and, eq, sql } from 'drizzle-orm';
 import { JSDOM } from 'jsdom';
 import { assertSafeOutboundUrl } from './outbound-url-policy.service.js';
-import {
-  parseWeChatIndividualTranscript,
-  parseWeChatTranscript,
-  renderWeChatTranscriptHtml,
-  WeChatMediaKind,
-} from './wechat-transcript.js';
+import { buildWeChatContentFromSnapshot } from './wechat-transcript.js';
 import {
   extractTextFromHtml,
   extractPreferredCoverImage,
@@ -1415,12 +1410,12 @@ export async function getArticleContent(
 
     // 内部导入按当前渲染器重建，旧版本缓存的纯文本正文也能升级为消息列表排版。
     if (trustStoredContent) {
-      const importedHtml = await buildWeChatHtmlFromCache(articleId, meta?.contentMd);
-      if (importedHtml) {
-        if (importedHtml !== cachedHtml) {
-          await saveArticleContentCache(articleId, 'html', importedHtml, htmlVariant, userId);
+      const importedContent = await buildWeChatContentFromCache(articleId);
+      if (importedContent?.html) {
+        if (importedContent.html !== cachedHtml) {
+          await saveArticleContentCache(articleId, 'html', importedContent.html, htmlVariant, userId);
         }
-        return importedHtml;
+        return importedContent.html;
       }
     }
 
@@ -1450,12 +1445,23 @@ export async function getArticleContent(
 
     // 微信导入的聊天记录保存在本地，没有可抓取的外部源；
     // 存量文章缺 HTML 缓存时从 Markdown 现场生成并写回。
-    const wechatHtml = await buildWeChatHtmlFromCache(articleId, meta?.contentMd);
-    if (wechatHtml) {
-      await saveArticleContentCache(articleId, 'html', wechatHtml, htmlVariant, userId);
-      return wechatHtml;
+    const wechatContent = await buildWeChatContentFromCache(articleId);
+    if (wechatContent?.html) {
+      await saveArticleContentCache(articleId, 'html', wechatContent.html, htmlVariant, userId);
+      return wechatContent.html;
     }
   } else {
+    // Markdown 也从原始快照重建，避免历史脏缓存把阅读器 CSS 输出到导出文件。
+    if (trustStoredContent) {
+      const importedContent = await buildWeChatContentFromCache(articleId);
+      if (importedContent?.markdown) {
+        if (importedContent.markdown !== meta?.contentMd) {
+          await saveArticleContentCache(articleId, 'markdown', importedContent.markdown, htmlVariant, userId);
+        }
+        return importedContent.markdown;
+      }
+    }
+
     // Markdown 格式：检查缓存（排除本地资源引用的脏缓存）
     if (meta?.contentMd && (trustStoredContent || hasUsefulContent(meta.contentMd, format))) {
       if (!hasUsefulContent(meta.contentMd, format)) {
@@ -1487,7 +1493,9 @@ export async function getArticleContent(
 }
 
 /** 微信导入文章的存量兜底：用保存的原始聊天记录按最新排版重新渲染正文。 */
-async function buildWeChatHtmlFromCache(articleId: number, contentMd: string | null): Promise<string | null> {
+async function buildWeChatContentFromCache(
+  articleId: number,
+): Promise<{ markdown: string; html: string } | null> {
   const [article] = await db
     .select({ contentMeta: articles.content })
     .from(articles)
@@ -1495,74 +1503,12 @@ async function buildWeChatHtmlFromCache(articleId: number, contentMd: string | n
   const content = article?.contentMeta as
     | { type?: string; transcript?: string | null; mediaFiles?: Array<{ name: string; url?: string | null; kind?: string }> }
     | null;
-  if (content?.type !== 'wechat_chat') return null;
+  if (content?.type !== 'wechat_chat' || !content.transcript) return null;
 
-  if (content.transcript) {
-    const standardRecords = parseWeChatTranscript(content.transcript);
-    const records = standardRecords.length
-      ? standardRecords
-      : parseWeChatIndividualTranscript(content.transcript);
-    if (records.length > 0) {
-      const mediaMap = new Map(
-        (content.mediaFiles ?? []).map((file) => [
-          file.name,
-          { url: file.url ?? null, kind: (file.kind as WeChatMediaKind | undefined) ?? 'file' },
-        ]),
-      );
-      return renderWeChatTranscriptHtml({ records, mediaMap });
-    }
-  }
-
-  // 极老的导入可能没有 transcript 快照，退回从 Markdown 还原。
-  if (!contentMd) return null;
-  return renderWeChatTranscriptHtmlFromMarkdown(contentMd);
-}
-
-/**
- * 把聊天记录 Markdown 还原为 HTML。
- * 只处理导入器自己产出的结构：发送人行、正文、媒体附件区。
- */
-function renderWeChatTranscriptHtmlFromMarkdown(md: string): string | null {
-  const escapeHtml = (text: string) =>
-    text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  const inline = (text: string) =>
-    escapeHtml(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-
-  const blocks = md.split(/\n{2,}/);
-  const messagePattern = /^\*\*([^*]+)\*\* · (\d{4}年\d{1,2}月\d{1,2}日 \d{2}:\d{2})$/;
-  const mediaIndex = blocks.findIndex((block) => block.trim() === '### 媒体附件');
-  const messageBlocks = (mediaIndex >= 0 ? blocks.slice(0, mediaIndex) : blocks).filter((block) => block.trim() && block.trim() !== '---');
-
-  if (messageBlocks.length === 0) return null;
-
-  const messages = messageBlocks
-    .map((block) => {
-      const lines = block.split('\n');
-      const header = messagePattern.exec(lines[0].trim());
-      if (!header) return `<p>${inline(block.trim())}</p>`;
-      const body = lines.slice(1).join('<br>');
-      return `<div class="wechat-message"><p class="wechat-message-meta"><strong>${escapeHtml(header[1])}</strong> · ${escapeHtml(header[2])}</p>${body ? `<p>${inline(body)}</p>` : ''}</div>`;
-    })
-    .join('');
-
-  const mediaSection =
-    mediaIndex >= 0
-      ? `<hr /><h3>媒体附件</h3>${blocks
-          .slice(mediaIndex + 1)
-          .filter((line) => line.trim())
-          .map((line) => {
-            const image = /^!\[([^\]]*)\]\(([^)]+)\)$/.exec(line.trim());
-            if (image) return `<p><img src="${escapeHtml(image[2])}" alt="${escapeHtml(image[1])}" /></p>`;
-            const link = /^\[([^\]]+)：([^\]]+)\]\(([^)]+)\)$/.exec(line.trim());
-            if (link) return `<p><a href="${escapeHtml(link[3])}" target="_blank" rel="noopener noreferrer">${inline(`${link[1]}：${link[2]}`)}</a></p>`;
-            const missing = /^- (.+)（未能上传到图床）$/.exec(line.trim());
-            if (missing) return `<p>${escapeHtml(missing[1])}（未能上传到图床）</p>`;
-            return `<p>${inline(line.trim())}</p>`;
-          })
-          .join('')}`
-      : '';
-
-  return `<div class="wechat-chat">${messages}${mediaSection}</div>`;
+  return buildWeChatContentFromSnapshot({
+    transcript: content.transcript,
+    mediaFiles: content.mediaFiles,
+  });
 }
 
 /** 从 markdown 中提取第一张图片 URL */
