@@ -76,6 +76,8 @@ test('html mirrors the WeChat record layout with inline media', () => {
   assert.ok(liSiBlock.indexOf('<img') < liSiBlock.indexOf('看这个视频'));
   assert.match(html, /<h3>其他附件<\/h3>/);
   assert.doesNotMatch(html, /<script/);
+  assert.match(html, /overflow-wrap:\s*anywhere;/);
+  assert.match(html, /word-break:\s*break-word;/);
 });
 
 test('unmatched media placeholders degrade to plain text', () => {
