@@ -349,6 +349,11 @@ struct UILabReaderClient: ReaderNetworkClient {
     func permanentDelete(articleID: Int) async throws {}
 
     func renameArticle(articleID: Int, title: String) async throws {}
+    func categories() async throws -> [QiankunjieCore.ArticleCategory] { [] }
+    func createCategory(name: String) async throws -> QiankunjieCore.ArticleCategory {
+        ArticleCategory(id: -1, name: name)
+    }
+    func moveArticleToCategory(articleID: Int, categoryID: Int) async throws {}
 }
 
 extension UILabFixtures {
