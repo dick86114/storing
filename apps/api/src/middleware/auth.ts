@@ -182,18 +182,28 @@ export async function optionalAuth(c: Context, next: Next) {
   const token = getRequestToken(c);
 
   if (token) {
-    const userId = verifyToken(token);
     const clientPayload = verifyClientToken(token);
-    if (clientPayload && await getSessionFailureReason(clientPayload) !== 'active') {
-      return;
+    const clientSessionState = clientPayload
+      ? await getSessionFailureReason(clientPayload)
+      : null;
+    if (clientSessionState && clientSessionState !== 'active') {
+      return clientSessionErrorResponse(c, clientSessionState);
     }
-    if (userId) {
-      const [user] = await db
-        .select({ id: users.id, username: users.username, role: users.role, status: users.status })
-        .from(users)
-        .where(eq(users.id, userId));
-      if (user && user.status === 'active') c.set('user', user);
+    const userId = verifyToken(token);
+    if (!userId) {
+      return c.json({ error: { code: 'INVALID_TOKEN', message: 'Token 无效或已过期' } }, 401);
     }
+    const [user] = await db
+      .select({ id: users.id, username: users.username, role: users.role, status: users.status })
+      .from(users)
+      .where(eq(users.id, userId));
+    if (!user) {
+      return c.json({ error: { code: 'INVALID_TOKEN', message: 'Token 无效或已过期' } }, 401);
+    }
+    if (user.status !== 'active') {
+      return c.json({ error: { code: 'USER_DISABLED', message: '用户已禁用' } }, 403);
+    }
+    c.set('user', user);
   }
 
   await next();
