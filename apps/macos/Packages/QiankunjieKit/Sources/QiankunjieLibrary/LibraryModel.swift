@@ -37,18 +37,25 @@ public final class LibraryModel {
     public private(set) var loadMoreErrorMessage: String?
     public private(set) var refreshErrorMessage: String?
     public private(set) var sourceErrorMessage: String?
+    public private(set) var isBulkSelecting = false
+    public private(set) var bulkSelection: Set<Int> = []
+    public private(set) var bulkRunningAction: BulkToolbarAction?
+    public private(set) var bulkResult: NativeBulkResult?
 
     private let repository: any LibraryLoading
+    private let bulkRepository: any LibraryBulkOperating
     private let cache: any LibraryCaching
     private var requestGeneration = 0
 
     public init(
         repository: any LibraryLoading = LibraryRepository(),
+        bulkRepository: any LibraryBulkOperating = LibraryRepository(),
         cache: (any LibraryCaching)? = nil,
         userID: Int? = nil,
         view: LibraryView = .inbox
     ) {
         self.repository = repository
+        self.bulkRepository = bulkRepository
         self.cache = cache ?? EmptyLibraryCache()
         self.userID = userID
         self.view = view
@@ -115,6 +122,7 @@ public final class LibraryModel {
         availableSources = []
         availableCategories = []
         sourceErrorMessage = nil
+        exitBulkMode()
         resetLoadedState()
     }
 
@@ -125,11 +133,13 @@ public final class LibraryModel {
 
         self.sort = sort
         order = .desc
+        exitBulkMode()
         resetLoadedState()
     }
 
     public func toggleOrder() {
         order = order == .desc ? .asc : .desc
+        exitBulkMode()
         resetLoadedState()
     }
 
@@ -141,6 +151,7 @@ public final class LibraryModel {
         let normalized = source?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         self.source = normalized == nil || normalized?.isEmpty == true ? nil : normalized
+        exitBulkMode()
         resetLoadedState()
     }
 
@@ -150,6 +161,7 @@ public final class LibraryModel {
         }
 
         self.categoryId = categoryId
+        exitBulkMode()
         resetLoadedState()
     }
 
@@ -160,12 +172,14 @@ public final class LibraryModel {
             .joined(separator: " ")
         source = nil
         categoryId = nil
+        exitBulkMode()
         resetLoadedState()
     }
 
     public func clearSearch() {
         searchDraft = ""
         appliedSearchText = ""
+        exitBulkMode()
         clearResults()
     }
 
@@ -311,6 +325,7 @@ public final class LibraryModel {
         availableCategories = []
         sourceErrorMessage = nil
         selectedArticleID = nil
+        exitBulkMode()
         resetLoadedState()
     }
 
@@ -325,6 +340,266 @@ public final class LibraryModel {
             try? await cache.clear(userID: previousUserID)
         }
         await load(reset: true)
+    }
+
+    public func toggleBulkMode() {
+        if isBulkSelecting {
+            exitBulkMode()
+        } else {
+            isBulkSelecting = true
+            bulkResult = nil
+        }
+    }
+
+    public func toggleBulkSelection(_ articleID: Int) {
+        guard isBulkSelecting else {
+            return
+        }
+
+        if bulkSelection.contains(articleID) {
+            bulkSelection.remove(articleID)
+        } else {
+            bulkSelection.insert(articleID)
+        }
+    }
+
+    public func selectAllLoadedForBulk() {
+        guard isBulkSelecting else {
+            return
+        }
+
+        bulkSelection = Set(articles.map(\.id))
+    }
+
+    public func invertBulkSelection() {
+        guard isBulkSelecting else {
+            return
+        }
+
+        bulkSelection = Set(articles.map(\.id)).subtracting(bulkSelection)
+    }
+
+    public func runBulkToolbarAction(_ action: BulkToolbarAction) async {
+        guard bulkRunningAction == nil, isBulkSelecting else {
+            return
+        }
+
+        let articleIDs: [Int]
+        do {
+            articleIDs = try BulkArticlePolicy.validatedIDs(Array(bulkSelection))
+        } catch {
+            errorMessage = Self.message(for: error)
+            return
+        }
+
+        bulkRunningAction = action
+        defer {
+            bulkRunningAction = nil
+        }
+
+        do {
+            switch action {
+            case .setCategory, .exportZIP, .bulkObsidian:
+                return
+            case .reclassify:
+                let result = try await bulkRepository.runBulkRegenerateAI(articleIDs: articleIDs, includeCategory: true)
+                bulkSelection.subtract(result.queuedIDs)
+                bulkSelection.subtract(result.alreadyQueuedIDs)
+                await load(reset: false)
+                applyAIResult(result)
+                bulkResult = NativeBulkResult(from: result)
+            case .generateAI:
+                let result = try await bulkRepository.runBulkRegenerateAI(articleIDs: articleIDs, includeCategory: false)
+                bulkSelection.subtract(result.queuedIDs)
+                bulkSelection.subtract(result.alreadyQueuedIDs)
+                await load(reset: false)
+                applyAIResult(result)
+                bulkResult = NativeBulkResult(from: result)
+            default:
+                let result = try await bulkRepository.runBulkAction(serverAction(for: action), articleIDs: articleIDs)
+                let isDelete = action == .delete || action == .permanentDelete
+                if isDelete {
+                    removeArticles(withIDs: result.succeededIDs)
+                }
+                await load(reset: false)
+                if isDelete {
+                    removeArticles(withIDs: result.succeededIDs)
+                } else {
+                    updateArticles(withIDs: result.succeededIDs, action: action)
+                }
+                bulkSelection.subtract(result.succeededIDs)
+                bulkResult = NativeBulkResult(from: result)
+            }
+        } catch {
+            bulkResult = failedResult(articleIDs: articleIDs, error: error)
+        }
+    }
+
+    public func runBulkCategory(_ categoryID: Int) async {
+        guard bulkRunningAction == nil, isBulkSelecting else {
+            return
+        }
+
+        let articleIDs: [Int]
+        do {
+            articleIDs = try BulkArticlePolicy.validatedIDs(Array(bulkSelection))
+        } catch {
+            errorMessage = Self.message(for: error)
+            return
+        }
+
+        bulkRunningAction = .setCategory
+        defer {
+            bulkRunningAction = nil
+        }
+
+        do {
+            let result = try await bulkRepository.runBulkCategory(articleIDs: articleIDs, categoryID: categoryID)
+            await load(reset: false)
+            let category = availableCategories.first { $0.id == categoryID }?.category
+            updateArticles(withIDs: result.succeededIDs) { card in
+                var updated = card
+                if let category {
+                    updated = ArticleCard(
+                        id: card.id,
+                        title: card.title,
+                        author: card.author,
+                        source: card.source,
+                        originalURL: card.originalURL,
+                        publicID: card.publicID,
+                        coverImage: card.coverImage,
+                        publishTime: card.publishTime,
+                        createdAt: card.createdAt,
+                        aiSummary: card.aiSummary,
+                        aiCategory: card.aiCategory,
+                        aiTags: card.aiTags,
+                        category: category,
+                        categoryResult: card.categoryResult,
+                        isFavorited: card.isFavorited,
+                        isArchived: card.isArchived,
+                        isPublished: card.isPublished,
+                        aiStatus: card.aiStatus,
+                        aiErrorCode: card.aiErrorCode,
+                        aiErrorMessage: card.aiErrorMessage,
+                        aiModel: card.aiModel,
+                        aiTotalTokens: card.aiTotalTokens
+                    )
+                }
+                return updated
+            }
+            bulkSelection.subtract(result.succeededIDs)
+            bulkResult = NativeBulkResult(from: result)
+        } catch {
+            bulkResult = failedResult(articleIDs: articleIDs, error: error)
+        }
+    }
+
+    private func exitBulkMode() {
+        isBulkSelecting = false
+        bulkSelection = []
+        bulkResult = nil
+    }
+
+    private func serverAction(for action: BulkToolbarAction) -> ArticleBulkAction {
+        switch action {
+        case .favorite: .favorite
+        case .unfavorite: .unfavorite
+        case .archive: .archive
+        case .unarchive: .unarchive
+        case .delete: .delete
+        case .permanentDelete: .permanentDelete
+        case .publish: .publish
+        case .unpublish: .unpublish
+        case .setCategory, .reclassify, .generateAI, .exportZIP, .bulkObsidian:
+            .favorite
+        }
+    }
+
+    private func failedResult(articleIDs: [Int], error: any Error) -> NativeBulkResult {
+        NativeBulkResult(
+            requestedCount: articleIDs.count,
+            succeededCount: 0,
+            skippedCount: 0,
+            issues: [
+                ArticleBulkIssue(articleID: 0, code: "REQUEST_FAILED", message: Self.message(for: error))
+            ]
+        )
+    }
+
+    private func removeArticles(withIDs ids: [Int]) {
+        let removedIDs = Set(ids)
+        articles.removeAll { removedIDs.contains($0.id) }
+        bulkSelection.subtract(removedIDs)
+    }
+
+    private func updateArticles(withIDs ids: [Int], action: BulkToolbarAction) {
+        updateArticles(withIDs: ids) { card in
+            switch action {
+            case .favorite:
+                return replacing(card, isFavorited: true)
+            case .unfavorite:
+                return replacing(card, isFavorited: false)
+            case .archive:
+                return replacing(card, isArchived: true)
+            case .unarchive:
+                return replacing(card, isArchived: false)
+            case .publish:
+                return replacing(card, isPublished: true)
+            case .unpublish:
+                return replacing(card, isPublished: false)
+            default:
+                return card
+            }
+        }
+    }
+
+    private func updateArticles(
+        withIDs ids: [Int],
+        transform: (ArticleCard) -> ArticleCard
+    ) {
+        let changedIDs = Set(ids)
+        articles = articles.map { card in
+            changedIDs.contains(card.id) ? transform(card) : card
+        }
+    }
+
+    private func applyAIResult(_ result: ArticleBulkAIResult) {
+        updateArticles(withIDs: result.queuedIDs + result.alreadyQueuedIDs) { card in
+            replacing(card, aiStatus: "queued")
+        }
+    }
+
+    private func replacing(
+        _ card: ArticleCard,
+        isFavorited: Bool? = nil,
+        isArchived: Bool? = nil,
+        isPublished: Bool? = nil,
+        aiStatus: String? = nil
+    ) -> ArticleCard {
+        ArticleCard(
+            id: card.id,
+            title: card.title,
+            author: card.author,
+            source: card.source,
+            originalURL: card.originalURL,
+            publicID: card.publicID,
+            coverImage: card.coverImage,
+            publishTime: card.publishTime,
+            createdAt: card.createdAt,
+            aiSummary: card.aiSummary,
+            aiCategory: card.aiCategory,
+            aiTags: card.aiTags,
+            category: card.category,
+            categoryResult: card.categoryResult,
+            isFavorited: isFavorited ?? card.isFavorited,
+            isArchived: isArchived ?? card.isArchived,
+            isPublished: isPublished ?? card.isPublished,
+            aiStatus: aiStatus ?? card.aiStatus,
+            aiErrorCode: card.aiErrorCode,
+            aiErrorMessage: card.aiErrorMessage,
+            aiModel: card.aiModel,
+            aiTotalTokens: card.aiTotalTokens
+        )
     }
 
     private func resetLoadedState() {
@@ -369,6 +644,7 @@ public final class LibraryModel {
         refreshErrorMessage = nil
         sourceErrorMessage = nil
         isLoading = false
+        bulkSelection = bulkSelection.intersection(Set(articles.map(\.id)))
     }
 
     private func loadCachedPage(scope: LibraryCacheScope) async -> ArticleListPage? {

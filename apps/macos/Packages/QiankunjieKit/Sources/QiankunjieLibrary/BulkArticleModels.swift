@@ -156,6 +156,20 @@ public struct NativeBulkResult: Equatable, Sendable {
     public let issues: [ArticleBulkIssue]
     public let publications: [ArticlePublicationLink]
 
+    public init(
+        requestedCount: Int,
+        succeededCount: Int,
+        skippedCount: Int,
+        issues: [ArticleBulkIssue],
+        publications: [ArticlePublicationLink] = []
+    ) {
+        self.requestedCount = requestedCount
+        self.succeededCount = succeededCount
+        self.skippedCount = skippedCount
+        self.issues = issues
+        self.publications = publications
+    }
+
     public init(from result: ArticleBulkActionResult) {
         requestedCount = result.requestedCount
         succeededCount = result.succeededIDs.count
