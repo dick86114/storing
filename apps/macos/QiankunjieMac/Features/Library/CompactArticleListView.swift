@@ -90,12 +90,22 @@ struct CompactArticleListView: View {
     }
 
     private func articleRow(_ article: ArticleCard) -> some View {
-        let isSelected = selection == article.id
+        let isSelected = model.isBulkSelecting
+            ? model.bulkSelection.contains(article.id)
+            : selection == article.id
 
         return Button {
-            selection = article.id
+            if model.isBulkSelecting {
+                model.toggleBulkSelection(article.id)
+            } else {
+                selection = article.id
+            }
         } label: {
             HStack(alignment: .top, spacing: 10) {
+                if model.isBulkSelecting {
+                    bulkSelectionIndicator(article)
+                }
+
                 cover(article)
 
                 VStack(alignment: .leading, spacing: 5) {
@@ -151,10 +161,16 @@ struct CompactArticleListView: View {
     }
 
     private func articleCard(_ article: ArticleCard) -> some View {
-        let isSelected = selection == article.id
+        let isSelected = model.isBulkSelecting
+            ? model.bulkSelection.contains(article.id)
+            : selection == article.id
 
         return Button {
-            selection = article.id
+            if model.isBulkSelecting {
+                model.toggleBulkSelection(article.id)
+            } else {
+                selection = article.id
+            }
         } label: {
             VStack(alignment: .leading, spacing: 0) {
                 cardCover(article)
@@ -211,7 +227,24 @@ struct CompactArticleListView: View {
                         lineWidth: 1.5
                     )
             }
+            if model.isBulkSelecting {
+                bulkSelectionIndicator(article)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(10)
+            }
         }
+    }
+
+    private func bulkSelectionIndicator(_ article: ArticleCard) -> some View {
+        let isSelected = model.bulkSelection.contains(article.id)
+
+        return Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+            .font(.system(size: 20, weight: .medium))
+            .foregroundStyle(
+                isSelected
+                    ? QiankunjieColors.accent(for: colorScheme)
+                    : QiankunjieColors.onSurfaceVariant(for: colorScheme)
+            )
     }
 
     private func cover(_ article: ArticleCard) -> some View {

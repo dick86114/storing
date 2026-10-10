@@ -379,6 +379,10 @@ public final class LibraryModel {
         bulkSelection = Set(articles.map(\.id)).subtracting(bulkSelection)
     }
 
+    public func clearBulkResult() {
+        bulkResult = nil
+    }
+
     public func runBulkToolbarAction(_ action: BulkToolbarAction) async {
         guard bulkRunningAction == nil, isBulkSelecting else {
             return
