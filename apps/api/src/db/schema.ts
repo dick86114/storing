@@ -267,3 +267,29 @@ export const aiGenerationJobs = pgTable('ai_generation_jobs', {
   index('ai_generation_jobs_user_created_idx').on(table.userId, table.createdAt),
   index('ai_generation_jobs_status_idx').on(table.status, table.createdAt),
 ]);
+
+/** 批量导出任务：文件保留在服务端私有目录，到期后随记录一起清理。 */
+export const bulkExportJobs = pgTable('bulk_export_jobs', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  format: text('format').notNull(),
+  status: text('status').notNull().default('queued'),
+  requestedCount: integer('requested_count').notNull(),
+  articleIds: jsonb('article_ids').notNull(),
+  includeAi: boolean('include_ai').notNull().default(true),
+  organizeByCategory: boolean('organize_by_category').notNull().default(true),
+  succeededCount: integer('succeeded_count').notNull().default(0),
+  failedCount: integer('failed_count').notNull().default(0),
+  failureDetail: jsonb('failure_detail'),
+  filePath: text('file_path').notNull(),
+  fileName: text('file_name').notNull(),
+  fileSize: integer('file_size'),
+  errorMessage: text('error_message'),
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  finishedAt: timestamp('finished_at'),
+}, (table) => [
+  index('bulk_export_jobs_user_created_idx').on(table.userId, table.createdAt),
+  index('bulk_export_jobs_expires_idx').on(table.expiresAt),
+]);

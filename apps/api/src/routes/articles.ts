@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { Readable } from 'node:stream';
 import { db } from '../db/index.js';
 import { articles, articleMetadata, categories, users } from '../db/schema.js';
 import { eq, and, asc, desc, count, sql, or, gt, inArray } from 'drizzle-orm';
@@ -17,6 +18,13 @@ import {
   runSimpleArticleBulkAction,
   unpublishArticleForUser,
 } from '../services/article-bulk.service.js';
+import {
+  createBulkExportJob,
+  buildBulkExportHeaders,
+  ensureBulkExportSchema,
+  getBulkExportJob,
+  openBulkExportDownload,
+} from '../services/bulk-export-job.service.js';
 import {
   COVER_IMAGE_PROCESSING_VERSION,
   ensureArticleMetadataContentHtmlMobileColumn,
@@ -800,6 +808,46 @@ articlesRoutes.post('/articles/bulk-regenerate-ai', requireAuth, async (c) => {
     }
     throw error;
   }
+});
+
+articlesRoutes.post('/articles/bulk-export', requireAuth, async (c) => {
+  const body = await c.req.json().catch(() => null) as Record<string, unknown> | null;
+  const ids = parseBulkArticleIds(body?.articleIds);
+  if (!ids.ok) {
+    const messages = {
+      EMPTY_ARTICLES: '请选择至少一篇文章',
+      INVALID_ARTICLES: '批量导出参数无效',
+      TOO_MANY_ARTICLES: '单次最多导出 200 篇文章',
+    } as const;
+    return c.json({ error: { code: ids.code, message: messages[ids.code] } }, 400);
+  }
+  try {
+    return c.json(await createBulkExportJob(getCurrentUser(c).id as number, {
+      articleIds: ids.articleIds,
+      format: body?.format,
+      includeAi: body?.includeAi !== false,
+      organizeByCategory: body?.organizeByCategory !== false,
+    }));
+  } catch (error) {
+    return c.json({ error: { code: 'BULK_EXPORT_FAILED', message: error instanceof Error ? error.message : '批量导出失败' } }, 400);
+  }
+});
+
+articlesRoutes.get('/articles/bulk-export/:jobId', requireAuth, async (c) => {
+  const jobId = Number(c.req.param('jobId'));
+  if (!Number.isInteger(jobId) || jobId <= 0) return c.json({ error: { code: 'BAD_REQUEST', message: '任务 ID 无效' } }, 400);
+  const job = await getBulkExportJob(getCurrentUser(c).id as number, jobId);
+  if (!job) return c.json({ error: { code: 'NOT_FOUND', message: '导出任务不存在' } }, 404);
+  return c.json(job);
+});
+
+articlesRoutes.get('/articles/bulk-export/:jobId/download', requireAuth, async (c) => {
+  const jobId = Number(c.req.param('jobId'));
+  if (!Number.isInteger(jobId) || jobId <= 0) return c.json({ error: { code: 'BAD_REQUEST', message: '任务 ID 无效' } }, 400);
+  const download = await openBulkExportDownload(getCurrentUser(c).id as number, jobId);
+  if (!download) return c.json({ error: { code: 'NOT_FOUND', message: '导出文件不存在或尚未生成' } }, 404);
+  const webStream = Readable.toWeb(download.stream) as unknown as ReadableStream;
+  return c.body(webStream, 200, buildBulkExportHeaders(download));
 });
 
 articlesRoutes.patch('/articles/:id/category', requireAuth, async (c) => {
