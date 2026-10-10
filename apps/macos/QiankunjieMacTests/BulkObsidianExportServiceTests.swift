@@ -17,7 +17,8 @@ struct BulkObsidianExportServiceTests {
         let service = BulkObsidianExportService(
             detailLoader: loader,
             exporter: exporter,
-            settings: .init(directoryURL: directory)
+            settings: .init(directoryURL: directory),
+            directorySelector: { directory }
         )
 
         let summary = try await service.export(articleIDs: [1, 2, 3])
@@ -27,6 +28,27 @@ struct BulkObsidianExportServiceTests {
         #expect(summary.failures.first?.message == "测试失败")
         #expect(await loader.requestedIDsSnapshot() == [1, 2, 3])
         #expect(exporter.exportedTitles == ["第一篇", "第三篇"])
+    }
+
+    @Test func 取消目录选择不会导出文章() async {
+        let loader = 模拟Obsidian详情仓库(details: [:], failure: nil)
+        let exporter = 模拟Obsidian导出器()
+        let service = BulkObsidianExportService(
+            detailLoader: loader,
+            exporter: exporter,
+            settings: .init(directoryURL: nil),
+            directorySelector: { throw CancellationError() }
+        )
+
+        do {
+            _ = try await service.export(articleIDs: [1, 2])
+            #expect(Bool(false), "取消目录选择应当抛出 CancellationError")
+        } catch {
+            #expect(error is CancellationError)
+        }
+
+        #expect(await loader.requestedIDsSnapshot().isEmpty)
+        #expect(exporter.exportedTitles.isEmpty)
     }
 }
 

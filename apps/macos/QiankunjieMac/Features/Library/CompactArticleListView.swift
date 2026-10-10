@@ -102,11 +102,7 @@ struct CompactArticleListView: View {
             }
         } label: {
             HStack(alignment: .top, spacing: 10) {
-                if model.isBulkSelecting {
-                    bulkSelectionIndicator(article)
-                }
-
-                cover(article)
+                rowCover(article)
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(article.title ?? "未命名文章")
@@ -139,8 +135,10 @@ struct CompactArticleListView: View {
 
                 Spacer(minLength: 0)
             }
-            .padding(10)
-            .frame(minHeight: layoutMetrics.rowHeight, alignment: .topLeading)
+            .padding(.top, 10)
+            .padding(.bottom, 10)
+            .padding(.trailing, 12)
+            .frame(height: layoutMetrics.rowHeight, alignment: .topLeading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -254,6 +252,28 @@ struct CompactArticleListView: View {
                 height: layoutMetrics.coverSize
             )
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .accessibilityLabel("文章封面")
+    }
+
+    private func rowCover(_ article: ArticleCard) -> some View {
+        coverImage(article)
+            .frame(
+                width: layoutMetrics.rowHeight,
+                height: layoutMetrics.rowHeight
+            )
+            .clipped()
+            .clipShape(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: QiankunjieRadius.control,
+                    bottomLeadingRadius: QiankunjieRadius.control
+                )
+            )
+            .overlay(alignment: .topLeading) {
+                if model.isBulkSelecting {
+                    bulkSelectionIndicator(article)
+                        .padding(8)
+                }
+            }
             .accessibilityLabel("文章封面")
     }
 

@@ -30,4 +30,12 @@ struct LibraryBulkToolbarPolicyTests {
         #expect(BulkToolbarPolicy.canExit(bulkRunningAction: nil))
         #expect(!BulkToolbarPolicy.canExit(bulkRunningAction: .favorite))
     }
+
+    @Test func 批量菜单中的导出标题可区分() {
+        #expect(BulkToolbarPolicy.menuTitle(for: .exportZIP) == "导出 ZIP")
+        #expect(BulkToolbarPolicy.menuTitle(for: .bulkObsidian) == "导出 Obsidian")
+
+        let titles = BulkArticlePolicy.toolbarActions(for: .archive).map(BulkToolbarPolicy.menuTitle(for:))
+        #expect(Set(titles).count == titles.count)
+    }
 }
