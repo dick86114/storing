@@ -36,3 +36,11 @@ test('批量结果展示成功、跳过、失败和公开链接', () => {
   assert.match(actionBar, /失败/);
   assert.match(actionBar, /publications/);
 });
+
+test('批量模式点击卡片主体切换选择', () => {
+  const articleCard = read('src/components/article/WechatArticleCard.tsx');
+
+  assert.match(articleCard, /selectable \? onCardClick/);
+  assert.match(articleCard, /onSelectionChange\?\.\(article\.id, !selected/);
+  assert.match(articleCard, /event\.stopPropagation\(\)/);
+});
