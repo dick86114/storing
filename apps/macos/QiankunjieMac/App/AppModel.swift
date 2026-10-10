@@ -290,6 +290,15 @@ final class AppModel {
             return
         }
         guard destination != self.destination else {
+            if
+                let view = destination.libraryView,
+                libraryModel.isSearching
+            {
+                libraryModel.clearSearch()
+                Task {
+                    await libraryModel.load(reset: true)
+                }
+            }
             return
         }
 

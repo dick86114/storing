@@ -61,6 +61,21 @@ struct LibraryModelTests {
         #expect(query.page == 1)
     }
 
+    @Test func 搜索态切换栏目时立即清除() {
+        let model = LibraryModel(repository: 模拟资料库仓库(), cache: EmptyLibraryCache())
+        model.searchDraft = "乾坤戒"
+        model.submitSearch()
+
+        #expect(model.isSearching)
+        #expect(model.appliedSearchText == "乾坤戒")
+
+        model.select(view: .archive)
+
+        #expect(!model.isSearching)
+        #expect(model.searchDraft.isEmpty)
+        #expect(model.appliedSearchText.isEmpty)
+    }
+
     @Test func 各栏目排序与筛选可见性对齐网页端() {
         let model = LibraryModel(repository: 模拟资料库仓库(), cache: EmptyLibraryCache())
 
