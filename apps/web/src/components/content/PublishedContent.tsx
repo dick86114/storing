@@ -11,7 +11,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useArticleSelection } from '@/hooks/useArticleSelection';
 import { useBulkArticleActions } from '@/hooks/useBulkArticleActions';
 import { api } from '@/lib/api';
-import type { ArticleBulkAiResult, ArticleBulkActionResult, ArticleListItem } from '@storing/shared';
+import type { ArticleBulkAiResult, ArticleBulkActionResult, ArticleListItem, BulkExportJob } from '@storing/shared';
 
 export function PublishedContent() {
   const { isAuthenticated } = useAuth();
@@ -26,6 +26,7 @@ export function PublishedContent() {
   const articles = useMemo<ArticleListItem[]>(() => data?.articles ?? [], [data]);
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkResult, setBulkResult] = useState<ArticleBulkActionResult | ArticleBulkAiResult | null>(null);
+  const [bulkExportJob, setBulkExportJob] = useState<BulkExportJob | null>(null);
   const articleIds = useMemo(() => articles.map((article) => article.id), [articles]);
   const selection = useArticleSelection(articleIds);
   const bulkActions = useBulkArticleActions();
@@ -44,13 +45,12 @@ export function PublishedContent() {
     try {
       if (action === 'set-category' || action === 'reclassify' || action === 'generate-ai') return;
       if (action === 'export-zip' || action === 'export-obsidian') {
-        await bulkActions.createExport({
+        setBulkExportJob(await bulkActions.createExport({
           articleIds: ids,
           format: action === 'export-obsidian' ? 'obsidian' : 'zip',
           includeAi: true,
           organizeByCategory: true,
-        });
-        showToast('导出任务已创建');
+        }));
         return;
       }
       const result = await bulkActions.runAction(action, ids);
@@ -103,6 +103,7 @@ export function PublishedContent() {
             selection.clear();
           }}
           result={bulkResult}
+          exportJob={bulkExportJob}
           selectedCount={selection.selectedIds.size}
           view="published"
         />

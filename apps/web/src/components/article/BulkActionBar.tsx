@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import type { ArticleBulkAction, ArticleBulkAiResult, ArticleBulkActionResult, ArticleBulkIssue } from '@storing/shared';
+import type { ArticleBulkAction, ArticleBulkAiResult, ArticleBulkActionResult, ArticleBulkIssue, BulkExportJob } from '@storing/shared';
+import { api } from '@/lib/api';
 
 export type BulkToolbarAction =
   | ArticleBulkAction
@@ -25,6 +26,7 @@ export interface BulkActionBarProps {
   onAction: (action: BulkToolbarAction) => void;
   onResultClose: () => void;
   result: ArticleBulkActionResult | ArticleBulkAiResult | null;
+  exportJob?: BulkExportJob | null;
 }
 
 const VIEW_ACTIONS: Record<BulkToolbarView, BulkToolbarAction[]> = {
@@ -77,10 +79,27 @@ export function BulkActionBar({
   onAction,
   onResultClose,
   result,
+  exportJob,
 }: BulkActionBarProps) {
   const [confirmAction, setConfirmAction] = useState<'delete' | 'permanent_delete' | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [trackedExportJob, setTrackedExportJob] = useState<BulkExportJob | null>(exportJob ?? null);
   const actions = VIEW_ACTIONS[view];
+
+  useEffect(() => {
+    setTrackedExportJob(exportJob ?? null);
+    if (!exportJob || exportJob.status === 'succeeded' || exportJob.status === 'failed') return;
+
+    const timer = window.setInterval(async () => {
+      try {
+        const trackedJob = exportJob;
+        setTrackedExportJob(await api.getBulkExport(trackedJob.id));
+      } catch (error) {
+        console.error('Bulk export status refresh failed:', error);
+      }
+    }, 1200);
+    return () => window.clearInterval(timer);
+  }, [exportJob]);
   const normalizedResult = useMemo(() => {
     if (!result) return null;
     if ('queuedIds' in result) {
@@ -196,6 +215,30 @@ export function BulkActionBar({
               >
                 Obsidian
               </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {trackedExportJob && !normalizedResult && (
+        <div className="bulk-action-overlay" role="presentation">
+          <section aria-modal="true" className="bulk-action-dialog" role="dialog">
+            <h2>批量导出</h2>
+            <p>
+              {trackedExportJob.status === 'succeeded'
+                ? `导出完成，成功 ${trackedExportJob.succeededCount} 篇，失败 ${trackedExportJob.failedCount} 篇。`
+                : trackedExportJob.status === 'failed'
+                  ? '导出失败，请重新提交。'
+                  : '正在生成导出文件...'}
+            </p>
+            {trackedExportJob.status === 'succeeded' && trackedExportJob.downloadUrl && (
+              <div className="bulk-result-publications">
+                <a download href={trackedExportJob.downloadUrl}>下载 ZIP</a>
+              </div>
+            )}
+            {trackedExportJob.status === 'failed' && <p className="bulk-result-issues">导出失败</p>}
+            <div className="bulk-action-dialog-actions">
+              <button onClick={() => setTrackedExportJob(null)} type="button">关闭</button>
             </div>
           </section>
         </div>

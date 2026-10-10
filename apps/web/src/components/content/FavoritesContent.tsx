@@ -17,7 +17,7 @@ import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useArticleSelection } from '@/hooks/useArticleSelection';
 import { useBulkArticleActions } from '@/hooks/useBulkArticleActions';
 import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
-import type { ArticleBulkAiResult, ArticleBulkActionResult, ArticleListItem } from '@storing/shared';
+import type { ArticleBulkAiResult, ArticleBulkActionResult, ArticleListItem, BulkExportJob } from '@storing/shared';
 
 const FAVORITES_SORT_OPTIONS: ArticleSortOption[] = [
   { value: 'favorited', label: '最近收藏' },
@@ -54,6 +54,7 @@ function FavoritesContentInner() {
   const [requestTimedOut, setRequestTimedOut] = useState(false);
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkResult, setBulkResult] = useState<ArticleBulkActionResult | ArticleBulkAiResult | null>(null);
+  const [bulkExportJob, setBulkExportJob] = useState<BulkExportJob | null>(null);
   const removingIdsRef = useRef<Set<number>>(new Set());
   const articleIds = useMemo(() => allArticles.map((article) => article.id), [allArticles]);
   const selection = useArticleSelection(articleIds);
@@ -215,13 +216,12 @@ function FavoritesContentInner() {
       if (action === 'generate-ai' || action === 'reclassify') {
         setBulkResult(await bulkActions.runAi(ids, action === 'reclassify'));
       } else if (action === 'export-zip' || action === 'export-obsidian') {
-        await bulkActions.createExport({
+        setBulkExportJob(await bulkActions.createExport({
           articleIds: ids,
           format: action === 'export-obsidian' ? 'obsidian' : 'zip',
           includeAi: true,
           organizeByCategory: true,
-        });
-        showToast('导出任务已创建');
+        }));
       } else {
         const result = await bulkActions.runAction(action, ids);
         setBulkResult(result);
@@ -334,6 +334,7 @@ function FavoritesContentInner() {
                     selection.clear();
                   }}
                   result={bulkResult}
+                  exportJob={bulkExportJob}
                   selectedCount={selection.selectedIds.size}
                   view="favorites"
                 />
