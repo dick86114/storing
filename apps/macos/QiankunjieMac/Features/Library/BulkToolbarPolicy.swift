@@ -12,6 +12,15 @@ enum BulkToolbarPolicy {
         bulkRunningAction == nil
     }
 
+    static func menuTitle(for action: BulkToolbarAction) -> String {
+        switch action {
+        case .exportZIP: "导出 ZIP"
+        case .bulkObsidian: "导出 Obsidian"
+        default:
+            confirmation(for: action, selectedCount: 0).confirmTitle
+        }
+    }
+
     static func confirmation(
         for action: BulkToolbarAction,
         selectedCount: Int

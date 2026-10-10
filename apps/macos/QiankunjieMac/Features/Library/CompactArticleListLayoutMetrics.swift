@@ -29,9 +29,8 @@ struct CompactArticleListLayoutMetrics: Equatable, Sendable {
 
     init() {
         self.rowHeight = 132
-        self.coverSize = 56
-        // 微信公众号头条封面的标准比例是 2.35:1。
-        self.coverAspectRatio = 2.35
+        self.coverSize = 132
+        self.coverAspectRatio = 1
         self.coverWidth = 132
     }
 

@@ -480,7 +480,7 @@ struct LibraryToolbar: View {
     }
 
     private func actionTitle(_ action: BulkToolbarAction) -> String {
-        BulkToolbarPolicy.confirmation(for: action, selectedCount: model.bulkSelection.count).confirmTitle
+        BulkToolbarPolicy.menuTitle(for: action)
     }
 
     private func runBulkToolbarAction(_ action: BulkToolbarAction) {

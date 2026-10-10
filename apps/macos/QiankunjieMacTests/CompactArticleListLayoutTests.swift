@@ -3,17 +3,17 @@ import Testing
 @testable import QiankunjieMac
 
 struct CompactArticleListLayoutTests {
-    @Test func 文章卡片使用稳定封面和最小行高() {
+    @Test func 列表封面方形并占满卡片高度() {
         let metrics = CompactArticleListLayoutMetrics()
 
         #expect(metrics.rowHeight == 132)
-        #expect(metrics.coverSize == 56)
+        #expect(metrics.coverSize == 132)
     }
 
-    @Test func 文章卡片封面使用微信封面比例() {
+    @Test func 列表封面使用一比一比例() {
         let metrics = CompactArticleListLayoutMetrics()
 
-        #expect(metrics.coverAspectRatio == 2.35)
+        #expect(metrics.coverAspectRatio == 1)
         #expect(metrics.coverWidth == 132)
     }
 

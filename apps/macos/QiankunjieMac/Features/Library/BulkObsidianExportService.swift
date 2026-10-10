@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import QiankunjieCore
 import QiankunjieReader
@@ -24,38 +25,71 @@ protocol BulkObsidianArticleExporting: Sendable {
 @MainActor
 struct BulkObsidianExportService {
     private let detailLoader: any BulkObsidianDetailLoading
-    private let exporter: any BulkObsidianArticleExporting
+    private let exporterFactory: @MainActor (ObsidianExportSettings) -> any BulkObsidianArticleExporting
     private let settings: ObsidianExportSettings
     private let dateFormatter: DateFormatter
+    private let directorySelector: @MainActor () async throws -> URL
 
     init(
         detailLoader: any BulkObsidianDetailLoading,
-        exporter: any BulkObsidianArticleExporting,
-        settings: ObsidianExportSettings
+        exporterFactory: @escaping @MainActor (ObsidianExportSettings) -> any BulkObsidianArticleExporting,
+        settings: ObsidianExportSettings,
+        directorySelector: @escaping @MainActor () async throws -> URL
     ) {
         self.detailLoader = detailLoader
-        self.exporter = exporter
+        self.exporterFactory = exporterFactory
         self.settings = settings
+        self.directorySelector = directorySelector
         dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
     }
 
     init(
+        detailLoader: any BulkObsidianDetailLoading,
+        exporter: any BulkObsidianArticleExporting,
+        settings: ObsidianExportSettings,
+        directorySelector: @escaping @MainActor () async throws -> URL
+    ) {
+        self.init(
+            detailLoader: detailLoader,
+            exporterFactory: { _ in exporter },
+            settings: settings,
+            directorySelector: directorySelector
+        )
+    }
+
+    init(
         apiClient: APIClient,
-        settingsStore: ObsidianExportSettingsStore = .init()
+        settingsStore: ObsidianExportSettingsStore = .init(),
+        directorySelector: @escaping @MainActor () async throws -> URL = selectDestinationDirectory
     ) {
         let settings = settingsStore.load()
         self.init(
             detailLoader: BulkObsidianAPIDetailLoader(client: apiClient),
-            exporter: ObsidianArticleExporter(settings: settings),
-            settings: settings
+            exporterFactory: { effectiveSettings in
+                ObsidianArticleExporter(settings: effectiveSettings)
+            },
+            settings: settings,
+            directorySelector: directorySelector
         )
     }
 
     func export(articleIDs: [Int]) async throws -> BulkObsidianExportSummary {
-        guard settings.directoryURL != nil else {
-            throw ObsidianExportError.notConfigured
+        let selectedDirectory = try await directorySelector()
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(
+            atPath: selectedDirectory.path,
+            isDirectory: &isDirectory
+        ), isDirectory.boolValue else {
+            throw ObsidianExportError.directoryUnavailable
         }
+
+        let exporter = exporterFactory(
+            ObsidianExportSettings(
+                directoryURL: selectedDirectory,
+                conflictPolicy: settings.conflictPolicy
+            )
+        )
 
         var succeededIDs: [Int] = []
         var failures: [BulkObsidianExportFailure] = []
@@ -92,6 +126,22 @@ struct BulkObsidianExportService {
             contentMarkdown: detail.contentMarkdown,
             contentHTML: detail.contentHTML
         )
+    }
+
+    static func selectDestinationDirectory() async throws -> URL {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.prompt = "选择目录"
+        panel.message = "选择批量导出 Obsidian 文件的目标目录"
+
+        guard panel.runModal() == .OK, let directory = panel.url else {
+            throw CancellationError()
+        }
+
+        return directory.standardizedFileURL
     }
 }
 

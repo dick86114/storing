@@ -166,7 +166,10 @@ final class AppModel {
         self.readerAPIClient = APIClient(tokenProvider: authModel.repository)
         self.bulkExportService = BulkArticleExportService(tokenProvider: authModel.repository)
         let bulkExportService = self.bulkExportService
-        let bulkObsidianService = BulkObsidianExportService(apiClient: readerAPIClient)
+        let bulkObsidianService = BulkObsidianExportService(
+            apiClient: readerAPIClient,
+            directorySelector: BulkObsidianExportService.selectDestinationDirectory
+        )
         self.searchModel = LibraryModel(
             repository: LibraryRepository(
                 apiClient: APIClient(tokenProvider: authModel.repository)
