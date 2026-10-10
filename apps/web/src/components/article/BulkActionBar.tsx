@@ -31,8 +31,8 @@ export interface BulkActionBarProps {
 }
 
 const VIEW_ACTIONS: Record<BulkToolbarView, BulkToolbarAction[]> = {
-  inbox: ['favorite', 'archive', 'delete', 'generate-ai', 'publish', 'export-zip'],
-  favorites: ['unfavorite', 'archive', 'delete', 'generate-ai', 'publish', 'export-zip'],
+  inbox: ['favorite', 'archive', 'delete', 'permanent_delete', 'generate-ai', 'publish', 'export-zip'],
+  favorites: ['unfavorite', 'archive', 'delete', 'permanent_delete', 'generate-ai', 'publish', 'export-zip'],
   archive: [
     'favorite',
     'unfavorite',
@@ -41,11 +41,12 @@ const VIEW_ACTIONS: Record<BulkToolbarView, BulkToolbarAction[]> = {
     'reclassify',
     'generate-ai',
     'delete',
+    'permanent_delete',
     'publish',
     'unpublish',
     'export-zip',
   ],
-  published: ['unpublish', 'delete', 'export-zip'],
+  published: ['unpublish', 'delete', 'permanent_delete', 'export-zip'],
 };
 
 const ACTION_LABELS: Record<BulkToolbarAction, string> = {
