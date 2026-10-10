@@ -18,3 +18,21 @@ test('批量客户端提供统一 API 和选择方法', () => {
   assert.match(selection, /selectAllLoaded/);
   assert.match(actions, /export function useBulkArticleActions/);
 });
+
+test('批量操作栏区分普通删除和彻底删除确认', () => {
+  const actionBar = read('src/components/article/BulkActionBar.tsx');
+
+  assert.match(actionBar, /批量操作/);
+  assert.match(actionBar, /确认删除/);
+  assert.match(actionBar, /确认彻底删除/);
+  assert.match(actionBar, /不可恢复/);
+});
+
+test('批量结果展示成功、跳过、失败和公开链接', () => {
+  const actionBar = read('src/components/article/BulkActionBar.tsx');
+
+  assert.match(actionBar, /成功/);
+  assert.match(actionBar, /跳过/);
+  assert.match(actionBar, /失败/);
+  assert.match(actionBar, /publications/);
+});
