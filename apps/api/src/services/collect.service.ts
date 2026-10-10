@@ -11,6 +11,7 @@ import {
   extractTextFromHtml,
   getInitialSingleFileStrategy,
   getSingleFileCandidateStrategies,
+  fetchReadableProxyHtml,
   prepareCapturedDocument,
   runSingleFileWithStrategy,
   uploadImagesInCapturedDocument,
@@ -397,10 +398,51 @@ type MinimalSingleFileCapture = {
 
 function formatStrategyLabel(strategy: CollectCaptureStrategy) {
   if (strategy === 'singlefile_sidecar') return 'Sidecar';
+  if (strategy === 'reader_proxy') return 'Reader 兜底';
   if (strategy === 'singlefile_command') return 'single-file 命令';
   if (strategy === 'singlefile_docker') return 'Docker 兜底';
   if (strategy === 'singlefile_npx') return 'npx 兜底';
   return strategy;
+}
+
+async function captureReadableProxy(
+  jobId: number,
+  normalizedUrl: string
+): Promise<ValidSingleFileCapture & { variant: HtmlVariant }> {
+  await updateCollectJob(jobId, { stage: 'capturing_reader', captureStrategy: 'reader_proxy' });
+  const rawHtml = await fetchReadableProxyHtml(normalizedUrl);
+  const validation = validateCapturedHtml(rawHtml, normalizedUrl);
+  if (!validation.ok) {
+    throw new Error(`${validation.reason}（正文长度 ${validation.textLength}）`);
+  }
+
+  return {
+    strategy: 'reader_proxy',
+    captureUrl: normalizedUrl,
+    desktopCaptureUrl: null,
+    mobileCaptureUrl: null,
+    desktopRawHtml: null,
+    mobileRawHtml: null,
+    desktopPrepared: null,
+    mobilePrepared: null,
+    primaryPrepared: prepareCapturedDocument(rawHtml, normalizedUrl),
+    primaryRawHtml: rawHtml,
+    variant: 'desktop',
+  };
+}
+
+async function appendReadableProxyCapture(
+  jobId: number,
+  normalizedUrl: string,
+  strategyFailures: string[]
+): Promise<(ValidSingleFileCapture & { variant: HtmlVariant }) | null> {
+  try {
+    return await captureReadableProxy(jobId, normalizedUrl);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    strategyFailures.push(`Reader 兜底：${message}`);
+    return null;
+  }
 }
 
 function pushUniqueUrl(urls: string[], value: string) {
@@ -520,6 +562,8 @@ async function captureMinimalSingleFile(jobId: number, normalizedUrl: string): P
     }
   }
 
+  const readableCapture = await appendReadableProxyCapture(jobId, normalizedUrl, strategyFailures);
+  if (readableCapture) return readableCapture;
   throw new Error(strategyFailures.join('；') || 'SingleFile 抓取结果无有效正文');
 }
 
@@ -589,6 +633,8 @@ async function captureBestSingleFile(jobId: number, normalizedUrl: string): Prom
     }
   }
 
+  const readableCapture = await appendReadableProxyCapture(jobId, normalizedUrl, strategyFailures);
+  if (readableCapture) return readableCapture;
   throw new Error(strategyFailures.join('；') || 'SingleFile 抓取结果无有效正文');
 }
 
