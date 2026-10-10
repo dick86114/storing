@@ -53,14 +53,8 @@ final class WeChatImportCoordinator {
                 }
 
                 do {
-                    let files: [WeChatMultipartBuilder.FilePart] = try manifest.items.map { item in
-                        let url = batchDirectory.appendingPathComponent(item.filename, isDirectory: false)
-                        return WeChatMultipartBuilder.FilePart(
-                            filename: item.filename,
-                            data: try Data(contentsOf: url),
-                            mimeType: WeChatMultipartBuilder.mimeType(forFilename: item.filename)
-                        )
-                    }
+                    // 大文件读取不能留在 MainActor；否则导入期间整个 UI 会卡住。
+                    let files = try await readImportFiles(manifest, batchDirectory: batchDirectory)
                     let result = try await self.repository.importFiles(files)
                     self.inbox.removeBatch(at: batchDirectory)
                     await self.onImported(result)
@@ -71,6 +65,20 @@ final class WeChatImportCoordinator {
                     continue
                 }
             }
+        }
+    }
+
+    nonisolated private func readImportFiles(
+        _ manifest: WeChatBatchManifest,
+        batchDirectory: URL
+    ) async throws -> [WeChatMultipartBuilder.FilePart] {
+        try manifest.items.map { item in
+            let url = batchDirectory.appendingPathComponent(item.filename, isDirectory: false)
+            return WeChatMultipartBuilder.FilePart(
+                filename: item.filename,
+                data: try Data(contentsOf: url),
+                mimeType: WeChatMultipartBuilder.mimeType(forFilename: item.filename)
+            )
         }
     }
 }

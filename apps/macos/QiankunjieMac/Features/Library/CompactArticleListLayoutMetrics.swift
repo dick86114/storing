@@ -24,10 +24,15 @@ enum ArticleListPresentationMode: String, CaseIterable, Identifiable, Sendable {
 struct CompactArticleListLayoutMetrics: Equatable, Sendable {
     let rowHeight: CGFloat
     let coverSize: CGFloat
+    let coverAspectRatio: CGFloat
+    let coverWidth: CGFloat
 
     init() {
         self.rowHeight = 132
         self.coverSize = 56
+        // 微信公众号头条封面的标准比例是 2.35:1。
+        self.coverAspectRatio = 2.35
+        self.coverWidth = 132
     }
 
     func visibleTags(_ tags: [String]) -> [CompactArticleTagDisplay] {

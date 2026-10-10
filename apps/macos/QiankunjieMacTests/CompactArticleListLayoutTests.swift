@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import QiankunjieMac
 
@@ -7,6 +8,26 @@ struct CompactArticleListLayoutTests {
 
         #expect(metrics.rowHeight == 132)
         #expect(metrics.coverSize == 56)
+    }
+
+    @Test func 文章卡片封面使用微信封面比例() {
+        let metrics = CompactArticleListLayoutMetrics()
+
+        #expect(metrics.coverAspectRatio == 2.35)
+        #expect(metrics.coverWidth == 132)
+    }
+
+    @Test func 文章列表右侧保留紧凑边距() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("QiankunjieMac/Features/Library/CompactArticleListView.swift"),
+            encoding: .utf8
+        )
+
+        #expect(source.contains(".padding(.trailing, 8)"))
+        #expect(!source.contains(".padding(.trailing, 4)"))
     }
 
     @Test func 标签完整展示且不截断() {

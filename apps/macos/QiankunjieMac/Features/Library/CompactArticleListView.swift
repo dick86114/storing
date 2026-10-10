@@ -76,7 +76,8 @@ struct CompactArticleListView: View {
                     .padding(.vertical, 8)
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.leading, 12)
+            .padding(.trailing, 8)
             .padding(.vertical, 10)
         }
         .task(id: model.articles.map(\.id)) {
@@ -216,7 +217,7 @@ struct CompactArticleListView: View {
     private func cover(_ article: ArticleCard) -> some View {
         coverImage(article)
             .frame(
-                width: layoutMetrics.coverSize,
+                width: layoutMetrics.coverWidth,
                 height: layoutMetrics.coverSize
             )
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
@@ -224,9 +225,11 @@ struct CompactArticleListView: View {
     }
 
     private func cardCover(_ article: ArticleCard) -> some View {
-        coverImage(article)
-            .frame(maxWidth: .infinity)
-            .aspectRatio(2.35, contentMode: .fit)
+        Color.clear
+            .aspectRatio(layoutMetrics.coverAspectRatio, contentMode: .fit)
+            .overlay {
+                coverImage(article)
+            }
             .clipped()
             .clipShape(
                 // 卡片上方两个角要和下方的面板圆角保持一致，否则封面会把圆角盖成直角。

@@ -189,6 +189,83 @@ struct MenuBarStateTests {
         #expect(desktopEvent.map(QuickCollectPanel.isMenuBarClick) == false)
     }
 
+    @Test func 系统菜单窗口中的点击不会关闭快速采集面板() {
+        guard let screen = NSScreen.screens.first else { return }
+
+        let menuWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1, height: 1),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        let menuEvent = NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: menuWindow.convertPoint(toScreen: NSPoint(x: 0, y: 0)),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: menuWindow.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        )
+
+        #expect(
+            menuEvent.map {
+                QuickCollectPanel.shouldDismissOutsideClick(
+                    $0,
+                    windowClassName: "NSMenuWindowManagerWindow"
+                )
+            } == false
+        )
+        #expect(
+            QuickCollectPanel.shouldDismissOutsideClick(
+                menuEvent!,
+                windowClassName: nil
+            )
+        )
+        #expect(screen.frame.midX > 0)
+    }
+
+    @Test func 快速采集弹窗展示时不会激活输入框() {
+        let model = CollectModel(userID: 7)
+        let panel = QuickCollectPanel(model: model) {}
+
+        panel.present(from: nil)
+        defer { panel.dismiss() }
+
+        #expect(panel.isVisible)
+        #expect(panel.styleMask.contains(.nonactivatingPanel))
+        #expect(NSApp.keyWindow !== panel)
+    }
+
+    @Test func 输入框激活后外部点击不再自动关闭面板() {
+        guard let screen = NSScreen.screens.first else { return }
+        let panel = QuickCollectPanel(model: CollectModel(userID: 7)) {}
+        let desktopEvent = NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: NSPoint(x: screen.frame.midX, y: screen.visibleFrame.midY),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        )
+
+        panel.handleInputFocusChange(true)
+        panel.handleInputFocusChange(false)
+        #expect(
+            desktopEvent.map {
+                QuickCollectPanel.shouldDismissOutsideClick(
+                    $0,
+                    isInputSessionActive: true
+                )
+            } == false
+        )
+    }
+
     @Test func 菜单栏和快捷键共享同一个快速采集面板() {
         let collectModel = CollectModel(userID: 7)
         let panel = QuickCollectPanelSpy(model: collectModel)
