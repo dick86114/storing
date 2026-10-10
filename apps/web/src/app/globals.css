@@ -909,6 +909,7 @@ h4 {
   background: var(--menu-bg);
   color: var(--menu-text);
   box-shadow: var(--shadow-md);
+  overscroll-behavior: contain;
   backdrop-filter: blur(18px) saturate(1.18);
   -webkit-backdrop-filter: blur(18px) saturate(1.18);
   animation: menuIn .16s ease-out;

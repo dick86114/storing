@@ -19,11 +19,11 @@ test('批量客户端提供统一 API 和选择方法', () => {
   assert.match(actions, /export function useBulkArticleActions/);
 });
 
-test('批量动作收进下拉并全部使用统一确认弹窗', () => {
+test('批量操作收进下拉并全部使用统一确认弹窗', () => {
   const actionBar = read('src/components/article/BulkActionBar.tsx');
 
   assert.match(actionBar, /批量操作/);
-  assert.match(actionBar, /批量动作/);
+  assert.match(actionBar, /批量操作/);
   assert.match(actionBar, /bulk-actions-menu/);
   assert.match(actionBar, /ACTION_CONFIRMATIONS: Record<BulkToolbarAction, /);
   assert.match(actionBar, /确认批量删除？/);
