@@ -1,4 +1,5 @@
 import Foundation
+import QiankunjieCore
 import Testing
 @testable import QiankunjieMac
 
@@ -69,5 +70,23 @@ struct CompactArticleListLayoutTests {
     @Test func 非微信来源继续使用通用文档图标() {
         #expect(CompactArticleListView.sourceSystemImage("少数派") == "doc.text")
         #expect(CompactArticleListView.sourceSystemImage(nil) == "doc.text")
+    }
+
+    @Test func 搜索结果展示文章所属栏目() {
+        let article = ArticleCard(
+            id: 1,
+            publicID: "public-1",
+            isFavorited: true,
+            isArchived: true,
+            isPublished: true
+        )
+
+        #expect(article.searchSectionNames == "已发布 · 归档 · 收藏")
+
+        let inboxArticle = ArticleCard(id: 2, publicID: "public-2", isPublished: true)
+        #expect(inboxArticle.searchSectionNames == "已发布 · 收件箱")
+
+        let pureInboxArticle = ArticleCard(id: 3)
+        #expect(pureInboxArticle.searchSectionNames == "收件箱")
     }
 }
