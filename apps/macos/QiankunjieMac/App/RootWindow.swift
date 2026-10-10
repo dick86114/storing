@@ -234,12 +234,12 @@ struct RootWindow: View {
     private var contentColumnTitleToolbarItem: some ToolbarContent {
         if #available(macOS 26.0, *) {
             ToolbarItem(placement: .navigation) {
-                MainWindowTitleLabel(showsVersion: !isSidebarCollapsed)
+                MainWindowTitleLabel()
             }
             .sharedBackgroundVisibility(.hidden)
         } else {
             ToolbarItem(placement: .navigation) {
-                MainWindowTitleLabel(showsVersion: !isSidebarCollapsed)
+                MainWindowTitleLabel()
             }
         }
     }

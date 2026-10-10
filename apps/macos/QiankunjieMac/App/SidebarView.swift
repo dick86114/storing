@@ -58,44 +58,15 @@ struct SidebarView: View {
     }
 
     private var topControls: some View {
-        VStack(spacing: 12) {
-            brandHeader
-
+        Group {
             if !isCollapsed {
                 searchField
             }
         }
         .padding(.horizontal, isCollapsed ? 10 : 12)
-        .padding(.top, 14)
+        .padding(.top, 12)
         .padding(.bottom, 10)
         .background(QiankunjieColors.surfaceVariant(for: colorScheme))
-    }
-
-    private var brandHeader: some View {
-        HStack(spacing: 9) {
-            BrandAssetName.brandLogo.image
-                .resizable()
-                .scaledToFit()
-                .frame(width: 30, height: 30)
-                .accessibilityLabel(BrandAssetName.brandLogo.accessibilityLabel)
-
-            if !isCollapsed {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(QiankunjieMacMetadata.displayName)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
-                        .lineLimit(1)
-
-                    Text("v\(QiankunjieMacMetadata.appVersion)")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                        .monospacedDigit()
-                        .lineLimit(1)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
-        .accessibilityElement(children: .combine)
     }
 
     private var bottomControls: some View {
