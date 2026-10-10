@@ -15,7 +15,8 @@ export type CollectCaptureStrategy =
   | 'singlefile_sidecar'
   | 'singlefile_command'
   | 'singlefile_docker'
-  | 'singlefile_npx';
+  | 'singlefile_npx'
+  | 'reader_proxy';
 export type CaptureValidationResult =
   | { ok: true; textLength: number }
   | { ok: false; reason: string; textLength: number };
@@ -67,8 +68,38 @@ function commandExists(command: string) {
   }
 }
 
+export function buildReaderProxyUrl(targetUrl: string) {
+  const target = new URL(targetUrl);
+  const proxy = new URL(`https://r.jina.ai/${target.toString()}`);
+  return proxy.toString();
+}
+
+export async function fetchReadableProxyHtml(targetUrl: string) {
+  const proxyUrl = buildReaderProxyUrl(targetUrl);
+  await assertSafeOutboundUrl(proxyUrl);
+  const response = await fetch(proxyUrl, {
+    headers: {
+      Accept: 'text/html, text/plain, */*',
+      'X-Return-Format': 'html',
+    },
+    signal: AbortSignal.timeout(45000),
+  });
+
+  if (!response.ok) {
+    throw new Error(`只读网页代理返回异常：${response.status}`);
+  }
+
+  const html = (await response.text()).trim();
+  if (!html) throw new Error('只读网页代理没有返回内容');
+  return html;
+}
+
 function getSingleFileUserAgent(variant: HtmlVariant) {
   return variant === 'mobile' ? MOBILE_USER_AGENT : DESKTOP_USER_AGENT;
+}
+
+function formatReaderProxyLabel(strategy: CollectCaptureStrategy) {
+  return strategy === 'reader_proxy' ? 'Reader 兜底' : strategy;
 }
 
 function getBrowserExecutablePath() {
@@ -560,6 +591,7 @@ export function validateCapturedHtml(html: string, fallbackUrl: string): Capture
   const dom = new JSDOM(html);
   const doc = dom.window.document;
   const title = extractTitle(doc, fallbackUrl);
+  doc.querySelectorAll('script, style, noscript, template').forEach((node) => node.remove());
   const text = doc.body?.textContent?.replace(/\s+/g, ' ').trim() || '';
   const textLength = text.replace(/\s+/g, '').length;
   const bodyHtml = doc.body?.innerHTML || '';
@@ -599,7 +631,7 @@ export function validateCapturedHtml(html: string, fallbackUrl: string): Capture
     }
   }
 
-  if (textLength < 120) {
+  if (textLength < 120 || /^小红书\s*[-|·]\s*(你的生活兴趣社区|发现好东西)$/i.test(title)) {
     return { ok: false, reason: '抓取结果正文过短，疑似壳页或异常页', textLength };
   }
 
