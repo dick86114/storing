@@ -1,4 +1,5 @@
-FROM node:20-alpine AS base
+# jsdom 30 要求 Node 22.22+/24.15+；Node 20 缺少它使用的全局 Iterator。
+FROM node:24-alpine AS base
 
 RUN npm install -g pnpm@10.33.3 && npm cache clean --force
 
@@ -28,7 +29,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_OUTPUT_STANDALONE=true
 RUN cd apps/web && pnpm run build
 
-FROM node:20-alpine AS runner
+FROM node:24-alpine AS runner
 
 WORKDIR /app
 
