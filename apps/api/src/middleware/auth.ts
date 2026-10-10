@@ -180,8 +180,10 @@ export async function requireAuth(c: Context, next: Next) {
 export async function optionalAuth(c: Context, next: Next) {
   if (await authenticateWebSession(c)) return next();
   const token = getRequestToken(c);
+  // 只对客户端 Bearer 令牌做 401 挑战；过期 Cookie 继续按游客访问公开内容。
+  const hasBearerAuthorization = c.req.header('Authorization')?.startsWith('Bearer ') === true;
 
-  if (token) {
+  if (token && hasBearerAuthorization) {
     const clientPayload = verifyClientToken(token);
     const clientSessionState = clientPayload
       ? await getSessionFailureReason(clientPayload)
