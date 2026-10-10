@@ -167,8 +167,7 @@ final class AppModel {
         self.bulkExportService = BulkArticleExportService(tokenProvider: authModel.repository)
         let bulkExportService = self.bulkExportService
         let bulkObsidianService = BulkObsidianExportService(
-            apiClient: readerAPIClient,
-            directorySelector: BulkObsidianExportService.selectDestinationDirectory
+            apiClient: readerAPIClient
         )
         self.searchModel = LibraryModel(
             repository: LibraryRepository(
@@ -193,8 +192,11 @@ final class AppModel {
             let finishedJob = try await bulkExportService.poll(jobID: job.id)
             return try await bulkExportService.save(finishedJob)
         }
-        self.libraryModel.bulkObsidianHandler = { articleIDs in
-            let summary = try await bulkObsidianService.export(articleIDs: articleIDs)
+        self.libraryModel.bulkObsidianHandler = { articleIDs, destinationURL in
+            let summary = try await bulkObsidianService.export(
+                articleIDs: articleIDs,
+                destinationURL: destinationURL
+            )
             return NativeBulkResult(
                 requestedCount: articleIDs.count,
                 succeededCount: summary.succeededIDs.count,

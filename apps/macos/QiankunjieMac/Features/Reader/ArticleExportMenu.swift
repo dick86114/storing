@@ -336,6 +336,8 @@ final class ArticleExportCoordinator {
 struct ObsidianExportSheet: View {
     let onCancel: () -> Void
     let onConfirm: (ObsidianExportDraft) -> Void
+    var showsTitle = true
+    var subtitle: String?
 
     @State private var draft: ObsidianExportDraft
     @State private var errorMessage: String?
@@ -349,11 +351,15 @@ struct ObsidianExportSheet: View {
     init(
         initialDraft: ObsidianExportDraft,
         onCancel: @escaping () -> Void,
-        onConfirm: @escaping (ObsidianExportDraft) -> Void
+        onConfirm: @escaping (ObsidianExportDraft) -> Void,
+        showsTitle: Bool = true,
+        subtitle: String? = nil
     ) {
         _draft = State(initialValue: initialDraft)
         self.onCancel = onCancel
         self.onConfirm = onConfirm
+        self.showsTitle = showsTitle
+        self.subtitle = subtitle
     }
 
     var body: some View {
@@ -361,10 +367,18 @@ struct ObsidianExportSheet: View {
             Text("导出到 Obsidian")
                 .font(.title2.weight(.semibold))
 
+            if let subtitle {
+                Text(subtitle)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
             Form {
-                TextField("标题", text: $draft.title, axis: .vertical)
-                    .lineLimit(2...4)
-                    .fixedSize(horizontal: false, vertical: true)
+                if showsTitle {
+                    TextField("标题", text: $draft.title, axis: .vertical)
+                        .lineLimit(2...4)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 LabeledContent("保管库") {
                     vaultMenu
