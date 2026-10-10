@@ -112,7 +112,10 @@ export function BulkActionBar({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setMenuOpen(false);
     };
-    const handleScroll = () => setMenuOpen(false);
+    const handleScroll = (event: Event) => {
+      if (menuRef.current && event.target instanceof Node && menuRef.current.contains(event.target)) return;
+      setMenuOpen(false);
+    };
     document.addEventListener('pointerdown', handlePointerDown, true);
     document.addEventListener('keydown', handleKeyDown);
     window.addEventListener('scroll', handleScroll, true);
@@ -204,7 +207,7 @@ export function BulkActionBar({
               onClick={() => setMenuOpen((next) => !next)}
               type="button"
             >
-              批量动作
+              批量操作
               <DownOutlined className={`bulk-actions-chevron${menuOpen ? ' open' : ''}`} />
             </button>
             {menuOpen && (
