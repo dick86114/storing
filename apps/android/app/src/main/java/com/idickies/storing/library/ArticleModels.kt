@@ -233,6 +233,78 @@ data class ArticleBulkClassifyFailure(
   val message: String,
 )
 
+@Serializable
+data class ArticleBulkActionRequest(
+  val action: BulkArticleAction,
+  @SerialName("articleIds") val articleIds: List<Int>,
+)
+
+@Serializable
+data class ArticleBulkIssue(
+  @SerialName("articleId") val articleId: Int,
+  val code: String,
+  val message: String? = null,
+)
+
+@Serializable
+data class ArticlePublicationLink(
+  @SerialName("articleId") val articleId: Int,
+  @SerialName("publicUrl") val publicUrl: String,
+)
+
+@Serializable
+data class ArticleBulkActionResult(
+  @SerialName("requestedCount") val requestedCount: Int,
+  @SerialName("succeededIds") val succeededIds: List<Int> = emptyList(),
+  val skipped: List<ArticleBulkIssue> = emptyList(),
+  val failed: List<ArticleBulkIssue> = emptyList(),
+  val publications: List<ArticlePublicationLink> = emptyList(),
+)
+
+@Serializable
+data class ArticleBulkAiRequest(
+  @SerialName("articleIds") val articleIds: List<Int>,
+  @SerialName("includeCategory") val includeCategory: Boolean,
+)
+
+@Serializable
+data class ArticleBulkAiResult(
+  @SerialName("requestedCount") val requestedCount: Int,
+  @SerialName("queuedIds") val queuedIds: List<Int> = emptyList(),
+  @SerialName("alreadyQueuedIds") val alreadyQueuedIds: List<Int> = emptyList(),
+  val failed: List<ArticleBulkIssue> = emptyList(),
+)
+
+@Serializable
+data class ArticleBulkExportRequest(
+  @SerialName("articleIds") val articleIds: List<Int>,
+  val format: String = "zip",
+  @SerialName("includeAi") val includeAi: Boolean = true,
+  @SerialName("organizeByCategory") val organizeByCategory: Boolean = true,
+)
+
+@Serializable
+enum class ArticleBulkExportStatus {
+  @SerialName("queued") Queued,
+  @SerialName("running") Running,
+  @SerialName("succeeded") Succeeded,
+  @SerialName("failed") Failed,
+}
+
+@Serializable
+data class ArticleBulkExportJob(
+  val id: Int,
+  val format: String,
+  val status: ArticleBulkExportStatus,
+  @SerialName("requestedCount") val requestedCount: Int,
+  @SerialName("succeededCount") val succeededCount: Int = 0,
+  @SerialName("failedCount") val failedCount: Int = 0,
+  @SerialName("downloadUrl") val downloadUrl: String? = null,
+  @SerialName("createdAt") val createdAt: String,
+  @SerialName("finishedAt") val finishedAt: String? = null,
+  @SerialName("expiresAt") val expiresAt: String? = null,
+)
+
 fun toggleArchiveBatchSelection(selected: Set<Int>, articleId: Int): Set<Int> =
   if (articleId in selected) selected - articleId else selected + articleId
 
