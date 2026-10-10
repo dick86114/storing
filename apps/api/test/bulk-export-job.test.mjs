@@ -16,5 +16,6 @@ test('导出任务路由只允许创建者访问并流式下载 ZIP', () => {
   assert.match(service, /eq\(bulkExportJobs\.userId, userId\)/);
   assert.match(service, /Content-Disposition/);
   assert.match(service, /cleanupExpiredBulkExportJobs/);
+  assert.match(service, /getArticleContent\(row\.articleId, 'markdown', 'desktop', job\.userId\)/);
   assert.match(schema, /export const bulkExportJobs/);
 });

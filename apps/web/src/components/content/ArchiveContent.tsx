@@ -23,7 +23,7 @@ import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useArticleSelection } from '@/hooks/useArticleSelection';
 import { useBulkArticleActions } from '@/hooks/useBulkArticleActions';
 import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
-import type { ArticleBulkAiResult, ArticleBulkActionResult, ArticleListItem } from '@storing/shared';
+import type { ArticleBulkAiResult, ArticleBulkActionResult, ArticleListItem, BulkExportJob } from '@storing/shared';
 
 const ARCHIVE_SORT_OPTIONS: ArticleSortOption[] = [
   { value: 'archived', label: '最近归档' },
@@ -59,6 +59,7 @@ function ArchiveContentInner() {
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkCategoryPickerOpen, setBulkCategoryPickerOpen] = useState(false);
   const [bulkResult, setBulkResult] = useState<ArticleBulkActionResult | ArticleBulkAiResult | null>(null);
+  const [bulkExportJob, setBulkExportJob] = useState<BulkExportJob | null>(null);
   const removingIdsRef = useRef<Set<number>>(new Set());
   const allArticlesRef = useRef(allArticles);
   allArticlesRef.current = allArticles;
@@ -328,13 +329,12 @@ function ArchiveContentInner() {
       if (action === 'generate-ai' || action === 'reclassify') {
         setBulkResult(await bulkActions.runAi(ids, action === 'reclassify'));
       } else if (action === 'export-zip' || action === 'export-obsidian') {
-        await bulkActions.createExport({
+        setBulkExportJob(await bulkActions.createExport({
           articleIds: ids,
           format: action === 'export-obsidian' ? 'obsidian' : 'zip',
           includeAi: true,
           organizeByCategory: true,
-        });
-        showToast('导出任务已创建');
+        }));
       } else {
         const result = await bulkActions.runAction(action, ids);
         setBulkResult(result);
@@ -378,6 +378,7 @@ function ArchiveContentInner() {
               selection.clear();
             }}
             result={bulkResult}
+            exportJob={bulkExportJob}
             selectedCount={selection.selectedIds.size}
             view="archive"
           />

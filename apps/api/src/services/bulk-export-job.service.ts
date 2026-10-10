@@ -11,6 +11,7 @@ import { and, eq, inArray, isNotNull, lt, sql } from 'drizzle-orm';
 
 import { db } from '../db/index.js';
 import { articles, articleMetadata, bulkExportJobs, categories } from '../db/schema.js';
+import { getArticleContent } from './reader.service.js';
 import {
   buildExportEntryPath,
   buildExportManifest,
@@ -198,7 +199,13 @@ export async function runBulkExportJob(jobId: number): Promise<void> {
       }
     }
     for (const row of rows) {
-      const contentMd = row.userContentMd || row.sharedContentMd;
+      let contentMd = row.userContentMd || row.sharedContentMd;
+      if (!contentMd) {
+        contentMd = await getArticleContent(row.articleId, 'markdown', 'desktop', job.userId).catch((error) => {
+          console.error('Bulk export content fallback failed:', error instanceof Error ? error.message : error);
+          return null;
+        });
+      }
       if (!contentMd) {
         failures.push({ articleId: row.articleId, code: 'BODY_NOT_READY', message: '正文尚未准备完成' });
         continue;
