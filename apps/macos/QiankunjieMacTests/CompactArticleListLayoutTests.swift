@@ -3,18 +3,18 @@ import Testing
 @testable import QiankunjieMac
 
 struct CompactArticleListLayoutTests {
-    @Test func 列表封面方形并占满卡片高度() {
+    @Test func 列表封面方形并保留卡片内边距() {
         let metrics = CompactArticleListLayoutMetrics()
 
         #expect(metrics.rowHeight == 132)
-        #expect(metrics.coverSize == 132)
+        #expect(metrics.coverSize == 104)
     }
 
     @Test func 列表封面使用一比一比例() {
         let metrics = CompactArticleListLayoutMetrics()
 
         #expect(metrics.coverAspectRatio == 1)
-        #expect(metrics.coverWidth == 132)
+        #expect(metrics.coverWidth == 104)
     }
 
     @Test func 文章列表右侧保留紧凑边距() throws {
