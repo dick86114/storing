@@ -1,8 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { db } from '../db/index.js';
 import { adminAuditLogs, articles, articleMetadata, collectJobs } from '../db/schema.js';
-import { processCoverImage } from './reader.service.js';
+import { getArticleContent, processCoverImage } from './reader.service.js';
 import { queueArchiveAiIfNeeded } from './ai-generation.service.js';
 import { getPendingCategory } from './category.service.js';
 import type { ArticleBulkActionResult } from '@storing/shared';
@@ -13,13 +14,16 @@ export type SimpleArticleBulkAction =
   | 'archive'
   | 'unarchive'
   | 'delete'
-  | 'permanent_delete';
+  | 'permanent_delete'
+  | 'publish'
+  | 'unpublish';
 
 export interface OwnedArticleBulkRecord {
   articleId: number;
   isFavorited: boolean;
   isArchived: boolean;
   isDeleted: boolean;
+  isPublished: boolean;
   aiSummary: string | null;
   aiTags: string[] | null;
 }
@@ -32,6 +36,15 @@ export class PermanentDeleteNotFoundError extends Error {
     this.name = 'PermanentDeleteNotFoundError';
   }
 }
+
+export type ArticlePublishOutcome =
+  | { status: 'succeeded'; publicUrl: string }
+  | { status: 'skipped'; code: 'ALREADY_PUBLISHED' }
+  | { status: 'failed'; code: string; message: string };
+
+export type ArticleUnpublishOutcome =
+  | { status: 'succeeded' }
+  | { status: 'skipped'; code: 'ALREADY_UNPUBLISHED' };
 
 function emptyResult(requestedCount: number): ArticleBulkActionResult {
   return { requestedCount, succeededIds: [], skipped: [], failed: [] };
@@ -48,6 +61,7 @@ async function loadOwnedArticleBulkRecords(
       isFavorited: articleMetadata.isFavorited,
       isArchived: articleMetadata.isArchived,
       isDeleted: articleMetadata.isDeleted,
+      isPublished: articleMetadata.isPublished,
       aiSummary: articleMetadata.aiSummary,
       aiTags: articleMetadata.aiTags,
     })
@@ -62,6 +76,7 @@ async function loadOwnedArticleBulkRecords(
     isFavorited: row.isFavorited === true,
     isArchived: row.isArchived === true,
     isDeleted: row.isDeleted === true,
+    isPublished: row.isPublished === true,
   }));
 }
 
@@ -88,6 +103,14 @@ function selectIdsByState(
       return record.isArchived;
     }
     if (action === 'permanent_delete') return true;
+    if (action === 'publish') {
+      if (record.isPublished) alreadyCodes.set(record.articleId, 'ALREADY_PUBLISHED');
+      return !record.isPublished;
+    }
+    if (action === 'unpublish') {
+      if (!record.isPublished) alreadyCodes.set(record.articleId, 'ALREADY_UNPUBLISHED');
+      return record.isPublished;
+    }
     if (record.isDeleted) alreadyCodes.set(record.articleId, 'ALREADY_DELETED');
     return !record.isDeleted;
   };
@@ -170,6 +193,31 @@ export async function runSimpleArticleBulkAction(
         eq(articleMetadata.userId, userId),
         inArray(articleMetadata.articleId, actionableIds),
       ));
+    } else if (action === 'publish' || action === 'unpublish') {
+      for (const articleId of actionableIds) {
+        try {
+          if (action === 'publish') {
+            const outcome = await publishArticleForUser(userId, articleId);
+            if (outcome.status === 'succeeded') {
+              (result.publications ??= []).push({ articleId, publicUrl: outcome.publicUrl });
+            } else if (outcome.status === 'skipped') {
+              alreadyCodes.set(articleId, outcome.code);
+            } else {
+              failedById.set(articleId, { articleId, code: outcome.code, message: outcome.message });
+            }
+          } else {
+            const outcome = await unpublishArticleForUser(userId, articleId);
+            if (outcome.status === 'skipped') alreadyCodes.set(articleId, outcome.code);
+          }
+        } catch (error) {
+          console.error('Bulk publication action failed:', error instanceof Error ? error.message : error);
+          failedById.set(articleId, {
+            articleId,
+            code: error instanceof PermanentDeleteNotFoundError ? 'NOT_FOUND' : 'PUBLICATION_ACTION_FAILED',
+            message: error instanceof Error ? error.message : '发布状态更新失败',
+          });
+        }
+      }
     } else {
       for (const articleId of actionableIds) {
         try {
@@ -203,6 +251,88 @@ export async function runSimpleArticleBulkAction(
     }
   }
   return result;
+}
+
+async function loadOwnedPublicationRecord(userId: number, articleId: number) {
+  const [record] = await db
+    .select({
+      articleId: articles.id,
+      isArchived: articleMetadata.isArchived,
+      isPublished: articleMetadata.isPublished,
+      archivedAt: articleMetadata.archivedAt,
+      publicId: articleMetadata.publicId,
+    })
+    .from(articles)
+    .innerJoin(articleMetadata, and(
+      eq(articles.id, articleMetadata.articleId),
+      eq(articleMetadata.userId, userId),
+    ))
+    .where(eq(articles.id, articleId))
+    .limit(1);
+  if (!record) throw new PermanentDeleteNotFoundError();
+  return record;
+}
+
+export async function publishArticleForUser(
+  userId: number,
+  articleId: number,
+): Promise<ArticlePublishOutcome> {
+  const record = await loadOwnedPublicationRecord(userId, articleId);
+  if (record.isPublished && record.publicId) {
+    return { status: 'skipped', code: 'ALREADY_PUBLISHED' };
+  }
+
+  const now = new Date();
+  const wasArchived = record.isArchived === true;
+  if (!wasArchived) {
+    const content = await getArticleContent(articleId, 'markdown', 'desktop', userId);
+    if (!content) {
+      return { status: 'failed', code: 'BODY_NOT_READY', message: '文章正文尚未准备完成，无法发布' };
+    }
+  }
+
+  const pendingCategory = wasArchived ? null : await getPendingCategory(userId);
+  const [updated] = await db.update(articleMetadata).set({
+    isArchived: true,
+    archivedAt: wasArchived ? record.archivedAt : now,
+    ...(pendingCategory ? {
+      categoryId: pendingCategory.id,
+      categorySource: 'rule',
+      categoryReviewStatus: 'needs_review',
+    } : {}),
+    isPublished: true,
+    publishedAt: now,
+    publicId: record.publicId || randomUUID(),
+    updatedAt: now,
+  }).where(and(
+    eq(articleMetadata.articleId, articleId),
+    eq(articleMetadata.userId, userId),
+  )).returning({ publicId: articleMetadata.publicId });
+
+  if (!updated?.publicId) {
+    return { status: 'failed', code: 'PUBLIC_ID_FAILED', message: '公开链接生成失败' };
+  }
+  if (!wasArchived) {
+    processCoverImage(articleId, userId).catch((error) => console.error('Publish cover process failed:', error.message));
+  }
+  return { status: 'succeeded', publicUrl: `/p/${updated.publicId}` };
+}
+
+export async function unpublishArticleForUser(
+  userId: number,
+  articleId: number,
+): Promise<ArticleUnpublishOutcome> {
+  const record = await loadOwnedPublicationRecord(userId, articleId);
+  if (!record.isPublished) return { status: 'skipped', code: 'ALREADY_UNPUBLISHED' };
+
+  await db.update(articleMetadata).set({
+    isPublished: false,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(articleMetadata.articleId, articleId),
+    eq(articleMetadata.userId, userId),
+  ));
+  return { status: 'succeeded' };
 }
 
 export async function permanentlyDeleteArticleForUser(

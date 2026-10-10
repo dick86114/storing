@@ -24,3 +24,23 @@ test('批量彻底删除逐篇使用行锁和引用判断', () => {
   assert.match(service, /COUNT\(\*\)/);
   assert.match(service, /isDeleted: true/);
 });
+
+test('批量发布保留已有公开链接', () => {
+  const routes = read('src/routes/articles.ts');
+  const service = read('src/services/article-bulk.service.ts');
+  const bulkRoute = routes.slice(
+    routes.indexOf("articlesRoutes.post('/articles/bulk-actions'"),
+    routes.indexOf("articlesRoutes.post('/articles/bulk-classify'"),
+  );
+
+  assert.match(bulkRoute, /publications/);
+  assert.match(service, /ALREADY_PUBLISHED/);
+});
+
+test('批量取消发布保留归档和 publicId', () => {
+  const service = read('src/services/article-bulk.service.ts');
+
+  assert.match(service, /isPublished: false/);
+  assert.match(service, /archivedAt/);
+  assert.match(service, /publicId/);
+});
