@@ -215,6 +215,12 @@ function WechatArticleCardBase({ article, onClick, onToggleFavorite, onArchive, 
     selected ? 'article-card--selected' : '',
   ].filter(Boolean).join(' ');
 
+  const openArticle = () => onClick(article.id);
+  const onCardClick = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    onSelectionChange?.(article.id, !selected, event);
+  };
+
   const categoryLine = article.category ? (
     <div className="article-card-category-line" title={`归档分类：${article.category.name}`}>
       <span
@@ -317,7 +323,7 @@ function WechatArticleCardBase({ article, onClick, onToggleFavorite, onArchive, 
     return (
       <div
         className={classNames}
-        onClick={() => onClick(article.id)}
+        onClick={selectable ? onCardClick : openArticle}
         style={{
           position: 'relative',
           background: 'var(--card-bg)',
@@ -363,7 +369,7 @@ function WechatArticleCardBase({ article, onClick, onToggleFavorite, onArchive, 
   return (
     <div
       className={classNames}
-      onClick={() => onClick(article.id)}
+      onClick={selectable ? onCardClick : openArticle}
       style={{
         position: 'relative',
         background: 'var(--card-bg)',
