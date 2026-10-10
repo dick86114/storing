@@ -40,6 +40,24 @@ public protocol LibraryNetworkClient: Sendable {
         _ request: APIRequest,
         authenticated: Bool
     ) async throws -> [LibraryCategoryFilter]
+    func sendBulkAction(
+        _ action: ArticleBulkAction,
+        articleIDs: [Int]
+    ) async throws -> ArticleBulkActionResult
+    func sendBulkCategory(
+        articleIDs: [Int],
+        categoryID: Int
+    ) async throws -> ArticleBulkActionResult
+    func sendBulkRegenerateAI(
+        articleIDs: [Int],
+        includeCategory: Bool
+    ) async throws -> ArticleBulkAIResult
+    func sendCreateBulkExport(
+        articleIDs: [Int]
+    ) async throws -> ArticleBulkExportJob
+    func sendBulkExport(
+        jobID: Int
+    ) async throws -> ArticleBulkExportJob
 }
 
 private struct APIClientLibraryNetworkClient: LibraryNetworkClient {
@@ -73,6 +91,51 @@ private struct APIClientLibraryNetworkClient: LibraryNetworkClient {
         let response: CategoryFiltersResponse = try await apiClient.send(request, authenticated: authenticated)
         return response.filters
     }
+
+    func sendBulkAction(
+        _ action: ArticleBulkAction,
+        articleIDs: [Int]
+    ) async throws -> ArticleBulkActionResult {
+        try await apiClient.send(
+            .post("articles/bulk-actions", body: try JSONEncoder.qiankunjie.encode(BulkActionRequest(action: action, articleIDs: articleIDs))),
+            authenticated: true
+        )
+    }
+
+    func sendBulkCategory(
+        articleIDs: [Int],
+        categoryID: Int
+    ) async throws -> ArticleBulkActionResult {
+        try await apiClient.send(
+            .post("articles/bulk-category", body: try JSONEncoder.qiankunjie.encode(BulkCategoryRequest(articleIDs: articleIDs, categoryID: categoryID))),
+            authenticated: true
+        )
+    }
+
+    func sendBulkRegenerateAI(
+        articleIDs: [Int],
+        includeCategory: Bool
+    ) async throws -> ArticleBulkAIResult {
+        try await apiClient.send(
+            .post("articles/bulk-regenerate-ai", body: try JSONEncoder.qiankunjie.encode(BulkAIRequest(articleIDs: articleIDs, includeCategory: includeCategory))),
+            authenticated: true
+        )
+    }
+
+    func sendCreateBulkExport(
+        articleIDs: [Int]
+    ) async throws -> ArticleBulkExportJob {
+        try await apiClient.send(
+            .post("articles/bulk-export", body: try JSONEncoder.qiankunjie.encode(BulkExportRequest(articleIDs: articleIDs))),
+            authenticated: true
+        )
+    }
+
+    func sendBulkExport(
+        jobID: Int
+    ) async throws -> ArticleBulkExportJob {
+        try await apiClient.send(.get("articles/bulk-export/\(jobID)"), authenticated: true)
+    }
 }
 
 public protocol LibraryLoading: Sendable {
@@ -82,18 +145,12 @@ public protocol LibraryLoading: Sendable {
     func loadCategoryFilters(userID: Int?) async throws -> [LibraryCategoryFilter]
 }
 
-public struct LibraryCategoryFilter: Codable, Hashable, Identifiable, Sendable {
-    public let category: ArticleCategory
-    public let count: Int
-
-    public var id: Int { category.id }
-    public var name: String { category.name }
-    public var color: String? { category.color }
-
-    public init(category: ArticleCategory, count: Int) {
-        self.category = category
-        self.count = count
-    }
+public protocol LibraryBulkOperating: Sendable {
+    func runBulkAction(_ action: ArticleBulkAction, articleIDs: [Int]) async throws -> ArticleBulkActionResult
+    func runBulkCategory(articleIDs: [Int], categoryID: Int) async throws -> ArticleBulkActionResult
+    func runBulkRegenerateAI(articleIDs: [Int], includeCategory: Bool) async throws -> ArticleBulkAIResult
+    func runCreateBulkExport(articleIDs: [Int]) async throws -> ArticleBulkExportJob
+    func runBulkExportJob(jobID: Int) async throws -> ArticleBulkExportJob
 }
 
 public struct LibrarySource: Codable, Hashable, Identifiable, Sendable {
@@ -119,6 +176,20 @@ public struct LibrarySource: Codable, Hashable, Identifiable, Sendable {
         case source
         case count
         case latestCreatedAt
+    }
+}
+
+public struct LibraryCategoryFilter: Codable, Hashable, Identifiable, Sendable {
+    public let category: ArticleCategory
+    public let count: Int
+
+    public var id: Int { category.id }
+    public var name: String { category.name }
+    public var color: String? { category.color }
+
+    public init(category: ArticleCategory, count: Int) {
+        self.category = category
+        self.count = count
     }
 }
 
@@ -206,5 +277,41 @@ public struct LibraryRepository: LibraryLoading, Sendable {
         text.components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }
             .joined(separator: " ")
+    }
+}
+
+extension LibraryRepository: LibraryBulkOperating {
+    public func runBulkAction(
+        _ action: ArticleBulkAction,
+        articleIDs: [Int]
+    ) async throws -> ArticleBulkActionResult {
+        let client: any LibraryNetworkClient = networkClient
+        return try await client.sendBulkAction(action, articleIDs: articleIDs)
+    }
+
+    public func runBulkCategory(
+        articleIDs: [Int],
+        categoryID: Int
+    ) async throws -> ArticleBulkActionResult {
+        let client: any LibraryNetworkClient = networkClient
+        return try await client.sendBulkCategory(articleIDs: articleIDs, categoryID: categoryID)
+    }
+
+    public func runBulkRegenerateAI(
+        articleIDs: [Int],
+        includeCategory: Bool
+    ) async throws -> ArticleBulkAIResult {
+        let client: any LibraryNetworkClient = networkClient
+        return try await client.sendBulkRegenerateAI(articleIDs: articleIDs, includeCategory: includeCategory)
+    }
+
+    public func runCreateBulkExport(articleIDs: [Int]) async throws -> ArticleBulkExportJob {
+        let client: any LibraryNetworkClient = networkClient
+        return try await client.sendCreateBulkExport(articleIDs: articleIDs)
+    }
+
+    public func runBulkExportJob(jobID: Int) async throws -> ArticleBulkExportJob {
+        let client: any LibraryNetworkClient = networkClient
+        return try await client.sendBulkExport(jobID: jobID)
     }
 }

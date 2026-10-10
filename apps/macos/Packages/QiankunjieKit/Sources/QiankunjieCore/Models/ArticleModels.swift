@@ -472,3 +472,11 @@ public extension JSONDecoder {
         return decoder
     }
 }
+
+public extension JSONEncoder {
+    static var qiankunjie: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+}
