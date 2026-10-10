@@ -473,6 +473,9 @@ struct LibraryToolbar: View {
         for publication in result.publications {
             lines.append("ID \(publication.articleID)：\(publication.publicURL)")
         }
+        if let exportURL = model.bulkExportURL {
+            lines.append("已保存：\(exportURL.path)")
+        }
         return lines.joined(separator: "\n")
     }
 

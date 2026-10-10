@@ -127,6 +127,7 @@ final class AppModel {
     private(set) var libraryModel: LibraryModel
     private(set) var collectModel: CollectModel
     let searchModel: LibraryModel
+    let bulkExportService: BulkArticleExportService
     private var weChatImportCoordinator: WeChatImportCoordinator?
 
     var user: AuthenticatedUser?
@@ -163,6 +164,8 @@ final class AppModel {
         let collectAPIClient = APIClient(tokenProvider: authModel.repository)
         self.collectAPIClient = collectAPIClient
         self.readerAPIClient = APIClient(tokenProvider: authModel.repository)
+        self.bulkExportService = BulkArticleExportService(tokenProvider: authModel.repository)
+        let bulkExportService = self.bulkExportService
         self.searchModel = LibraryModel(
             repository: LibraryRepository(
                 apiClient: APIClient(tokenProvider: authModel.repository)
@@ -182,6 +185,10 @@ final class AppModel {
             ),
             userID: authModel.user?.id
         )
+        self.libraryModel.bulkExportHandler = { job in
+            let finishedJob = try await bulkExportService.poll(jobID: job.id)
+            return try await bulkExportService.save(finishedJob)
+        }
 
         settingsModel.onUserStateCleared = { [weak self] in
             await self?.synchronizeWithAuthentication()

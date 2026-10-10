@@ -135,6 +135,30 @@ public struct ArticleBulkExportJob: Codable, Hashable, Sendable {
     public let finishedAt: Date?
     public let expiresAt: Date?
 
+    public init(
+        id: Int,
+        format: String,
+        status: ArticleBulkExportStatus,
+        requestedCount: Int,
+        succeededCount: Int,
+        failedCount: Int,
+        downloadURL: String?,
+        createdAt: Date?,
+        finishedAt: Date?,
+        expiresAt: Date?
+    ) {
+        self.id = id
+        self.format = format
+        self.status = status
+        self.requestedCount = requestedCount
+        self.succeededCount = succeededCount
+        self.failedCount = failedCount
+        self.downloadURL = downloadURL
+        self.createdAt = createdAt
+        self.finishedAt = finishedAt
+        self.expiresAt = expiresAt
+    }
+
     enum CodingKeys: String, CodingKey {
         case id
         case format
