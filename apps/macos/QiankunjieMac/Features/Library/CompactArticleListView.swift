@@ -3,6 +3,27 @@ import QiankunjieDesignSystem
 import QiankunjieLibrary
 import SwiftUI
 
+extension ArticleCard {
+    var searchSectionNames: String {
+        var names: [String] = []
+
+        if isPublished || publicID != nil {
+            names.append("已发布")
+        }
+        if isArchived {
+            names.append("归档")
+        }
+        if isFavorited {
+            names.append("收藏")
+        }
+        if !isArchived && !isFavorited {
+            names.append("收件箱")
+        }
+
+        return names.joined(separator: " · ")
+    }
+}
+
 struct CompactArticleListView: View {
     @Bindable var model: LibraryModel
     @Binding var selection: Int?
@@ -118,6 +139,13 @@ struct CompactArticleListView: View {
                     aiStatusBadge(article)
 
                     HStack(spacing: 8) {
+                        if model.isSearching {
+                            Label(
+                                article.searchSectionNames,
+                                systemImage: "square.stack.3d.up"
+                            )
+                        }
+
                         Label(
                             article.source ?? "未知来源",
                             systemImage: Self.sourceSystemImage(article.source)
@@ -173,6 +201,13 @@ struct CompactArticleListView: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
+                        if model.isSearching {
+                            Label(
+                                article.searchSectionNames,
+                                systemImage: "square.stack.3d.up"
+                            )
+                        }
+
                         Label(
                             article.source ?? "未知来源",
                             systemImage: Self.sourceSystemImage(article.source)
