@@ -44,10 +44,10 @@ export function PublishedContent() {
     if (ids.length === 0) return;
     try {
       if (action === 'set-category' || action === 'reclassify' || action === 'generate-ai') return;
-      if (action === 'export-zip' || action === 'export-obsidian') {
+      if (action === 'export-zip') {
         setBulkExportJob(await bulkActions.createExport({
           articleIds: ids,
-          format: action === 'export-obsidian' ? 'obsidian' : 'zip',
+          format: 'zip',
           includeAi: true,
           organizeByCategory: true,
         }));
