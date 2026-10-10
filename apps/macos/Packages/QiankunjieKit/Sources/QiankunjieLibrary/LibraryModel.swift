@@ -41,11 +41,13 @@ public final class LibraryModel {
     public private(set) var bulkSelection: Set<Int> = []
     public private(set) var bulkRunningAction: BulkToolbarAction?
     public private(set) var bulkResult: NativeBulkResult?
+    public private(set) var bulkExportURL: URL?
 
     private let repository: any LibraryLoading
     private let bulkRepository: any LibraryBulkOperating
     private let cache: any LibraryCaching
     private var requestGeneration = 0
+    public var bulkExportHandler: (@MainActor (ArticleBulkExportJob) async throws -> URL)?
 
     public init(
         repository: any LibraryLoading = LibraryRepository(),
@@ -403,8 +405,26 @@ public final class LibraryModel {
 
         do {
             switch action {
-            case .setCategory, .exportZIP, .bulkObsidian:
+            case .setCategory, .bulkObsidian:
                 return
+            case .exportZIP:
+                let job = try await bulkRepository.runCreateBulkExport(articleIDs: articleIDs)
+                if let bulkExportHandler {
+                    let url = try await bulkExportHandler(job)
+                    bulkExportURL = url
+                }
+                bulkResult = NativeBulkResult(
+                    requestedCount: job.requestedCount,
+                    succeededCount: job.succeededCount,
+                    skippedCount: 0,
+                    issues: job.failedCount == 0 ? [] : [
+                        ArticleBulkIssue(
+                            articleID: 0,
+                            code: "EXPORT_FAILED",
+                            message: "有 \(job.failedCount) 篇文章未能导出"
+                        )
+                    ]
+                )
             case .reclassify:
                 let result = try await bulkRepository.runBulkRegenerateAI(articleIDs: articleIDs, includeCategory: true)
                 bulkSelection.subtract(result.queuedIDs)
@@ -502,6 +522,7 @@ public final class LibraryModel {
         isBulkSelecting = false
         bulkSelection = []
         bulkResult = nil
+        bulkExportURL = nil
     }
 
     private func serverAction(for action: BulkToolbarAction) -> ArticleBulkAction {
