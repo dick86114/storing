@@ -102,3 +102,51 @@ export interface CategoryCount {
 }
 
 export type ViewType = 'inbox' | 'favorites' | 'archive';
+
+export type ArticleBulkAction =
+  | 'favorite'
+  | 'unfavorite'
+  | 'archive'
+  | 'unarchive'
+  | 'delete'
+  | 'permanent_delete'
+  | 'publish'
+  | 'unpublish';
+
+export interface ArticleBulkIssue {
+  articleId: number;
+  code: string;
+  message?: string;
+}
+
+export interface ArticleBulkActionResult {
+  requestedCount: number;
+  succeededIds: number[];
+  skipped: ArticleBulkIssue[];
+  failed: ArticleBulkIssue[];
+  publications?: Array<{ articleId: number; publicUrl: string }>;
+}
+
+export interface ArticleBulkAiResult {
+  requestedCount: number;
+  queuedIds: number[];
+  alreadyQueuedIds: number[];
+  failed: ArticleBulkIssue[];
+}
+
+export type BulkExportFormat = 'zip' | 'obsidian';
+
+export type BulkExportStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+
+export interface BulkExportJob {
+  id: number;
+  format: BulkExportFormat;
+  status: BulkExportStatus;
+  requestedCount: number;
+  succeededCount: number;
+  failedCount: number;
+  downloadUrl: string | null;
+  createdAt: string;
+  finishedAt: string | null;
+  expiresAt: string | null;
+}
