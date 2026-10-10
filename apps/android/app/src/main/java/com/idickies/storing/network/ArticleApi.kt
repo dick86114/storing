@@ -10,9 +10,12 @@ import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.library.ArticleCategoryAssignmentRequest
 import com.idickies.storing.library.ArticleCategoryAssignmentResponse
 import com.idickies.storing.library.ArticleBulkCategoryRequest
-import com.idickies.storing.library.ArticleBulkCategoryResponse
-import com.idickies.storing.library.ArticleBulkClassifyRequest
-import com.idickies.storing.library.ArticleBulkClassifyResponse
+import com.idickies.storing.library.ArticleBulkActionRequest
+import com.idickies.storing.library.ArticleBulkActionResult
+import com.idickies.storing.library.ArticleBulkAiRequest
+import com.idickies.storing.library.ArticleBulkAiResult
+import com.idickies.storing.library.ArticleBulkExportJob
+import com.idickies.storing.library.ArticleBulkExportRequest
 import com.idickies.storing.library.CategoryDeleteResponse
 import com.idickies.storing.library.CategoryMutationRequest
 import com.idickies.storing.library.CategoryMutationResponse
@@ -113,13 +116,22 @@ interface ArticleApi {
   ): ArticleUpdateTitleResponse
 
   @POST("articles/bulk-category")
-  suspend fun moveToCategoryBulk(@Body request: ArticleBulkCategoryRequest): ArticleBulkCategoryResponse
+  suspend fun moveToCategoryBulk(@Body request: ArticleBulkCategoryRequest): ArticleBulkActionResult
+
+  @POST("articles/bulk-actions")
+  suspend fun bulkAction(@Body request: ArticleBulkActionRequest): ArticleBulkActionResult
+
+  @POST("articles/bulk-regenerate-ai")
+  suspend fun bulkRegenerateAi(@Body request: ArticleBulkAiRequest): ArticleBulkAiResult
+
+  @POST("articles/bulk-export")
+  suspend fun createBulkExport(@Body request: ArticleBulkExportRequest): ArticleBulkExportJob
+
+  @GET("articles/bulk-export/{jobId}")
+  suspend fun bulkExport(@Path("jobId") jobId: Int): ArticleBulkExportJob
 
   @POST("articles/{id}/classify")
   suspend fun classify(@Path("id") id: Int): ArticleClassifyResponse
-
-  @POST("articles/bulk-classify")
-  suspend fun classifyBulk(@Body request: ArticleBulkClassifyRequest): ArticleBulkClassifyResponse
 
   @POST("articles/{id}/publish")
   suspend fun publish(@Path("id") id: Int): PublicationResponse

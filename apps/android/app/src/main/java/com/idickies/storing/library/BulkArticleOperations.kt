@@ -1,18 +1,20 @@
 package com.idickies.storing.library
 
 import java.io.Serializable
+import kotlinx.serialization.SerialName
 
 const val BULK_ARTICLE_ACTION_LIMIT = 200
 
+@kotlinx.serialization.Serializable
 enum class BulkArticleAction(val apiValue: String) : Serializable {
-  Favorite("favorite"),
-  Unfavorite("unfavorite"),
-  Archive("archive"),
-  Unarchive("unarchive"),
-  Delete("delete"),
-  PermanentDelete("permanent_delete"),
-  Publish("publish"),
-  Unpublish("unpublish"),
+  @SerialName("favorite") Favorite("favorite"),
+  @SerialName("unfavorite") Unfavorite("unfavorite"),
+  @SerialName("archive") Archive("archive"),
+  @SerialName("unarchive") Unarchive("unarchive"),
+  @SerialName("delete") Delete("delete"),
+  @SerialName("permanent_delete") PermanentDelete("permanent_delete"),
+  @SerialName("publish") Publish("publish"),
+  @SerialName("unpublish") Unpublish("unpublish"),
 }
 
 enum class BulkToolbarAction {

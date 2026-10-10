@@ -59,9 +59,21 @@ class ArticleRepository @Inject constructor(
   suspend fun toggleFavorite(id: Int) = api.toggleFavorite(id)
   suspend fun toggleArchive(id: Int, archived: Boolean, categoryId: Int? = null) = if (archived) api.unarchive(id) else api.archive(id, ArticleArchiveRequest(categoryId))
   suspend fun moveToCategory(id: Int, categoryId: Int) = api.moveToCategory(id, ArticleCategoryAssignmentRequest(categoryId))
-  suspend fun moveToCategory(articleIds: List<Int>, categoryId: Int) = api.moveToCategoryBulk(ArticleBulkCategoryRequest(articleIds, categoryId))
+  suspend fun moveToCategory(articleIds: List<Int>, categoryId: Int): ArticleBulkActionResult =
+    api.moveToCategoryBulk(ArticleBulkCategoryRequest(articleIds, categoryId))
+
+  suspend fun bulkAction(action: BulkArticleAction, articleIds: List<Int>): ArticleBulkActionResult =
+    api.bulkAction(ArticleBulkActionRequest(action, articleIds))
   suspend fun classify(id: Int) = api.classify(id)
-  suspend fun classify(articleIds: List<Int>) = api.classifyBulk(ArticleBulkClassifyRequest(articleIds))
+  suspend fun classify(articleIds: List<Int>) = bulkRegenerateAi(articleIds, includeCategory = true)
+
+  suspend fun bulkRegenerateAi(articleIds: List<Int>, includeCategory: Boolean): ArticleBulkAiResult =
+    api.bulkRegenerateAi(ArticleBulkAiRequest(articleIds, includeCategory))
+
+  suspend fun createBulkExport(articleIds: List<Int>): ArticleBulkExportJob =
+    api.createBulkExport(ArticleBulkExportRequest(articleIds))
+
+  suspend fun bulkExport(jobId: Int): ArticleBulkExportJob = api.bulkExport(jobId)
   suspend fun togglePublication(id: Int, published: Boolean) = if (published) api.unpublish(id) else api.publish(id)
   suspend fun updateTitle(id: Int, title: String): ArticleUpdateTitleResponse = api.updateTitle(id, ArticleUpdateTitleRequest(title))
   suspend fun refetch(id: Int) = api.refetch(id)
