@@ -44,3 +44,23 @@ test('批量取消发布保留归档和 publicId', () => {
   assert.match(service, /archivedAt/);
   assert.match(service, /publicId/);
 });
+
+test('批量分类返回统一结果结构', () => {
+  const routes = read('src/routes/articles.ts');
+  const service = read('src/services/article-bulk.service.ts');
+
+  assert.match(service, /export async function runBulkArticleCategory/);
+  assert.match(routes, /runBulkArticleCategory/);
+  assert.match(routes, /const result: ArticleBulkActionResult = await runBulkArticleCategory/);
+});
+
+test('批量 AI 先校验配置并避免重复排队', () => {
+  const routes = read('src/routes/articles.ts');
+  const service = read('src/services/article-bulk.service.ts');
+
+  assert.match(routes, /articlesRoutes\.post\('\/articles\/bulk-regenerate-ai', requireAuth/);
+  assert.match(service, /export async function enqueueBulkArticleAi/);
+  assert.match(service, /resolveUserAiRuntimeConfig\(userId\)/);
+  assert.match(service, /inArray\(aiGenerationJobs\.status, \['queued', 'running'\]\)/);
+  assert.match(service, /alreadyQueuedIds/);
+});

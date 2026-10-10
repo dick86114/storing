@@ -2,11 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { db } from '../db/index.js';
-import { adminAuditLogs, articles, articleMetadata, collectJobs } from '../db/schema.js';
+import { adminAuditLogs, aiGenerationJobs, articles, articleMetadata, collectJobs } from '../db/schema.js';
 import { getArticleContent, processCoverImage } from './reader.service.js';
-import { queueArchiveAiIfNeeded } from './ai-generation.service.js';
-import { getPendingCategory } from './category.service.js';
-import type { ArticleBulkActionResult } from '@storing/shared';
+import { enqueueAiGeneration, queueArchiveAiIfNeeded } from './ai-generation.service.js';
+import { getPendingCategory, moveArticlesToCategory } from './category.service.js';
+import { resolveUserAiRuntimeConfig } from './user-ai-settings.service.js';
+import type { ArticleBulkActionResult, ArticleBulkAiResult } from '@storing/shared';
 
 export type SimpleArticleBulkAction =
   | 'favorite'
@@ -26,6 +27,7 @@ export interface OwnedArticleBulkRecord {
   isPublished: boolean;
   aiSummary: string | null;
   aiTags: string[] | null;
+  categorySource: string | null;
 }
 
 export type PermanentDeleteScope = 'permanent' | 'metadata' | 'not_found';
@@ -46,6 +48,13 @@ export type ArticleUnpublishOutcome =
   | { status: 'succeeded' }
   | { status: 'skipped'; code: 'ALREADY_UNPUBLISHED' };
 
+export class AiConfigurationRequiredError extends Error {
+  constructor() {
+    super('请先配置 AI 模型');
+    this.name = 'AiConfigurationRequiredError';
+  }
+}
+
 function emptyResult(requestedCount: number): ArticleBulkActionResult {
   return { requestedCount, succeededIds: [], skipped: [], failed: [] };
 }
@@ -64,6 +73,7 @@ async function loadOwnedArticleBulkRecords(
       isPublished: articleMetadata.isPublished,
       aiSummary: articleMetadata.aiSummary,
       aiTags: articleMetadata.aiTags,
+      categorySource: articleMetadata.categorySource,
     })
     .from(articles)
     .innerJoin(articleMetadata, and(
@@ -368,5 +378,107 @@ export async function permanentlyDeleteArticleForUser(
   });
 
   return remainingCount === 0 ? 'permanent' : 'metadata';
+}
+
+export async function runBulkArticleCategory(
+  userId: number,
+  articleIds: number[],
+  categoryId: number,
+): Promise<ArticleBulkActionResult> {
+  if (!Number.isInteger(categoryId) || categoryId <= 0) throw new Error('分类 ID 无效');
+
+  const result = emptyResult(articleIds.length);
+  const records = await loadOwnedArticleBulkRecords(userId, articleIds);
+  const ownedById = new Map(records.map((record) => [record.articleId, record]));
+  const actionableIds: number[] = [];
+  for (const articleId of articleIds) {
+    const record = ownedById.get(articleId);
+    if (!record) {
+      result.skipped.push({ articleId, code: 'NOT_FOUND' });
+    } else if (record.isArchived !== true) {
+      result.skipped.push({ articleId, code: 'NOT_ARCHIVED' });
+    } else {
+      actionableIds.push(articleId);
+    }
+  }
+
+  if (actionableIds.length > 0) {
+    await moveArticlesToCategory(userId, actionableIds, categoryId);
+    result.succeededIds.push(...actionableIds);
+  }
+  return result;
+}
+
+export async function enqueueBulkArticleAi(
+  userId: number,
+  articleIds: number[],
+  options: { includeCategory: boolean },
+): Promise<ArticleBulkAiResult> {
+  const runtimeConfig = await resolveUserAiRuntimeConfig(userId);
+  if (!runtimeConfig) throw new AiConfigurationRequiredError();
+
+  const result: ArticleBulkAiResult = {
+    requestedCount: articleIds.length,
+    queuedIds: [],
+    alreadyQueuedIds: [],
+    failed: [],
+  };
+  const records = await loadOwnedArticleBulkRecords(userId, articleIds);
+  const ownedById = new Map(records.map((record) => [record.articleId, record]));
+  const activeJobs = await db
+    .select({ articleId: aiGenerationJobs.articleId })
+    .from(aiGenerationJobs)
+    .where(and(
+      eq(aiGenerationJobs.userId, userId),
+      inArray(aiGenerationJobs.articleId, articleIds),
+      inArray(aiGenerationJobs.status, ['queued', 'running']),
+    ));
+  const alreadyQueuedIds = new Set(activeJobs.map((job) => job.articleId));
+
+  for (const articleId of articleIds) {
+    const record = ownedById.get(articleId);
+    if (!record) {
+      result.failed.push({ articleId, code: 'NOT_FOUND', message: '文章不存在或无权访问' });
+      continue;
+    }
+    if (options.includeCategory && (record.isArchived !== true || record.categorySource === 'user')) {
+      result.failed.push({
+        articleId,
+        code: record.isArchived !== true ? 'NOT_ARCHIVED' : 'CATEGORY_USER_OVERRIDE',
+        message: record.isArchived !== true ? '仅归档文章可以重新判断分类' : '文章分类已由用户确认，不能自动覆盖',
+      });
+      continue;
+    }
+    if (alreadyQueuedIds.has(articleId)) {
+      result.alreadyQueuedIds.push(articleId);
+      continue;
+    }
+
+    try {
+      const job = await enqueueAiGeneration({
+        userId,
+        articleId,
+        triggerType: 'manual',
+        includeCategory: options.includeCategory,
+      });
+      if (job.status === 'queued' || job.status === 'running') {
+        result.queuedIds.push(articleId);
+      } else {
+        result.failed.push({
+          articleId,
+          code: 'AI_GENERATION_FAILED',
+          message: job.status === 'not_configured' ? '请先配置 AI 模型' : 'AI 任务创建失败',
+        });
+      }
+    } catch (error) {
+      console.error('Bulk AI enqueue failed:', error instanceof Error ? error.message : error);
+      result.failed.push({
+        articleId,
+        code: 'AI_GENERATION_FAILED',
+        message: error instanceof Error ? error.message : 'AI 任务创建失败',
+      });
+    }
+  }
+  return result;
 }
 

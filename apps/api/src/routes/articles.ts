@@ -5,12 +5,15 @@ import { eq, and, asc, desc, count, sql, or, gt, inArray } from 'drizzle-orm';
 import { classifyStoredArticleForArchive } from '../services/ai.service.js';
 import { enqueueAiGeneration, queueArchiveAiIfNeeded } from '../services/ai-generation.service.js';
 import { getCategoryById, getPendingCategory, moveArticlesToCategory } from '../services/category.service.js';
-import { parseArticleBulkActionInput } from '../services/article-bulk-validation.js';
+import { ARTICLE_BULK_ACTION_LIMIT, parseArticleBulkActionInput } from '../services/article-bulk-validation.js';
 import type { ArticleBulkActionResult } from '@storing/shared';
 import {
+  AiConfigurationRequiredError,
+  enqueueBulkArticleAi,
   publishArticleForUser,
   permanentlyDeleteArticleForUser,
   PermanentDeleteNotFoundError,
+  runBulkArticleCategory,
   runSimpleArticleBulkAction,
   unpublishArticleForUser,
 } from '../services/article-bulk.service.js';
@@ -144,6 +147,18 @@ function normalizeArticleSort(view: string, sort?: string): ArticleSortField {
 
 function normalizeSortOrder(order?: string): SortOrder {
   return order === 'asc' ? 'asc' : 'desc';
+}
+
+function parseBulkArticleIds(value: unknown): { ok: true; articleIds: number[] } | { ok: false; code: 'EMPTY_ARTICLES' | 'INVALID_ARTICLES' | 'TOO_MANY_ARTICLES' } {
+  if (!Array.isArray(value) || value.length === 0) return { ok: false, code: 'EMPTY_ARTICLES' };
+  const articleIds: number[] = [];
+  for (const item of value) {
+    const articleId = typeof item === 'number' ? item : Number(item);
+    if (!Number.isSafeInteger(articleId) || articleId <= 0) return { ok: false, code: 'INVALID_ARTICLES' };
+    if (!articleIds.includes(articleId)) articleIds.push(articleId);
+  }
+  if (articleIds.length > ARTICLE_BULK_ACTION_LIMIT) return { ok: false, code: 'TOO_MANY_ARTICLES' };
+  return { ok: true, articleIds };
 }
 
 function getArticleSortExpression(sort: ArticleSortField, hasActionTimestamps: boolean) {
@@ -743,42 +758,48 @@ articlesRoutes.post('/articles/bulk-actions', requireAuth, async (c) => {
 
 articlesRoutes.post('/articles/bulk-classify', requireAuth, async (c) => {
   const body = await c.req.json().catch(() => null) as { articleIds?: unknown } | null;
-  if (!body || !Array.isArray(body.articleIds)) {
-    return c.json({ error: { code: 'BAD_REQUEST', message: '批量重判参数无效' } }, 400);
+  const ids = parseBulkArticleIds(body?.articleIds);
+  if (!ids.ok) {
+    const messages = {
+      EMPTY_ARTICLES: '请选择至少一篇有效文章',
+      INVALID_ARTICLES: '批量重判参数无效',
+      TOO_MANY_ARTICLES: '单次最多处理 200 篇文章',
+    } as const;
+    return c.json({ error: { code: ids.code, message: messages[ids.code] } }, 400);
   }
-  const articleIds = [...new Set(body.articleIds)];
-  if (!articleIds.length || articleIds.some((id) => !Number.isInteger(id) || id <= 0)) {
-    return c.json({ error: { code: 'BAD_REQUEST', message: '请选择至少一篇有效文章' } }, 400);
+  try {
+    return c.json(await enqueueBulkArticleAi(getCurrentUser(c).id as number, ids.articleIds, { includeCategory: true }));
+  } catch (error) {
+    if (error instanceof AiConfigurationRequiredError) {
+      return c.json({ error: { code: 'AI_NOT_CONFIGURED', message: error.message } }, 400);
+    }
+    throw error;
   }
+});
 
-  const userId = getCurrentUser(c).id as number;
-  const classifiedArticleIds: number[] = [];
-  const skipped: Array<{ articleId: number; code: 'NOT_FOUND' | 'NOT_ARCHIVED' | 'CATEGORY_USER_OVERRIDE' }> = [];
-  const failed: Array<{ articleId: number; message: string }> = [];
-
-  for (const articleId of articleIds) {
-    const article = await getArticleRecord(articleId, userId);
-    if (!article) {
-      skipped.push({ articleId, code: 'NOT_FOUND' });
-      continue;
-    }
-    if (!article.isArchived) {
-      skipped.push({ articleId, code: 'NOT_ARCHIVED' });
-      continue;
-    }
-    if (article.categorySource === 'user') {
-      skipped.push({ articleId, code: 'CATEGORY_USER_OVERRIDE' });
-      continue;
-    }
-    try {
-      await classifyStoredArticleForArchive(articleId, userId);
-      classifiedArticleIds.push(articleId);
-    } catch (error) {
-      failed.push({ articleId, message: error instanceof Error ? error.message : '分类失败' });
-    }
+articlesRoutes.post('/articles/bulk-regenerate-ai', requireAuth, async (c) => {
+  const body = await c.req.json().catch(() => null) as { articleIds?: unknown; includeCategory?: unknown } | null;
+  const ids = parseBulkArticleIds(body?.articleIds);
+  if (!ids.ok) {
+    const messages = {
+      EMPTY_ARTICLES: '请选择至少一篇有效文章',
+      INVALID_ARTICLES: '批量 AI 参数无效',
+      TOO_MANY_ARTICLES: '单次最多处理 200 篇文章',
+    } as const;
+    return c.json({ error: { code: ids.code, message: messages[ids.code] } }, 400);
   }
-
-  return c.json({ classifiedArticleIds, skipped, failed });
+  try {
+    return c.json(await enqueueBulkArticleAi(
+      getCurrentUser(c).id as number,
+      ids.articleIds,
+      { includeCategory: body?.includeCategory === true },
+    ));
+  } catch (error) {
+    if (error instanceof AiConfigurationRequiredError) {
+      return c.json({ error: { code: 'AI_NOT_CONFIGURED', message: error.message } }, 400);
+    }
+    throw error;
+  }
 });
 
 articlesRoutes.patch('/articles/:id/category', requireAuth, async (c) => {
@@ -816,9 +837,15 @@ articlesRoutes.patch('/articles/:id/title', requireAuth, async (c) => {
 
 articlesRoutes.post('/articles/bulk-category', requireAuth, async (c) => {
   const body = await c.req.json().catch(() => null) as { articleIds?: unknown; categoryId?: unknown } | null;
-  if (!body || !Array.isArray(body.articleIds) || typeof body.categoryId !== 'number') return c.json({ error: { code: 'BAD_REQUEST', message: '批量分类参数无效' } }, 400);
+  const ids = parseBulkArticleIds(body?.articleIds);
+  const categoryId = typeof body?.categoryId === 'number' ? body.categoryId : Number(body?.categoryId);
+  if (!ids.ok || !Number.isInteger(categoryId) || categoryId <= 0) return c.json({ error: { code: 'BAD_REQUEST', message: '批量分类参数无效' } }, 400);
   try {
-    const result = await moveArticlesToCategory(getCurrentUser(c).id as number, body.articleIds, body.categoryId);
+    const result: ArticleBulkActionResult = await runBulkArticleCategory(
+      getCurrentUser(c).id as number,
+      ids.articleIds,
+      categoryId,
+    );
     return c.json(result);
   } catch (error) {
     return c.json({ error: { code: 'BULK_CATEGORY_FAILED', message: error instanceof Error ? error.message : '批量分类失败' } }, 400);
