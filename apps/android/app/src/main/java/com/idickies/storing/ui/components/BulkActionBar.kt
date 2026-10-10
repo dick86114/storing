@@ -1,22 +1,38 @@
 package com.idickies.storing.ui.components
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Archive
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Category
+import androidx.compose.material.icons.outlined.DeleteForever
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.MoveToInbox
+import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.PublicOff
 import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.outlined.UploadFile
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,12 +46,14 @@ import com.idickies.storing.library.BulkToolbarAction
 import com.idickies.storing.library.LibraryView
 import com.idickies.storing.library.NativeBulkResult
 import com.idickies.storing.library.bulkActionConfirmation
+import com.idickies.storing.library.bulkToolbarActionTitle
 import com.idickies.storing.library.bulkToolbarActions
 import com.idickies.storing.ui.QiankunjieAlertDialog
 
 @Composable
 fun AndroidBulkActionBar(
   view: LibraryView,
+  isSelecting: Boolean,
   selectedIds: Set<Int>,
   runningAction: BulkToolbarAction?,
   result: NativeBulkResult?,
@@ -51,13 +69,11 @@ fun AndroidBulkActionBar(
   onDownloadExport: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  var mode by remember { mutableStateOf(false) }
   var menuOpen by remember { mutableStateOf(false) }
   var pendingAction by remember { mutableStateOf<BulkToolbarAction?>(null) }
 
-  if (!mode) {
+  if (!isSelecting) {
     TextButton(onClick = {
-      mode = true
       onEnter()
     }, modifier = modifier) {
       androidx.compose.material3.Icon(
@@ -84,19 +100,63 @@ fun AndroidBulkActionBar(
     ) {
       Text("批量操作")
     }
-    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+    DropdownMenu(
+      expanded = menuOpen,
+      onDismissRequest = { menuOpen = false },
+      modifier = Modifier
+        .width(216.dp)
+        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.76f), RoundedCornerShape(20.dp)),
+      containerColor = MaterialTheme.colorScheme.surfaceVariant,
+      shape = RoundedCornerShape(20.dp),
+    ) {
+      Text(
+        "批量动作",
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.labelLarge,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+      )
       bulkToolbarActions(view).forEach { action ->
         DropdownMenuItem(
-          text = { Text(action.name) },
+          text = {
+            Text(
+              bulkToolbarActionTitle(action),
+              style = MaterialTheme.typography.bodyLarge,
+              color = MaterialTheme.colorScheme.onSurface,
+            )
+          },
+          leadingIcon = {
+            androidx.compose.material3.Icon(
+              when (action) {
+                BulkToolbarAction.Favorite -> Icons.Outlined.FavoriteBorder
+                BulkToolbarAction.Unfavorite -> Icons.Outlined.Favorite
+                BulkToolbarAction.Archive -> Icons.Outlined.Archive
+                BulkToolbarAction.Unarchive -> Icons.Outlined.MoveToInbox
+                BulkToolbarAction.Delete -> Icons.Outlined.DeleteOutline
+                BulkToolbarAction.PermanentDelete -> Icons.Outlined.DeleteForever
+                BulkToolbarAction.Publish -> Icons.Outlined.Public
+                BulkToolbarAction.Unpublish -> Icons.Outlined.PublicOff
+                BulkToolbarAction.SetCategory -> Icons.Outlined.Category
+                BulkToolbarAction.ReclassifyCategory -> Icons.Outlined.FolderOpen
+                BulkToolbarAction.GenerateAi -> Icons.Outlined.AutoAwesome
+                BulkToolbarAction.ExportZip -> Icons.Outlined.UploadFile
+              },
+              contentDescription = null,
+              tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          },
           onClick = {
             menuOpen = false
             pendingAction = action
           },
         )
       }
+      HorizontalDivider(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
+        thickness = 0.5.dp,
+      )
     }
     OutlinedButton(onClick = {
-      mode = false
       onExit()
     }, enabled = runningAction == null) {
       Text("退出")

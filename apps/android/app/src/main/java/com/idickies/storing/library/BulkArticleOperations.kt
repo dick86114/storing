@@ -72,6 +72,21 @@ fun bulkToolbarActions(view: LibraryView): List<BulkToolbarAction> = when (view)
   )
 }
 
+fun bulkToolbarActionTitle(action: BulkToolbarAction): String = when (action) {
+  BulkToolbarAction.Favorite -> "收藏"
+  BulkToolbarAction.Unfavorite -> "取消收藏"
+  BulkToolbarAction.Archive -> "归档"
+  BulkToolbarAction.Unarchive -> "移回收件箱"
+  BulkToolbarAction.Delete -> "删除"
+  BulkToolbarAction.PermanentDelete -> "彻底删除"
+  BulkToolbarAction.Publish -> "发布"
+  BulkToolbarAction.Unpublish -> "取消发布"
+  BulkToolbarAction.SetCategory -> "设置分类"
+  BulkToolbarAction.ReclassifyCategory -> "重判分类"
+  BulkToolbarAction.GenerateAi -> "生成 AI"
+  BulkToolbarAction.ExportZip -> "导出 ZIP"
+}
+
 fun validatedBulkArticleIds(ids: Collection<Int>): List<Int> {
   ids.forEach { id ->
     require(id > 0) { "文章 ID 必须为正整数" }
