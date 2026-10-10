@@ -14,6 +14,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.94.0",
     "@hono/node-server": "^2.0.11",
+    "@storing/shared": "workspace:*",
     "@types/pg": "^8.11.0",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.4.2",
