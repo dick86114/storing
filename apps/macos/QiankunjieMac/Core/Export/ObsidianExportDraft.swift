@@ -24,6 +24,23 @@ struct ObsidianExportDraft: Identifiable, Equatable, Sendable {
         destinationURL ?? vaultURL
     }
 
+    static func lastUsed(
+        articleTitle: String?,
+        settingsStore: ObsidianExportSettingsStore
+    ) -> ObsidianExportDraft {
+        let settings = settingsStore.load()
+        let vaultURL = settingsStore.loadVaultURL() ?? settings.directoryURL
+        let rememberedDestination = settings.directoryURL
+        let isVaultRoot = vaultURL != nil
+            && rememberedDestination?.standardizedFileURL.path == vaultURL?.standardizedFileURL.path
+
+        return ObsidianExportDraft(
+            articleTitle: articleTitle,
+            vaultURL: vaultURL,
+            destinationURL: isVaultRoot ? nil : rememberedDestination
+        )
+    }
+
     var relativeDirectoryPath: String {
         guard let vaultURL, let destinationURL else {
             return "根目录"

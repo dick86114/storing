@@ -63,19 +63,17 @@ struct LibraryToolbar: View {
             Text(resultMessage)
         }
         .sheet(isPresented: $isBulkObsidianSheetPresented) {
-            let settingsStore = ObsidianExportSettingsStore()
-            let settings = settingsStore.load()
-
             ObsidianExportSheet(
-                initialDraft: ObsidianExportDraft(
+                initialDraft: .lastUsed(
                     articleTitle: "批量导出",
-                    vaultURL: settingsStore.loadVaultURL() ?? settings.directoryURL
+                    settingsStore: ObsidianExportSettingsStore()
                 ),
                 onCancel: {
                     isBulkObsidianSheetPresented = false
                 },
                 onConfirm: { draft in
                     isBulkObsidianSheetPresented = false
+                    saveLastUsedSelection(draft)
                     runBulkToolbarAction(
                         .bulkObsidian,
                         obsidianDestination: draft.directoryURL
@@ -530,6 +528,24 @@ struct LibraryToolbar: View {
         Task {
             await model.runBulkCategory(category.id)
         }
+    }
+
+    private func saveLastUsedSelection(_ draft: ObsidianExportDraft) {
+        guard
+            let vaultURL = draft.vaultURL,
+            let directoryURL = draft.directoryURL
+        else {
+            return
+        }
+
+        let store = ObsidianExportSettingsStore()
+        store.save(
+            ObsidianExportSettings(
+                directoryURL: directoryURL,
+                conflictPolicy: store.load().conflictPolicy
+            ),
+            vaultURL: vaultURL
+        )
     }
 
     private var searchField: some View {

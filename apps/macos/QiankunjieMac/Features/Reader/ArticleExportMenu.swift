@@ -182,12 +182,8 @@ struct ArticleExportMenu: View {
     }
 
     private func prepareObsidianExport() {
-        let settings = ObsidianExportSettingsStore().load()
         let store = ObsidianExportSettingsStore()
-        obsidianDraft = ObsidianExportDraft(
-            articleTitle: article.title,
-            vaultURL: store.loadVaultURL() ?? settings.directoryURL
-        )
+        obsidianDraft = .lastUsed(articleTitle: article.title, settingsStore: store)
     }
 
     private func exportToObsidian(_ draft: ObsidianExportDraft) {
