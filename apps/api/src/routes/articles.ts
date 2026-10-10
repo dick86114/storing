@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
 import { db } from '../db/index.js';
 import { articles, articleMetadata, categories, users } from '../db/schema.js';
@@ -7,10 +6,13 @@ import { classifyStoredArticleForArchive } from '../services/ai.service.js';
 import { enqueueAiGeneration, queueArchiveAiIfNeeded } from '../services/ai-generation.service.js';
 import { getCategoryById, getPendingCategory, moveArticlesToCategory } from '../services/category.service.js';
 import { parseArticleBulkActionInput } from '../services/article-bulk-validation.js';
+import type { ArticleBulkActionResult } from '@storing/shared';
 import {
+  publishArticleForUser,
   permanentlyDeleteArticleForUser,
   PermanentDeleteNotFoundError,
   runSimpleArticleBulkAction,
+  unpublishArticleForUser,
 } from '../services/article-bulk.service.js';
 import {
   COVER_IMAGE_PROCESSING_VERSION,
@@ -724,17 +726,19 @@ articlesRoutes.post('/articles/bulk-actions', requireAuth, async (c) => {
     return c.json({ error: { code: parsed.code, message: messages[parsed.code] } }, 400);
   }
 
-  if (parsed.action !== 'favorite' && parsed.action !== 'unfavorite' && parsed.action !== 'archive'
-    && parsed.action !== 'unarchive' && parsed.action !== 'delete' && parsed.action !== 'permanent_delete') {
-    return c.json({ error: { code: 'UNSUPPORTED_ACTION', message: '批量操作暂不支持该动作' } }, 400);
+  if (parsed.action === 'favorite' || parsed.action === 'unfavorite' || parsed.action === 'archive'
+    || parsed.action === 'unarchive' || parsed.action === 'delete' || parsed.action === 'permanent_delete'
+    || parsed.action === 'publish' || parsed.action === 'unpublish') {
+    const result: ArticleBulkActionResult = await runSimpleArticleBulkAction(
+      getCurrentUser(c).id as number,
+      parsed.action,
+      parsed.articleIds,
+    );
+    if (parsed.action === 'publish') result.publications ??= [];
+    return c.json(result);
   }
 
-  const result = await runSimpleArticleBulkAction(
-    getCurrentUser(c).id as number,
-    parsed.action,
-    parsed.articleIds,
-  );
-  return c.json(result);
+  return c.json({ error: { code: 'UNSUPPORTED_ACTION', message: '批量操作暂不支持该动作' } }, 400);
 });
 
 articlesRoutes.post('/articles/bulk-classify', requireAuth, async (c) => {
@@ -862,46 +866,26 @@ articlesRoutes.post('/articles/:id/publish', requireAuth, async (c) => {
     return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
   }
 
-  if (existingMetadata.isPublished && existingMetadata.publicId) {
-    return c.json({
-      article: serializeArticleRecord(existingMetadata),
-      publicUrl: `/p/${existingMetadata.publicId}`,
-    });
+  const outcome = await publishArticleForUser(userId, id);
+  if (outcome.status === 'failed') {
+    return c.json({ error: { code: outcome.code, message: outcome.message } }, outcome.code === 'BODY_NOT_READY' ? 422 : 500);
   }
-
-  const now = new Date();
-  if (!existingMetadata.isArchived) {
-    const content = await getArticleContent(id, 'markdown', 'desktop', userId);
-    if (!content) {
-      return c.json({ error: { code: 'BODY_NOT_READY', message: '文章正文尚未准备完成，无法发布' } }, 422);
-    }
-
-    const pendingCategory = await getPendingCategory(userId);
-    await db.update(articleMetadata)
-      .set({ isArchived: true, archivedAt: now, categoryId: pendingCategory.id, categorySource: 'rule', categoryReviewStatus: 'needs_review', updatedAt: now })
-      .where(metadataWhereCondition(id, userId));
-    await processCoverImage(id, userId).catch((error) => console.error('Cover image process failed:', error.message));
-  }
-
-  await db.update(articleMetadata)
-    .set({
-      isArchived: true,
-      archivedAt: existingMetadata.isArchived ? existingMetadata.archivedAt : now,
-      isPublished: true,
-      publishedAt: now,
-      publicId: existingMetadata.publicId || randomUUID(),
-      updatedAt: now,
-    })
-    .where(metadataWhereCondition(id, userId));
 
   const published = await getArticleRecord(id, userId);
-  if (!published?.publicId) {
-    return c.json({ error: { code: 'PUBLIC_ID_FAILED', message: '公开链接生成失败' } }, 500);
+  if (outcome.status === 'skipped') {
+    if (!published?.publicId) {
+      return c.json({ error: { code: 'PUBLIC_ID_FAILED', message: '公开链接生成失败' } }, 500);
+    }
+    return c.json({
+      article: serializeArticleRecord(published),
+      publicUrl: `/p/${published.publicId}`,
+    });
   }
+  if (!published?.publicId) return c.json({ error: { code: 'PUBLIC_ID_FAILED', message: '公开链接生成失败' } }, 500);
 
   return c.json({
     article: serializeArticleRecord(published),
-    publicUrl: `/p/${published.publicId}`,
+    publicUrl: outcome.publicUrl,
   });
 });
 
@@ -918,9 +902,7 @@ articlesRoutes.post('/articles/:id/unpublish', requireAuth, async (c) => {
     return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
   }
 
-  await db.update(articleMetadata)
-    .set({ isPublished: false, updatedAt: new Date() })
-    .where(metadataWhereCondition(id, userId));
+  await unpublishArticleForUser(userId, id);
 
   const article = await getArticleRecord(id, userId);
   return c.json({
