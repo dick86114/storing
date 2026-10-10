@@ -107,8 +107,9 @@ struct QiankunjieMacApp: App {
         )
         .environment(model)
         .environment(model.settingsModel)
-        // 清空系统标题，窗口顶部只保留带版本号的自定义标题。
+        // 品牌和搜索已由侧边栏承载，隐藏系统工具栏避免顶部重复占位。
         .navigationTitle("")
+        .toolbar(.hidden, for: .windowToolbar)
         .task {
             await model.start()
         }
