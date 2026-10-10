@@ -51,7 +51,9 @@ struct RootWindow: View {
             .qiankunjieAppFontScale(model.settingsModel.appFont.uiScale)
             .background(QiankunjieColors.background(for: colorScheme))
             .environment(\.font, QiankunjieTypography.font(.bodyMedium, scale: model.settingsModel.appFont.uiScale))
-            .toolbar(.hidden, for: .windowToolbar)
+            .toolbar {
+                rootToolbar
+            }
             .onAppear {
                 installMenuBarIfNeeded()
             }
@@ -222,6 +224,24 @@ struct RootWindow: View {
                 LibraryPlaceholderView(destination: model.destination)
             }
         }
+        .toolbar {
+            contentColumnTitleToolbarItem
+        }
+    }
+
+    /// 内容列工具栏最左侧的「乾坤戒 v版本号」。
+    @ToolbarContentBuilder
+    private var contentColumnTitleToolbarItem: some ToolbarContent {
+        if #available(macOS 26.0, *) {
+            ToolbarItem(placement: .navigation) {
+                MainWindowTitleLabel(showsVersion: !isSidebarCollapsed)
+            }
+            .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .navigation) {
+                MainWindowTitleLabel(showsVersion: !isSidebarCollapsed)
+            }
+        }
     }
 
     private var articleSelection: Binding<Int?> {
@@ -262,6 +282,18 @@ struct RootWindow: View {
                 }
             }
         )
+    }
+
+    @ToolbarContentBuilder
+    private var rootToolbar: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button {
+                model.toggleSearch()
+            } label: {
+                Label("搜索", systemImage: model.isSearchPresented ? "magnifyingglass.circle.fill" : "magnifyingglass")
+            }
+            .help(model.isSearchPresented ? "关闭搜索" : "搜索资料库")
+        }
     }
 
     private func installMenuBarIfNeeded() {
