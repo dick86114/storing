@@ -44,3 +44,12 @@ test('批量模式点击卡片主体切换选择', () => {
   assert.match(articleCard, /onSelectionChange\?\.\(article\.id, !selected/);
   assert.match(articleCard, /event\.stopPropagation\(\)/);
 });
+
+test('四个列表复用统一批量操作栏', () => {
+  for (const file of ['InboxContent.tsx', 'FavoritesContent.tsx', 'ArchiveContent.tsx', 'PublishedContent.tsx']) {
+    const source = read(`src/components/content/${file}`);
+    assert.match(source, /useArticleSelection/, file);
+    assert.match(source, /<BulkActionBar/, file);
+    assert.match(source, /selectable=\{bulkMode\}/, file);
+  }
+});

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 export interface ArticleSelection {
   selectedIds: Set<number>;
@@ -15,15 +15,13 @@ export interface ArticleSelection {
 
 export function useArticleSelection(articleIds: number[]): ArticleSelection {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const articleIdsKey = useMemo(() => articleIds.join(','), [articleIds]);
-
   useEffect(() => {
     setSelectedIds((current) => {
       const available = new Set(articleIds);
       const next = new Set([...current].filter((id) => available.has(id)));
       return next.size === current.size ? current : next;
     });
-  }, [articleIdsKey]);
+  }, [articleIds]);
 
   const toggle = useCallback((id: number) => {
     setSelectedIds((current) => {
