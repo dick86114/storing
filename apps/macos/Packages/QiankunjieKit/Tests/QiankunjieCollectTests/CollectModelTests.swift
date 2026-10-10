@@ -859,7 +859,7 @@ private actor 模拟采集仓库: CollectServicing {
 
     func waitForJobsRequest() async {
         while heldJobsRequests.isEmpty {
-            await Task.yield()
+            try? await Task.sleep(nanoseconds: 5_000_000)
         }
     }
 
@@ -897,13 +897,13 @@ private actor 模拟采集仓库: CollectServicing {
 
     func waitForPausedJobPoll() async {
         while pausedJobContinuation == nil {
-            await Task.yield()
+            try? await Task.sleep(nanoseconds: 5_000_000)
         }
     }
 
     func waitForSubmitCount(_ count: Int) async {
         while submitCount < count {
-            await Task.yield()
+            try? await Task.sleep(nanoseconds: 5_000_000)
         }
     }
 
@@ -954,7 +954,6 @@ private actor 模拟采集仓库: CollectServicing {
     func resumePausedJobPoll(with result: Result<CollectJob, Error>) {
         guard let continuation = pausedJobContinuation else { return }
         pausedJobContinuation = nil
-        pauseJobPollsAfterRequestCount = nil
         continuation.resume(with: result)
     }
 }
