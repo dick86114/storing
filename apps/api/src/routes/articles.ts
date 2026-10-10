@@ -1,13 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
 import { db } from '../db/index.js';
-import { adminAuditLogs, articles, articleMetadata, categories, collectJobs, users } from '../db/schema.js';
+import { articles, articleMetadata, categories, users } from '../db/schema.js';
 import { eq, and, asc, desc, count, sql, or, gt, inArray } from 'drizzle-orm';
 import { classifyStoredArticleForArchive } from '../services/ai.service.js';
 import { enqueueAiGeneration, queueArchiveAiIfNeeded } from '../services/ai-generation.service.js';
 import { getCategoryById, getPendingCategory, moveArticlesToCategory } from '../services/category.service.js';
 import { parseArticleBulkActionInput } from '../services/article-bulk-validation.js';
-import { runSimpleArticleBulkAction } from '../services/article-bulk.service.js';
+import {
+  permanentlyDeleteArticleForUser,
+  PermanentDeleteNotFoundError,
+  runSimpleArticleBulkAction,
+} from '../services/article-bulk.service.js';
 import {
   COVER_IMAGE_PROCESSING_VERSION,
   ensureArticleMetadataContentHtmlMobileColumn,
@@ -721,7 +725,7 @@ articlesRoutes.post('/articles/bulk-actions', requireAuth, async (c) => {
   }
 
   if (parsed.action !== 'favorite' && parsed.action !== 'unfavorite' && parsed.action !== 'archive'
-    && parsed.action !== 'unarchive' && parsed.action !== 'delete') {
+    && parsed.action !== 'unarchive' && parsed.action !== 'delete' && parsed.action !== 'permanent_delete') {
     return c.json({ error: { code: 'UNSUPPORTED_ACTION', message: '批量操作暂不支持该动作' } }, 400);
   }
 
@@ -1030,40 +1034,17 @@ articlesRoutes.delete('/articles/:id/permanent', requireAuth, async (c) => {
   const ownedArticle = await getArticleRecord(id, userId);
   if (!ownedArticle) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
 
-  // 共享文章必须先加行锁再判断剩余引用，避免两个永久删除请求在间隙里
-  // 各自得出“没有其他人引用”，随后互相触发外键/唯一键竞态。
-  const remainingCount = await db.transaction(async (tx) => {
-    const [article] = await tx
-      .select({ id: articles.id })
-      .from(articles)
-      .where(eq(articles.id, id))
-      .for('update')
-      .limit(1);
-    if (!article) return -1;
-
-    const [{ remaining }] = await tx
-      .select({ remaining: count() })
-      .from(articleMetadata)
-      .where(and(eq(articleMetadata.articleId, id), sql`${articleMetadata.userId} != ${userId}`));
-    if (Number(remaining) > 0) {
-      await tx
-        .update(articleMetadata)
-        .set({ isDeleted: true, updatedAt: new Date() })
-        .where(metadataWhereCondition(id, userId));
-      return Number(remaining);
+  let scope: 'permanent' | 'metadata';
+  try {
+    scope = await permanentlyDeleteArticleForUser(userId, id);
+  } catch (error) {
+    if (error instanceof PermanentDeleteNotFoundError) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
     }
+    throw error;
+  }
 
-    // collect_jobs 与 admin_audit_logs 只保留历史，解除引用后再删除原文章。
-    await tx.update(collectJobs).set({ articleId: null }).where(eq(collectJobs.articleId, id));
-    await tx.update(adminAuditLogs).set({ articleId: null }).where(eq(adminAuditLogs.articleId, id));
-    await tx.delete(articleMetadata).where(eq(articleMetadata.articleId, id));
-    await tx.delete(articles).where(eq(articles.id, id));
-    return 0;
-  });
-
-  if (remainingCount < 0) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
-
-  return c.json({ articleId: id, deleted: true, scope: remainingCount === 0 ? 'permanent' : 'metadata' });
+  return c.json({ articleId: id, deleted: true, scope });
 });
 
 /**

@@ -15,3 +15,12 @@ test('普通批量端点保持用户隔离和目标状态语义', () => {
   assert.match(service, /ALREADY_FAVORITED/);
   assert.match(service, /ALREADY_ARCHIVED/);
 });
+
+test('批量彻底删除逐篇使用行锁和引用判断', () => {
+  const service = read('src/services/article-bulk.service.ts');
+
+  assert.match(service, /export async function permanentlyDeleteArticleForUser/);
+  assert.match(service, /\.for\('update'\)/);
+  assert.match(service, /COUNT\(\*\)/);
+  assert.match(service, /isDeleted: true/);
+});

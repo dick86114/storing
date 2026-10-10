@@ -1,7 +1,7 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { db } from '../db/index.js';
-import { articles, articleMetadata } from '../db/schema.js';
+import { adminAuditLogs, articles, articleMetadata, collectJobs } from '../db/schema.js';
 import { processCoverImage } from './reader.service.js';
 import { queueArchiveAiIfNeeded } from './ai-generation.service.js';
 import { getPendingCategory } from './category.service.js';
@@ -12,7 +12,8 @@ export type SimpleArticleBulkAction =
   | 'unfavorite'
   | 'archive'
   | 'unarchive'
-  | 'delete';
+  | 'delete'
+  | 'permanent_delete';
 
 export interface OwnedArticleBulkRecord {
   articleId: number;
@@ -21,6 +22,15 @@ export interface OwnedArticleBulkRecord {
   isDeleted: boolean;
   aiSummary: string | null;
   aiTags: string[] | null;
+}
+
+export type PermanentDeleteScope = 'permanent' | 'metadata' | 'not_found';
+
+export class PermanentDeleteNotFoundError extends Error {
+  constructor() {
+    super('文章不存在或无权访问');
+    this.name = 'PermanentDeleteNotFoundError';
+  }
 }
 
 function emptyResult(requestedCount: number): ArticleBulkActionResult {
@@ -32,7 +42,7 @@ async function loadOwnedArticleBulkRecords(
   articleIds: number[],
 ): Promise<OwnedArticleBulkRecord[]> {
   if (articleIds.length === 0) return [];
-  return db
+  const rows = await db
     .select({
       articleId: articles.id,
       isFavorited: articleMetadata.isFavorited,
@@ -47,6 +57,12 @@ async function loadOwnedArticleBulkRecords(
       eq(articleMetadata.userId, userId),
     ))
     .where(inArray(articles.id, articleIds));
+  return rows.map((row) => ({
+    ...row,
+    isFavorited: row.isFavorited === true,
+    isArchived: row.isArchived === true,
+    isDeleted: row.isDeleted === true,
+  }));
 }
 
 function selectIdsByState(
@@ -71,6 +87,7 @@ function selectIdsByState(
       if (!record.isArchived) alreadyCodes.set(record.articleId, 'ALREADY_UNARCHIVED');
       return record.isArchived;
     }
+    if (action === 'permanent_delete') return true;
     if (record.isDeleted) alreadyCodes.set(record.articleId, 'ALREADY_DELETED');
     return !record.isDeleted;
   };
@@ -87,6 +104,7 @@ export async function runSimpleArticleBulkAction(
   const records = await loadOwnedArticleBulkRecords(userId, articleIds);
   const ownedById = new Map(records.map((record) => [record.articleId, record]));
   const { actionableIds, alreadyCodes } = selectIdsByState(records, action);
+  const failedById = new Map<number, { articleId: number; code: string; message: string }>();
   const now = new Date();
 
   if (actionableIds.length > 0) {
@@ -144,7 +162,7 @@ export async function runSimpleArticleBulkAction(
         eq(articleMetadata.userId, userId),
         inArray(articleMetadata.articleId, actionableIds),
       ));
-    } else {
+    } else if (action === 'delete') {
       await db.update(articleMetadata).set({
         isDeleted: true,
         updatedAt: now,
@@ -152,10 +170,30 @@ export async function runSimpleArticleBulkAction(
         eq(articleMetadata.userId, userId),
         inArray(articleMetadata.articleId, actionableIds),
       ));
+    } else {
+      for (const articleId of actionableIds) {
+        try {
+          await permanentlyDeleteArticleForUser(userId, articleId);
+        } catch (error) {
+          if (!(error instanceof PermanentDeleteNotFoundError)) {
+            console.error('Bulk permanent delete failed:', error instanceof Error ? error.message : error);
+          }
+          failedById.set(articleId, {
+            articleId,
+            code: error instanceof PermanentDeleteNotFoundError ? 'NOT_FOUND' : 'PERMANENT_DELETE_FAILED',
+            message: error instanceof Error ? error.message : '彻底删除失败',
+          });
+        }
+      }
     }
   }
 
   for (const articleId of articleIds) {
+    const failure = failedById.get(articleId);
+    if (failure) {
+      result.failed.push(failure);
+      continue;
+    }
     if (!ownedById.has(articleId)) {
       result.skipped.push({ articleId, code: 'NOT_FOUND' });
     } else if (alreadyCodes.has(articleId)) {
@@ -165,5 +203,40 @@ export async function runSimpleArticleBulkAction(
     }
   }
   return result;
+}
+
+export async function permanentlyDeleteArticleForUser(
+  userId: number,
+  articleId: number,
+): Promise<Exclude<PermanentDeleteScope, 'not_found'>> {
+  const remainingCount = await db.transaction(async (tx) => {
+    const [article] = await tx
+      .select({ id: articles.id })
+      .from(articles)
+      .where(eq(articles.id, articleId))
+      .for('update')
+      .limit(1);
+    if (!article) throw new PermanentDeleteNotFoundError();
+
+    const [{ remaining }] = await tx
+      .select({ remaining: sql<number>`COUNT(*)::int` })
+      .from(articleMetadata)
+      .where(and(eq(articleMetadata.articleId, articleId), sql`${articleMetadata.userId} != ${userId}`));
+    if (Number(remaining) > 0) {
+      await tx
+        .update(articleMetadata)
+        .set({ isDeleted: true, updatedAt: new Date() })
+        .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, userId)));
+      return Number(remaining);
+    }
+
+    await tx.update(collectJobs).set({ articleId: null }).where(eq(collectJobs.articleId, articleId));
+    await tx.update(adminAuditLogs).set({ articleId: null }).where(eq(adminAuditLogs.articleId, articleId));
+    await tx.delete(articleMetadata).where(eq(articleMetadata.articleId, articleId));
+    await tx.delete(articles).where(eq(articles.id, articleId));
+    return 0;
+  });
+
+  return remainingCount === 0 ? 'permanent' : 'metadata';
 }
 
