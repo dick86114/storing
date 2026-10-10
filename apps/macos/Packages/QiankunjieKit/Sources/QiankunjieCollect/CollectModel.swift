@@ -193,6 +193,7 @@ public final class CollectModel {
         else { return }
 
         let generation = requestGeneration
+        let pollGenerationAtStart = pollGeneration
         mutatingJobIDs.insert(jobID)
         actionErrorMessage = nil
 
@@ -204,15 +205,17 @@ public final class CollectModel {
             if currentJob?.id == job.id {
                 currentJob = job
             }
-            await poll(jobID: job.id, generation: pollGeneration)
+            await poll(jobID: job.id, generation: pollGenerationAtStart)
+
+            if pollGeneration != pollGenerationAtStart {
+                await poll(jobID: job.id, generation: pollGeneration)
+            }
         } catch {
             guard requestGeneration == generation else { return }
             actionErrorMessage = Self.message(for: error)
         }
 
-        if requestGeneration == generation {
-            mutatingJobIDs.remove(jobID)
-        }
+        mutatingJobIDs.remove(jobID)
     }
 
     public func delete(jobID: Int) async {

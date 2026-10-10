@@ -304,6 +304,9 @@ struct RootWindow: View {
             shortcut: model.shortcutSettings.shortcut,
             onShowMainWindow: { showMainWindow() },
             actions: MenuBarActions(
+                openMainWindow: {
+                    showMainWindow()
+                },
                 openSettings: {
                     showMainWindow(destination: .settings)
                 },

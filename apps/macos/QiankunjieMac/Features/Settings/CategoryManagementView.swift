@@ -243,10 +243,10 @@ struct CategoryManagementView: View {
             await model.load()
         }
         .sheet(isPresented: $model.isCreating) {
-            CategoryEditorSheet(model: model, category: nil)
+            CategoryEditorOverlay(model: model, category: nil)
         }
         .sheet(item: $model.editingCategory) { category in
-            CategoryEditorSheet(model: model, category: category)
+            CategoryEditorOverlay(model: model, category: category)
         }
         .sheet(item: $model.deletingCategory) { category in
             CategoryDeleteSheet(model: model, category: category)
