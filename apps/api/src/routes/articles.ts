@@ -10,6 +10,7 @@ import {
   COVER_IMAGE_PROCESSING_VERSION,
   ensureArticleMetadataContentHtmlMobileColumn,
   getArticleContent,
+  isInternalWeChatImportUrl,
   processCoverImage,
   repairArticleDisplayMeta,
 } from '../services/reader.service.js';
@@ -284,10 +285,13 @@ async function repairMissingDisplayMeta<T extends {
   title: string | null;
   author: string | null;
   source: string | null;
+  originalUrl: string | null;
   publishTime: Date | string | null;
 }>(rows: T[], userId: number): Promise<T[]> {
   const repairedRows = await Promise.all(rows.map(async (row) => {
-    if (row.title && row.source && row.publishTime) return row;
+    if (row.title && row.source && (row.publishTime || isInternalWeChatImportUrl(row.originalUrl))) {
+      return row;
+    }
 
     const repaired = await repairArticleDisplayMeta(row.id, userId);
     if (!repaired) return row;
@@ -589,7 +593,7 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
   let article = await getArticleRecord(id, userId);
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found' } }, 404);
 
-  if (!article.title || !article.source || !article.publishTime) {
+  if (!article.title || !article.source || (!article.publishTime && !isInternalWeChatImportUrl(article.originalUrl))) {
     // 异步修复，不阻塞当前详情响应；下次请求即为修复后的数据
     repairArticleDisplayMeta(id, userId).catch((error) =>
       console.error('Background display meta repair failed:', error.message)
@@ -998,24 +1002,40 @@ articlesRoutes.delete('/articles/:id/permanent', requireAuth, async (c) => {
   const ownedArticle = await getArticleRecord(id, userId);
   if (!ownedArticle) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
 
-  // 先查除当前用户外的其他用户是否还引用这篇文章
-  const [{ remaining }] = await db
-    .select({ remaining: count() })
-    .from(articleMetadata)
-    .where(and(eq(articleMetadata.articleId, id), sql`${articleMetadata.userId} != ${userId}`));
-  if (Number(remaining) === 0) {
-    // 无其他用户引用，彻底删除 metadata + 原始文章；
-    // collect_jobs 与 admin_audit_logs 的外键会阻止删除，先解除引用保留历史。
-    await db.update(collectJobs).set({ articleId: null }).where(eq(collectJobs.articleId, id));
-    await db.update(adminAuditLogs).set({ articleId: null }).where(eq(adminAuditLogs.articleId, id));
-    await db.delete(articleMetadata).where(eq(articleMetadata.articleId, id));
-    await db.delete(articles).where(eq(articles.id, id));
-  } else {
-    // 有其他用户引用，仅软删除当前用户，保留原始文章和其他用户数据
-    await db.update(articleMetadata).set({ isDeleted: true, updatedAt: new Date() }).where(metadataWhereCondition(id, userId));
-  }
+  // 共享文章必须先加行锁再判断剩余引用，避免两个永久删除请求在间隙里
+  // 各自得出“没有其他人引用”，随后互相触发外键/唯一键竞态。
+  const remainingCount = await db.transaction(async (tx) => {
+    const [article] = await tx
+      .select({ id: articles.id })
+      .from(articles)
+      .where(eq(articles.id, id))
+      .for('update')
+      .limit(1);
+    if (!article) return -1;
 
-  return c.json({ articleId: id, deleted: true, scope: Number(remaining) === 0 ? 'permanent' : 'metadata' });
+    const [{ remaining }] = await tx
+      .select({ remaining: count() })
+      .from(articleMetadata)
+      .where(and(eq(articleMetadata.articleId, id), sql`${articleMetadata.userId} != ${userId}`));
+    if (Number(remaining) > 0) {
+      await tx
+        .update(articleMetadata)
+        .set({ isDeleted: true, updatedAt: new Date() })
+        .where(metadataWhereCondition(id, userId));
+      return Number(remaining);
+    }
+
+    // collect_jobs 与 admin_audit_logs 只保留历史，解除引用后再删除原文章。
+    await tx.update(collectJobs).set({ articleId: null }).where(eq(collectJobs.articleId, id));
+    await tx.update(adminAuditLogs).set({ articleId: null }).where(eq(adminAuditLogs.articleId, id));
+    await tx.delete(articleMetadata).where(eq(articleMetadata.articleId, id));
+    await tx.delete(articles).where(eq(articles.id, id));
+    return 0;
+  });
+
+  if (remainingCount < 0) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
+
+  return c.json({ articleId: id, deleted: true, scope: remainingCount === 0 ? 'permanent' : 'metadata' });
 });
 
 /**

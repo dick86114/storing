@@ -22,12 +22,20 @@ const READER_API_BASE = process.env.READER_API_BASE || 'https://weixin.ali.idick
 // 图床服务配置（从环境变量读取）
 const IMG_HOST = process.env.IMG_HOST || 'https://img.ali.idickies.cc';
 const IMG_API_KEY = process.env.IMG_API_KEY || '';
+/** 失败的展示元数据修复先冷却，避免每次翻页都重放同一批网络错误。 */
+const DISPLAY_META_RETRY_DELAY_MS = 15 * 60 * 1000;
+const displayMetaRetryAt = new Map<number, number>();
 
 let ensureMobileHtmlColumnPromise: Promise<void> | null = null;
 let ensureCoverVersionColumnPromise: Promise<void> | null = null;
 
 /** Bump this when the server learns a higher-quality cover selection strategy. */
 export const COVER_IMAGE_PROCESSING_VERSION = 3;
+
+/** 内部导入不是网页，永远不能交给 HTTP 抓取或展示元数据修复。 */
+export function isInternalWeChatImportUrl(url: string | null | undefined): boolean {
+  return typeof url === 'string' && url.startsWith('qiankunjie://wechat-import/');
+}
 
 export async function ensureArticleMetadataCoverVersionColumn() {
   if (!ensureCoverVersionColumnPromise) {
@@ -619,6 +627,12 @@ function extractPublishTimeFromDocument(doc: Document): Date | null {
   return null;
 }
 
+function displayMetaFetchErrorMessage(error: unknown): string {
+  const cause = (error as { cause?: { code?: string } })?.cause;
+  const message = error instanceof Error ? error.message : String(error);
+  return cause?.code ? `${message} (${cause.code})` : message;
+}
+
 function extractWechatDisplayMetaFromMarkdown(markdown: string) {
   const lines = markdown
     .split('\n')
@@ -698,7 +712,18 @@ export async function repairArticleDisplayMeta(articleId: number, userId?: numbe
     .where(eq(articles.id, articleId));
 
   if (!article) return null;
+  // 微信聊天记录没有“发布时间”概念；已有标题和来源时即为元数据完整，
+  // 不能因为发布时间为空而反复 fetch qiankunjie:// 内部地址。
+  if (article.title && article.source && isInternalWeChatImportUrl(article.originalUrl)) {
+    return {
+      title: article.title,
+      source: article.source,
+      author: article.author,
+      publishTime: article.publishTime,
+    };
+  }
   if (article.title && article.source && article.publishTime) {
+    displayMetaRetryAt.delete(articleId);
     return {
       title: article.title,
       source: article.source,
@@ -709,10 +734,21 @@ export async function repairArticleDisplayMeta(articleId: number, userId?: numbe
 
   let fetchedMeta: Awaited<ReturnType<typeof fetchArticleDisplayMeta>> | null = null;
   if (article.originalUrl) {
-    try {
-      fetchedMeta = await fetchArticleDisplayMeta(article.originalUrl);
-    } catch (error) {
-      console.error(`Display meta fetch failed for article ${articleId}:`, (error as Error).message);
+    const now = Date.now();
+    const retryAt = displayMetaRetryAt.get(articleId) ?? 0;
+    if (now < retryAt) {
+      fetchedMeta = null;
+    } else {
+      try {
+        fetchedMeta = await fetchArticleDisplayMeta(article.originalUrl);
+        displayMetaRetryAt.delete(articleId);
+      } catch (error) {
+        displayMetaRetryAt.set(articleId, now + DISPLAY_META_RETRY_DELAY_MS);
+        console.error(
+          `Display meta fetch failed for article ${articleId}:`,
+          displayMetaFetchErrorMessage(error),
+        );
+      }
     }
   }
 
