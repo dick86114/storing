@@ -420,7 +420,9 @@ public final class CollectModel {
                 return
             }
 
-            try? await Task.sleep(for: pollInterval)
+            if pollInterval > .zero {
+                try? await Task.sleep(for: pollInterval)
+            }
         }
     }
 
