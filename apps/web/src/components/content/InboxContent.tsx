@@ -226,10 +226,10 @@ function InboxContentInner() {
       if (action === 'set-category') return;
       if (action === 'generate-ai' || action === 'reclassify') {
         setBulkResult(await bulkActions.runAi(ids, action === 'reclassify'));
-      } else if (action === 'export-zip' || action === 'export-obsidian') {
+      } else if (action === 'export-zip') {
         setBulkExportJob(await bulkActions.createExport({
           articleIds: ids,
-          format: action === 'export-obsidian' ? 'obsidian' : 'zip',
+          format: 'zip',
           includeAi: true,
           organizeByCategory: true,
         }));

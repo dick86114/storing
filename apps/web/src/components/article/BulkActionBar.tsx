@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { DownOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 
 import type { ArticleBulkAction, ArticleBulkAiResult, ArticleBulkActionResult, ArticleBulkIssue, BulkExportJob } from '@storing/shared';
 import { api } from '@/lib/api';
@@ -10,8 +12,7 @@ export type BulkToolbarAction =
   | 'set-category'
   | 'reclassify'
   | 'generate-ai'
-  | 'export-zip'
-  | 'export-obsidian';
+  | 'export-zip';
 
 export type BulkToolbarView = 'inbox' | 'favorites' | 'archive' | 'published';
 
@@ -30,8 +31,8 @@ export interface BulkActionBarProps {
 }
 
 const VIEW_ACTIONS: Record<BulkToolbarView, BulkToolbarAction[]> = {
-  inbox: ['favorite', 'archive', 'delete', 'generate-ai', 'publish', 'export-zip', 'export-obsidian'],
-  favorites: ['unfavorite', 'archive', 'delete', 'generate-ai', 'publish', 'export-zip', 'export-obsidian'],
+  inbox: ['favorite', 'archive', 'delete', 'generate-ai', 'publish', 'export-zip'],
+  favorites: ['unfavorite', 'archive', 'delete', 'generate-ai', 'publish', 'export-zip'],
   archive: [
     'favorite',
     'unfavorite',
@@ -43,9 +44,8 @@ const VIEW_ACTIONS: Record<BulkToolbarView, BulkToolbarAction[]> = {
     'publish',
     'unpublish',
     'export-zip',
-    'export-obsidian',
   ],
-  published: ['unpublish', 'delete', 'export-zip', 'export-obsidian'],
+  published: ['unpublish', 'delete', 'export-zip'],
 };
 
 const ACTION_LABELS: Record<BulkToolbarAction, string> = {
@@ -61,7 +61,21 @@ const ACTION_LABELS: Record<BulkToolbarAction, string> = {
   reclassify: '重判分类',
   'generate-ai': '生成 AI',
   'export-zip': '导出 ZIP',
-  'export-obsidian': '导出 Obsidian',
+};
+
+const ACTION_CONFIRMATIONS: Record<BulkToolbarAction, { title: string; copy: string }> = {
+  favorite: { title: '确认批量收藏？', copy: '将把所选文章统一标记为收藏。' },
+  unfavorite: { title: '确认批量取消收藏？', copy: '将把所选文章从收藏中移除。' },
+  archive: { title: '确认批量归档？', copy: '未归档文章会进入「待整理」，并按设置触发 AI 任务。' },
+  unarchive: { title: '确认批量移回收件箱？', copy: '所选文章将全部回到收件箱。' },
+  delete: { title: '确认批量删除？', copy: '将从当前账号移除所选文章。' },
+  permanent_delete: { title: '确认批量彻底删除？', copy: '共享原文只会在没有其他用户引用时物理删除，此操作不可恢复。' },
+  publish: { title: '确认批量发布？', copy: '未归档文章会自动归档，并生成游客可见的公开链接。' },
+  unpublish: { title: '确认批量取消发布？', copy: '公开链接将立即失效；归档状态和公开 ID 会保留。' },
+  'set-category': { title: '确认批量设置分类？', copy: '确认后将打开分类选择弹窗。' },
+  reclassify: { title: '确认批量重判分类？', copy: '仅已归档且未被你确认过的文章会重新进入 AI 分类。' },
+  'generate-ai': { title: '确认批量生成 AI？', copy: '将按当前 AI 配置为所选文章排队生成摘要和标签。' },
+  'export-zip': { title: '确认批量导出 ZIP？', copy: '系统会在后台生成 Markdown 压缩包，完成后可直接下载。' },
 };
 
 function issueKey(issue: ArticleBulkIssue, index: number) {
@@ -82,9 +96,31 @@ export function BulkActionBar({
   exportJob,
 }: BulkActionBarProps) {
   const [confirmAction, setConfirmAction] = useState<'delete' | 'permanent_delete' | null>(null);
-  const [exportOpen, setExportOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<BulkToolbarAction | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [trackedExportJob, setTrackedExportJob] = useState<BulkExportJob | null>(exportJob ?? null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const actions = VIEW_ACTIONS[view];
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const closeMenu = () => setMenuOpen(false);
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    const handleScroll = () => setMenuOpen(false);
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     setTrackedExportJob(exportJob ?? null);
@@ -121,13 +157,24 @@ export function BulkActionBar({
   const runAction = (action: BulkToolbarAction) => {
     if (action === 'delete' || action === 'permanent_delete') {
       setConfirmAction(action);
+      setPendingAction(null);
       return;
     }
-    if (action === 'export-zip' || action === 'export-obsidian') {
-      setExportOpen(true);
-      return;
-    }
-    onAction(action);
+    setPendingAction(action);
+  };
+
+  const confirmDialog = pendingAction
+    ? ACTION_CONFIRMATIONS[pendingAction]
+    : confirmAction
+      ? ACTION_CONFIRMATIONS[confirmAction]
+      : null;
+  const dangerAction = pendingAction === 'delete' || pendingAction === 'permanent_delete'
+    || confirmAction === 'delete' || confirmAction === 'permanent_delete';
+  const activeAction = pendingAction ?? confirmAction;
+
+  const closeConfirmation = () => {
+    setPendingAction(null);
+    setConfirmAction(null);
   };
 
   if (!mode) {
@@ -147,136 +194,148 @@ export function BulkActionBar({
         <div className="bulk-action-actions">
           <button disabled={loading} onClick={onSelectAll} type="button">全选</button>
           <button disabled={loading} onClick={onInvert} type="button">反选</button>
-          {actions.map((action) => (
+          <div ref={menuRef} className="bulk-actions-control">
             <button
+              className="bulk-action-button primary"
               disabled={loading || selectedCount === 0}
-              key={action}
-              onClick={() => runAction(action)}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((next) => !next)}
               type="button"
             >
-              {ACTION_LABELS[action]}
+              批量动作
+              <DownOutlined className={`bulk-actions-chevron${menuOpen ? ' open' : ''}`} />
             </button>
-          ))}
-          <button className="secondary" disabled={loading} onClick={onToggleMode} type="button">退出</button>
+            {menuOpen && (
+              <div className="bulk-actions-menu" role="menu">
+                {actions.map((action) => (
+                  <button
+                    className={`bulk-actions-menu-item${action === 'delete' || action === 'permanent_delete' ? ' danger' : ''}`}
+                    disabled={loading}
+                    key={action}
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      runAction(action);
+                    }}
+                    type="button"
+                  >
+                    {ACTION_LABELS[action]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button className="bulk-action-button primary" disabled={loading} onClick={onToggleMode} type="button">退出</button>
         </div>
       </div>
 
-      {confirmAction && (
-        <div className="bulk-action-overlay" role="presentation">
-          <section aria-modal="true" className="bulk-action-dialog" role="dialog">
-            <h2>{confirmAction === 'delete' ? '确认删除' : '确认彻底删除'}</h2>
-            <p>
-              {confirmAction === 'delete'
-                ? `确定删除选中的 ${selectedCount} 篇文章吗？`
-                : `确定彻底删除选中的 ${selectedCount} 篇文章吗？此操作不可恢复。`}
-            </p>
-            <div className="bulk-action-dialog-actions">
-              <button onClick={() => setConfirmAction(null)} type="button">取消</button>
+      {confirmDialog && activeAction && createPortal(
+        <div
+          className="confirm-dialog-overlay"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget && !loading) closeConfirmation();
+          }}
+        >
+          <section
+            aria-modal="true"
+            className={`confirm-dialog-panel${activeAction === 'permanent_delete' ? ' confirm-dialog-panel--permanent' : ''}`}
+            role="dialog"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={`confirm-dialog-icon ${dangerAction ? 'confirm-dialog-icon--danger' : 'confirm-dialog-icon--action'}`} aria-hidden="true">
+              <ExclamationCircleOutlined />
+            </div>
+            <div className="confirm-dialog-content">
+              <h2 className="confirm-dialog-title">{confirmDialog.title}</h2>
+              <p className="confirm-dialog-copy">
+                已选择 {selectedCount} 篇文章。{confirmDialog.copy}
+              </p>
+            </div>
+            <div className="confirm-dialog-actions">
+              <button className="confirm-dialog-button confirm-dialog-button--secondary" disabled={loading} onClick={closeConfirmation} type="button">取消</button>
               <button
-                className="danger"
+                className={`confirm-dialog-button ${dangerAction ? 'confirm-dialog-button--danger' : 'confirm-dialog-button--primary'}`}
                 disabled={loading}
                 onClick={() => {
-                  onAction(confirmAction);
-                  setConfirmAction(null);
+                  onAction(activeAction);
+                  closeConfirmation();
                 }}
                 type="button"
               >
-                {confirmAction === 'delete' ? '删除' : '彻底删除'}
+                确认执行
               </button>
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {exportOpen && (
-        <div className="bulk-action-overlay" role="presentation">
-          <section aria-modal="true" className="bulk-action-dialog" role="dialog">
-            <h2>批量导出</h2>
-            <p>ZIP 适合备份；Obsidian ZIP 可解压导入笔记保管库。</p>
-            <div className="bulk-action-dialog-actions">
-              <button onClick={() => setExportOpen(false)} type="button">取消</button>
-              <button
-                disabled={loading}
-                onClick={() => {
-                  onAction('export-zip');
-                  setExportOpen(false);
-                }}
-                type="button"
-              >
-                ZIP
-              </button>
-              <button
-                disabled={loading}
-                onClick={() => {
-                  onAction('export-obsidian');
-                  setExportOpen(false);
-                }}
-                type="button"
-              >
-                Obsidian
-              </button>
+      {trackedExportJob && !normalizedResult && createPortal(
+        <div className="confirm-dialog-overlay" role="presentation">
+          <section aria-modal="true" className="confirm-dialog-panel" role="dialog">
+            <div className="confirm-dialog-icon confirm-dialog-icon--action" aria-hidden="true">
+              <ExclamationCircleOutlined />
+            </div>
+            <div className="confirm-dialog-content">
+              <h2 className="confirm-dialog-title">批量导出</h2>
+              <p className="confirm-dialog-copy">
+                {trackedExportJob.status === 'succeeded'
+                  ? `导出完成，成功 ${trackedExportJob.succeededCount} 篇，失败 ${trackedExportJob.failedCount} 篇。`
+                  : trackedExportJob.status === 'failed'
+                    ? '导出失败，请重新提交。'
+                    : '正在后台生成 Markdown 压缩包...'}
+              </p>
+              {trackedExportJob.status === 'succeeded' && trackedExportJob.downloadUrl && (
+                <a className="confirm-dialog-link" download href={trackedExportJob.downloadUrl}>下载 ZIP</a>
+              )}
+            </div>
+            <div className="confirm-dialog-actions">
+              <button className="confirm-dialog-button confirm-dialog-button--secondary" onClick={() => setTrackedExportJob(null)} type="button">关闭</button>
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {trackedExportJob && !normalizedResult && (
-        <div className="bulk-action-overlay" role="presentation">
-          <section aria-modal="true" className="bulk-action-dialog" role="dialog">
-            <h2>批量导出</h2>
-            <p>
-              {trackedExportJob.status === 'succeeded'
-                ? `导出完成，成功 ${trackedExportJob.succeededCount} 篇，失败 ${trackedExportJob.failedCount} 篇。`
-                : trackedExportJob.status === 'failed'
-                  ? '导出失败，请重新提交。'
-                  : '正在生成导出文件...'}
-            </p>
-            {trackedExportJob.status === 'succeeded' && trackedExportJob.downloadUrl && (
-              <div className="bulk-result-publications">
-                <a download href={trackedExportJob.downloadUrl}>下载 ZIP</a>
-              </div>
-            )}
-            {trackedExportJob.status === 'failed' && <p className="bulk-result-issues">导出失败</p>}
-            <div className="bulk-action-dialog-actions">
-              <button onClick={() => setTrackedExportJob(null)} type="button">关闭</button>
+      {normalizedResult && createPortal(
+        <div className="confirm-dialog-overlay" role="presentation">
+          <section aria-modal="true" className="confirm-dialog-panel" role="dialog">
+            <div className={`confirm-dialog-icon ${normalizedResult.issues.length > 0 ? 'confirm-dialog-icon--warning' : 'confirm-dialog-icon--success'}`} aria-hidden="true">
+              <ExclamationCircleOutlined />
+            </div>
+            <div className="confirm-dialog-content">
+              <h2 className="confirm-dialog-title">批量结果</h2>
+              <p className="confirm-dialog-copy">
+                成功 {normalizedResult.succeededCount} 篇，跳过 {normalizedResult.skippedCount} 篇，失败 {normalizedResult.issues.length} 篇。
+              </p>
+              {normalizedResult.publications.length > 0 && (
+                <div className="bulk-result-publications">
+                  {normalizedResult.publications.map((publication) => (
+                    <a className="confirm-dialog-link" href={publication.publicUrl} key={publication.articleId}>
+                      文章 #{publication.articleId}
+                    </a>
+                  ))}
+                </div>
+              )}
+              {normalizedResult.issues.length > 0 && (
+                <ul className="bulk-result-issues">
+                  {normalizedResult.issues.map((issue, index) => (
+                    <li key={issueKey(issue, index)}>
+                      #{issue.articleId} · {issue.code}
+                      {issue.message ? ` · ${issue.message}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="confirm-dialog-actions">
+              <button className="confirm-dialog-button confirm-dialog-button--secondary" onClick={onResultClose} type="button">关闭</button>
             </div>
           </section>
-        </div>
-      )}
-
-      {normalizedResult && (
-        <div className="bulk-action-overlay" role="presentation">
-          <section aria-modal="true" className="bulk-action-dialog result" role="dialog">
-            <h2>批量结果</h2>
-            <div className="bulk-result-summary">
-              <span>成功 {normalizedResult.succeededCount}</span>
-              <span>跳过 {normalizedResult.skippedCount}</span>
-              <span>失败 {normalizedResult.issues.length}</span>
-            </div>
-            {normalizedResult.publications.length > 0 && (
-              <div className="bulk-result-publications">
-                {normalizedResult.publications.map((publication) => (
-                  <a href={publication.publicUrl} key={publication.articleId}>
-                    文章 #{publication.articleId}
-                  </a>
-                ))}
-              </div>
-            )}
-            {normalizedResult.issues.length > 0 && (
-              <ul className="bulk-result-issues">
-                {normalizedResult.issues.map((issue, index) => (
-                  <li key={issueKey(issue, index)}>
-                    #{issue.articleId} · {issue.code}
-                    {issue.message ? ` · ${issue.message}` : ''}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="bulk-action-dialog-actions">
-              <button onClick={onResultClose} type="button">关闭</button>
-            </div>
-          </section>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
