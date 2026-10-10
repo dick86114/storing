@@ -23,6 +23,7 @@ import { initMobileSessionSchema } from './services/mobile-session.service.js';
 import { ensureDatabaseIndexes } from './services/db-indexes.service.js';
 import { ensureUserAiSettingsSchema } from './services/user-ai-settings.service.js';
 import { ensureAiGenerationSchema, resumeAiGenerationJobs } from './services/ai-generation.service.js';
+import { cleanupExpiredBulkExportJobs, ensureBulkExportSchema } from './services/bulk-export-job.service.js';
 import { aiRoutes } from './routes/ai.js';
 import { requireCsrfProtection } from './middleware/auth.js';
 import { createAllowedCorsOrigins, resolveAllowedCorsOrigin } from './services/browser-extension-origin.service.js';
@@ -68,6 +69,7 @@ async function startServer() {
   await initMobileSessionSchema().catch((err) => console.error('初始化客户端会话表失败:', err));
   await ensureUserAiSettingsSchema().catch((err) => console.error('初始化账号级 AI 配置表失败:', err));
   await ensureAiGenerationSchema().catch((err) => console.error('初始化 AI 任务表失败:', err));
+  await ensureBulkExportSchema().catch((err) => console.error('初始化批量导出任务表失败:', err));
   const admin = await ensureConfiguredAdmin();
   console.log(admin.created ? `管理员账号已创建: ${admin.user.username}` : `管理员账号已就绪: ${admin.user.username}`);
   await initArticleMetadataUserScope().catch((err) => console.error('初始化用户级文章元数据失败:', err));
@@ -82,6 +84,7 @@ async function startServer() {
   await resumeWeChatImportJobs().catch((err) => console.error('恢复微信导入队列失败:', err));
   await ensureDatabaseIndexes().catch((err) => console.error('初始化数据库索引失败:', err));
   await resumeAiGenerationJobs().catch((err) => console.error('恢复 AI 生成任务失败:', err));
+  await cleanupExpiredBulkExportJobs().catch((err) => console.error('清理过期批量导出任务失败:', err));
   startMcpLogCleanupScheduler();
   serve({ fetch: app.fetch, port: 1052 }, (info) => {
     console.log(`API server running on http://localhost:${info.port}`);
