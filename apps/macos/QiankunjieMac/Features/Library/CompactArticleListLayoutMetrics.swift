@@ -29,9 +29,9 @@ struct CompactArticleListLayoutMetrics: Equatable, Sendable {
 
     init() {
         self.rowHeight = 132
-        self.coverSize = 132
+        self.coverSize = 104
         self.coverAspectRatio = 1
-        self.coverWidth = 132
+        self.coverWidth = 104
     }
 
     func visibleTags(_ tags: [String]) -> [CompactArticleTagDisplay] {

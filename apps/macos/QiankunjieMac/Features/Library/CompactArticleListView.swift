@@ -101,7 +101,7 @@ struct CompactArticleListView: View {
                 selection = article.id
             }
         } label: {
-            HStack(alignment: .top, spacing: 10) {
+            HStack(alignment: .center, spacing: 10) {
                 rowCover(article)
 
                 VStack(alignment: .leading, spacing: 5) {
@@ -135,10 +135,8 @@ struct CompactArticleListView: View {
 
                 Spacer(minLength: 0)
             }
-            .padding(.top, 10)
-            .padding(.bottom, 10)
-            .padding(.trailing, 12)
-            .frame(height: layoutMetrics.rowHeight, alignment: .topLeading)
+            .padding(10)
+            .frame(minHeight: layoutMetrics.rowHeight, alignment: .center)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -258,16 +256,11 @@ struct CompactArticleListView: View {
     private func rowCover(_ article: ArticleCard) -> some View {
         coverImage(article)
             .frame(
-                width: layoutMetrics.rowHeight,
-                height: layoutMetrics.rowHeight
+                width: layoutMetrics.coverWidth,
+                height: layoutMetrics.coverSize
             )
             .clipped()
-            .clipShape(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: QiankunjieRadius.control,
-                    bottomLeadingRadius: QiankunjieRadius.control
-                )
-            )
+            .clipShape(RoundedRectangle(cornerRadius: QiankunjieRadius.control, style: .continuous))
             .overlay(alignment: .topLeading) {
                 if model.isBulkSelecting {
                     bulkSelectionIndicator(article)
