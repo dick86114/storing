@@ -42,6 +42,18 @@ const INDEXES: ReadonlyArray<{ name: string; create: string }> = [
     name: 'idx_collect_jobs_client_status',
     create: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_collect_jobs_client_status ON collect_jobs (client_id, status)',
   },
+  {
+    name: 'idx_collect_jobs_article',
+    create: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_collect_jobs_article ON collect_jobs (article_id)',
+  },
+  {
+    name: 'idx_article_metadata_article',
+    create: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_article_metadata_article ON article_metadata (article_id)',
+  },
+  {
+    name: 'idx_ai_generation_jobs_article',
+    create: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_ai_generation_jobs_article ON ai_generation_jobs (article_id)',
+  },
   // trigram 索引：让 search 路由的 ILIKE '%keyword%' 走 GIN 索引，避免全表扫描
   {
     name: 'idx_articles_title_trgm',
