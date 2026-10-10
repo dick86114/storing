@@ -1,3 +1,11 @@
+import type {
+  ArticleBulkAction,
+  ArticleBulkActionResult,
+  ArticleBulkAiResult,
+  BulkExportFormat,
+  BulkExportJob,
+} from '@storing/shared';
+
 const BASE = '/api/v1';
 const REQUEST_TIMEOUT_MS = 10000;
 export type ArticleHtmlVariant = 'desktop' | 'mobile';
@@ -620,6 +628,42 @@ export const api = {
       skipped: Array<{ articleId: number; code: 'NOT_FOUND' | 'NOT_ARCHIVED' | 'CATEGORY_USER_OVERRIDE' }>;
       failed: Array<{ articleId: number; message: string }>;
     }>('/articles/bulk-classify', { method: 'POST', body: JSON.stringify({ articleIds }), timeoutMs: 120000 }),
+
+  bulkArticles: (action: ArticleBulkAction, articleIds: number[]) =>
+    fetchJSON<ArticleBulkActionResult>('/articles/bulk-actions', {
+      method: 'POST',
+      body: JSON.stringify({ action, articleIds }),
+      timeoutMs: 120000,
+    }),
+
+  bulkSetCategory: (articleIds: number[], categoryId: number) =>
+    fetchJSON<ArticleBulkActionResult>('/articles/bulk-category', {
+      method: 'POST',
+      body: JSON.stringify({ articleIds, categoryId }),
+      timeoutMs: 30000,
+    }),
+
+  bulkRegenerateArticleAi: (articleIds: number[], includeCategory: boolean) =>
+    fetchJSON<ArticleBulkAiResult>('/articles/bulk-regenerate-ai', {
+      method: 'POST',
+      body: JSON.stringify({ articleIds, includeCategory }),
+      timeoutMs: 30000,
+    }),
+
+  createBulkExport: (input: {
+    articleIds: number[];
+    format: BulkExportFormat;
+    includeAi: boolean;
+    organizeByCategory: boolean;
+  }) =>
+    fetchJSON<BulkExportJob>('/articles/bulk-export', {
+      method: 'POST',
+      body: JSON.stringify(input),
+      timeoutMs: 30000,
+    }),
+
+  getBulkExport: (jobId: number) =>
+    fetchJSON<BulkExportJob>(`/articles/bulk-export/${jobId}`, { timeoutMs: 30000 }),
 
   getCounts: () =>
     fetchJSON<{ inbox: number; favorites: number; archive: number; published: number }>('/counts'),
