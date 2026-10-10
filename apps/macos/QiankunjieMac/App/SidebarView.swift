@@ -16,10 +16,6 @@ struct SidebarView: View {
     var body: some View {
         List(selection: destinationSelection) {
             Section(isCollapsed ? "" : "资料库") {
-                if !isCollapsed {
-                    collectRow
-                }
-
                 ForEach(AppDestination.sidebarDestinations, id: \.self) { destination in
                     Group {
                         if isCollapsed {
@@ -53,45 +49,94 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .background(QiankunjieColors.surfaceVariant(for: colorScheme))
+        .safeAreaInset(edge: .top) {
+            topControls
+        }
         .safeAreaInset(edge: .bottom) {
             bottomControls
         }
     }
 
-    private var bottomControls: some View {
-        VStack(spacing: 10) {
-            if isCollapsed {
-                collectButton
-            }
+    private var topControls: some View {
+        VStack(spacing: 12) {
+            brandHeader
 
-            accountButton
-                .popover(
-                    isPresented: $showsAccountMenu,
-                    arrowEdge: .bottom
-                ) {
-                    AccountMenuView(
-                        user: model.user,
-                        colorScheme: colorScheme,
-                        onLogin: {
-                            showsAccountMenu = false
-                            model.presentLogin()
-                        },
-                        onLogout: {
-                            showsAccountMenu = false
-                            Task {
-                                await model.didLogout()
-                            }
-                        },
-                        onSettings: {
-                            showsAccountMenu = false
-                            destinationSelection.wrappedValue = .settings
-                        },
-                        onAdminSettings: {
-                            showsAccountMenu = false
-                            destinationSelection.wrappedValue = .admin
-                        }
-                    )
+            if !isCollapsed {
+                searchField
+            }
+        }
+        .padding(.horizontal, isCollapsed ? 10 : 12)
+        .padding(.top, 14)
+        .padding(.bottom, 10)
+        .background(QiankunjieColors.surfaceVariant(for: colorScheme))
+    }
+
+    private var brandHeader: some View {
+        HStack(spacing: 9) {
+            BrandAssetName.brandLogo.image
+                .resizable()
+                .scaledToFit()
+                .frame(width: 30, height: 30)
+                .accessibilityLabel(BrandAssetName.brandLogo.accessibilityLabel)
+
+            if !isCollapsed {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(QiankunjieMacMetadata.displayName)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+                        .lineLimit(1)
+
+                    Text("v\(QiankunjieMacMetadata.appVersion)")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                        .monospacedDigit()
+                        .lineLimit(1)
                 }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var bottomControls: some View {
+        Group {
+            if isCollapsed {
+                VStack(spacing: 8) {
+                    sidebarCollectButton
+
+                    accountButton
+                }
+            } else {
+                HStack(spacing: 8) {
+                    accountButton
+
+                    sidebarCollectButton
+                }
+            }
+        }
+        .popover(isPresented: $showsAccountMenu, arrowEdge: .bottom) {
+            AccountMenuView(
+                user: model.user,
+                colorScheme: colorScheme,
+                onLogin: {
+                    showsAccountMenu = false
+                    model.presentLogin()
+                },
+                onLogout: {
+                    showsAccountMenu = false
+                    Task {
+                        await model.didLogout()
+                    }
+                },
+                onSettings: {
+                    showsAccountMenu = false
+                    destinationSelection.wrappedValue = .settings
+                },
+                onAdminSettings: {
+                    showsAccountMenu = false
+                    destinationSelection.wrappedValue = .admin
+                }
+            )
         }
         .padding(.horizontal, isCollapsed ? 10 : 12)
         .padding(.bottom, 12)
@@ -102,7 +147,7 @@ struct SidebarView: View {
         }
     }
 
-    private var collectButton: some View {
+    private var sidebarCollectButton: some View {
         let accent = QiankunjieColors.accent(for: colorScheme)
 
         return Button {
@@ -113,7 +158,7 @@ struct SidebarView: View {
         }
         .background {
             ZStack {
-                Circle()
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [
@@ -127,7 +172,7 @@ struct SidebarView: View {
             }
         }
         .overlay {
-            Circle()
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(
                     accent.opacity(showsCollectPulse ? 0.38 : 0.06),
                     lineWidth: showsCollectPulse ? 2 : 1
@@ -147,56 +192,8 @@ struct SidebarView: View {
         .help("采集")
         .accessibilityLabel("采集")
         .accessibilityAddTraits(.isButton)
-        .buttonStyle(CollectFabButtonStyle())
-    }
-
-    /// 采集入口：与「收件箱」等菜单行同宽同高的长条按钮，排在菜单第一行。
-    private var collectRow: some View {
-        let accent = QiankunjieColors.accent(for: colorScheme)
-
-        return Button {
-            triggerCollect()
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "plus")
-                    .font(.system(size: 13, weight: .bold))
-                    .frame(width: 18)
-                    .rotationEffect(.degrees(collectIconRotation))
-
-                Text("采集")
-                    .lineLimit(1)
-
-                Spacer(minLength: 0)
-            }
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(.white)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        // 用列表行自己的背景承载底色，宽度和高度才能和「收件箱」等行的行底色完全一致。
-        .listRowBackground(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            accent.opacity(isCollectButtonHovered ? 1 : 0.96),
-                            accent.opacity(0.78),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                // 系统选中蒙版相对整行左右缩进 10pt、上下缩进 2pt。
-                .padding(.horizontal, 10)
-                .padding(.vertical, 2)
-        )
-        .onHover { hovering in
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) {
-                isCollectButtonHovered = hovering
-            }
-        }
-        .help("采集")
-        .accessibilityLabel("采集")
+        .frame(width: 38, height: 38)
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func triggerCollect() {
@@ -216,8 +213,8 @@ struct SidebarView: View {
         Image(systemName: "plus")
             .font(.system(size: 16, weight: .bold))
             .foregroundStyle(.white)
-            .frame(width: 36, height: 36)
-            .contentShape(Circle())
+            .frame(width: 30, height: 30)
+            .contentShape(Rectangle())
     }
 
     private var accountButton: some View {
@@ -250,8 +247,8 @@ struct SidebarView: View {
             }
             .padding(7)
             .frame(
-                maxWidth: isCollapsed ? 38 : .infinity,
-                alignment: isCollapsed ? .center : .leading
+                maxWidth: .infinity,
+                alignment: .leading
             )
             .background {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -284,13 +281,60 @@ struct SidebarView: View {
                 }
             }
     }
-}
 
-private struct CollectFabButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(Color.clear)
-            .contentShape(Circle())
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+
+            TextField("搜索文章", text: searchBinding)
+                .textFieldStyle(.plain)
+                .onSubmit(submitSearch)
+                .accessibilityLabel("搜索关键词")
+
+            if !model.libraryModel.searchDraft.isEmpty {
+                Button {
+                    clearSearch()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                }
+                .buttonStyle(.plain)
+                .help("清除搜索")
+            }
+        }
+        .padding(.horizontal, 9)
+        .frame(height: 32)
+        .background(QiankunjieColors.surface(for: colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: QiankunjieRadius.control, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: QiankunjieRadius.control, style: .continuous)
+                .strokeBorder(QiankunjieColors.outline(for: colorScheme))
+        }
+        .help("搜索文章")
+    }
+
+    private var searchBinding: Binding<String> {
+        Binding(
+            get: { model.libraryModel.searchDraft },
+            set: { model.libraryModel.searchDraft = $0 }
+        )
+    }
+
+    private func submitSearch() {
+        model.libraryModel.submitSearch()
+        reloadLibrary()
+    }
+
+    private func clearSearch() {
+        model.libraryModel.clearSearch()
+        reloadLibrary()
+    }
+
+    private func reloadLibrary() {
+        Task {
+            await model.libraryModel.load(reset: true)
+        }
     }
 }
 
