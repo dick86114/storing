@@ -18,10 +18,13 @@ struct BulkObsidianExportServiceTests {
             detailLoader: loader,
             exporter: exporter,
             settings: .init(directoryURL: directory),
-            directorySelector: { directory }
+            destinationURL: directory
         )
 
-        let summary = try await service.export(articleIDs: [1, 2, 3])
+        let summary = try await service.export(
+            articleIDs: [1, 2, 3],
+            destinationURL: directory
+        )
 
         #expect(summary.succeededIDs == [1, 3])
         #expect(summary.failures.first?.articleID == 2)
@@ -30,21 +33,26 @@ struct BulkObsidianExportServiceTests {
         #expect(exporter.exportedTitles == ["第一篇", "第三篇"])
     }
 
-    @Test func 取消目录选择不会导出文章() async {
+    @Test func 无效目标目录不会导出文章() async {
         let loader = 模拟Obsidian详情仓库(details: [:], failure: nil)
         let exporter = 模拟Obsidian导出器()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("missing-obsidian-\(UUID().uuidString)", isDirectory: true)
         let service = BulkObsidianExportService(
             detailLoader: loader,
             exporter: exporter,
             settings: .init(directoryURL: nil),
-            directorySelector: { throw CancellationError() }
+            destinationURL: directory
         )
 
         do {
-            _ = try await service.export(articleIDs: [1, 2])
-            #expect(Bool(false), "取消目录选择应当抛出 CancellationError")
+            _ = try await service.export(
+                articleIDs: [1, 2],
+                destinationURL: directory
+            )
+            #expect(Bool(false), "无效目录应当抛出 directoryUnavailable")
         } catch {
-            #expect(error is CancellationError)
+            #expect((error as? ObsidianExportError) == .directoryUnavailable)
         }
 
         #expect(await loader.requestedIDsSnapshot().isEmpty)

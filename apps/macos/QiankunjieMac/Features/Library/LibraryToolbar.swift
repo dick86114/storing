@@ -9,6 +9,7 @@ struct LibraryToolbar: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var pendingBulkAction: BulkToolbarAction?
     @State private var pendingBulkCategory: LibraryCategoryFilter?
+    @State private var isBulkObsidianSheetPresented = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -28,7 +29,12 @@ struct LibraryToolbar: View {
                 BulkToolbarPolicy.confirmation(for: action, selectedCount: model.bulkSelection.count).confirmTitle,
                 role: BulkToolbarPolicy.confirmation(for: action, selectedCount: model.bulkSelection.count).isDestructive ? .destructive : nil
             ) {
-                runBulkToolbarAction(action)
+                if action == .bulkObsidian {
+                    pendingBulkAction = nil
+                    isBulkObsidianSheetPresented = true
+                } else {
+                    runBulkToolbarAction(action)
+                }
             }
             Button("取消", role: .cancel) {}
         } message: { _ in
@@ -55,6 +61,29 @@ struct LibraryToolbar: View {
             }
         } message: {
             Text(resultMessage)
+        }
+        .sheet(isPresented: $isBulkObsidianSheetPresented) {
+            let settingsStore = ObsidianExportSettingsStore()
+            let settings = settingsStore.load()
+
+            ObsidianExportSheet(
+                initialDraft: ObsidianExportDraft(
+                    articleTitle: "批量导出",
+                    vaultURL: settingsStore.loadVaultURL() ?? settings.directoryURL
+                ),
+                onCancel: {
+                    isBulkObsidianSheetPresented = false
+                },
+                onConfirm: { draft in
+                    isBulkObsidianSheetPresented = false
+                    runBulkToolbarAction(
+                        .bulkObsidian,
+                        obsidianDestination: draft.directoryURL
+                    )
+                },
+                showsTitle: false,
+                subtitle: "已选 \(model.bulkSelection.count) 篇文章"
+            )
         }
     }
 
@@ -483,10 +512,16 @@ struct LibraryToolbar: View {
         BulkToolbarPolicy.menuTitle(for: action)
     }
 
-    private func runBulkToolbarAction(_ action: BulkToolbarAction) {
+    private func runBulkToolbarAction(
+        _ action: BulkToolbarAction,
+        obsidianDestination: URL? = nil
+    ) {
         pendingBulkAction = nil
         Task {
-            await model.runBulkToolbarAction(action)
+            await model.runBulkToolbarAction(
+                action,
+                obsidianDestination: obsidianDestination
+            )
         }
     }
 

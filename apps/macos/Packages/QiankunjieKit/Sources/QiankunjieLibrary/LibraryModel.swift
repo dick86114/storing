@@ -48,7 +48,7 @@ public final class LibraryModel {
     private let cache: any LibraryCaching
     private var requestGeneration = 0
     public var bulkExportHandler: (@MainActor (ArticleBulkExportJob) async throws -> URL)?
-    public var bulkObsidianHandler: (@MainActor ([Int]) async throws -> NativeBulkResult)?
+    public var bulkObsidianHandler: (@MainActor ([Int], URL) async throws -> NativeBulkResult)?
 
     public init(
         repository: any LibraryLoading = LibraryRepository(),
@@ -386,7 +386,10 @@ public final class LibraryModel {
         bulkResult = nil
     }
 
-    public func runBulkToolbarAction(_ action: BulkToolbarAction) async {
+    public func runBulkToolbarAction(
+        _ action: BulkToolbarAction,
+        obsidianDestination: URL? = nil
+    ) async {
         guard bulkRunningAction == nil, isBulkSelecting else {
             return
         }
@@ -409,10 +412,13 @@ public final class LibraryModel {
             case .setCategory:
                 return
             case .bulkObsidian:
-                guard let bulkObsidianHandler else {
+                guard
+                    let obsidianDestination,
+                    let bulkObsidianHandler
+                else {
                     return
                 }
-                bulkResult = try await bulkObsidianHandler(articleIDs)
+                bulkResult = try await bulkObsidianHandler(articleIDs, obsidianDestination)
             case .exportZIP:
                 let job = try await bulkRepository.runCreateBulkExport(articleIDs: articleIDs)
                 if let bulkExportHandler {
