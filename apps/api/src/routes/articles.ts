@@ -6,6 +6,8 @@ import { eq, and, asc, desc, count, sql, or, gt, inArray } from 'drizzle-orm';
 import { classifyStoredArticleForArchive } from '../services/ai.service.js';
 import { enqueueAiGeneration, queueArchiveAiIfNeeded } from '../services/ai-generation.service.js';
 import { getCategoryById, getPendingCategory, moveArticlesToCategory } from '../services/category.service.js';
+import { parseArticleBulkActionInput } from '../services/article-bulk-validation.js';
+import { runSimpleArticleBulkAction } from '../services/article-bulk.service.js';
 import {
   COVER_IMAGE_PROCESSING_VERSION,
   ensureArticleMetadataContentHtmlMobileColumn,
@@ -703,6 +705,32 @@ articlesRoutes.post('/articles/:id/classify', requireAuth, async (c) => {
   if ((article as any).categorySource === 'user') return c.json({ error: { code: 'CATEGORY_USER_OVERRIDE', message: '文章分类已由用户确认，不能自动覆盖' } }, 409);
   await classifyStoredArticleForArchive(id, userId);
   return c.json({ articleId: id, ok: true });
+});
+
+articlesRoutes.post('/articles/bulk-actions', requireAuth, async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = parseArticleBulkActionInput(body);
+  if (!parsed.ok) {
+    const messages: Record<typeof parsed.code, string> = {
+      INVALID_ACTION: '批量操作无效',
+      EMPTY_ARTICLES: '请选择至少一篇文章',
+      INVALID_ARTICLES: '文章 ID 无效',
+      TOO_MANY_ARTICLES: '单次最多处理 200 篇文章',
+    };
+    return c.json({ error: { code: parsed.code, message: messages[parsed.code] } }, 400);
+  }
+
+  if (parsed.action !== 'favorite' && parsed.action !== 'unfavorite' && parsed.action !== 'archive'
+    && parsed.action !== 'unarchive' && parsed.action !== 'delete') {
+    return c.json({ error: { code: 'UNSUPPORTED_ACTION', message: '批量操作暂不支持该动作' } }, 400);
+  }
+
+  const result = await runSimpleArticleBulkAction(
+    getCurrentUser(c).id as number,
+    parsed.action,
+    parsed.articleIds,
+  );
+  return c.json(result);
 });
 
 articlesRoutes.post('/articles/bulk-classify', requireAuth, async (c) => {
