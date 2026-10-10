@@ -82,3 +82,35 @@ fun validatedBulkArticleIds(ids: Collection<Int>): List<Int> {
   }
   return uniqueIds
 }
+
+data class NativeBulkResult(
+  val requestedCount: Int,
+  val succeededCount: Int,
+  val skippedCount: Int,
+  val issues: List<ArticleBulkIssue>,
+  val publications: List<ArticlePublicationLink>,
+) {
+  companion object {
+    fun from(result: ArticleBulkActionResult) = NativeBulkResult(
+      requestedCount = result.requestedCount,
+      succeededCount = result.succeededIds.size,
+      skippedCount = result.skipped.size,
+      issues = result.skipped + result.failed,
+      publications = result.publications,
+    )
+
+    fun from(result: ArticleBulkAiResult) = NativeBulkResult(
+      requestedCount = result.requestedCount,
+      succeededCount = result.queuedIds.size,
+      skippedCount = result.alreadyQueuedIds.size,
+      issues = result.failed,
+      publications = emptyList(),
+    )
+  }
+}
+
+fun removeBulkSelection(selected: Set<Int>, succeededIds: Collection<Int>): Set<Int> =
+  selected - succeededIds.toSet()
+
+fun removeMissingBulkSelection(selected: Set<Int>, availableIds: Collection<Int>): Set<Int> =
+  selected intersect availableIds.toSet()
