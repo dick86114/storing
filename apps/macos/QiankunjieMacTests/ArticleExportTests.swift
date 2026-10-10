@@ -524,6 +524,51 @@ struct ArticleExportTests {
         #expect(draft.directoryURL?.path == destination.path)
     }
 
+    @Test func Obsidian导出草稿恢复上次保管库和目录() {
+        let suiteName = "storing.obsidian.last-used.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = ObsidianExportSettingsStore(defaults: defaults)
+        let vaultURL = URL(fileURLWithPath: "/tmp/我的仓库", isDirectory: true)
+        let destinationURL = vaultURL.appendingPathComponent("技术/阅读", isDirectory: true)
+        store.save(
+            ObsidianExportSettings(directoryURL: destinationURL),
+            vaultURL: vaultURL
+        )
+
+        let draft = ObsidianExportDraft.lastUsed(
+            articleTitle: "文章",
+            settingsStore: store
+        )
+
+        #expect(draft.vaultURL?.standardizedFileURL.path == vaultURL.standardizedFileURL.path)
+        #expect(draft.destinationURL?.standardizedFileURL.path == destinationURL.standardizedFileURL.path)
+        #expect(draft.relativeDirectoryPath == "技术/阅读")
+    }
+
+    @Test func Obsidian导出草稿恢复根目录时保持空路径() {
+        let suiteName = "storing.obsidian.last-used-root.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = ObsidianExportSettingsStore(defaults: defaults)
+        let vaultURL = URL(fileURLWithPath: "/tmp/我的仓库", isDirectory: true)
+        store.save(
+            ObsidianExportSettings(directoryURL: vaultURL),
+            vaultURL: vaultURL
+        )
+
+        let draft = ObsidianExportDraft.lastUsed(
+            articleTitle: "文章",
+            settingsStore: store
+        )
+
+        #expect(draft.vaultURL?.standardizedFileURL.path == vaultURL.standardizedFileURL.path)
+        #expect(draft.destinationURL == nil)
+        #expect(draft.relativeDirectoryPath == "根目录")
+    }
+
     @Test func Obsidian设置分别保存保管库与导出目录() {
         let suiteName = "storing.obsidian.settings.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
