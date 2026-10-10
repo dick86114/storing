@@ -135,10 +135,6 @@ struct LibraryToolbar: View {
             } else {
                 bulkEntryButton
 
-                searchField
-                    .frame(minWidth: 88, maxWidth: 240)
-                    .layoutPriority(-1)
-
                 presentationModeButton
 
                 refreshButton
@@ -546,39 +542,6 @@ struct LibraryToolbar: View {
             ),
             vaultURL: vaultURL
         )
-    }
-
-    private var searchField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-            TextField("搜索文章", text: $model.searchDraft)
-                .textFieldStyle(.plain)
-                .onSubmit(submitSearch)
-            if !model.searchDraft.isEmpty {
-                Button {
-                    model.clearSearch()
-                    reload()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                }
-                .buttonStyle(.plain)
-                .help("清除搜索")
-            }
-        }
-        .padding(.horizontal, 8)
-        .frame(height: 28)
-        .background(QiankunjieColors.surface(for: colorScheme))
-        .clipShape(RoundedRectangle(cornerRadius: QiankunjieRadius.control))
-        .overlay {
-            RoundedRectangle(cornerRadius: QiankunjieRadius.control)
-                .strokeBorder(QiankunjieColors.outline(for: colorScheme))
-        }
-    }
-
-    private func submitSearch() {
-        model.submitSearch()
-        reload()
     }
 
     private func reload(reset: Bool = true) {
