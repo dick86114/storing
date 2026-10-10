@@ -19,6 +19,24 @@ test('WeChat import route is registered and keeps parsing, uploads and persisten
   assert.doesNotMatch(service, /generateSummaryAndTags\(|buildArticleSummaryResult\(|generateCombinedArticleAi\(/);
 });
 
+test('WeChat bulk import has a durable async queue and status endpoint', () => {
+  const route = read('src/routes/wechat.ts');
+  const queue = read('src/services/wechat-import-queue.service.ts');
+  const index = read('src/index.ts');
+  const compose = read('../../docker-compose.yml');
+
+  assert.match(route, /wechatRoutes\.post\('\/wechat\/import\/jobs', requireAuth/);
+  assert.match(route, /scheduleWeChatImportJobs\(\)/);
+  assert.match(route, /return c\.json\(\{ job: serializeWeChatImportJob\(job\) \}, 202\)/);
+  assert.match(route, /wechatRoutes\.get\('\/wechat\/import\/jobs\/:jobId', requireAuth/);
+  assert.match(queue, /CREATE TABLE IF NOT EXISTS wechat_import_jobs/);
+  assert.match(queue, /export async function resumeWeChatImportJobs/);
+  assert.match(queue, /MAX_CONCURRENT_IMPORTS/);
+  assert.match(index, /ensureWeChatImportQueueSchema/);
+  assert.match(index, /resumeWeChatImportJobs/);
+  assert.match(compose, /\.\/data:\/app\/data/);
+});
+
 test('WeChat import persists html body so the reader never needs to fetch an internal url', () => {
   const service = read('src/services/wechat-import.service.ts');
   const reader = read('src/services/reader.service.ts');
@@ -44,8 +62,8 @@ test('WeChat import validates ZIP entry names and enforces size limits', () => {
   assert.match(transcript, /part === '\.\.'/);
   assert.match(service, /MAX_SINGLE_FILE_BYTES = 100 \* 1024 \* 1024/);
   assert.match(service, /MAX_TOTAL_BYTES = 300 \* 1024 \* 1024/);
-  assert.match(service, /entry\.uncompressedSize > MAX_SINGLE_FILE_BYTES/);
-  assert.match(service, /total > MAX_TOTAL_BYTES/);
+  assert.match(service, /entry\.uncompressedSize > WECHAT_IMPORT_MAX_SINGLE_FILE_BYTES/);
+  assert.match(service, /total > WECHAT_IMPORT_MAX_TOTAL_BYTES/);
 });
 
 test('WeChat transcript parser and markdown renderer preserve the exported format', () => {

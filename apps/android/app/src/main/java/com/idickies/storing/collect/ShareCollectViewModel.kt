@@ -12,6 +12,8 @@ import com.idickies.storing.database.PendingAuthActionDao
 import com.idickies.storing.database.PendingAuthActionEntity
 import com.idickies.storing.database.PendingAuthActionFileEntity
 import com.idickies.storing.network.WeChatImportResult
+import com.idickies.storing.network.WeChatImportJob
+import com.idickies.storing.network.WeChatImportNetwork
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -195,7 +197,11 @@ class ShareCollectViewModel @Inject constructor(
         }
         // 服务端统一识别 ZIP/聊天记录/散媒体，客户端只声明来源。
         val manifest = """{"source":"android"}""".toRequestBody("application/json".toMediaTypeOrNull())
-        weChatImportRepository.import(parts, manifest)
+        weChatImportRepository.importWithQueue(parts, manifest) { job ->
+          mutableState.update {
+            it.copy(message = "服务端已接收 #${job.id}，正在后台处理")
+          }
+        }
       }
         .onSuccess { result: WeChatImportResult ->
           clearPendingAction()
@@ -217,7 +223,9 @@ class ShareCollectViewModel @Inject constructor(
           } else if (error is MobileNetworkUnavailableException) {
             mutableState.update { it.copy(submitting = false, message = "网络连接失败，请稍后重试") }
           } else {
-            mutableState.update { it.copy(submitting = false, message = error.message ?: "微信内容导入失败") }
+            mutableState.update {
+              it.copy(submitting = false, message = WeChatImportNetwork.failureMessage(error))
+            }
           }
         }
     }

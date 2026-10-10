@@ -26,9 +26,9 @@ const WECHAT_DEFAULT_COVER = 'https://img.ali.idickies.cc/i/4373e919-76c4-468a-b
 const WECHAT_AUTHOR = '微信聊天记录';
 
 /** 导入规模上限：微信单次合并转发不会超过这些量级，防止异常请求打爆内存。 */
-const MAX_FILE_COUNT = 32;
-const MAX_SINGLE_FILE_BYTES = 100 * 1024 * 1024;
-const MAX_TOTAL_BYTES = 300 * 1024 * 1024;
+export const WECHAT_IMPORT_MAX_FILE_COUNT = 32;
+export const WECHAT_IMPORT_MAX_SINGLE_FILE_BYTES = 100 * 1024 * 1024;
+export const WECHAT_IMPORT_MAX_TOTAL_BYTES = 300 * 1024 * 1024;
 const MAX_TRANSCRIPT_BYTES = 16 * 1024 * 1024;
 /** 图床上传并发，避免瞬时打满图床连接。 */
 const UPLOAD_CONCURRENCY = 3;
@@ -127,12 +127,12 @@ function extractZipFiles(buffer: Buffer): Promise<ZipEntryFile[]> {
           zipFile.readEntry();
           return;
         }
-        if (entry.uncompressedSize > MAX_SINGLE_FILE_BYTES) {
+        if (entry.uncompressedSize > WECHAT_IMPORT_MAX_SINGLE_FILE_BYTES) {
           fail(new WeChatImportError(`ZIP 内文件过大：${name}`, 'BAD_REQUEST'));
           return;
         }
         total += entry.uncompressedSize;
-        if (total > MAX_TOTAL_BYTES) {
+        if (total > WECHAT_IMPORT_MAX_TOTAL_BYTES) {
           fail(new WeChatImportError('ZIP 解压总量超过限制', 'BAD_REQUEST'));
           return;
         }
@@ -175,10 +175,14 @@ function formatDateTime(date: Date): string {
  */
 export async function importWeChatShare(files: WeChatSharedFile[], options: WeChatImportOptions): Promise<WeChatImportResult> {
   if (files.length === 0) throw new WeChatImportError('没有收到可导入的文件');
-  if (files.length > MAX_FILE_COUNT) throw new WeChatImportError(`单次最多导入 ${MAX_FILE_COUNT} 个文件`);
+  if (files.length > WECHAT_IMPORT_MAX_FILE_COUNT) {
+    throw new WeChatImportError(`单次最多导入 ${WECHAT_IMPORT_MAX_FILE_COUNT} 个文件`);
+  }
   const totalBytes = files.reduce((sum, file) => sum + file.data.length, 0);
-  if (totalBytes > MAX_TOTAL_BYTES) throw new WeChatImportError('导入内容总量超过限制');
-  if (files.some((file) => file.data.length > MAX_SINGLE_FILE_BYTES)) throw new WeChatImportError('单个文件超过 100MB 限制');
+  if (totalBytes > WECHAT_IMPORT_MAX_TOTAL_BYTES) throw new WeChatImportError('导入内容总量超过限制');
+  if (files.some((file) => file.data.length > WECHAT_IMPORT_MAX_SINGLE_FILE_BYTES)) {
+    throw new WeChatImportError('单个文件超过 100MB 限制');
+  }
 
   // 归一化文件名，避免客户端传来路径或空名。
   const normalized = files.map((file, index) => {

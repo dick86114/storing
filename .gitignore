@@ -57,6 +57,9 @@ apps/android/local.properties
 /releases/android/*.apk
 /releases/android/latest.json
 
+# Self-hosted durable import queue payloads
+/data/
+
 # Local Android UI Lab screenshots and Emulator artifacts
 /artifacts/android-ui-lab/
 

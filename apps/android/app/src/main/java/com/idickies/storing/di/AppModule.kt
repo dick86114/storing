@@ -20,6 +20,7 @@ import com.idickies.storing.mcp.McpApi
 import com.idickies.storing.admin.AdminApi
 import com.idickies.storing.network.MobileReleaseApi
 import com.idickies.storing.network.WeChatImportApi
+import com.idickies.storing.network.WeChatImportNetwork
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -31,6 +32,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import com.idickies.storing.network.KotlinxSerializationFactory
+import javax.inject.Named
 import javax.inject.Singleton
 
 @Module
@@ -104,6 +106,24 @@ object AppModule {
 
   @Provides
   @Singleton
+  @Named("wechatImport")
+  fun provideWeChatImportHttpClient(baseClient: OkHttpClient): OkHttpClient =
+    WeChatImportNetwork.configure(baseClient.newBuilder()).build()
+
+  @Provides
+  @Singleton
+  @Named("wechatImport")
+  fun provideWeChatImportRetrofit(
+    @Named("wechatImport") okHttpClient: OkHttpClient,
+    json: Json,
+  ): Retrofit = Retrofit.Builder()
+    .baseUrl(ApiConfiguration.baseUrl)
+    .client(okHttpClient)
+    .addConverterFactory(KotlinxSerializationFactory.create(json))
+    .build()
+
+  @Provides
+  @Singleton
   fun provideMobileAuthApi(retrofit: Retrofit): MobileAuthApi = retrofit.create(MobileAuthApi::class.java)
 
   @Provides
@@ -124,7 +144,9 @@ object AppModule {
 
   @Provides
   @Singleton
-  fun provideWeChatImportApi(retrofit: Retrofit): WeChatImportApi = retrofit.create(WeChatImportApi::class.java)
+  fun provideWeChatImportApi(
+    @Named("wechatImport") retrofit: Retrofit,
+  ): WeChatImportApi = retrofit.create(WeChatImportApi::class.java)
 
   @Provides
   @Singleton
