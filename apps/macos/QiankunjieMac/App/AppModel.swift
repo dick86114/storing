@@ -166,6 +166,7 @@ final class AppModel {
         self.readerAPIClient = APIClient(tokenProvider: authModel.repository)
         self.bulkExportService = BulkArticleExportService(tokenProvider: authModel.repository)
         let bulkExportService = self.bulkExportService
+        let bulkObsidianService = BulkObsidianExportService(apiClient: readerAPIClient)
         self.searchModel = LibraryModel(
             repository: LibraryRepository(
                 apiClient: APIClient(tokenProvider: authModel.repository)
@@ -188,6 +189,17 @@ final class AppModel {
         self.libraryModel.bulkExportHandler = { job in
             let finishedJob = try await bulkExportService.poll(jobID: job.id)
             return try await bulkExportService.save(finishedJob)
+        }
+        self.libraryModel.bulkObsidianHandler = { articleIDs in
+            let summary = try await bulkObsidianService.export(articleIDs: articleIDs)
+            return NativeBulkResult(
+                requestedCount: articleIDs.count,
+                succeededCount: summary.succeededIDs.count,
+                skippedCount: 0,
+                issues: summary.failures.map {
+                    ArticleBulkIssue(articleID: $0.articleID, code: "EXPORT_FAILED", message: $0.message)
+                }
+            )
         }
 
         settingsModel.onUserStateCleared = { [weak self] in
