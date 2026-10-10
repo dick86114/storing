@@ -17,6 +17,10 @@ public final class LibraryModel {
     public private(set) var userID: Int?
     public private(set) var view: LibraryView = .inbox
     public private(set) var appliedSearchText = ""
+
+    public var isSearching: Bool {
+        !appliedSearchText.isEmpty
+    }
     public private(set) var sort: ArticleSort = .collected
     public private(set) var order: QiankunjieCore.SortOrder = .desc
     public private(set) var source: String?
@@ -113,10 +117,7 @@ public final class LibraryModel {
     }
 
     public func select(view: LibraryView) {
-        guard view != self.view else {
-            return
-        }
-
+        clearSearchState()
         self.view = view
         sort = ArticleSort.defaultSort(for: view)
         order = .desc
@@ -180,10 +181,14 @@ public final class LibraryModel {
     }
 
     public func clearSearch() {
-        searchDraft = ""
-        appliedSearchText = ""
+        clearSearchState()
         exitBulkMode()
         clearResults()
+    }
+
+    private func clearSearchState() {
+        searchDraft = ""
+        appliedSearchText = ""
     }
 
     public func clearResults() {

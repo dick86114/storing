@@ -12,9 +12,15 @@ struct LibraryToolbar: View {
     @State private var isBulkObsidianSheetPresented = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            header
-            controls
+        Group {
+            if model.isSearching {
+                searchResultsHeader
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    header
+                    controls
+                }
+            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 14)
@@ -83,6 +89,45 @@ struct LibraryToolbar: View {
                 subtitle: "已选 \(model.bulkSelection.count) 篇文章"
             )
         }
+    }
+
+    private var searchResultsHeader: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("搜索结果")
+                    .qiankunjieFont(.titleMedium)
+                    .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+
+                Text("“\(model.appliedSearchText)” · 全部资料库")
+                    .qiankunjieFont(.labelMedium)
+                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 12)
+
+            if model.isLoading || model.isRefreshing {
+                ProgressView()
+                    .controlSize(.small)
+            }
+
+            Button {
+                model.clearSearch()
+                reload()
+            } label: {
+                Label("清除", systemImage: "xmark.circle.fill")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .buttonStyle(.plain)
+            .help("清除搜索")
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+        .padding(.bottom, 12)
+        .background(QiankunjieColors.surfaceVariant(for: colorScheme))
     }
 
     private var isBulkActionDialogPresented: Binding<Bool> {
