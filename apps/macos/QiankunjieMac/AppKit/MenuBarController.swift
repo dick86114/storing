@@ -7,6 +7,7 @@ enum MenuBarState: Equatable {
 }
 
 struct MenuBarActions {
+    let openMainWindow: () -> Void
     let openSettings: () -> Void
     let checkForUpdates: () -> Void
     let reportIssue: () -> Void
@@ -14,6 +15,7 @@ struct MenuBarActions {
     let quit: () -> Void
 
     @MainActor static let noop = MenuBarActions(
+        openMainWindow: {},
         openSettings: {},
         checkForUpdates: {},
         reportIssue: {},
@@ -284,6 +286,7 @@ public final class MenuBarController: NSObject {
 
     private func makeStatusMenu() -> NSMenu {
         let menu = NSMenu()
+        menu.addItem(statusMenuItem(title: "打开主窗口", action: #selector(openMainWindowFromMenu)))
         menu.addItem(statusMenuItem(title: "设置", action: #selector(openSettingsFromMenu)))
         menu.addItem(statusMenuItem(title: "检测更新", action: #selector(checkForUpdatesFromMenu)))
         menu.addItem(statusMenuItem(title: "提交问题", action: #selector(reportIssueFromMenu)))
@@ -306,6 +309,13 @@ public final class MenuBarController: NSObject {
             at: NSPoint(x: 0, y: button.bounds.height + 4),
             in: button
         )
+    }
+
+    @objc private func openMainWindowFromMenu() {
+        MainActor.assumeIsolated {
+            panel.dismiss()
+            actions.openMainWindow()
+        }
     }
 
     @objc private func openSettingsFromMenu() {

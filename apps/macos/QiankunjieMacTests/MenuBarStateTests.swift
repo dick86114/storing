@@ -8,7 +8,7 @@ import Testing
 
 @MainActor
 struct MenuBarStateTests {
-    @Test func 右键菜单按固定顺序提供四项操作() {
+    @Test func 右键菜单按固定顺序提供打开主窗口和操作() {
         let model = CollectModel(userID: 7)
         let controller = MenuBarController(
             model: model,
@@ -20,13 +20,15 @@ struct MenuBarStateTests {
 
         controller.start()
 
-        #expect(controller.statusMenuTitles == ["设置", "检测更新", "提交问题", "关于 乾坤戒", "退出"])
+        #expect(controller.statusMenuTitles == ["打开主窗口", "设置", "检测更新", "提交问题", "关于 乾坤戒", "退出"])
     }
 
-    @Test func 右键菜单操作调用对应回调() {
+    @Test func 右键菜单操作调用对应回调并打开主窗口() {
         let model = CollectModel(userID: 7)
         var events: [String] = []
+        let panel = QuickCollectPanelSpy(model: model)
         let actions = MenuBarActions(
+            openMainWindow: { events.append("打开主窗口") },
             openSettings: { events.append("设置") },
             checkForUpdates: { events.append("检测更新") },
             reportIssue: { events.append("提交问题") },
@@ -35,7 +37,7 @@ struct MenuBarStateTests {
         )
         let controller = MenuBarController(
             model: model,
-            panel: QuickCollectPanelSpy(model: model),
+            panel: panel,
             hotKeys: HotKeyRegistrarSpy(),
             observerCenter: ObserverCenterSpy(),
             shortcut: .default,
@@ -43,11 +45,14 @@ struct MenuBarStateTests {
         )
 
         controller.start()
-        for index in 0..<controller.statusMenuTitles.count {
+        panel.present(from: nil)
+        #expect(panel.isPresented)
+        #expect(controller.performStatusMenuAction(at: 0))
+        #expect(!panel.isPresented)
+        for index in 1..<controller.statusMenuTitles.count {
             #expect(controller.performStatusMenuAction(at: index))
         }
-
-        #expect(events == ["设置", "检测更新", "提交问题", "关于 乾坤戒", "退出"])
+        #expect(events == ["打开主窗口", "设置", "检测更新", "提交问题", "关于 乾坤戒", "退出"])
     }
 
     @Test func 关闭最后一个普通窗口后隐藏Dock() {
@@ -319,18 +324,20 @@ struct MenuBarStateTests {
         #expect(CollectNotificationEvent(job: .fixture(status: "running")) == nil)
     }
 
-    @Test func 快速采集必须显式确认链接且编辑后重新确认() {
+    @Test func 快速采集输入链接后可以直接提交且编辑保留可提交状态() {
         let form = QuickCollectFormState()
 
         form.readFromPasteboard(" https://example.com/article ")
-        #expect(!form.canSubmit)
+        #expect(form.canSubmit)
+        #expect(form.confirmedURL == "https://example.com/article")
 
         form.confirmSubmission()
         #expect(form.canSubmit)
         #expect(form.confirmedURL == "https://example.com/article")
 
         form.editingChanged("https://example.com/changed")
-        #expect(!form.canSubmit)
+        #expect(form.canSubmit)
+        #expect(form.confirmedURL == "https://example.com/changed")
     }
 
     @Test func 终端任务通知只发送一次并按点击结果路由() async {

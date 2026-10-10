@@ -31,7 +31,7 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
     let model: CollectModel
     let authModel: AuthModel?
     let onAuthenticated: @MainActor () -> Void
-    private let onOpenMainWindow: @MainActor () -> Void
+    private var onOpenMainWindow: @MainActor () -> Void
     private var outsideClickMonitor: Any?
     private var localClickMonitor: Any?
     /// 菜单栏图标按下瞬间的面板状态。按钮 action 要等鼠标抬起才触发，
@@ -69,12 +69,16 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = true
+        self.onOpenMainWindow = { [weak self] in
+            self?.dismiss()
+            onOpenMainWindow()
+        }
         contentView = NSHostingController(
             rootView: QuickCollectView(
                 model: model,
                 authModel: authModel,
                 onAuthenticated: onAuthenticated,
-                onOpenMainWindow: onOpenMainWindow
+                onOpenMainWindow: self.onOpenMainWindow
             )
         ).view
     }
@@ -198,14 +202,13 @@ final class QuickCollectFormState {
     }
 
     var canSubmit: Bool {
-        isConfirmed && !confirmedURL.isEmpty
+        canConfirm
     }
 
     func readFromPasteboard(_ value: String?) {
         guard let value else { return }
         urlDraft = value
-        isConfirmed = false
-        confirmedURL = ""
+        confirmedURL = trimmedURL
     }
 
     func confirmSubmission() {
@@ -220,8 +223,7 @@ final class QuickCollectFormState {
 
     func editingChanged(_ value: String) {
         urlDraft = value
-        isConfirmed = false
-        confirmedURL = ""
+        confirmedURL = trimmedURL
     }
 
     func readSystemPasteboard(_ pasteboard: NSPasteboard) {
@@ -356,36 +358,8 @@ private struct QuickCollectView: View {
                 .disabled(!form.canSubmit || model.isSubmitting)
             }
 
-            if form.canConfirm {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("确认提交这个链接：")
-                        .qiankunjieFont(.labelMedium)
-                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                    Text(form.trimmedURL)
-                        .qiankunjieFont(.bodyMedium)
-                        .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
-                        .lineLimit(2)
-                    Toggle("我确认提交以上链接", isOn: confirmationBinding)
-                        .disabled(model.isSubmitting)
-                }
-            }
-
             errorMessages
         }
-    }
-
-    private var confirmationBinding: Binding<Bool> {
-        Binding(
-            get: { form.isConfirmed },
-            set: { value in
-                if value {
-                    form.confirmSubmission()
-                } else {
-                    form.isConfirmed = false
-                    form.confirmedURL = ""
-                }
-            }
-        )
     }
 
     @ViewBuilder
@@ -427,8 +401,10 @@ private struct QuickCollectView: View {
             if model.submitErrorMessage == "登录已失效，请重新登录" {
                 isLoginPresented = true
             }
-            form.isConfirmed = false
-            form.confirmedURL = ""
+            if model.submitErrorMessage == nil {
+                form.urlDraft = ""
+                form.confirmedURL = ""
+            }
         }
     }
 
@@ -437,7 +413,7 @@ private struct QuickCollectView: View {
         let url = form.confirmedURL
         await model.submit(url)
         if model.submitErrorMessage == nil {
-            form.isConfirmed = false
+            form.urlDraft = ""
             form.confirmedURL = ""
         }
     }

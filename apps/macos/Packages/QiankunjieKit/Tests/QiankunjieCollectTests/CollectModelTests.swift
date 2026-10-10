@@ -954,6 +954,7 @@ private actor 模拟采集仓库: CollectServicing {
     func resumePausedJobPoll(with result: Result<CollectJob, Error>) {
         guard let continuation = pausedJobContinuation else { return }
         pausedJobContinuation = nil
+        pauseJobPollsAfterRequestCount = nil
         continuation.resume(with: result)
     }
 }
