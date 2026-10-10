@@ -32,8 +32,10 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
     let authModel: AuthModel?
     let onAuthenticated: @MainActor () -> Void
     private var onOpenMainWindow: @MainActor () -> Void
+    private var onInputFocusChange: @MainActor (Bool) -> Void = { _ in }
     private var outsideClickMonitor: Any?
     private var localClickMonitor: Any?
+    private var isInputSessionActive = false
     /// 菜单栏图标按下瞬间的面板状态。按钮 action 要等鼠标抬起才触发，
     /// 期间面板可能已经被隐藏，直接读 `isVisible` 会把「收起」误判成「打开」。
     private var statusItemPressStartedVisible: Bool?
@@ -56,19 +58,24 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
 
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 420, height: 420),
-            styleMask: [.borderless],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
 
         level = .floating
         isFloatingPanel = true
-        hidesOnDeactivate = true
+        // 剪贴板、输入菜单等系统辅助界面可能让本应用短暂失焦；
+        // 外部点击由下面的事件监视器统一判定，这里不能抢先隐藏。
+        hidesOnDeactivate = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         animationBehavior = .utilityWindow
         isOpaque = false
         backgroundColor = .clear
         hasShadow = true
+        self.onInputFocusChange = { [weak self] isFocused in
+            self?.handleInputFocusChange(isFocused)
+        }
         self.onOpenMainWindow = { [weak self] in
             self?.dismiss()
             onOpenMainWindow()
@@ -78,13 +85,15 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
                 model: model,
                 authModel: authModel,
                 onAuthenticated: onAuthenticated,
-                onOpenMainWindow: self.onOpenMainWindow
+                onOpenMainWindow: self.onOpenMainWindow,
+                onInputFocusChange: self.onInputFocusChange
             )
         ).view
     }
 
     func present(from statusBarButton: NSStatusBarButton?) {
         statusItemPressStartedVisible = nil
+        isInputSessionActive = false
         if let statusBarButton,
             let buttonFrame = statusBarButton.window?.convertToScreen(
                 statusBarButton.convert(statusBarButton.bounds, to: nil)
@@ -98,13 +107,13 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
         } else if frame.origin == .zero {
             center()
         }
-        NSApp.activate(ignoringOtherApps: true)
-        makeKeyAndOrderFront(nil)
+        orderFrontRegardless()
         installOutsideClickMonitor()
     }
 
     func dismiss() {
         statusItemPressStartedVisible = nil
+        isInputSessionActive = false
         removeOutsideClickMonitor()
         guard isVisible else { return }
         orderOut(nil)
@@ -120,6 +129,12 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
         }
     }
 
+    /// 输入框一旦激活，本次展示期间就保持输入会话；失焦不撤销保护。
+    func handleInputFocusChange(_ isFocused: Bool) {
+        guard isFocused else { return }
+        isInputSessionActive = true
+    }
+
     /// 点面板之外立刻隐藏。
     ///
     /// 全局监视器负责其他应用；本应用内的点击用本地监视器处理。
@@ -131,7 +146,10 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] event in
-            guard !MainActor.assumeIsolated({ Self.isMenuBarClick(event) }) else { return }
+            guard MainActor.assumeIsolated({ () -> Bool in
+                guard let self else { return false }
+                return Self.shouldDismissOutsideClick(event, from: self)
+            }) else { return }
             Task { @MainActor in
                 self?.dismiss()
             }
@@ -141,11 +159,15 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
         ) { [weak self] event in
             let shouldDismiss = MainActor.assumeIsolated { () -> Bool in
                 guard let self else { return false }
-                guard !Self.isMenuBarClick(event) else {
-                    self.statusItemPressStartedVisible = self.isPresented
-                    return false
+                if Self.shouldDismissOutsideClick(
+                    event,
+                    from: self,
+                    isInputSessionActive: self.isInputSessionActive
+                ) {
+                    return true
                 }
-                return event.window !== self
+                self.statusItemPressStartedVisible = self.isPresented
+                return false
             }
             if shouldDismiss {
                 Task { @MainActor in
@@ -167,6 +189,29 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
         }
     }
 
+    /// 判断一次鼠标按下是否表示用户真的想离开快速采集面板。
+    ///
+    /// 菜单栏图标用于切换面板；AppKit 会把输入菜单、粘贴菜单等放在私有
+    /// `NSMenuWindowManagerWindow` 中。这些是输入流程的延续，不能视为外部点击。
+    static func shouldDismissOutsideClick(
+        _ event: NSEvent,
+        from panel: NSWindow? = nil,
+        isInputSessionActive: Bool = false,
+        windowClassName: String? = nil
+    ) -> Bool {
+        if isInputSessionActive {
+            return false
+        }
+        if let panel, event.window === panel {
+            return false
+        }
+        if isMenuBarClick(event) {
+            return false
+        }
+        let className = windowClassName ?? event.window?.className
+        return className != menuWindowClassName
+    }
+
     /// 点击菜单栏区域属于「再点一次图标」，不能当成点了面板外面。
     ///
     /// 本地事件能拿到状态栏窗口；全局事件的 `window` 为空，只能按屏幕位置判断——
@@ -184,6 +229,7 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
     }
 
     private static let statusBarWindowClassName = "NSStatusBarWindow"
+    private static let menuWindowClassName = "NSMenuWindowManagerWindow"
 }
 
 @Observable
@@ -236,8 +282,10 @@ private struct QuickCollectView: View {
     let authModel: AuthModel?
     let onAuthenticated: @MainActor () -> Void
     let onOpenMainWindow: @MainActor () -> Void
+    let onInputFocusChange: @MainActor (Bool) -> Void
     @State private var form = QuickCollectFormState()
     @State private var isLoginPresented = false
+    @FocusState private var isURLFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -329,9 +377,13 @@ private struct QuickCollectView: View {
                 )
             )
             .textFieldStyle(.roundedBorder)
+            .focused($isURLFocused)
             .autocorrectionDisabled()
             .disabled(model.isSubmitting)
             .accessibilityLabel("网页链接")
+            .onChange(of: isURLFocused) { _, isFocused in
+                onInputFocusChange(isFocused)
+            }
 
             HStack {
                 Button {
