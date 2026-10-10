@@ -29,6 +29,8 @@ services:
     volumes:
       # 可选：持久化日志
       - ./logs:/app/logs
+      # 微信导入队列的原始包先落盘，服务重启后仍可继续处理
+      - ./data:/app/data
       # Android 自托管更新清单；APK 由反向代理或静态服务提供
       - ./releases:/app/releases:ro
     healthcheck:

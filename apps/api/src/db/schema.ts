@@ -187,6 +187,31 @@ export const collectJobs = pgTable('collect_jobs', {
   finishedAt: timestamp('finished_at'),
 });
 
+/** 微信转发导入队列：请求只负责保存原始包，耗时解析和上图床由后台处理。 */
+export const wechatImportJobs = pgTable('wechat_import_jobs', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  requestSource: text('request_source').notNull().default('android'),
+  status: text('status').notNull().default('pending'),
+  stage: text('stage').notNull().default('queued'),
+  storageDir: text('storage_dir').notNull(),
+  payload: jsonb('payload').notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  articleId: integer('article_id').references(() => articles.id),
+  title: text('title'),
+  messageCount: integer('message_count'),
+  mediaCount: integer('media_count'),
+  uploadedMediaCount: integer('uploaded_media_count'),
+  error: text('error'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+  startedAt: timestamp('started_at'),
+  finishedAt: timestamp('finished_at'),
+}, (table) => [
+  index('wechat_import_jobs_user_created_idx').on(table.userId, table.createdAt),
+  index('wechat_import_jobs_status_idx').on(table.status, table.id),
+]);
+
 /** Durable audit history for privileged cross-user library administration. */
 export const adminAuditLogs = pgTable('admin_audit_logs', {
   id: serial('id').primaryKey(),

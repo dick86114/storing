@@ -20,7 +20,7 @@ class WeChatShareImportContractTest {
   }
 
   @Test
-  fun `receiver copies streams before upload and view model submits through the import repository`() {
+  fun `receiver copies streams before upload and view model submits through the async import queue`() {
     val receiver = read("src/main/java/com/idickies/storing/ShareReceiverActivity.kt")
     val viewModel = read("src/main/java/com/idickies/storing/collect/ShareCollectViewModel.kt")
     val repository = read("src/main/java/com/idickies/storing/collect/WeChatImportRepository.kt")
@@ -29,8 +29,10 @@ class WeChatShareImportContractTest {
     assertTrue(receiver.contains("readSharedFiles()"))
     assertTrue(receiver.contains("copyTo(output)"))
     assertTrue(viewModel.contains("receiveSharedFiles"))
-    assertTrue(viewModel.contains("weChatImportRepository.import(parts, manifest)"))
-    assertTrue(repository.contains("authenticatedRequest { api.import(files, manifest).result }"))
+    assertTrue(viewModel.contains("weChatImportRepository.importWithQueue(parts, manifest)"))
+    assertTrue(viewModel.contains("服务端已接收"))
+    assertTrue(repository.contains("authenticatedRequest { api.createJob(files, manifest).job }"))
+    assertTrue(repository.contains("authenticatedRequest { api.job(job.id).job }"))
   }
 
   @Test
