@@ -85,6 +85,10 @@ data class LibraryUiState(
   val isReadingOffline: Boolean = false,
   val downloadingOffline: Boolean = false,
   val offlineError: String? = null,
+  val bulkRunningAction: BulkToolbarAction? = null,
+  val bulkResult: NativeBulkResult? = null,
+  val bulkExportJob: ArticleBulkExportJob? = null,
+  val bulkExportDownloading: Boolean = false,
 ) {
   val hasMore: Boolean get() = LibraryPaging(page = page, totalPages = totalPages).hasMore
 }
@@ -94,6 +98,7 @@ class LibraryViewModel @Inject constructor(
   private val repository: ArticleRepository,
   private val readingPositionRepository: ReadingPositionRepository,
   private val offlineDownloadManager: OfflineDownloadManager,
+  private val bulkExportDownloader: BulkExportDownloader,
 ) : ViewModel() {
   private val mutableState = MutableStateFlow(LibraryUiState())
   val state = mutableState.asStateFlow()
@@ -104,6 +109,7 @@ class LibraryViewModel @Inject constructor(
   private var sourceLoadJob: Job? = null
   private var categoryLoadJob: Job? = null
   private var tagLoadJob: Job? = null
+  private var bulkExportPollJob: Job? = null
   private val lastSeenCounts = mutableMapOf<LibraryView, Int>()
 
   init {
@@ -860,6 +866,113 @@ class LibraryViewModel @Inject constructor(
   }
 
   fun clearProcessingError() = mutableState.update { it.copy(processingError = null) }
+
+  fun runBulkToolbarAction(action: BulkToolbarAction, ids: Set<Int>) {
+    if (action == BulkToolbarAction.SetCategory) return
+    if (mutableState.value.bulkRunningAction != null) return
+    val articleIds = validatedBulkArticleIds(ids)
+    mutableState.update { it.copy(bulkRunningAction = action, bulkResult = null, processingError = null) }
+    viewModelScope.launch {
+      runCatching {
+        when (action) {
+          BulkToolbarAction.ReclassifyCategory -> repository.bulkRegenerateAi(articleIds, includeCategory = true)
+          BulkToolbarAction.GenerateAi -> repository.bulkRegenerateAi(articleIds, includeCategory = false)
+          BulkToolbarAction.ExportZip -> repository.createBulkExport(articleIds)
+          else -> repository.bulkAction(action.toBulkArticleAction(), articleIds)
+        }
+      }.onSuccess { value ->
+        when (value) {
+          is ArticleBulkExportJob -> {
+            mutableState.update { it.copy(bulkExportJob = value) }
+            pollBulkExport(value.id)
+          }
+          is ArticleBulkAiResult -> {
+            val result = NativeBulkResult.from(value)
+            mutableState.update { it.copy(bulkResult = result, bulkRunningAction = null) }
+            loadInitial(refreshing = true, preserveLoadedContent = true)
+            loadCounts()
+          }
+          is ArticleBulkActionResult -> {
+            val result = NativeBulkResult.from(value)
+            mutableState.update { state ->
+              state.copy(
+                bulkResult = result,
+                bulkRunningAction = null,
+                articles = if (action == BulkToolbarAction.Delete || action == BulkToolbarAction.PermanentDelete) {
+                  state.articles.filterNot { it.id in value.succeededIds }
+                } else {
+                  state.articles
+                },
+              )
+            }
+            loadInitial(refreshing = true, preserveLoadedContent = true)
+            loadCounts()
+          }
+        }
+      }.onFailure { error ->
+        mutableState.update { it.copy(bulkRunningAction = null, processingError = error.message ?: "批量操作失败") }
+      }
+    }
+  }
+
+  fun runBulkCategory(ids: Set<Int>, categoryId: Int) {
+    if (mutableState.value.bulkRunningAction != null) return
+    val articleIds = validatedBulkArticleIds(ids)
+    mutableState.update { it.copy(bulkRunningAction = BulkToolbarAction.SetCategory) }
+    viewModelScope.launch {
+      runCatching { repository.moveToCategory(articleIds, categoryId) }
+        .onSuccess { result ->
+          val normalized = NativeBulkResult.from(result)
+          mutableState.update { state ->
+            state.copy(
+              bulkResult = normalized,
+              bulkRunningAction = null,
+              articles = state.articles.map { card ->
+                if (card.id !in result.succeededIds) card
+                else card.copy(category = state.archiveCategories.firstOrNull { it.id == categoryId })
+              },
+            )
+          }
+          loadInitial(refreshing = true, preserveLoadedContent = true)
+          loadCounts()
+          loadArchiveCategories(force = true)
+        }
+        .onFailure { error ->
+          mutableState.update { it.copy(bulkRunningAction = null, processingError = error.message ?: "批量修改分类失败") }
+        }
+    }
+  }
+
+  fun clearBulkResult() = mutableState.update { it.copy(bulkResult = null) }
+
+  fun downloadBulkExport() {
+    val job = mutableState.value.bulkExportJob ?: return
+    if (mutableState.value.bulkExportDownloading || job.status != ArticleBulkExportStatus.Succeeded) return
+    viewModelScope.launch {
+      mutableState.update { it.copy(bulkExportDownloading = true) }
+      runCatching { bulkExportDownloader.download(job) }
+        .onSuccess { mutableState.update { it.copy(bulkExportDownloading = false) } }
+        .onFailure { error -> mutableState.update { it.copy(bulkExportDownloading = false, processingError = error.message ?: "导出文件下载失败") } }
+    }
+  }
+
+  private fun pollBulkExport(jobId: Int) {
+    bulkExportPollJob?.cancel()
+    bulkExportPollJob = viewModelScope.launch {
+      while (true) {
+        delay(1_500)
+        runCatching { repository.bulkExport(jobId) }
+          .onSuccess { job ->
+            mutableState.update { it.copy(bulkExportJob = job) }
+            if (job.status == ArticleBulkExportStatus.Succeeded || job.status == ArticleBulkExportStatus.Failed) return@launch
+          }
+          .onFailure { error ->
+            mutableState.update { it.copy(processingError = error.message ?: "查询导出任务失败") }
+            return@launch
+          }
+      }
+    }
+  }
 
   fun downloadOffline(article: ArticleDetail) {
     if (mutableState.value.downloadingOffline) return

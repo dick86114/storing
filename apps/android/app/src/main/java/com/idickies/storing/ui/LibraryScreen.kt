@@ -208,6 +208,7 @@ import com.idickies.storing.library.ArchiveSourceFilter
 import com.idickies.storing.network.ArticleCounts
 import com.idickies.storing.network.MobileCollectJob
 import com.idickies.storing.library.LibraryView
+import com.idickies.storing.library.BulkToolbarAction
 import com.idickies.storing.library.LibrarySort
 import com.idickies.storing.library.librarySortOrderOptions
 import com.idickies.storing.library.LibraryViewModel
@@ -226,6 +227,7 @@ import com.idickies.storing.reader.ReaderDocument
 import com.idickies.storing.ui.components.QiankunjieArticleCard
 import com.idickies.storing.ui.components.QiankunjieGridArticleCard
 import com.idickies.storing.ui.components.QiankunjieCompactArticleRow
+import com.idickies.storing.ui.components.AndroidBulkActionBar
 import com.idickies.storing.ui.theme.ThemeMode
 
 internal enum class LibraryTabInteraction { Select, ScrollToStart, Refresh }
@@ -1245,7 +1247,10 @@ fun LibraryScreen(
           onOpenTasks = { showTasks = true }, onSort = libraryViewModel::selectSort, onToggleSortOrder = libraryViewModel::toggleSortOrder,
           onResetSort = libraryViewModel::resetSort, sortOrder = state.sortOrder, presentationMode = presentationMode,
           onPresentationModeChange = libraryLayoutViewModel::setPresentationMode, onArchiveSources = libraryViewModel::selectArchiveSources, onArchiveTags = libraryViewModel::selectArchiveTags, onArchiveCategory = libraryViewModel::selectArchiveCategory,
-          onBatchMoveToCategory = { articleIds, categoryId, onComplete -> libraryViewModel.moveToCategory(articleIds, categoryId, onComplete) }, onBatchReclassify = { articleIds, onComplete -> libraryViewModel.reclassify(articleIds, onComplete) }, batchCategoryUpdating = state.batchCategoryUpdating,
+          onBulkToolbarAction = libraryViewModel::runBulkToolbarAction,
+          onBulkCategory = libraryViewModel::runBulkCategory,
+          onDownloadBulkExport = libraryViewModel::downloadBulkExport,
+          onClearBulkResult = libraryViewModel::clearBulkResult,
           onCreateCategory = libraryViewModel::createArchiveCategory,
           onCategoryStripPressedChanged = { pressed -> categoryStripPressed = pressed },
           onRefresh = ::refreshListPreservingPosition, onLoadMore = libraryViewModel::loadMore, onOpen = libraryViewModel::open,
@@ -1852,9 +1857,10 @@ private fun LibraryList(
   onArchiveSources: (Set<String>) -> Unit,
   onArchiveTags: (List<String>) -> Unit,
   onArchiveCategory: (Int?) -> Unit,
-  onBatchMoveToCategory: (Set<Int>, Int, (Boolean) -> Unit) -> Unit,
-  onBatchReclassify: (Set<Int>, (Boolean) -> Unit) -> Unit,
-  batchCategoryUpdating: Boolean,
+  onBulkToolbarAction: (BulkToolbarAction, Set<Int>) -> Unit,
+  onBulkCategory: (Set<Int>, Int) -> Unit,
+  onDownloadBulkExport: () -> Unit,
+  onClearBulkResult: () -> Unit,
   onCreateCategory: (String, (ArticleCategory?, String?) -> Unit) -> Unit,
   onCategoryStripPressedChanged: (Boolean) -> Unit,
   onRefresh: () -> Unit,
@@ -1871,6 +1877,9 @@ private fun LibraryList(
   var selectedArticleIds by remember { mutableStateOf<Set<Int>>(emptySet()) }
   var batchCategoryPickerOpen by remember { mutableStateOf(false) }
   val gridState = rememberLazyStaggeredGridState()
+  LaunchedEffect(state.articles) {
+    selectedArticleIds = selectedArticleIds intersect state.articles.map { it.id }.toSet()
+  }
   val lastVisibleItemIndex by remember { derivedStateOf { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 } }
   LaunchedEffect(lastVisibleItemIndex, state.articles.size, state.hasMore, state.loadingMore, state.fromCache) {
     if (!state.loadingMore && !state.fromCache && shouldLoadMore(lastVisibleItemIndex, gridState.layoutInfo.totalItemsCount, state.hasMore)) onLoadMore()
@@ -1930,34 +1939,28 @@ private fun LibraryList(
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically,
         ) {
-          if (state.view == LibraryView.Archive && state.searchQuery.isBlank()) {
-            if (batchMode) {
-              Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("已选 ${selectedArticleIds.size}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                TextButton(onClick = { batchCategoryPickerOpen = true }, enabled = selectedArticleIds.isNotEmpty() && !batchCategoryUpdating) { Text("改分类") }
-                TextButton(
-                  onClick = {
-                    onBatchReclassify(selectedArticleIds) { succeeded ->
-                      if (succeeded) {
-                        batchMode = false
-                        selectedArticleIds = emptySet()
-                      }
-                    }
-                  },
-                  enabled = selectedArticleIds.isNotEmpty() && !batchCategoryUpdating,
-                ) { Text("重判") }
-                TextButton(onClick = { batchMode = false; selectedArticleIds = emptySet() }, enabled = !batchCategoryUpdating) { Text("取消") }
+          AndroidBulkActionBar(
+            view = state.view,
+            selectedIds = selectedArticleIds,
+            runningAction = state.bulkRunningAction,
+            result = state.bulkResult,
+            exportJob = state.bulkExportJob,
+            downloadingExport = state.bulkExportDownloading,
+            onEnter = {},
+            onExit = { selectedArticleIds = emptySet() },
+            onToggle = { id -> selectedArticleIds = toggleArchiveBatchSelection(selectedArticleIds, id) },
+            onSelectAll = { selectedArticleIds = state.articles.map { it.id }.toSet() },
+            onInvert = { selectedArticleIds = state.articles.map { it.id }.toSet() - selectedArticleIds },
+            onAction = { action, ids ->
+              if (action == BulkToolbarAction.SetCategory) {
+                batchCategoryPickerOpen = true
+              } else {
+                onBulkToolbarAction(action, ids)
               }
-            } else {
-              TextButton(onClick = { batchMode = true }) {
-                Icon(Icons.Outlined.TaskAlt, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("批量整理")
-              }
-            }
-          } else {
-            Spacer(Modifier.width(1.dp))
-          }
+            },
+            onDismissResult = onClearBulkResult,
+            onDownloadExport = onDownloadBulkExport,
+          )
           if (!batchMode) Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
           if (state.view != LibraryView.Published && state.searchQuery.isBlank()) {
             Box {
@@ -2153,20 +2156,14 @@ private fun LibraryList(
     }
   }
   if (batchCategoryPickerOpen) CategoryAssignmentDialog(
-    onDismissRequest = { if (!batchCategoryUpdating) batchCategoryPickerOpen = false },
+    onDismissRequest = { batchCategoryPickerOpen = false },
     title = "批量修改分类",
     subtitle = "为已选 ${selectedArticleIds.size} 篇文章选择一个预设分类。",
     categories = state.archiveCategories,
     currentCategoryId = null,
-    loading = batchCategoryUpdating,
+    loading = state.bulkRunningAction != null,
     onSelect = { categoryId ->
-      onBatchMoveToCategory(selectedArticleIds, categoryId) { succeeded ->
-        if (succeeded) {
-          batchCategoryPickerOpen = false
-          batchMode = false
-          selectedArticleIds = emptySet()
-        }
-      }
+      onBulkCategory(selectedArticleIds, categoryId)
     },
     onCreateCategory = onCreateCategory,
   )
