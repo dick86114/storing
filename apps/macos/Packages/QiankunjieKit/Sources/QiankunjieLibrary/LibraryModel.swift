@@ -48,6 +48,7 @@ public final class LibraryModel {
     private let cache: any LibraryCaching
     private var requestGeneration = 0
     public var bulkExportHandler: (@MainActor (ArticleBulkExportJob) async throws -> URL)?
+    public var bulkObsidianHandler: (@MainActor ([Int]) async throws -> NativeBulkResult)?
 
     public init(
         repository: any LibraryLoading = LibraryRepository(),
@@ -405,8 +406,13 @@ public final class LibraryModel {
 
         do {
             switch action {
-            case .setCategory, .bulkObsidian:
+            case .setCategory:
                 return
+            case .bulkObsidian:
+                guard let bulkObsidianHandler else {
+                    return
+                }
+                bulkResult = try await bulkObsidianHandler(articleIDs)
             case .exportZIP:
                 let job = try await bulkRepository.runCreateBulkExport(articleIDs: articleIDs)
                 if let bulkExportHandler {
