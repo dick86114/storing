@@ -9,6 +9,7 @@ import { useAuth } from '@/components/providers/AuthContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { SideNavPortal } from '@/components/layout/SideNavSlot';
 import { ArticleList } from '@/components/article/ArticleList';
+import { BulkActionBar, type BulkToolbarAction } from '@/components/article/BulkActionBar';
 import { ListToolbar } from '@/components/article/ListToolbar';
 import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type ArticleSortOption } from '@/components/article/ArticleSortControl';
 import { SourceSidebar } from '@/components/archive/SourceSidebar';
@@ -19,8 +20,10 @@ import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { api, type ArchiveTag } from '@/lib/api';
 import { scrollListToTop, setListScrollTop } from '@/lib/listScroll';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
+import { useArticleSelection } from '@/hooks/useArticleSelection';
+import { useBulkArticleActions } from '@/hooks/useBulkArticleActions';
 import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
-import type { ArticleListItem } from '@storing/shared';
+import type { ArticleBulkAiResult, ArticleBulkActionResult, ArticleListItem } from '@storing/shared';
 
 const ARCHIVE_SORT_OPTIONS: ArticleSortOption[] = [
   { value: 'archived', label: '最近归档' },
@@ -54,9 +57,8 @@ function ArchiveContentInner() {
   const [requestTimedOut, setRequestTimedOut] = useState(false);
   const [sourceSidebarCollapsed, setSourceSidebarCollapsed] = useState(false);
   const [bulkMode, setBulkMode] = useState(false);
-  const [selectedArticleIds, setSelectedArticleIds] = useState<Set<number>>(new Set());
   const [bulkCategoryPickerOpen, setBulkCategoryPickerOpen] = useState(false);
-  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkResult, setBulkResult] = useState<ArticleBulkActionResult | ArticleBulkAiResult | null>(null);
   const removingIdsRef = useRef<Set<number>>(new Set());
   const allArticlesRef = useRef(allArticles);
   allArticlesRef.current = allArticles;
@@ -93,6 +95,9 @@ function ArchiveContentInner() {
   const categoryCounts = Object.fromEntries(Object.entries(categoryData?.counts ?? {}).map(([id, count]) => [Number(id), count]));
   const totalCount = Object.values(categoryData?.counts ?? {}).reduce((sum, count) => sum + count, 0);
   const archiveTags = tagsData ?? [];
+  const articleIds = useMemo(() => allArticles.map((article) => article.id), [allArticles]);
+  const selection = useArticleSelection(articleIds);
+  const bulkActions = useBulkArticleActions();
 
   useEffect(() => {
     if (data?.articles) {
@@ -117,28 +122,45 @@ function ArchiveContentInner() {
     return () => window.clearTimeout(timer);
   }, [isLoading, page]);
 
+  const confirmSelectionClear = useCallback(() => {
+    if (!bulkMode || selection.selectedIds.size === 0) return true;
+    if (!window.confirm('切换筛选会清空已选文章，继续吗？')) return false;
+    selection.clear();
+    return true;
+  }, [bulkMode, selection]);
+
   const handleSourceSelect = useCallback((source: string) => {
     if (source === activeSource) return;
+    if (!confirmSelectionClear()) return;
     setActiveSource(source);
     setPage(1);
     removingIdsRef.current.clear();
     scrollListToTop();
-  }, [activeSource]);
+  }, [activeSource, confirmSelectionClear]);
 
   const handleCategorySelect = useCallback((categoryId: number | null) => {
     if (categoryId === activeCategoryId) return;
+    if (!confirmSelectionClear()) return;
     setActiveCategoryId(categoryId);
     setPage(1);
     removingIdsRef.current.clear();
     scrollListToTop();
-  }, [activeCategoryId]);
+  }, [activeCategoryId, confirmSelectionClear]);
 
   const toggleTag = useCallback((tag: string) => {
+    if (!selection.selectedIds.size && !bulkMode) {
+      setActiveTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]);
+      setPage(1);
+      removingIdsRef.current.clear();
+      scrollListToTop();
+      return;
+    }
+    if (!confirmSelectionClear()) return;
     setActiveTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]);
     setPage(1);
     removingIdsRef.current.clear();
     scrollListToTop();
-  }, []);
+  }, [bulkMode, confirmSelectionClear, selection]);
 
   const clearTags = useCallback(() => {
     setActiveTags([]);
@@ -157,19 +179,21 @@ function ArchiveContentInner() {
 
   const handleArticleSortChange = useCallback((sort: ArticleSortKey) => {
     if (sort === articleSort) return;
+    if (!confirmSelectionClear()) return;
     setArticleSort(sort);
     setPage(1);
     removingIdsRef.current.clear();
     scrollListToTop();
-  }, [articleSort]);
+  }, [articleSort, confirmSelectionClear]);
 
   const handleArticleSortOrderChange = useCallback((order: ArticleSortOrder) => {
     if (order === articleSortOrder) return;
+    if (!confirmSelectionClear()) return;
     setArticleSortOrder(order);
     setPage(1);
     removingIdsRef.current.clear();
     scrollListToTop();
-  }, [articleSortOrder]);
+  }, [articleSortOrder, confirmSelectionClear]);
 
   const refreshList = useCallback(async (mutation?: ArticleListMutation) => {
     if (mutation?.type === 'remove') {
@@ -260,36 +284,26 @@ function ArchiveContentInner() {
     }
   }, [unarchive, showToast, refreshList]);
 
-  const handleSelectionChange = useCallback((id: number, selected: boolean) => {
-    setSelectedArticleIds((current) => {
-      const next = new Set(current);
-      if (selected) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  }, []);
-
   const exitBulkMode = useCallback(() => {
     setBulkMode(false);
-    setSelectedArticleIds(new Set());
+    selection.clear();
     setBulkCategoryPickerOpen(false);
-  }, []);
+    setBulkResult(null);
+  }, [selection]);
 
   const handleBulkCategorySelect = useCallback(async (categoryId: number) => {
-    if (selectedArticleIds.size === 0 || bulkSaving) return;
-    setBulkSaving(true);
+    const ids = [...selection.selectedIds];
+    if (ids.length === 0 || bulkActions.loadingAction !== null) return;
     try {
-      const result = await api.bulkMoveArticlesToCategory([...selectedArticleIds], categoryId);
+      const result = await api.bulkSetCategory(ids, categoryId);
       const category = categories.find((item) => item.id === categoryId);
-      showToast(`已将 ${result.updatedCount} 篇文章归入${category?.name || '所选分类'}`);
-      exitBulkMode();
+      showToast(`已将 ${result.succeededIds.length} 篇文章归入${category?.name || '所选分类'}`);
+      setBulkResult(result);
       await refreshList();
     } catch (error) {
       showToast(error instanceof Error ? error.message : '批量修改分类失败');
-    } finally {
-      setBulkSaving(false);
     }
-  }, [bulkSaving, categories, exitBulkMode, refreshList, selectedArticleIds, showToast]);
+  }, [bulkActions.loadingAction, categories, refreshList, selection, showToast]);
 
   const handleCreateCategory = useCallback(async (name: string) => {
     const created = await api.createCategory({
@@ -303,25 +317,34 @@ function ArchiveContentInner() {
     return created;
   }, [globalMutate]);
 
-  const confirmBulkClassify = useCallback(async () => {
-    if (selectedArticleIds.size === 0 || bulkSaving) return;
-    setBulkSaving(true);
+  const handleBulkAction = useCallback(async (action: BulkToolbarAction) => {
+    const ids = [...selection.selectedIds];
+    if (ids.length === 0) return;
     try {
-      const result = await api.bulkClassifyArticles([...selectedArticleIds]);
-      const notices = [
-        result.classifiedArticleIds.length ? `已重新判断 ${result.classifiedArticleIds.length} 篇` : '',
-        result.skipped.length ? `跳过 ${result.skipped.length} 篇人工确认或非归档文章` : '',
-        result.failed.length ? `${result.failed.length} 篇失败` : '',
-      ].filter(Boolean);
-      showToast(notices.join('，') || '没有可重新判断的文章');
-      exitBulkMode();
+      if (action === 'set-category') {
+        setBulkCategoryPickerOpen(true);
+        return;
+      }
+      if (action === 'generate-ai' || action === 'reclassify') {
+        setBulkResult(await bulkActions.runAi(ids, action === 'reclassify'));
+      } else if (action === 'export-zip' || action === 'export-obsidian') {
+        await bulkActions.createExport({
+          articleIds: ids,
+          format: action === 'export-obsidian' ? 'obsidian' : 'zip',
+          includeAi: true,
+          organizeByCategory: true,
+        });
+        showToast('导出任务已创建');
+      } else {
+        const result = await bulkActions.runAction(action, ids);
+        setBulkResult(result);
+        if (action === 'delete' || action === 'permanent_delete') selection.remove(ids);
+      }
       await refreshList();
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '批量重新判断分类失败');
-    } finally {
-      setBulkSaving(false);
+      showToast(error instanceof Error ? error.message : '批量操作失败');
     }
-  }, [bulkSaving, exitBulkMode, refreshList, selectedArticleIds, showToast]);
+  }, [bulkActions, refreshList, selection, showToast]);
 
   const articleListContent = (error || requestTimedOut) && page === 1 ? (
     <div style={{ color: 'var(--text-muted)', padding: '48px 16px', textAlign: 'center' }}>
@@ -343,18 +366,21 @@ function ArchiveContentInner() {
     <>
       <ListToolbar
         start={isAuthenticated ? (
-          <div className="archive-bulk-toolbar">
-            {bulkMode ? (
-              <>
-                <span>已选择 {selectedArticleIds.size} 篇</span>
-                <button type="button" onClick={() => setBulkCategoryPickerOpen(true)} disabled={selectedArticleIds.size === 0}>修改分类</button>
-                <button type="button" onClick={confirmBulkClassify} disabled={selectedArticleIds.size === 0 || bulkSaving}>重新判断分类</button>
-                <button type="button" onClick={exitBulkMode}>取消</button>
-              </>
-            ) : (
-              <button type="button" onClick={() => setBulkMode(true)}>批量整理</button>
-            )}
-          </div>
+          <BulkActionBar
+            loading={bulkActions.loadingAction !== null}
+            mode={bulkMode}
+            onAction={handleBulkAction}
+            onInvert={selection.invert}
+            onSelectAll={selection.selectAllLoaded}
+            onResultClose={() => setBulkResult(null)}
+            onToggleMode={() => {
+              setBulkMode((current) => !current);
+              selection.clear();
+            }}
+            result={bulkResult}
+            selectedCount={selection.selectedIds.size}
+            view="archive"
+          />
         ) : null}
         end={(
           <ArticleSortControl
@@ -378,8 +404,8 @@ function ArchiveContentInner() {
         showMenu={isAuthenticated}
         highlightId={highlightId}
         selectable={bulkMode}
-        selectedArticleIds={selectedArticleIds}
-        onSelectionChange={handleSelectionChange}
+        selectedArticleIds={selection.selectedIds}
+        onSelectionChange={(id) => selection.toggle(id)}
       />
     </>
   );
@@ -492,7 +518,7 @@ function ArchiveContentInner() {
         <CategoryAssignmentDialog
           categories={categories}
           currentCategoryId={null}
-          loading={bulkSaving}
+          loading={bulkActions.loadingAction !== null}
           onClose={() => setBulkCategoryPickerOpen(false)}
           onSelect={handleBulkCategorySelect}
           onCreateCategory={handleCreateCategory}

@@ -8,11 +8,11 @@ const articleCard = readFileSync(new URL('../src/components/article/WechatArticl
 const apiClient = readFileSync(new URL('../src/lib/api.ts', import.meta.url), 'utf8');
 
 test('归档支持勾选多篇文章后批量修改分类', () => {
-  assert.match(apiClient, /bulkMoveArticlesToCategory/);
+  assert.match(apiClient, /bulkSetCategory/);
   assert.match(apiClient, /bulkClassifyArticles/);
-  assert.match(archiveContent, /批量整理/);
-  assert.match(archiveContent, /api\.bulkMoveArticlesToCategory/);
-  assert.match(archiveContent, /api\.bulkClassifyArticles/);
+  assert.match(archiveContent, /<BulkActionBar/);
+  assert.match(archiveContent, /api\.bulkSetCategory/);
+  assert.match(archiveContent, /bulkActions\.runAi/);
   assert.match(archiveContent, /api\.createCategory/);
   assert.match(archiveContent, /onCreateCategory/);
   assert.match(articleList, /selectedArticleIds/);

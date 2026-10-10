@@ -1,20 +1,23 @@
 'use client';
 
-import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
+import { Suspense, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { useToast } from '@/components/ui/Toast';
 import { useArticleContext, type ArticleListMutation } from '@/components/providers/ArticleContext';
 import { useAuth } from '@/components/providers/AuthContext';
 import { ArticleList } from '@/components/article/ArticleList';
+import { BulkActionBar, type BulkToolbarAction } from '@/components/article/BulkActionBar';
 import { ListToolbar } from '@/components/article/ListToolbar';
 import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type ArticleSortOption } from '@/components/article/ArticleSortControl';
 import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { api } from '@/lib/api';
 import { scrollListToTop, setListScrollTop } from '@/lib/listScroll';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
+import { useArticleSelection } from '@/hooks/useArticleSelection';
+import { useBulkArticleActions } from '@/hooks/useBulkArticleActions';
 import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
-import type { ArticleListItem } from '@storing/shared';
+import type { ArticleBulkAiResult, ArticleBulkActionResult, ArticleListItem } from '@storing/shared';
 
 const FAVORITES_SORT_OPTIONS: ArticleSortOption[] = [
   { value: 'favorited', label: '最近收藏' },
@@ -49,7 +52,19 @@ function FavoritesContentInner() {
   const [articleSortOrder, setArticleSortOrder] = useState<ArticleSortOrder>('desc');
   const [allArticles, setAllArticles] = useState<ArticleListItem[]>([]);
   const [requestTimedOut, setRequestTimedOut] = useState(false);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkResult, setBulkResult] = useState<ArticleBulkActionResult | ArticleBulkAiResult | null>(null);
   const removingIdsRef = useRef<Set<number>>(new Set());
+  const articleIds = useMemo(() => allArticles.map((article) => article.id), [allArticles]);
+  const selection = useArticleSelection(articleIds);
+  const bulkActions = useBulkArticleActions();
+
+  const confirmSelectionClear = useCallback(() => {
+    if (!bulkMode || selection.selectedIds.size === 0) return true;
+    if (!window.confirm('切换筛选会清空已选文章，继续吗？')) return false;
+    selection.clear();
+    return true;
+  }, [bulkMode, selection]);
   const allArticlesRef = useRef(allArticles);
   allArticlesRef.current = allArticles;
 
@@ -131,19 +146,21 @@ function FavoritesContentInner() {
 
   const handleSortChange = useCallback((sort: ArticleSortKey) => {
     if (sort === articleSort) return;
+    if (!confirmSelectionClear()) return;
     setArticleSort(sort);
     setPage(1);
     removingIdsRef.current.clear();
     scrollListToTop();
-  }, [articleSort]);
+  }, [articleSort, confirmSelectionClear]);
 
   const handleSortOrderChange = useCallback((order: ArticleSortOrder) => {
     if (order === articleSortOrder) return;
+    if (!confirmSelectionClear()) return;
     setArticleSortOrder(order);
     setPage(1);
     removingIdsRef.current.clear();
     scrollListToTop();
-  }, [articleSortOrder]);
+  }, [articleSortOrder, confirmSelectionClear]);
 
   useEffect(() => { setMutateFn(refreshList); }, [setMutateFn, refreshList]);
 
@@ -189,6 +206,31 @@ function FavoritesContentInner() {
       showToast(wasArchived ? '取消归档失败，请重试' : '归档失败，请重试');
     }
   }, [updateArticleInView, refreshCounts, showToast, refreshList]);
+
+  const handleBulkAction = useCallback(async (action: BulkToolbarAction) => {
+    const ids = [...selection.selectedIds];
+    if (ids.length === 0) return;
+    try {
+      if (action === 'set-category') return;
+      if (action === 'generate-ai' || action === 'reclassify') {
+        setBulkResult(await bulkActions.runAi(ids, action === 'reclassify'));
+      } else if (action === 'export-zip' || action === 'export-obsidian') {
+        await bulkActions.createExport({
+          articleIds: ids,
+          format: action === 'export-obsidian' ? 'obsidian' : 'zip',
+          includeAi: true,
+          organizeByCategory: true,
+        });
+        showToast('导出任务已创建');
+      } else {
+        const result = await bulkActions.runAction(action, ids);
+        setBulkResult(result);
+        if (action === 'delete' || action === 'permanent_delete') selection.remove(ids);
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '批量操作失败');
+    }
+  }, [bulkActions, selection, showToast]);
 
   return (
     <>
@@ -279,6 +321,23 @@ function FavoritesContentInner() {
         ) : (
           <>
             <ListToolbar
+              start={isAuthenticated ? (
+                <BulkActionBar
+                  loading={bulkActions.loadingAction !== null}
+                  mode={bulkMode}
+                  onAction={handleBulkAction}
+                  onInvert={selection.invert}
+                  onSelectAll={selection.selectAllLoaded}
+                  onResultClose={() => setBulkResult(null)}
+                  onToggleMode={() => {
+                    setBulkMode((current) => !current);
+                    selection.clear();
+                  }}
+                  result={bulkResult}
+                  selectedCount={selection.selectedIds.size}
+                  view="favorites"
+                />
+              ) : undefined}
               end={(
                 <ArticleSortControl
                   options={FAVORITES_SORT_OPTIONS}
@@ -299,6 +358,9 @@ function FavoritesContentInner() {
               onToggleFavorite={handleToggleFavorite}
               onArchive={handleArchive}
               highlightId={highlightId}
+              selectable={bulkMode}
+              selectedArticleIds={selection.selectedIds}
+              onSelectionChange={(id) => selection.toggle(id)}
             />
           </>
         )}
