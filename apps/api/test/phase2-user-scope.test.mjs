@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const root = new URL('../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, root), 'utf8');
+const bulkService = read('src/services/article-bulk.service.ts');
 
 test('AI metadata writes are scoped by userId', () => {
   const ai = read('src/services/ai.service.ts');
@@ -50,8 +51,10 @@ test('articles route exposes publish and unpublish endpoints with auth', () => {
   const route = read('src/routes/articles.ts');
   assert.match(route, /articlesRoutes\.post\('\/articles\/:id\/publish', requireAuth/);
   assert.match(route, /articlesRoutes\.post\('\/articles\/:id\/unpublish', requireAuth/);
-  assert.match(route, /isPublished: true/);
-  assert.match(route, /isPublished: false/);
+  assert.match(route, /publishArticleForUser/);
+  assert.match(route, /unpublishArticleForUser/);
+  assert.match(bulkService, /isPublished: true/);
+  assert.match(bulkService, /isPublished: false/);
 });
 
 test('published view is accessible without auth via is_published filter', () => {
