@@ -7,6 +7,8 @@ import com.idickies.storing.auth.DeviceIdentityProvider
 import com.idickies.storing.auth.KeystoreSessionStore
 import com.idickies.storing.auth.SessionStore
 import com.idickies.storing.database.ArticleCacheDatabase
+import com.idickies.storing.library.BulkExportDownloader
+import com.idickies.storing.library.MediaStoreBulkExportDownloader
 import com.idickies.storing.database.ReadingPositionDao
 import com.idickies.storing.offline.OfflineArticleDao
 import com.idickies.storing.network.AccessTokenInterceptor
@@ -164,4 +166,12 @@ abstract class AuthBindingsModule {
   @Binds
   @Singleton
   abstract fun bindMobileSessionAuthenticator(authRepository: com.idickies.storing.auth.AuthRepository): com.idickies.storing.auth.MobileSessionAuthenticator
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class LibraryBindingsModule {
+  @Binds
+  @Singleton
+  abstract fun bindBulkExportDownloader(downloader: MediaStoreBulkExportDownloader): BulkExportDownloader
 }
