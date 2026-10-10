@@ -1941,13 +1941,17 @@ private fun LibraryList(
         ) {
           AndroidBulkActionBar(
             view = state.view,
+            isSelecting = batchMode,
             selectedIds = selectedArticleIds,
             runningAction = state.bulkRunningAction,
             result = state.bulkResult,
             exportJob = state.bulkExportJob,
             downloadingExport = state.bulkExportDownloading,
-            onEnter = {},
-            onExit = { selectedArticleIds = emptySet() },
+            onEnter = { batchMode = true },
+            onExit = {
+              batchMode = false
+              selectedArticleIds = emptySet()
+            },
             onToggle = { id -> selectedArticleIds = toggleArchiveBatchSelection(selectedArticleIds, id) },
             onSelectAll = { selectedArticleIds = state.articles.map { it.id }.toSet() },
             onInvert = { selectedArticleIds = state.articles.map { it.id }.toSet() - selectedArticleIds },
