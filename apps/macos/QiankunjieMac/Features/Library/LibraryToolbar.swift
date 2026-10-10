@@ -7,6 +7,8 @@ struct LibraryToolbar: View {
     @Bindable var model: LibraryModel
     @Binding var presentationMode: ArticleListPresentationMode
     @Environment(\.colorScheme) private var colorScheme
+    @State private var pendingBulkAction: BulkToolbarAction?
+    @State private var pendingBulkCategory: LibraryCategoryFilter?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -17,6 +19,76 @@ struct LibraryToolbar: View {
         .padding(.top, 14)
         .padding(.bottom, 12)
         .background(QiankunjieColors.surfaceVariant(for: colorScheme))
+        .confirmationDialog(
+            pendingBulkConfirmation?.title ?? "确认批量操作",
+            isPresented: isBulkActionDialogPresented,
+            presenting: pendingBulkAction
+        ) { action in
+            Button(
+                BulkToolbarPolicy.confirmation(for: action, selectedCount: model.bulkSelection.count).confirmTitle,
+                role: BulkToolbarPolicy.confirmation(for: action, selectedCount: model.bulkSelection.count).isDestructive ? .destructive : nil
+            ) {
+                runBulkToolbarAction(action)
+            }
+            Button("取消", role: .cancel) {}
+        } message: { _ in
+            Text(pendingBulkConfirmation?.message ?? "")
+        }
+        .confirmationDialog(
+            categoryConfirmation?.title ?? "设置分类",
+            isPresented: isBulkCategoryDialogPresented,
+            presenting: pendingBulkCategory
+        ) { category in
+            Button("设置分类") {
+                runBulkCategory(category)
+            }
+            Button("取消", role: .cancel) {}
+        } message: { _ in
+            Text(categoryConfirmation?.message ?? "")
+        }
+        .alert(
+            "批量操作结果",
+            isPresented: isBulkResultAlertPresented
+        ) {
+            Button("完成", role: .cancel) {
+                model.clearBulkResult()
+            }
+        } message: {
+            Text(resultMessage)
+        }
+    }
+
+    private var isBulkActionDialogPresented: Binding<Bool> {
+        Binding(
+            get: { pendingBulkAction != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingBulkAction = nil
+                }
+            }
+        )
+    }
+
+    private var isBulkCategoryDialogPresented: Binding<Bool> {
+        Binding(
+            get: { pendingBulkCategory != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingBulkCategory = nil
+                }
+            }
+        )
+    }
+
+    private var isBulkResultAlertPresented: Binding<Bool> {
+        Binding(
+            get: { model.bulkResult != nil },
+            set: { isPresented in
+                if !isPresented {
+                    model.clearBulkResult()
+                }
+            }
+        )
     }
 
     private var header: some View {
@@ -31,13 +103,19 @@ struct LibraryToolbar: View {
 
             Spacer(minLength: 12)
 
-            searchField
-                .frame(minWidth: 88, maxWidth: 240)
-                .layoutPriority(-1)
+            if model.isBulkSelecting {
+                bulkControls
+            } else {
+                bulkEntryButton
 
-            presentationModeButton
+                searchField
+                    .frame(minWidth: 88, maxWidth: 240)
+                    .layoutPriority(-1)
 
-            refreshButton
+                presentationModeButton
+
+                refreshButton
+            }
         }
     }
 
@@ -260,6 +338,160 @@ struct LibraryToolbar: View {
         .buttonStyle(.plain)
         .background { controlSurface }
         .help("刷新资料库")
+    }
+
+    private var bulkEntryButton: some View {
+        Button {
+            model.toggleBulkMode()
+        } label: {
+            bulkButtonLabel("批量操作", systemImage: "checklist")
+        }
+        .buttonStyle(.plain)
+        .disabled(model.articles.isEmpty)
+        .help("进入批量操作")
+    }
+
+    private var bulkControls: some View {
+        HStack(spacing: 8) {
+            Text("已选 \(model.bulkSelection.count) 篇")
+                .qiankunjieFont(.labelMedium)
+                .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+
+            Button {
+                model.selectAllLoadedForBulk()
+            } label: {
+                Text("全选")
+                    .qiankunjieFont(.labelMedium)
+                    .padding(.horizontal, 9)
+                    .frame(height: 28)
+            }
+            .buttonStyle(.plain)
+            .disabled(model.articles.isEmpty || model.bulkRunningAction != nil)
+            .background { controlSurface }
+
+            Button {
+                model.invertBulkSelection()
+            } label: {
+                Text("反选")
+                    .qiankunjieFont(.labelMedium)
+                    .padding(.horizontal, 9)
+                    .frame(height: 28)
+            }
+            .buttonStyle(.plain)
+            .disabled(model.articles.isEmpty || model.bulkRunningAction != nil)
+            .background { controlSurface }
+
+            bulkActionMenu
+
+            exitBulkButton
+        }
+    }
+
+    private var bulkActionMenu: some View {
+        Menu {
+            ForEach(BulkArticlePolicy.toolbarActions(for: model.view), id: \.self) { action in
+                if action == .setCategory {
+                    Menu("设置分类") {
+                        ForEach(model.availableCategories) { category in
+                            Button(category.name) {
+                                pendingBulkCategory = category
+                            }
+                        }
+                    }
+                } else {
+                    Button(actionTitle(action)) {
+                        pendingBulkAction = action
+                    }
+                }
+            }
+        } label: {
+            bulkButtonLabel("批量操作", systemImage: "chevron.up.chevron.down")
+        }
+        .menuStyle(.button)
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
+        .disabled(model.bulkSelection.isEmpty || model.bulkRunningAction != nil)
+        .help("选择批量操作")
+    }
+
+    private var exitBulkButton: some View {
+        Button {
+            model.toggleBulkMode()
+        } label: {
+            bulkButtonLabel("退出", systemImage: "xmark")
+        }
+        .buttonStyle(.plain)
+        .disabled(!BulkToolbarPolicy.canExit(bulkRunningAction: model.bulkRunningAction))
+        .help("退出批量操作")
+    }
+
+    private func bulkButtonLabel(_ title: String, systemImage: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .medium))
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+                .lineLimit(1)
+        }
+        .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
+        .padding(.horizontal, 9)
+        .frame(height: 28)
+        .background(
+            RoundedRectangle(cornerRadius: QiankunjieRadius.control)
+                .fill(QiankunjieColors.accent(for: colorScheme).opacity(0.14))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: QiankunjieRadius.control)
+                .strokeBorder(QiankunjieColors.accent(for: colorScheme).opacity(0.28))
+        }
+    }
+
+    private var pendingBulkConfirmation: BulkConfirmationCopy? {
+        pendingBulkAction.map {
+            BulkToolbarPolicy.confirmation(for: $0, selectedCount: model.bulkSelection.count)
+        }
+    }
+
+    private var categoryConfirmation: BulkConfirmationCopy? {
+        pendingBulkCategory.map {
+            BulkToolbarPolicy.categoryConfirmation(category: $0, selectedCount: model.bulkSelection.count)
+        }
+    }
+
+    private var resultMessage: String {
+        guard let result = model.bulkResult else {
+            return ""
+        }
+
+        var lines = [
+            "成功 \(result.succeededCount) 篇 · 跳过 \(result.skippedCount) 篇 · 失败 \(result.issues.count) 篇"
+        ]
+        for issue in result.issues {
+            let message = issue.message ?? "未知原因"
+            lines.append("ID \(issue.articleID)：\(issue.code) · \(message)")
+        }
+        for publication in result.publications {
+            lines.append("ID \(publication.articleID)：\(publication.publicURL)")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private func actionTitle(_ action: BulkToolbarAction) -> String {
+        BulkToolbarPolicy.confirmation(for: action, selectedCount: model.bulkSelection.count).confirmTitle
+    }
+
+    private func runBulkToolbarAction(_ action: BulkToolbarAction) {
+        pendingBulkAction = nil
+        Task {
+            await model.runBulkToolbarAction(action)
+        }
+    }
+
+    private func runBulkCategory(_ category: LibraryCategoryFilter) {
+        pendingBulkCategory = nil
+        Task {
+            await model.runBulkCategory(category.id)
+        }
     }
 
     private var searchField: some View {
