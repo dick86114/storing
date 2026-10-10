@@ -32,6 +32,8 @@ test('可选认证接口收到过期或无效客户端令牌必须返回 401', (
   );
 
   // 客户端只在 401 时刷新令牌；把过期令牌当游客放行会让私有接口误报 403。
+  assert.match(optionalAuth, /hasBearerAuthorization/);
+  assert.match(optionalAuth, /token && hasBearerAuthorization/);
   assert.match(optionalAuth, /clientSessionErrorResponse\(c, clientSessionState\)/);
   assert.match(optionalAuth, /await getSessionFailureReason\(clientPayload\)/);
   assert.match(optionalAuth, /Token 无效或已过期[\s\S]{0,80}401\)/);
