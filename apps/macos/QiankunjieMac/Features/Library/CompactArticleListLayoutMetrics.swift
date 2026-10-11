@@ -23,15 +23,16 @@ enum ArticleListPresentationMode: String, CaseIterable, Identifiable, Sendable {
 
 struct CompactArticleListLayoutMetrics: Equatable, Sendable {
     let rowHeight: CGFloat
-    let coverSize: CGFloat
-    let coverAspectRatio: CGFloat
-    let coverWidth: CGFloat
+    let rowCoverSize: CGFloat
+    let rowCoverAspectRatio: CGFloat
+    let cardCoverAspectRatio: CGFloat
 
     init() {
         self.rowHeight = 132
-        self.coverSize = 104
-        self.coverAspectRatio = 1
-        self.coverWidth = 104
+        // 左右布局用内嵌方形封面，卡片视图保留微信公众号头条封面比例。
+        self.rowCoverSize = 104
+        self.rowCoverAspectRatio = 1
+        self.cardCoverAspectRatio = 2.35
     }
 
     func visibleTags(_ tags: [String]) -> [CompactArticleTagDisplay] {

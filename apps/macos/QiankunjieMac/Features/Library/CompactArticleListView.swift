@@ -281,8 +281,8 @@ struct CompactArticleListView: View {
     private func cover(_ article: ArticleCard) -> some View {
         coverImage(article)
             .frame(
-                width: layoutMetrics.coverWidth,
-                height: layoutMetrics.coverSize
+                width: layoutMetrics.rowCoverSize,
+                height: layoutMetrics.rowCoverSize
             )
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             .accessibilityLabel("文章封面")
@@ -291,8 +291,8 @@ struct CompactArticleListView: View {
     private func rowCover(_ article: ArticleCard) -> some View {
         coverImage(article)
             .frame(
-                width: layoutMetrics.coverWidth,
-                height: layoutMetrics.coverSize
+                width: layoutMetrics.rowCoverSize,
+                height: layoutMetrics.rowCoverSize
             )
             .clipped()
             .clipShape(RoundedRectangle(cornerRadius: QiankunjieRadius.control, style: .continuous))
@@ -307,7 +307,7 @@ struct CompactArticleListView: View {
 
     private func cardCover(_ article: ArticleCard) -> some View {
         Color.clear
-            .aspectRatio(layoutMetrics.coverAspectRatio, contentMode: .fit)
+            .aspectRatio(layoutMetrics.cardCoverAspectRatio, contentMode: .fit)
             .overlay {
                 coverImage(article)
             }
