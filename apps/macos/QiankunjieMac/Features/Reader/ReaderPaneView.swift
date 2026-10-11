@@ -991,6 +991,8 @@ private struct ImageZoomOverlay: View {
     @State private var gestureStartOffset: CGSize = .zero
     @State private var isDownloading = false
     @State private var downloadErrorMessage: String?
+    @State private var overlayFrame: CGRect = .zero
+    @State private var scrollWheelMonitor: Any?
 
     private let minimumScale: CGFloat = 1
     private let maximumScale: CGFloat = 6
@@ -1059,6 +1061,17 @@ private struct ImageZoomOverlay: View {
                 offset = .zero
                 gestureStartOffset = .zero
             }
+        }
+        .onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .global)
+        } action: { frame in
+            overlayFrame = frame
+        }
+        .onAppear {
+            installScrollWheelMonitor()
+        }
+        .onDisappear {
+            removeScrollWheelMonitor()
         }
     }
 
@@ -1166,6 +1179,45 @@ private struct ImageZoomOverlay: View {
                     gestureStartOffset = offset
                 }
         )
+    }
+
+    private func installScrollWheelMonitor() {
+        guard scrollWheelMonitor == nil else { return }
+
+        scrollWheelMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+            let deltaY = event.scrollingDeltaY
+            let mouseLocation = NSEvent.mouseLocation
+
+            let shouldZoom = MainActor.assumeIsolated {
+                overlayFrame.contains(mouseLocation)
+            }
+
+            guard shouldZoom else { return event }
+            applyScroll(deltaY)
+            return nil
+        }
+    }
+
+    private func removeScrollWheelMonitor() {
+        if let scrollWheelMonitor {
+            NSEvent.removeMonitor(scrollWheelMonitor)
+            self.scrollWheelMonitor = nil
+        }
+    }
+
+    private func applyScroll(_ deltaY: CGFloat) {
+        let zoomFactor = 1 + deltaY * 0.002
+        let newScale = min(
+            max(scale * zoomFactor, minimumScale),
+            maximumScale
+        )
+
+        scale = newScale
+        gestureStartScale = newScale
+        if newScale <= minimumScale {
+            offset = .zero
+            gestureStartOffset = .zero
+        }
     }
 
     private func downloadImage() async {
