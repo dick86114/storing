@@ -17421,17 +17421,6 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   }
 }
 
-.article-card-ai-status {
-  flex: none;
-  padding: 2px 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--tag-bg);
-  color: var(--text-muted);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
 .ai-settings-card {
   padding: 16px;
   border: 1px solid var(--border);
