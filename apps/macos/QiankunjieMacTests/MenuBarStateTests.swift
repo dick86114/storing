@@ -239,7 +239,7 @@ struct MenuBarStateTests {
         #expect(NSApp.keyWindow !== panel)
     }
 
-    @Test func 输入框激活后外部点击不再自动关闭面板() {
+    @Test func 输入框聚焦时外部点击不关闭面板() {
         guard let screen = NSScreen.screens.first else { return }
         let panel = QuickCollectPanel(model: CollectModel(userID: 7)) {}
         let desktopEvent = NSEvent.mouseEvent(
@@ -255,14 +255,23 @@ struct MenuBarStateTests {
         )
 
         panel.handleInputFocusChange(true)
+        #expect(
+            desktopEvent.map {
+                QuickCollectPanel.shouldDismissOutsideClick(
+                    $0,
+                    isInputFocused: true
+                )
+            } == false
+        )
+
         panel.handleInputFocusChange(false)
         #expect(
             desktopEvent.map {
                 QuickCollectPanel.shouldDismissOutsideClick(
                     $0,
-                    isInputSessionActive: true
+                    isInputFocused: false
                 )
-            } == false
+            } == true
         )
     }
 
