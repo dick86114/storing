@@ -3,6 +3,7 @@ import QiankunjieCore
 import QiankunjieDesignSystem
 import QiankunjieNetworking
 import QiankunjieReader
+import UniformTypeIdentifiers
 import SwiftUI
 
 struct ReaderPaneView: View {
@@ -984,6 +985,15 @@ private struct ImageZoomOverlay: View {
     let url: URL
     let onClose: () -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @State private var scale: CGFloat = 1
+    @State private var gestureStartScale: CGFloat = 1
+    @State private var offset: CGSize = .zero
+    @State private var gestureStartOffset: CGSize = .zero
+    @State private var isDownloading = false
+    @State private var downloadErrorMessage: String?
+
+    private let minimumScale: CGFloat = 1
+    private let maximumScale: CGFloat = 6
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -1009,6 +1019,26 @@ private struct ImageZoomOverlay: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(32)
+            .scaleEffect(scale)
+            .offset(offset)
+            .gesture(imageZoomGesture)
+            .onTapGesture(count: 2) {
+                resetZoom()
+            }
+
+            previewControls
+
+            if let downloadErrorMessage {
+                Text(downloadErrorMessage)
+                    .font(.callout)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
+                    .padding(.bottom, 68)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .allowsHitTesting(false)
+            }
 
             Button {
                 onClose()
@@ -1024,5 +1054,162 @@ private struct ImageZoomOverlay: View {
             .padding(18)
             .help("关闭图片预览")
         }
+        .onChange(of: scale) { _, newValue in
+            if newValue <= minimumScale {
+                offset = .zero
+                gestureStartOffset = .zero
+            }
+        }
+    }
+
+    private var previewControls: some View {
+        HStack(spacing: 8) {
+            controlButton("minus.magnifyingglass", help: "缩小") {
+                setScale(gestureStartScale - 0.5)
+            }
+            .disabled(scale <= minimumScale)
+
+            Text("\(Int((scale * 100).rounded()))%")
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(.white)
+                .frame(minWidth: 44)
+
+            controlButton("plus.magnifyingglass", help: "放大") {
+                setScale(gestureStartScale + 0.5)
+            }
+            .disabled(scale >= maximumScale)
+
+            controlButton("arrow.counterclockwise", help: "重置缩放") {
+                resetZoom()
+            }
+            .disabled(scale == minimumScale && offset == .zero)
+
+            Divider()
+                .frame(height: 18)
+                .background(.white.opacity(0.28))
+
+            controlButton("square.and.arrow.down", help: "下载图片") {
+                Task { await downloadImage() }
+            }
+            .disabled(isDownloading)
+        }
+        .padding(6)
+        .background(.black.opacity(0.62), in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(.white.opacity(0.16))
+        }
+        .padding(.top, 18)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .allowsHitTesting(true)
+    }
+
+    private func controlButton(
+        _ systemImage: String,
+        help: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            if isDownloading && systemImage == "square.and.arrow.down" {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Image(systemName: systemImage)
+                    .font(.system(size: 13, weight: .medium))
+            }
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white)
+        .frame(width: 28, height: 28)
+        .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
+        .help(help)
+        .accessibilityLabel(help)
+    }
+
+    private func setScale(_ value: CGFloat) {
+        let newScale = min(max(value, minimumScale), maximumScale)
+        withAnimation(.easeOut(duration: 0.16)) {
+            scale = newScale
+            if newScale <= minimumScale {
+                offset = .zero
+            }
+        }
+        gestureStartScale = scale
+    }
+
+    private func resetZoom() {
+        withAnimation(.easeOut(duration: 0.18)) {
+            scale = minimumScale
+            offset = .zero
+        }
+        gestureStartScale = scale
+    }
+
+    private var imageZoomGesture: some Gesture {
+        SimultaneousGesture(
+            MagnificationGesture()
+                .onChanged { value in
+                    setScale(gestureStartScale * value)
+                }
+                .onEnded { _ in
+                    gestureStartScale = scale
+                },
+            DragGesture()
+                .onChanged { value in
+                    guard scale > minimumScale else { return }
+                    offset = CGSize(
+                        width: gestureStartOffset.width + value.translation.width,
+                        height: gestureStartOffset.height + value.translation.height
+                    )
+                }
+                .onEnded { _ in
+                    gestureStartOffset = offset
+                }
+        )
+    }
+
+    private func downloadImage() async {
+        guard !isDownloading else { return }
+        isDownloading = true
+        downloadErrorMessage = nil
+        defer { isDownloading = false }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard
+                let httpResponse = response as? HTTPURLResponse,
+                (200..<300).contains(httpResponse.statusCode)
+            else {
+                throw AppError.server
+            }
+
+            let panel = NSSavePanel()
+            panel.canCreateDirectories = true
+            panel.nameFieldStringValue = ReaderImageDownload.suggestedFilename(for: url)
+            panel.allowedContentTypes = [UTType(filenameExtension: url.pathExtension) ?? .data]
+
+            guard panel.runModal() == .OK, let destination = panel.url else {
+                return
+            }
+
+            try data.write(to: destination, options: .atomic)
+            NSWorkspace.shared.activateFileViewerSelecting([destination])
+        } catch {
+            downloadErrorMessage = "图片下载失败：\(error.localizedDescription)"
+        }
+    }
+}
+
+@MainActor
+enum ReaderImageDownload {
+    static func suggestedFilename(for url: URL) -> String {
+        let pathExtension = url.pathExtension.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallbackExtension = pathExtension.isEmpty ? "jpg" : pathExtension
+        let baseName = safeExportFileName(
+            url.deletingPathExtension().lastPathComponent,
+            fallback: "图片"
+        )
+
+        return "\(baseName).\(fallbackExtension)"
     }
 }
