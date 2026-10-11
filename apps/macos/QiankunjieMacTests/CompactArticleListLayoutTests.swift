@@ -4,18 +4,25 @@ import Testing
 @testable import QiankunjieMac
 
 struct CompactArticleListLayoutTests {
-    @Test func 列表封面方形并保留卡片内边距() {
+    @Test func 左右布局封面方形并保留卡片内边距() {
         let metrics = CompactArticleListLayoutMetrics()
 
         #expect(metrics.rowHeight == 132)
-        #expect(metrics.coverSize == 104)
+        #expect(metrics.rowCoverSize == 104)
     }
 
-    @Test func 列表封面使用一比一比例() {
+    @Test func 左右布局封面使用一比一比例() {
         let metrics = CompactArticleListLayoutMetrics()
 
-        #expect(metrics.coverAspectRatio == 1)
-        #expect(metrics.coverWidth == 104)
+        #expect(metrics.rowCoverAspectRatio == 1)
+        #expect(metrics.rowCoverSize == 104)
+    }
+
+    @Test func 卡片封面使用微信头条比例() {
+        let metrics = CompactArticleListLayoutMetrics()
+
+        #expect(metrics.cardCoverAspectRatio == 2.35)
+        #expect(metrics.cardCoverAspectRatio != metrics.rowCoverAspectRatio)
     }
 
     @Test func 文章列表右侧保留紧凑边距() throws {
