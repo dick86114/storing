@@ -344,7 +344,6 @@ struct RootWindow: View {
         guard !isOpeningMainWindow else { return }
         isOpeningMainWindow = true
         openWindow(id: "main")
-        NSApp.activate(ignoringOtherApps: true)
         DispatchQueue.main.async {
             // 新窗口是异步创建的，等窗口真正出现后再落导航位置，
             // 否则会被启动阶段的登录状态同步重置回首页。
@@ -374,6 +373,7 @@ struct RootWindow: View {
         }
         window.deminiaturize(nil)
         window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
         afterWindowShown?()
     }
 

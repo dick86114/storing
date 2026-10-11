@@ -35,7 +35,7 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
     private var onInputFocusChange: @MainActor (Bool) -> Void = { _ in }
     private var outsideClickMonitor: Any?
     private var localClickMonitor: Any?
-    private var isInputSessionActive = false
+    private var isInputFocused = false
     /// 菜单栏图标按下瞬间的面板状态。按钮 action 要等鼠标抬起才触发，
     /// 期间面板可能已经被隐藏，直接读 `isVisible` 会把「收起」误判成「打开」。
     private var statusItemPressStartedVisible: Bool?
@@ -93,7 +93,7 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
 
     func present(from statusBarButton: NSStatusBarButton?) {
         statusItemPressStartedVisible = nil
-        isInputSessionActive = false
+        isInputFocused = false
         if let statusBarButton,
             let buttonFrame = statusBarButton.window?.convertToScreen(
                 statusBarButton.convert(statusBarButton.bounds, to: nil)
@@ -113,7 +113,7 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
 
     func dismiss() {
         statusItemPressStartedVisible = nil
-        isInputSessionActive = false
+        isInputFocused = false
         removeOutsideClickMonitor()
         guard isVisible else { return }
         orderOut(nil)
@@ -129,10 +129,9 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
         }
     }
 
-    /// 输入框一旦激活，本次展示期间就保持输入会话；失焦不撤销保护。
+    /// 输入框当前聚焦时，外部点击会被视为复制、粘贴等输入流程的一部分。
     func handleInputFocusChange(_ isFocused: Bool) {
-        guard isFocused else { return }
-        isInputSessionActive = true
+        isInputFocused = isFocused
     }
 
     /// 点面板之外立刻隐藏。
@@ -148,7 +147,11 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
         ) { [weak self] event in
             guard MainActor.assumeIsolated({ () -> Bool in
                 guard let self else { return false }
-                return Self.shouldDismissOutsideClick(event, from: self)
+                return Self.shouldDismissOutsideClick(
+                    event,
+                    from: self,
+                    isInputFocused: self.isInputFocused
+                )
             }) else { return }
             Task { @MainActor in
                 self?.dismiss()
@@ -162,7 +165,7 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
                 if Self.shouldDismissOutsideClick(
                     event,
                     from: self,
-                    isInputSessionActive: self.isInputSessionActive
+                    isInputFocused: self.isInputFocused
                 ) {
                     return true
                 }
@@ -196,10 +199,10 @@ final class QuickCollectPanel: NSPanel, QuickCollectPresenting {
     static func shouldDismissOutsideClick(
         _ event: NSEvent,
         from panel: NSWindow? = nil,
-        isInputSessionActive: Bool = false,
+        isInputFocused: Bool = false,
         windowClassName: String? = nil
     ) -> Bool {
-        if isInputSessionActive {
+        if isInputFocused {
             return false
         }
         if let panel, event.window === panel {
