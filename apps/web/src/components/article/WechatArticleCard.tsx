@@ -4,10 +4,9 @@ import { useEffect, useRef, useState, memo, type RefObject } from 'react';
 import Image from 'next/image';
 import { MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, FieldTimeOutlined, RobotOutlined, GlobalOutlined } from '@ant-design/icons';
 import { DateText } from '@/lib/formatDate';
+import { aiStatusText } from '@/lib/aiStatus';
 import { getArticleSourceIcon, getArticleSourceText } from '@/components/article/articleSourceIcon';
 import type { ArticleListItem } from '@storing/shared';
-import { aiStatusText } from '@/lib/aiStatus';
-
 export type ArticleCardVariant = 'grid' | 'row';
 
 interface WechatArticleCardProps {
@@ -273,9 +272,11 @@ function WechatArticleCardBase({ article, onClick, onToggleFavorite, onArchive, 
         />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sourceText}</span>
       </span>
-      <span className="article-card-ai-status">
-        {aiStatusText(article.aiStatus)}
-      </span>
+      {article.aiStatus && article.aiStatus !== 'not_generated' && (
+        <span className="article-card-ai-status">
+          {aiStatusText(article.aiStatus)}
+        </span>
+      )}
       <span className="article-card-footer-meta">
         {article.isPublished && <span className="article-card-published-mark" title="已公开" aria-label="已公开"><GlobalOutlined aria-hidden="true" /></span>}
         <span
