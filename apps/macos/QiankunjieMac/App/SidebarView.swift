@@ -152,7 +152,6 @@ struct SidebarView: View {
                 .allowsHitTesting(false)
         }
         .scaleEffect(isCollectActive ? 0.94 : isCollectButtonHovered ? 1.06 : 1)
-        .shadow(color: accent.opacity(isCollectButtonHovered ? 0.34 : 0.16), radius: isCollectButtonHovered ? 10 : 5, y: 2)
         .onHover { hovering in
             withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) {
                 isCollectButtonHovered = hovering
