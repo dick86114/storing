@@ -159,7 +159,7 @@ public final class MenuBarController: NSObject {
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         let menuBarIcon = NSImage(named: "MenuBarCollectIcon")
-        menuBarIcon?.isTemplate = false
+        menuBarIcon?.isTemplate = true
         menuBarIcon?.size = NSSize(width: 18, height: 18)
         item.button?.image = menuBarIcon
         item.button?.target = self
