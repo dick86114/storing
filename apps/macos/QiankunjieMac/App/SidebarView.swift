@@ -127,6 +127,7 @@ struct SidebarView: View {
             collectButtonIcon
                 .rotationEffect(.degrees(collectIconRotation))
         }
+        .buttonStyle(.plain)
         .background {
             ZStack {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
