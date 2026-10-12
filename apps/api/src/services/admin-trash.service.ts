@@ -1,6 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { adminAuditLogs, articleMetadata, articles, collectJobs } from '../db/schema.js';
+import { adminAuditLogs, articleMetadata, articles, collectJobs, wechatImportJobs } from '../db/schema.js';
 import { writeAdminAudit } from './admin-audit.service.js';
 import { getAdminUserId } from './metadata-scope.service.js';
 
@@ -35,6 +35,7 @@ async function unlinkArticleReferences(
 ): Promise<void> {
   await tx.update(collectJobs).set({ articleId: null }).where(eq(collectJobs.articleId, articleId));
   await tx.update(adminAuditLogs).set({ articleId: null }).where(eq(adminAuditLogs.articleId, articleId));
+  await tx.update(wechatImportJobs).set({ articleId: null }).where(eq(wechatImportJobs.articleId, articleId));
 }
 
 async function auditBulkClear(
