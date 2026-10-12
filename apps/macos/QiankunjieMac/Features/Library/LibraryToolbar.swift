@@ -7,6 +7,7 @@ struct LibraryToolbar: View {
     @Bindable var model: LibraryModel
     @Binding var presentationMode: ArticleListPresentationMode
     @Environment(\.colorScheme) private var colorScheme
+    @State private var isRefreshButtonHovered = false
     @State private var pendingBulkAction: BulkToolbarAction?
     @State private var pendingBulkCategory: LibraryCategoryFilter?
     @State private var isBulkObsidianSheetPresented = false
@@ -396,14 +397,50 @@ struct LibraryToolbar: View {
 
     private var refreshButton: some View {
         Button {
+            guard !model.isRefreshing else { return }
+
             reload(reset: false)
         } label: {
-            Image(systemName: "arrow.clockwise")
-                .font(.system(size: 12, weight: .medium))
-                .frame(width: 28, height: 28)
-                .contentShape(Rectangle())
+            ZStack {
+                if model.isRefreshing {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12, weight: .medium))
+                        .scaleEffect(isRefreshButtonHovered ? 1.08 : 1)
+                        .foregroundStyle(
+                            isRefreshButtonHovered
+                                ? QiankunjieColors.accent(for: colorScheme)
+                                : QiankunjieColors.onSurfaceVariant(for: colorScheme)
+                        )
+                }
+            }
+            .frame(width: 28, height: 28)
+            .background {
+                if isRefreshButtonHovered {
+                    RoundedRectangle(cornerRadius: QiankunjieRadius.control)
+                        .fill(QiankunjieColors.accent(for: colorScheme).opacity(0.12))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: QiankunjieRadius.control)
+                                .strokeBorder(
+                                    QiankunjieColors.accent(for: colorScheme).opacity(0.32)
+                                )
+                        }
+                } else {
+                    controlSurface
+                }
+            }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(model.isRefreshing)
+        .onHover { isHovered in
+            guard isHovered != isRefreshButtonHovered else { return }
+
+            isRefreshButtonHovered = isHovered
+        }
+        .animation(.easeOut(duration: 0.16), value: isRefreshButtonHovered)
         .background { controlSurface }
         .help("刷新资料库")
     }

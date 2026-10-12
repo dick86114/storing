@@ -18,6 +18,34 @@ struct CollectModelTests {
         #expect(await repository.submitCount == 1)
     }
 
+    @Test func 采集完成后通知文章导入成功一次() async {
+        let repository = 模拟采集仓库(statuses: ["pending", "completed"])
+        let model = CollectModel(repository: repository, userID: 9, pollInterval: .zero)
+        var importedJobs: [CollectJob] = []
+        model.onArticleImported = { job in
+            importedJobs.append(job)
+        }
+
+        await model.submit("https://example.com/article")
+
+        #expect(importedJobs.map(\.id) == [11])
+        #expect(importedJobs.first?.articleId == 7)
+    }
+
+    @Test func 采集失败不通知文章导入成功() async {
+        let repository = 模拟采集仓库(statuses: ["pending", "failed"])
+        let model = CollectModel(repository: repository, userID: 9, pollInterval: .zero)
+        var importedJobs: [CollectJob] = []
+        model.onArticleImported = { job in
+            importedJobs.append(job)
+        }
+
+        await model.submit("https://example.com/article")
+
+        #expect(model.currentJob?.status == "failed")
+        #expect(importedJobs.isEmpty)
+    }
+
     @Test func 提交返回后进入任务状态并停止提交中() async {
         let repository = 模拟采集仓库(statuses: ["pending", "completed"])
         await repository.holdNextJob()

@@ -26,6 +26,7 @@ public final class CollectModel {
     public var urlDraft = ""
     public var pendingDeletionJobID: Int?
     public var isClearConfirmationPresented = false
+    public var onArticleImported: (@MainActor (CollectJob) -> Void)?
 
     public private(set) var userID: Int?
     public private(set) var jobs: [CollectJob] = []
@@ -52,6 +53,7 @@ public final class CollectModel {
     private var nextPageOffset = 0
     private var activeListOperation: CollectListOperationToken?
     private var invalidatedListOperationIDs: Set<UUID> = []
+    private var importedArticleJobIDs: Set<Int> = []
 
     public init(
         repository: any CollectServicing = CollectRepository(),
@@ -367,6 +369,7 @@ public final class CollectModel {
         isRefreshingJobs = false
         isLoadingMoreJobs = false
         mutatingJobIDs = []
+        importedArticleJobIDs = []
         if let activeListOperation {
             invalidatedListOperationIDs.insert(activeListOperation.id)
         }
@@ -432,6 +435,17 @@ public final class CollectModel {
         } else {
             jobs.insert(job, at: 0)
         }
+
+        guard
+            job.status == "completed",
+            job.articleId != nil,
+            !importedArticleJobIDs.contains(job.id)
+        else {
+            return
+        }
+
+        importedArticleJobIDs.insert(job.id)
+        onArticleImported?(job)
     }
 
     private func beginListOperation(_ kind: CollectListOperationToken.Kind) -> CollectListOperationToken? {
