@@ -65,3 +65,19 @@ test('bulk deleted-trash clearing preserves active user metadata and reports par
   assert.match(service, /'article_trash_emptied' \| 'orphan_trash_emptied'/);
   assert.match(service, /action,/);
 });
+
+test('admin trash purge clears wechat import references before deleting articles', () => {
+  const service = read('src/services/admin-trash.service.ts');
+  const auth = read('src/routes/auth.ts');
+
+  assert.match(
+    service,
+    /update\(wechatImportJobs\)\.set\(\{ articleId: null \}\)\.where\(eq\(wechatImportJobs\.articleId, articleId\)\)/,
+  );
+
+  const purge = auth.slice(auth.indexOf("'/admin/trash/:articleId', requireAdmin"));
+  assert.match(
+    purge,
+    /update\(wechatImportJobs\)\.set\(\{ articleId: null \}\)\.where\(eq\(wechatImportJobs\.articleId, articleId\)\)/,
+  );
+});

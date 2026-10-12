@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { db } from '../db/index.js';
-import { adminAuditLogs, articleMetadata, articles, collectJobs, mcpClients, mcpRequestLogs, mobileSessions, users } from '../db/schema.js';
+import { adminAuditLogs, articleMetadata, articles, collectJobs, mcpClients, mcpRequestLogs, mobileSessions, users, wechatImportJobs } from '../db/schema.js';
 import { and, count, desc, eq, gt, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
@@ -1084,6 +1084,7 @@ authRoutes.delete('/admin/trash/:articleId', requireAdmin, async (c) => {
     .limit(1);
   await db.update(collectJobs).set({ articleId: null }).where(eq(collectJobs.articleId, articleId));
   await db.update(adminAuditLogs).set({ articleId: null }).where(eq(adminAuditLogs.articleId, articleId));
+  await db.update(wechatImportJobs).set({ articleId: null }).where(eq(wechatImportJobs.articleId, articleId));
   await writeAdminAudit({
     actorUserId: getCurrentUser(c).id,
     articleId: null,
