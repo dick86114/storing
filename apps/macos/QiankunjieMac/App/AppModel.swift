@@ -188,6 +188,9 @@ final class AppModel {
             ),
             userID: authModel.user?.id
         )
+        collectModel.onArticleImported = { [weak self] _ in
+            self?.refreshInboxAfterArticleImport()
+        }
         self.libraryModel.bulkExportHandler = { job in
             let finishedJob = try await bulkExportService.poll(jobID: job.id)
             return try await bulkExportService.save(finishedJob)
@@ -376,5 +379,13 @@ final class AppModel {
             await libraryModel.clearUserScope(userID: previousLibraryUserID)
         }
         await libraryModel.load(reset: true)
+    }
+
+    private func refreshInboxAfterArticleImport() {
+        guard destination == .inbox else { return }
+
+        Task {
+            await libraryModel.load(reset: true)
+        }
     }
 }
