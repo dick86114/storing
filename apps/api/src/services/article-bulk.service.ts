@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { db } from '../db/index.js';
-import { adminAuditLogs, aiGenerationJobs, articles, articleMetadata, collectJobs } from '../db/schema.js';
+import { adminAuditLogs, aiGenerationJobs, articles, articleMetadata, collectJobs, wechatImportJobs } from '../db/schema.js';
 import { getArticleContent, processCoverImage } from './reader.service.js';
 import { enqueueAiGeneration, queueArchiveAiIfNeeded } from './ai-generation.service.js';
 import { getPendingCategory, moveArticlesToCategory } from './category.service.js';
@@ -372,6 +372,7 @@ export async function permanentlyDeleteArticleForUser(
 
     await tx.update(collectJobs).set({ articleId: null }).where(eq(collectJobs.articleId, articleId));
     await tx.update(adminAuditLogs).set({ articleId: null }).where(eq(adminAuditLogs.articleId, articleId));
+    await tx.update(wechatImportJobs).set({ articleId: null }).where(eq(wechatImportJobs.articleId, articleId));
     await tx.delete(articleMetadata).where(eq(articleMetadata.articleId, articleId));
     await tx.delete(articles).where(eq(articles.id, articleId));
     return 0;
