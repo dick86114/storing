@@ -54,6 +54,7 @@ import com.idickies.storing.ui.QiankunjieAlertDialog
 fun AndroidBulkActionBar(
   view: LibraryView,
   isSelecting: Boolean,
+  menuExpanded: Boolean,
   selectedIds: Set<Int>,
   runningAction: BulkToolbarAction?,
   result: NativeBulkResult?,
@@ -61,6 +62,7 @@ fun AndroidBulkActionBar(
   downloadingExport: Boolean,
   onEnter: () -> Unit,
   onExit: () -> Unit,
+  onMenuExpandedChange: (Boolean) -> Unit,
   onToggle: (Int) -> Unit,
   onSelectAll: () -> Unit,
   onInvert: () -> Unit,
@@ -69,7 +71,6 @@ fun AndroidBulkActionBar(
   onDownloadExport: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  var menuOpen by remember { mutableStateOf(false) }
   var pendingAction by remember { mutableStateOf<BulkToolbarAction?>(null) }
 
   if (!isSelecting) {
@@ -95,14 +96,14 @@ fun AndroidBulkActionBar(
     TextButton(onClick = onSelectAll, enabled = runningAction == null) { Text("全选") }
     TextButton(onClick = onInvert, enabled = runningAction == null) { Text("反选") }
     androidx.compose.material3.Button(
-      onClick = { menuOpen = true },
+      onClick = { onMenuExpandedChange(true) },
       enabled = selectedIds.isNotEmpty() && runningAction == null,
     ) {
       Text("批量操作")
     }
     DropdownMenu(
-      expanded = menuOpen,
-      onDismissRequest = { menuOpen = false },
+      expanded = menuExpanded,
+      onDismissRequest = { onMenuExpandedChange(false) },
       modifier = Modifier
         .width(216.dp)
         .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.76f), RoundedCornerShape(20.dp)),
@@ -145,7 +146,7 @@ fun AndroidBulkActionBar(
             )
           },
           onClick = {
-            menuOpen = false
+            onMenuExpandedChange(false)
             pendingAction = action
           },
         )
