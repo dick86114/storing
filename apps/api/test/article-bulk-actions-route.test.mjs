@@ -23,6 +23,10 @@ test('批量彻底删除逐篇使用行锁和引用判断', () => {
   assert.match(service, /\.for\('update'\)/);
   assert.match(service, /COUNT\(\*\)/);
   assert.match(service, /isDeleted: true/);
+  assert.match(
+    service,
+    /update\(wechatImportJobs\)\.set\(\{ articleId: null \}\)\.where\(eq\(wechatImportJobs\.articleId, articleId\)\)/,
+  );
 });
 
 test('批量发布保留已有公开链接', () => {
