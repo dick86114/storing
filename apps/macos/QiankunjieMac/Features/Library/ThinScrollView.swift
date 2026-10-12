@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 使用稳定的 SwiftUI 滚动布局，并自绘细滚动条。
+/// 使用稳定的 SwiftUI 滚动布局，并自绘可拖动细滚动条。
 struct ThinScrollView<Content: View>: View {
     let content: Content
 
@@ -16,112 +16,183 @@ struct ThinScrollView<Content: View>: View {
 private struct ThinScrollContent<Content: View>: View {
     let content: Content
     @State private var scrollGeometry: ScrollGeometry?
+    @State private var scrollPosition = ScrollPosition()
 
     var body: some View {
-        ScrollView {
-            content
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .background(NativeScrollBarHider())
-        .scrollContentBackground(.hidden)
-        .scrollIndicators(.hidden)
-        .onScrollGeometryChange(for: ScrollGeometry.self) { geometry in
-            geometry
-        } action: { _, newValue in
-            scrollGeometry = newValue
-        }
-        .overlay(alignment: .trailing) {
-            ThinScrollBar(geometry: scrollGeometry)
-        }
-    }
-}
-
-private struct NativeScrollBarHider: NSViewRepresentable {
-    func makeNSView(context: Context) -> ScrollBarHiderView {
-        ScrollBarHiderView()
-    }
-
-    func updateNSView(_ nsView: ScrollBarHiderView, context: Context) {
-        nsView.hideEnclosingScrollBar()
-    }
-}
-
-private final class ScrollBarHiderView: NSView {
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        hideEnclosingScrollBar()
-    }
-
-    func hideEnclosingScrollBar() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-
-            var currentView: NSView? = self
-            while let view = currentView {
-                guard let scrollView = view as? NSScrollView else {
-                    currentView = view.superview
-                    continue
-                }
-
-                scrollView.hasVerticalScroller = false
-                scrollView.hasHorizontalScroller = false
-                scrollView.autohidesScrollers = true
-                return
+        GeometryReader { proxy in
+            ScrollView {
+                content
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(width: proxy.size.width)
             }
-
-
-            for window in NSApp.windows {
-                hideScrollBars(in: window.contentView)
+            .scrollContentBackground(.hidden)
+            .scrollIndicators(.hidden)
+            .contentMargins(.horizontal, 0, for: .scrollContent)
+            .scrollPosition($scrollPosition)
+            .onScrollGeometryChange(for: ScrollGeometry.self) { geometry in
+                geometry
+            } action: { _, newValue in
+                scrollGeometry = newValue
             }
         }
-    }
-
-    private func hideScrollBars(in view: NSView?) {
-        guard let view else { return }
-
-        if let scrollView = view as? NSScrollView {
-            scrollView.hasVerticalScroller = false
-            scrollView.hasHorizontalScroller = false
-            scrollView.autohidesScrollers = true
+        .overlay(alignment: .topTrailing) {
+            ThinScrollBar(geometry: scrollGeometry) { offsetY in
+                scrollPosition.scrollTo(y: offsetY)
+            }
+            .frame(width: 16)
         }
-
-        view.subviews.forEach(hideScrollBars)
     }
 }
 
 private struct ThinScrollBar: View {
     let geometry: ScrollGeometry?
-    @Environment(\.colorScheme) private var colorScheme
+    let onScroll: @MainActor (CGFloat) -> Void
+    @State private var dragStartLocationY: CGFloat?
+    @State private var dragInitialContentOffsetY: CGFloat?
+    @State private var isDragging = false
+    @State private var isHovering = false
 
     var body: some View {
         GeometryReader { proxy in
             if
                 let geometry,
-                geometry.contentSize.height > geometry.containerSize.height + 1
-            {
-                let trackHeight = proxy.size.height - 16
-                let thumbHeight = max(
-                    36,
-                    trackHeight * geometry.containerSize.height / geometry.contentSize.height
+                let model = ThinScrollBarModel(
+                    geometry: geometry,
+                    trackHeight: proxy.size.height - 16
                 )
-                let maximumOffset = geometry.contentSize.height - geometry.containerSize.height
-                let progress = maximumOffset > 0
-                    ? geometry.contentOffset.y / maximumOffset
-                    : 0
-                let maximumTravel = trackHeight - thumbHeight
+            {
+                ZStack(alignment: .topTrailing) {
+                    Color.clear
+                        .contentShape(Rectangle())
 
-                Capsule()
-                    .fill(
-                        colorScheme == .dark
-                            ? Color.white.opacity(0.24)
-                            : Color.black.opacity(0.2)
-                    )
-                    .frame(width: 4, height: thumbHeight)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.trailing, 3)
-                    .offset(y: 8 + progress * maximumTravel)
+                    Capsule()
+                        .fill(Color(white: 0.45))
+                        .opacity(scrollBarOpacity)
+                        .frame(width: 4, height: model.thumbHeight)
+                        .padding(.trailing, 3)
+                        .padding(.top, model.thumbOffset)
+                }
+                .frame(width: 16)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .onHover { isHovering in
+                    self.isHovering = isHovering
+                }
+                .gesture(scrollDragGesture(model: model))
             }
         }
-        .allowsHitTesting(false)
+        .frame(width: 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        .allowsHitTesting(true)
+    }
+
+    private var scrollBarOpacity: Double {
+        ThinScrollBarAppearance.thumbOpacity(
+            isDragging: isDragging,
+            isHovering: isHovering
+        )
+    }
+
+    private func scrollDragGesture(model: ThinScrollBarModel) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                let startLocationY = dragStartLocationY ?? value.startLocation.y
+                let initialContentOffsetY = dragInitialContentOffsetY
+                    ?? geometry?.contentOffset.y
+                    ?? 0
+
+                dragStartLocationY = startLocationY
+                dragInitialContentOffsetY = initialContentOffsetY
+                isDragging = true
+
+                let targetOffsetY = model.targetContentOffset(
+                    startLocationY: startLocationY,
+                    locationY: value.location.y,
+                    initialContentOffsetY: initialContentOffsetY,
+                    isThumbDrag: model.isThumb(atY: startLocationY)
+                )
+                onScroll(targetOffsetY)
+            }
+            .onEnded { _ in
+                dragStartLocationY = nil
+                dragInitialContentOffsetY = nil
+                isDragging = false
+            }
+    }
+}
+
+enum ThinScrollBarAppearance {
+    static func thumbOpacity(isDragging: Bool, isHovering: Bool) -> Double {
+        if isDragging {
+            return 0.48
+        }
+        if isHovering {
+            return 0.36
+        }
+        return 0.24
+    }
+}
+
+struct ThinScrollBarModel: Equatable {
+    let thumbHeight: CGFloat
+    let thumbOffset: CGFloat
+    let maximumContentOffset: CGFloat
+    let maximumTravel: CGFloat
+
+    init?(
+        geometry: ScrollGeometry,
+        trackHeight: CGFloat
+    ) {
+        let maximumContentOffset = max(
+            0,
+            geometry.contentSize.height - geometry.containerSize.height
+        )
+        guard maximumContentOffset > 1, trackHeight > 0 else {
+            return nil
+        }
+
+        let thumbHeight = max(
+            36,
+            trackHeight * geometry.containerSize.height / geometry.contentSize.height
+        )
+        let maximumTravel = max(0, trackHeight - thumbHeight)
+        let progress = min(
+            max(geometry.contentOffset.y / maximumContentOffset, 0),
+            1
+        )
+
+        self.thumbHeight = thumbHeight
+        self.thumbOffset = 8 + progress * maximumTravel
+        self.maximumContentOffset = maximumContentOffset
+        self.maximumTravel = maximumTravel
+    }
+
+    func isThumb(atY locationY: CGFloat) -> Bool {
+        locationY >= thumbOffset && locationY <= thumbOffset + thumbHeight
+    }
+
+    func targetContentOffset(
+        startLocationY: CGFloat,
+        locationY: CGFloat,
+        initialContentOffsetY: CGFloat,
+        isThumbDrag: Bool
+    ) -> CGFloat {
+        guard maximumTravel > 0 else {
+            return 0
+        }
+
+        if isThumbDrag, isThumb(atY: startLocationY) {
+            let moved = locationY - startLocationY
+            return clamp(
+                initialContentOffsetY + moved * maximumContentOffset / maximumTravel
+            )
+        }
+
+        let desiredThumbTop = locationY - 8 - thumbHeight / 2
+        let progress = min(max(desiredThumbTop / maximumTravel, 0), 1)
+        return progress * maximumContentOffset
+    }
+
+    private func clamp(_ value: CGFloat) -> CGFloat {
+        min(max(value, 0), maximumContentOffset)
     }
 }
