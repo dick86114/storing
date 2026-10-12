@@ -1874,6 +1874,7 @@ private fun LibraryList(
 ) {
   val isDarkAppearance = isQiankunjieDarkTheme()
   var batchMode by remember { mutableStateOf(false) }
+  var bulkMenuExpanded by remember { mutableStateOf(false) }
   var selectedArticleIds by remember { mutableStateOf<Set<Int>>(emptySet()) }
   var batchCategoryPickerOpen by remember { mutableStateOf(false) }
   val gridState = rememberLazyStaggeredGridState()
@@ -1883,6 +1884,14 @@ private fun LibraryList(
   val lastVisibleItemIndex by remember { derivedStateOf { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 } }
   LaunchedEffect(lastVisibleItemIndex, state.articles.size, state.hasMore, state.loadingMore, state.fromCache) {
     if (!state.loadingMore && !state.fromCache && shouldLoadMore(lastVisibleItemIndex, gridState.layoutInfo.totalItemsCount, state.hasMore)) onLoadMore()
+  }
+  val handleArticleLongPress: (com.idickies.storing.library.ArticleCard) -> Unit = { article ->
+    if (batchMode && selectedArticleIds.isNotEmpty()) {
+      bulkMenuExpanded = true
+    } else {
+      batchMode = true
+      selectedArticleIds = setOf(article.id)
+    }
   }
   PullToRefreshBox(
     isRefreshing = state.refreshing,
@@ -1942,6 +1951,7 @@ private fun LibraryList(
           AndroidBulkActionBar(
             view = state.view,
             isSelecting = batchMode,
+            menuExpanded = bulkMenuExpanded,
             selectedIds = selectedArticleIds,
             runningAction = state.bulkRunningAction,
             result = state.bulkResult,
@@ -1950,15 +1960,19 @@ private fun LibraryList(
             onEnter = { batchMode = true },
             onExit = {
               batchMode = false
+              bulkMenuExpanded = false
               selectedArticleIds = emptySet()
             },
+            onMenuExpandedChange = { expanded -> bulkMenuExpanded = expanded },
             onToggle = { id -> selectedArticleIds = toggleArchiveBatchSelection(selectedArticleIds, id) },
             onSelectAll = { selectedArticleIds = state.articles.map { it.id }.toSet() },
             onInvert = { selectedArticleIds = state.articles.map { it.id }.toSet() - selectedArticleIds },
             onAction = { action, ids ->
               if (action == BulkToolbarAction.SetCategory) {
+                bulkMenuExpanded = false
                 batchCategoryPickerOpen = true
               } else {
+                bulkMenuExpanded = false
                 onBulkToolbarAction(action, ids)
               }
             },
@@ -2114,7 +2128,7 @@ private fun LibraryList(
         QiankunjieGridArticleCard(
           article,
           onOpen,
-          onLongPress,
+          handleArticleLongPress,
           selectionEnabled = batchMode,
           selected = article.id in selectedArticleIds,
           onSelectionChange = { id -> selectedArticleIds = toggleArchiveBatchSelection(selectedArticleIds, id) },
@@ -2128,7 +2142,7 @@ private fun LibraryList(
             ArticleListPresentationMode.Card -> QiankunjieArticleCard(
               article,
               onOpen,
-              onLongPress,
+              handleArticleLongPress,
               selectionEnabled = batchMode,
               selected = article.id in selectedArticleIds,
               onSelectionChange = { id -> selectedArticleIds = toggleArchiveBatchSelection(selectedArticleIds, id) },
@@ -2136,7 +2150,7 @@ private fun LibraryList(
             ArticleListPresentationMode.CompactList -> QiankunjieCompactArticleRow(
               article,
               onOpen,
-              onLongPress,
+              handleArticleLongPress,
               selectionEnabled = batchMode,
               selected = article.id in selectedArticleIds,
               onSelectionChange = { id -> selectedArticleIds = toggleArchiveBatchSelection(selectedArticleIds, id) },
