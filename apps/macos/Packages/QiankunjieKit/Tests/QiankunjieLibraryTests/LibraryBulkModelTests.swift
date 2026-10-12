@@ -100,10 +100,27 @@ struct LibraryBulkModelTests {
         #expect(model.bulkSelection == [2, 3])
         #expect(model.bulkResult?.succeededCount == 1)
     }
+
+    @Test func 未单独注入批量仓库时复用已认证资料库仓库() async {
+        let repository = 批量资料库仓库(
+            pages: [1: .fixture(ids: [1], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(repository: repository)
+        await model.load(reset: true)
+        model.toggleBulkMode()
+        model.toggleBulkSelection(1)
+
+        await model.runBulkToolbarAction(.delete)
+
+        #expect(await repository.bulkActionCount == 1)
+        #expect(model.bulkResult?.succeededCount == 1)
+        #expect(model.bulkResult?.issues.isEmpty == true)
+    }
 }
 
-private actor 批量资料库仓库: LibraryLoading {
+private actor 批量资料库仓库: LibraryLoading, LibraryBulkOperating {
     private var pages: [Int: ArticleListPage]
+    private(set) var bulkActionCount = 0
 
     init(pages: [Int: ArticleListPage]) {
         self.pages = pages
@@ -123,6 +140,62 @@ private actor 批量资料库仓库: LibraryLoading {
 
     func setPage(_ page: ArticleListPage) {
         pages[page.page] = page
+    }
+
+    func runBulkAction(
+        _ action: ArticleBulkAction,
+        articleIDs: [Int]
+    ) async throws -> ArticleBulkActionResult {
+        bulkActionCount += 1
+        return ArticleBulkActionResult(
+            requestedCount: articleIDs.count,
+            succeededIDs: articleIDs,
+            skipped: [],
+            failed: []
+        )
+    }
+
+    func runBulkCategory(
+        articleIDs: [Int],
+        categoryID: Int
+    ) async throws -> ArticleBulkActionResult {
+        ArticleBulkActionResult(
+            requestedCount: articleIDs.count,
+            succeededIDs: articleIDs,
+            skipped: [],
+            failed: []
+        )
+    }
+
+    func runBulkRegenerateAI(
+        articleIDs: [Int],
+        includeCategory: Bool
+    ) async throws -> ArticleBulkAIResult {
+        ArticleBulkAIResult(
+            requestedCount: articleIDs.count,
+            queuedIDs: articleIDs,
+            alreadyQueuedIDs: [],
+            failed: []
+        )
+    }
+
+    func runCreateBulkExport(articleIDs: [Int]) async throws -> ArticleBulkExportJob {
+        ArticleBulkExportJob(
+            id: 1,
+            format: "zip",
+            status: .succeeded,
+            requestedCount: articleIDs.count,
+            succeededCount: articleIDs.count,
+            failedCount: 0,
+            downloadURL: nil,
+            createdAt: nil,
+            finishedAt: nil,
+            expiresAt: nil
+        )
+    }
+
+    func runBulkExportJob(jobID: Int) async throws -> ArticleBulkExportJob {
+        try await runCreateBulkExport(articleIDs: [])
     }
 }
 

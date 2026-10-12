@@ -56,13 +56,20 @@ public final class LibraryModel {
 
     public init(
         repository: any LibraryLoading = LibraryRepository(),
-        bulkRepository: any LibraryBulkOperating = LibraryRepository(),
+        bulkRepository: (any LibraryBulkOperating)? = nil,
         cache: (any LibraryCaching)? = nil,
         userID: Int? = nil,
         view: LibraryView = .inbox
     ) {
         self.repository = repository
-        self.bulkRepository = bulkRepository
+        if let bulkRepository {
+            self.bulkRepository = bulkRepository
+        } else if let repository = repository as? any LibraryBulkOperating {
+            // 列表仓库已携带登录态时，批量操作默认复用它，避免落到未认证客户端。
+            self.bulkRepository = repository
+        } else {
+            self.bulkRepository = LibraryRepository()
+        }
         self.cache = cache ?? EmptyLibraryCache()
         self.userID = userID
         self.view = view
