@@ -5,12 +5,15 @@ import SwiftUI
 struct SidebarView: View {
     @Bindable var model: AppModel
     let destinationSelection: Binding<AppDestination>
+    /// 账号菜单里「关于」的动作。
+    var onShowAbout: () -> Void = {}
     @Environment(\.colorScheme) private var colorScheme
     @State private var showsAccountMenu = false
     @State private var isCollectButtonHovered = false
     @State private var isCollectActive = false
     @State private var showsCollectPulse = false
     @State private var collectIconRotation: Double = 0
+    @State private var showsCollectPopover = false
 
     var body: some View {
         List(selection: destinationSelection) {
@@ -20,7 +23,7 @@ struct SidebarView: View {
                 }
             }
 
-            Section("常用功能") {
+            Section("系统管理") {
                 ForEach(
                     AppDestination.visibleUtilitySidebarDestinations(
                         isAdmin: model.user?.role == "admin"
@@ -97,6 +100,10 @@ struct SidebarView: View {
                 onLogin: {
                     showsAccountMenu = false
                     model.presentLogin()
+                },
+                onAbout: {
+                    showsAccountMenu = false
+                    onShowAbout()
                 }
             )
         }
@@ -156,6 +163,18 @@ struct SidebarView: View {
         .accessibilityAddTraits(.isButton)
         .frame(width: 38, height: 38)
         .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .popover(isPresented: $showsCollectPopover) {
+            CollectQuickPopoverView(
+                model: model.collectModel,
+                onRequestLogin: {
+                    showsCollectPopover = false
+                    model.presentLogin()
+                },
+                onFinished: {
+                    showsCollectPopover = false
+                }
+            )
+        }
     }
 
     private func triggerCollect() {
@@ -167,7 +186,7 @@ struct SidebarView: View {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(260))
             isCollectActive = false
-            model.selectDestination(.collect)
+            showsCollectPopover = true
         }
     }
 
@@ -302,6 +321,7 @@ private struct AccountMenuView: View {
     let user: AuthenticatedUser?
     let colorScheme: ColorScheme
     let onLogin: () -> Void
+    let onAbout: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -341,6 +361,8 @@ private struct AccountMenuView: View {
             if user == nil {
                 menuButton("登录", systemImage: "person.badge.key", action: onLogin)
             }
+
+            menuButton("关于", systemImage: "info.circle", action: onAbout)
         }
         .padding(6)
         .frame(width: 216)

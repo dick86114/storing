@@ -50,16 +50,6 @@ struct LibraryToolbar: View {
         .sheet(item: $bulkCategoryRequest) { request in
             BulkCategorySelectionSheet(model: model, request: request)
         }
-        .alert(
-            "批量操作结果",
-            isPresented: isBulkResultAlertPresented
-        ) {
-            Button("完成", role: .cancel) {
-                model.clearBulkResult()
-            }
-        } message: {
-            Text(resultMessage)
-        }
         .sheet(isPresented: $isBulkObsidianSheetPresented) {
             ObsidianExportSheet(
                 initialDraft: .lastUsed(
@@ -128,17 +118,6 @@ struct LibraryToolbar: View {
             set: { isPresented in
                 if !isPresented {
                     pendingBulkAction = nil
-                }
-            }
-        )
-    }
-
-    private var isBulkResultAlertPresented: Binding<Bool> {
-        Binding(
-            get: { model.bulkResult != nil },
-            set: { isPresented in
-                if !isPresented {
-                    model.clearBulkResult()
                 }
             }
         )
@@ -532,27 +511,6 @@ struct LibraryToolbar: View {
         pendingBulkAction.map {
             BulkToolbarPolicy.confirmation(for: $0, selectedCount: model.bulkSelection.count)
         }
-    }
-
-    private var resultMessage: String {
-        guard let result = model.bulkResult else {
-            return ""
-        }
-
-        var lines = [
-            "成功 \(result.succeededCount) 篇 · 跳过 \(result.skippedCount) 篇 · 失败 \(result.issues.count) 篇"
-        ]
-        for issue in result.issues {
-            let message = issue.message ?? "未知原因"
-            lines.append("ID \(issue.articleID)：\(issue.code) · \(message)")
-        }
-        for publication in result.publications {
-            lines.append("ID \(publication.articleID)：\(publication.publicURL)")
-        }
-        if let exportURL = model.bulkExportURL {
-            lines.append("已保存：\(exportURL.path)")
-        }
-        return lines.joined(separator: "\n")
     }
 
     private func actionTitle(_ action: BulkToolbarAction) -> String {

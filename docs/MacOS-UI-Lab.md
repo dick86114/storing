@@ -12,7 +12,7 @@ UI Lab 不访问真实账号、Keychain、SwiftData 用户缓存、生产 API �
 apps/macos/scripts/macos-ui-lab.sh login
 ```
 
-脚本会校验 Xcode、生成工程、构建 Debug App、启动指定场景，并输出截图路径。可用场景与脚本接口保持一致：`login`、`library`、`empty`、`loading`、`offline`、`reader`、`collect`、`tasks`、`settings`、`update`。
+脚本会校验 Xcode、生成工程、构建 Debug App、启动指定场景，并输出截图路径。可用场景与脚本接口保持一致：`login`、`library`、`empty`、`loading`、`offline`、`reader`、`collect`（快速采集弹窗）、`tasks`（历史任务页）、`settings`、`update`。
 
 ## 场景与截图路径
 
@@ -24,8 +24,8 @@ apps/macos/scripts/macos-ui-lab.sh login
 | `loading` | 进度、文案和稳定高度 | `artifacts/macos-ui-lab/loading/light.png`、`dark.png` |
 | `offline` | 离线图标、中文错误、重试 | `artifacts/macos-ui-lab/offline/light.png`、`dark.png` |
 | `reader` | 长文、长链接、代码、宽表和关闭按钮 | `artifacts/macos-ui-lab/reader/light.png`、`dark.png` |
-| `collect` | 链接输入、提交按钮、运行中任务 | `artifacts/macos-ui-lab/collect/light.png`、`dark.png` |
-| `tasks` | `pending`/`running`/`completed`/`failed`；完成行打开文章、失败行重试、终态行删除任务 | `artifacts/macos-ui-lab/tasks/light.png`、`dark.png` |
+| `collect` | 快速采集浮出弹窗：链接输入、读取剪贴板、提交按钮 | `artifacts/macos-ui-lab/collect/light.png`、`dark.png` |
+| `tasks` | 历史任务页：`pending`/`running`/`completed`/`failed`；完成行打开文章、失败行重试、终态行删除任务 | `artifacts/macos-ui-lab/tasks/light.png`、`dark.png` |
 | `settings` | 版本、环境、外观和快捷键 | `artifacts/macos-ui-lab/settings/light.png`、`dark.png` |
 | `update` | 新版本、更新说明、下载和 SHA-256 | `artifacts/macos-ui-lab/update/light.png`、`dark.png` |
 

@@ -280,7 +280,8 @@ final class QuickCollectFormState {
     }
 }
 
-private struct QuickCollectView: View {
+/// 快速采集弹窗内容（菜单栏图标、全局快捷键、主窗口 + 按钮共用）。
+struct QuickCollectView: View {
     @Bindable var model: CollectModel
     let authModel: AuthModel?
     let onAuthenticated: @MainActor () -> Void

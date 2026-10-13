@@ -312,6 +312,7 @@ private struct EmptyBody: Encodable, Sendable {}
 struct AdminTrashView: View {
     @State private var model: AdminTrashModel
     @Environment(\.colorScheme) private var colorScheme
+    @State private var resultToast: String?
     @State private var showsOrphans = false
     @State private var detailOrphan: AdminTrashOrphanItem?
     @State private var purgeOrphanTarget: AdminTrashOrphanItem?
@@ -391,6 +392,17 @@ struct AdminTrashView: View {
             if let detailItem = model.detailItem {
                 detailSheet(item: detailItem)
             }
+        }
+        .statusToast(message: $resultToast)
+        .onChange(of: model.bulkResult) { _, result in
+            guard let result, result.failed == 0 else { return }
+            // 成功只用弱提醒；失败保留结果卡，由用户自行关闭。
+            resultToast = AdminTrashBulkPresentation.headline(
+                scope: result.scope,
+                succeeded: result.succeeded,
+                failed: result.failed
+            )
+            model.bulkResult = nil
         }
     }
 

@@ -26,17 +26,22 @@ struct AppShellLayoutPolicyTests {
         #expect(layout == .listDetail(isReaderPrimary: true))
     }
 
-    @Test func 设置和管理员设置都合并中栏和阅读栏() {
+    @Test func 设置类页面与历史任务都合并中栏和阅读栏() {
         let policy = AppShellLayoutPolicy(threeColumnMinimumWidth: 900)
 
         let wideLayout = policy.layout(availableWidth: 1000, selectedArticleID: nil, destination: .settings)
         let narrowLayout = policy.layout(availableWidth: 640, selectedArticleID: nil, destination: .settings)
         let adminLayout = policy.layout(availableWidth: 1000, selectedArticleID: nil, destination: .admin)
         let categoriesLayout = policy.layout(availableWidth: 1000, selectedArticleID: nil, destination: .categories)
+        let historyLayout = policy.layout(availableWidth: 1000, selectedArticleID: nil, destination: .collectHistory)
+        let narrowHistoryLayout = policy.layout(availableWidth: 640, selectedArticleID: nil, destination: .collectHistory)
 
         #expect(wideLayout == .settings)
         #expect(narrowLayout == .settings)
         #expect(adminLayout == .settings)
         #expect(categoriesLayout == .settings)
+        // 历史任务页是「左列表 + 右正文」，跟随资料库的三栏/窄窗口策略。
+        #expect(historyLayout == .threeColumns)
+        #expect(narrowHistoryLayout == .listDetail(isReaderPrimary: false))
     }
 }

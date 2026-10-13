@@ -35,7 +35,7 @@ enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
         case .loading: "加载"
         case .offline: "离线"
         case .reader: "阅读器"
-        case .collect: "采集"
+        case .collect: "快速采集"
         case .tasks: "任务"
         case .settings: "设置"
         case .update: "更新"
@@ -90,12 +90,9 @@ struct UILabRootView: View {
             case .reader:
                 reader
             case .collect:
-                CollectView(
-                    model: UILabFixtures.collectModel,
-                    onOpenArticle: { _ in }
-                )
+                CollectQuickPopoverView(model: UILabFixtures.collectModel)
             case .tasks:
-                CollectTasksView(
+                CollectHistoryView(
                     model: UILabFixtures.collectModel,
                     onOpenArticle: { _ in }
                 )
