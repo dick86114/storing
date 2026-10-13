@@ -17,16 +17,15 @@ struct AppShellColumnWidthPolicy: Sendable {
     }
 
     func contentColumnWidth(
-        availableWidth: CGFloat
+        availableWidth: CGFloat,
+        overrideWidth: CGFloat? = nil
     ) -> (minimum: CGFloat, ideal: CGFloat) {
-        let availableContentWidth = availableWidth - threeColumnChromeWidth
+        let availableContentWidth = max(minimumContentWidth, availableWidth - threeColumnChromeWidth)
+        let requestedWidth = overrideWidth ?? defaultContentWidth
 
         return (
             minimum: minimumContentWidth,
-            ideal: min(
-                defaultContentWidth,
-                max(minimumContentWidth, availableContentWidth)
-            )
+            ideal: min(requestedWidth, availableContentWidth)
         )
     }
 }

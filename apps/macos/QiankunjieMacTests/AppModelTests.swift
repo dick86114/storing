@@ -162,21 +162,29 @@ struct AppModelTests {
         #expect(
             AppDestination.allCases == [
                 .inbox, .favorites, .archive, .published,
-                .collect, .admin, .settings,
+                .categories, .collect, .admin, .settings,
             ]
         )
         #expect(AppDestination.admin.isAdminOnly)
         #expect(AppDestination.settings.title == "设置")
+        #expect(AppDestination.categories.title == "分类管理")
         #expect(AppDestination.admin.title == "管理员设置")
     }
 
     @Test func 侧栏主菜单只显示资料库栏目() {
         #expect(AppDestination.sidebarDestinations == [.inbox, .favorites, .archive, .published])
+        #expect(AppDestination.utilitySidebarDestinations == [.categories])
+    }
+
+    @Test func 侧栏选中状态使用实心图标() {
+        #expect(AppDestination.inbox.selectedSystemImage(isSelected: false) == "tray")
+        #expect(AppDestination.inbox.selectedSystemImage(isSelected: true) == "tray.fill")
+        #expect(AppDestination.categories.selectedSystemImage(isSelected: true) == "folder.fill")
     }
 
     @Test func 普通设置按固定顺序提供账户与工具入口() {
-        #expect(SettingsTool.allCases == [.aiModel, .myMCP, .categories, .resetPassword])
-        #expect(SettingsTool.allCases.map(\.title) == ["AI 模型", "我的 MCP", "分类管理", "重置密码"])
+        #expect(SettingsTool.allCases == [.aiModel, .myMCP, .resetPassword])
+        #expect(SettingsTool.allCases.map(\.title) == ["AI 模型", "我的 MCP", "重置密码"])
     }
 
     @Test func 管理员设置按固定顺序提供用户与MCP管理() {

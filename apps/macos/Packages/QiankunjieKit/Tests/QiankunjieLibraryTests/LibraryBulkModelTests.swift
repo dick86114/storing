@@ -61,6 +61,18 @@ struct LibraryBulkModelTests {
         #expect(model.bulkResult?.issues.count == 2)
     }
 
+    @Test func 单篇文章右键操作不会进入批量选择() async {
+        let repository = 批量资料库仓库(pages: [1: .fixture(ids: [1, 2], page: 1, totalPages: 1)])
+        let model = LibraryModel(repository: repository, bulkRepository: 批量动作仓库())
+        await model.load(reset: true)
+
+        await model.runArticleToolbarAction(.favorite, articleID: 1)
+
+        #expect(!model.isBulkSelecting)
+        #expect(model.bulkSelection.isEmpty)
+        #expect(model.articles.first { $0.id == 1 }?.isFavorited == true)
+    }
+
     @Test func 运行中禁止重复提交() async {
         let repository = 批量资料库仓库(pages: [1: .fixture(ids: [1], page: 1, totalPages: 1)])
         let bulkRepository = 可阻塞批量动作仓库()

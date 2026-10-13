@@ -13,6 +13,7 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
     case favorites
     case archive
     case published
+    case categories
     case collect
     case admin
     case settings
@@ -23,6 +24,7 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
         case .favorites: "收藏"
         case .archive: "归档"
         case .published: "已发布"
+        case .categories: "分类管理"
         case .collect: "采集"
         case .admin: "管理员设置"
         case .settings: "设置"
@@ -34,7 +36,8 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
         case .inbox: "tray"
         case .favorites: "star"
         case .archive: "archivebox"
-        case .published: "globe"
+        case .published: "globe.americas"
+        case .categories: "folder"
         case .collect: "plus.rectangle.on.rectangle"
         case .admin: "shield.lefthalf.filled"
         case .settings: "gearshape"
@@ -47,12 +50,12 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
         case .favorites: .favorites
         case .archive: .archive
         case .published: .published
-        case .collect, .admin, .settings: nil
+        case .categories, .collect, .admin, .settings: nil
         }
     }
 
     var requiresAuthentication: Bool {
-        [.inbox, .favorites, .archive, .admin].contains(self)
+        [.inbox, .favorites, .archive, .categories, .admin].contains(self)
     }
 
     var isAdminOnly: Bool {
@@ -60,14 +63,31 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
     }
 
     static var sidebarDestinations: [AppDestination] {
-        allCases.filter { $0.libraryView != nil }
+        [.inbox, .favorites, .archive, .published]
+    }
+
+    static var utilitySidebarDestinations: [AppDestination] {
+        [.categories]
+    }
+
+    func selectedSystemImage(isSelected: Bool) -> String {
+        guard isSelected else { return systemImage }
+        return switch self {
+        case .inbox: "tray.fill"
+        case .favorites: "star.fill"
+        case .archive: "archivebox.fill"
+        case .published: "globe.americas.fill"
+        case .categories: "folder.fill"
+        case .collect: "plus.rectangle.on.rectangle.fill"
+        case .admin: "shield.lefthalf.filled"
+        case .settings: "gearshape.fill"
+        }
     }
 }
 
 enum SettingsTool: String, CaseIterable, Hashable, Identifiable, Sendable {
     case aiModel
     case myMCP
-    case categories
     case resetPassword
 
     var id: String { rawValue }
@@ -76,7 +96,6 @@ enum SettingsTool: String, CaseIterable, Hashable, Identifiable, Sendable {
         switch self {
         case .aiModel: "AI 模型"
         case .myMCP: "我的 MCP"
-        case .categories: "分类管理"
         case .resetPassword: "重置密码"
         }
     }
@@ -85,7 +104,6 @@ enum SettingsTool: String, CaseIterable, Hashable, Identifiable, Sendable {
         switch self {
         case .aiModel: "sparkles"
         case .myMCP: "point.3.connected.trianglepath.dotted"
-        case .categories: "folder"
         case .resetPassword: "lock.rotation"
         }
     }

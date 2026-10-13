@@ -15,6 +15,7 @@ struct RootWindow: View {
     @State private var isSidebarCollapsed = false
     @State private var availableWidth: CGFloat = 1200
     @State private var isOpeningMainWindow = false
+    @State private var contentColumnWidthOverride: CGFloat?
     private let layoutPolicy = AppShellLayoutPolicy()
     private let columnWidthPolicy = AppShellColumnWidthPolicy()
 
@@ -68,7 +69,10 @@ struct RootWindow: View {
     }
 
     private var contentColumnWidth: (minimum: CGFloat, ideal: CGFloat) {
-        columnWidthPolicy.contentColumnWidth(availableWidth: availableWidth)
+        columnWidthPolicy.contentColumnWidth(
+            availableWidth: availableWidth,
+            overrideWidth: contentColumnWidthOverride
+        )
     }
 
     @ViewBuilder
@@ -121,9 +125,15 @@ struct RootWindow: View {
                 .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
         } content: {
             listColumn
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.width
+                } action: { width in
+                    guard width >= contentColumnWidth.minimum else { return }
+                    contentColumnWidthOverride = width
+                }
                 .navigationSplitViewColumnWidth(
                     min: contentColumnWidth.minimum,
-                    ideal: contentColumnWidth.ideal,
+                    ideal: contentColumnWidthOverride ?? contentColumnWidth.ideal,
                     max: .infinity
                 )
         } detail: {
@@ -153,6 +163,19 @@ struct RootWindow: View {
             Group {
                 if model.destination == .admin {
                     AdminSettingsView(repository: model.authModel.repository)
+                } else if model.destination == .categories {
+                    if model.isAuthenticated {
+                        CategoryManagementView(
+                            client: ManagementAPIClient(repository: model.authModel.repository)
+                        )
+                    } else {
+                        GuestAccessView(
+                            title: "登录后管理分类",
+                            message: "当前账号未登录，登录后即可管理分类。"
+                        ) {
+                            model.presentLogin()
+                        }
+                    }
                 } else {
                     SettingsView(
                         model: model,
@@ -164,6 +187,9 @@ struct RootWindow: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .tint(WorkspacePalette.primary(for: colorScheme))
+            .toolbar {
+                contentColumnTitleToolbarItem
+            }
         }
         .navigationSplitViewStyle(.automatic)
     }

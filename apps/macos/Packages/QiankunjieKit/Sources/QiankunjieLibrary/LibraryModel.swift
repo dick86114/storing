@@ -370,15 +370,6 @@ public final class LibraryModel {
         }
     }
 
-    /// 单篇右键菜单需要把该文章作为唯一批量操作对象。
-    public func beginBulkOperation(for articleID: Int) {
-        if !isBulkSelecting {
-            isBulkSelecting = true
-            bulkResult = nil
-        }
-        bulkSelection = [articleID]
-    }
-
     public func toggleBulkSelection(_ articleID: Int) {
         guard isBulkSelecting else {
             return
@@ -501,6 +492,172 @@ public final class LibraryModel {
                 bulkSelection.subtract(result.succeededIDs)
                 bulkResult = NativeBulkResult(from: result)
             }
+        } catch {
+            bulkResult = failedResult(articleIDs: articleIDs, error: error)
+        }
+    }
+
+    /// 单篇文章右键操作独立于批量选择，不进入多选模式。
+    public func runArticleToolbarAction(
+        _ action: BulkToolbarAction,
+        articleID: Int,
+        categoryID: Int? = nil,
+        obsidianDestination: URL? = nil
+    ) async {
+        guard bulkRunningAction == nil else {
+            return
+        }
+
+        let articleIDs = [articleID]
+        bulkRunningAction = action
+        defer {
+            bulkRunningAction = nil
+        }
+
+        do {
+            switch action {
+            case .setCategory:
+                return
+            case .bulkObsidian:
+                guard
+                    let obsidianDestination,
+                    let bulkObsidianHandler
+                else {
+                    return
+                }
+                bulkResult = try await bulkObsidianHandler(articleIDs, obsidianDestination)
+            case .exportZIP:
+                let job = try await bulkRepository.runCreateBulkExport(articleIDs: articleIDs)
+                if let bulkExportHandler {
+                    let url = try await bulkExportHandler(job)
+                    bulkExportURL = url
+                }
+                bulkResult = NativeBulkResult(
+                    requestedCount: job.requestedCount,
+                    succeededCount: job.succeededCount,
+                    skippedCount: 0,
+                    issues: job.failedCount == 0 ? [] : [
+                        ArticleBulkIssue(
+                            articleID: 0,
+                            code: "EXPORT_FAILED",
+                            message: "文章未能导出"
+                        )
+                    ]
+                )
+            case .reclassify:
+                let result = try await bulkRepository.runBulkRegenerateAI(
+                    articleIDs: articleIDs,
+                    includeCategory: true,
+                    resetUserCategory: false
+                )
+                await load(reset: false)
+                applyAIResult(result)
+                bulkResult = NativeBulkResult(from: result)
+            case .generateAI:
+                let result = try await bulkRepository.runBulkRegenerateAI(
+                    articleIDs: articleIDs,
+                    includeCategory: false,
+                    resetUserCategory: false
+                )
+                await load(reset: false)
+                applyAIResult(result)
+                bulkResult = NativeBulkResult(from: result)
+            default:
+                let result = try await bulkRepository.runBulkAction(
+                    serverAction(for: action),
+                    articleIDs: articleIDs,
+                    categoryID: action == .archive ? categoryID : nil
+                )
+                let isDelete = action == .delete || action == .permanentDelete
+                if isDelete {
+                    removeArticles(withIDs: result.succeededIDs)
+                }
+                await load(reset: false)
+                if isDelete {
+                    removeArticles(withIDs: result.succeededIDs)
+                } else if action == .archive {
+                    updateArticles(withIDs: result.succeededIDs) { card in
+                        replacing(card, isArchived: true, aiStatus: "queued")
+                    }
+                    startAIPolling()
+                } else {
+                    updateArticles(withIDs: result.succeededIDs, action: action)
+                }
+                bulkResult = NativeBulkResult(from: result)
+            }
+        } catch {
+            bulkResult = failedResult(articleIDs: articleIDs, error: error)
+        }
+    }
+
+    public func runArticleCategoryByAI(articleID: Int) async {
+        guard bulkRunningAction == nil else {
+            return
+        }
+
+        let articleIDs = [articleID]
+        bulkRunningAction = .setCategory
+        defer {
+            bulkRunningAction = nil
+        }
+
+        do {
+            let result = try await bulkRepository.runBulkRegenerateAI(
+                articleIDs: articleIDs,
+                includeCategory: true,
+                resetUserCategory: true
+            )
+            await load(reset: false)
+            applyAIResult(result)
+            bulkResult = NativeBulkResult(from: result)
+        } catch {
+            bulkResult = failedResult(articleIDs: articleIDs, error: error)
+        }
+    }
+
+    public func runArticleCategory(articleID: Int, categoryID: Int) async {
+        guard bulkRunningAction == nil else {
+            return
+        }
+
+        let articleIDs = [articleID]
+        bulkRunningAction = .setCategory
+        defer {
+            bulkRunningAction = nil
+        }
+
+        do {
+            let result = try await bulkRepository.runBulkCategory(articleIDs: articleIDs, categoryID: categoryID)
+            await load(reset: false)
+            let category = availableCategories.first { $0.id == categoryID }?.category
+            updateArticles(withIDs: result.succeededIDs) { card in
+                guard let category else { return card }
+                return ArticleCard(
+                    id: card.id,
+                    title: card.title,
+                    author: card.author,
+                    source: card.source,
+                    originalURL: card.originalURL,
+                    publicID: card.publicID,
+                    coverImage: card.coverImage,
+                    publishTime: card.publishTime,
+                    createdAt: card.createdAt,
+                    aiSummary: card.aiSummary,
+                    aiCategory: card.aiCategory,
+                    aiTags: card.aiTags,
+                    category: category,
+                    categoryResult: card.categoryResult,
+                    isFavorited: card.isFavorited,
+                    isArchived: card.isArchived,
+                    isPublished: card.isPublished,
+                    aiStatus: card.aiStatus,
+                    aiErrorCode: card.aiErrorCode,
+                    aiErrorMessage: card.aiErrorMessage,
+                    aiModel: card.aiModel,
+                    aiTotalTokens: card.aiTotalTokens
+                )
+            }
+            bulkResult = NativeBulkResult(from: result)
         } catch {
             bulkResult = failedResult(articleIDs: articleIDs, error: error)
         }
