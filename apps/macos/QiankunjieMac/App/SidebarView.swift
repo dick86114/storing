@@ -5,7 +5,6 @@ import SwiftUI
 struct SidebarView: View {
     @Bindable var model: AppModel
     let destinationSelection: Binding<AppDestination>
-    var isCollapsed = false
     @Environment(\.colorScheme) private var colorScheme
     @State private var showsAccountMenu = false
     @State private var isCollectButtonHovered = false
@@ -15,13 +14,13 @@ struct SidebarView: View {
 
     var body: some View {
         List(selection: destinationSelection) {
-            Section(isCollapsed ? "" : "资料库") {
+            Section("资料库") {
                 ForEach(AppDestination.sidebarDestinations, id: \.self) { destination in
                     sidebarRow(destination)
                 }
             }
 
-            Section(isCollapsed ? "" : "常用功能") {
+            Section("常用功能") {
                 ForEach(
                     AppDestination.visibleUtilitySidebarDestinations(
                         isAdmin: model.user?.role == "admin"
@@ -45,32 +44,25 @@ struct SidebarView: View {
     @ViewBuilder
     private func sidebarRow(_ destination: AppDestination) -> some View {
         let isSelected = destinationSelection.wrappedValue == destination
-        Group {
-            if isCollapsed {
-                sidebarIcon(destination, isSelected: isSelected)
-                    .font(.system(size: 20, weight: .medium))
-                    .frame(width: 30, height: 30)
-            } else {
-                HStack(spacing: 8) {
-                    sidebarIcon(destination, isSelected: isSelected)
-                        .frame(width: 18)
 
-                    // 显式展示文本，避免窄侧栏时 SwiftUI Label 隐藏栏目名。
-                    Text(destination.title)
-                        .lineLimit(1)
+        return HStack(spacing: 8) {
+            sidebarIcon(destination, isSelected: isSelected)
+                .frame(width: 18)
 
-                    Spacer(minLength: 0)
+            // 显式展示文本，避免窄侧栏时 SwiftUI Label 隐藏栏目名。
+            Text(destination.title)
+                .lineLimit(1)
 
-                    if let count = destination.libraryView.flatMap({ model.libraryModel.count(for: $0) }) {
-                        Text("\(count)")
-                            .font(.caption)
-                            .monospacedDigit()
-                            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                    }
-                }
+            Spacer(minLength: 0)
+
+            if let count = destination.libraryView.flatMap({ model.libraryModel.count(for: $0) }) {
+                Text("\(count)")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
             }
         }
-        .frame(maxWidth: .infinity, minHeight: isCollapsed ? 42 : 0, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .center)
         .tag(destination)
     }
 
@@ -85,32 +77,18 @@ struct SidebarView: View {
     }
 
     private var topControls: some View {
-        Group {
-            if !isCollapsed {
-                searchField
-            }
-        }
-        .padding(.horizontal, isCollapsed ? 10 : 12)
-        .padding(.top, 12)
-        .padding(.bottom, 10)
-        .background(QiankunjieColors.surfaceVariant(for: colorScheme))
+        searchField
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .padding(.bottom, 10)
+            .background(QiankunjieColors.surfaceVariant(for: colorScheme))
     }
 
     private var bottomControls: some View {
-        Group {
-            if isCollapsed {
-                VStack(spacing: 8) {
-                    sidebarCollectButton
+        HStack(spacing: 8) {
+            accountButton
 
-                    accountButton
-                }
-            } else {
-                HStack(spacing: 8) {
-                    accountButton
-
-                    sidebarCollectButton
-                }
-            }
+            sidebarCollectButton
         }
         .popover(isPresented: $showsAccountMenu, arrowEdge: .bottom) {
             AccountMenuView(
@@ -122,7 +100,7 @@ struct SidebarView: View {
                 }
             )
         }
-        .padding(.horizontal, isCollapsed ? 10 : 12)
+        .padding(.horizontal, 12)
         .padding(.bottom, 12)
         .onAppear {
             withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
@@ -208,26 +186,24 @@ struct SidebarView: View {
             HStack(spacing: 9) {
                 accountAvatar
 
-                if !isCollapsed {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(model.user?.username ?? "未登录")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(model.user?.username ?? "未登录")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
 
-                        Text(model.user == nil ? "登录以同步资料" : "乾坤戒账号")
-                            .font(.system(size: 11))
-                            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                            .lineLimit(1)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    Image(systemName: "chevron.up")
-                        .font(.system(size: 10, weight: .medium))
+                    Text(model.user == nil ? "登录以同步资料" : "乾坤戒账号")
+                        .font(.system(size: 11))
                         .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                        .lineLimit(1)
                 }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
             }
             .padding(7)
             .frame(

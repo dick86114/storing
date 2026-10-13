@@ -12,7 +12,6 @@ struct RootWindow: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.colorScheme) private var colorScheme
     @State private var sidebarVisibility: NavigationSplitViewVisibility = .all
-    @State private var isSidebarCollapsed = false
     @State private var availableWidth: CGFloat = 1200
     @State private var isOpeningMainWindow = false
     @State private var contentColumnWidthOverride: CGFloat?
@@ -75,52 +74,28 @@ struct RootWindow: View {
         )
     }
 
+    /// 资料库、设置与分类管理共用同一套外壳。
+    /// 侧栏的展开与收起完全交给 NavigationSplitView，收起后不再自作一条灰色导轨。
     @ViewBuilder
     private var shell: some View {
         Group {
             switch layout {
             case .threeColumns:
-                HStack(spacing: 0) {
-                    if isSidebarCollapsed {
-                        collapsedSidebarRail
-                    }
-
-                    threeColumnShell
-                }
+                threeColumnShell
             case .settings:
-                HStack(spacing: 0) {
-                    if isSidebarCollapsed {
-                        collapsedSidebarRail
-                    }
-
-                    settingsShell
-                }
+                settingsShell
             case .listDetail:
                 listDetailShell
             }
         }
         .background(QiankunjieColors.background(for: colorScheme))
-        .onChange(of: sidebarVisibility) { _, newValue in
-            isSidebarCollapsed = newValue == .detailOnly
-        }
-    }
-
-    private var collapsedSidebarRail: some View {
-        SidebarView(
-            model: model,
-            destinationSelection: destinationSelection,
-            isCollapsed: true
-        )
-        .frame(width: 68)
-        .background(QiankunjieColors.surfaceVariant(for: colorScheme))
     }
 
     private var threeColumnShell: some View {
         NavigationSplitView(columnVisibility: $sidebarVisibility) {
             SidebarView(
                 model: model,
-                destinationSelection: destinationSelection,
-                isCollapsed: false
+                destinationSelection: destinationSelection
             )
                 .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
         } content: {
@@ -155,8 +130,7 @@ struct RootWindow: View {
         NavigationSplitView(columnVisibility: $sidebarVisibility) {
             SidebarView(
                 model: model,
-                destinationSelection: destinationSelection,
-                isCollapsed: false
+                destinationSelection: destinationSelection
             )
             .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
         } detail: {
@@ -214,14 +188,6 @@ struct RootWindow: View {
 
     private var searchResultWidth: CGFloat {
         min(max(360, availableWidth * 0.36), 520)
-    }
-
-    private var showsMainSidebar: Bool {
-        if case .listDetail = layout {
-            return false
-        }
-
-        return true
     }
 
     @ViewBuilder
