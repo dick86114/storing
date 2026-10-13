@@ -136,7 +136,7 @@ public final class MenuBarController: NSObject {
                 onShowMainWindow()
             },
             onOpenTaskList: { [weak appModel] in
-                appModel?.selectDestination(.collect)
+                appModel?.selectDestination(.collectHistory)
                 onShowMainWindow()
             }
         )
@@ -209,6 +209,11 @@ public final class MenuBarController: NSObject {
 
     func togglePanel() {
         panel.toggleFromStatusItem(statusItem?.button)
+    }
+
+    /// 主窗口里的「采集」入口复用同一个快速采集弹窗。
+    func presentCollectPanel() {
+        panel.present(from: nil)
     }
 
     var statusMenuTitles: [String] {

@@ -14,7 +14,7 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
     case archive
     case published
     case categories
-    case collect
+    case collectHistory
     case admin
     case settings
 
@@ -25,7 +25,7 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
         case .archive: "归档"
         case .published: "已发布"
         case .categories: "分类管理"
-        case .collect: "采集"
+        case .collectHistory: "历史任务"
         case .admin: "管理员设置"
         case .settings: "设置"
         }
@@ -38,7 +38,7 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
         case .archive: "archivebox"
         case .published: "globe.americas"
         case .categories: "folder"
-        case .collect: "plus.rectangle.on.rectangle"
+        case .collectHistory: "clock.arrow.circlepath"
         case .admin: "shield.lefthalf.filled"
         case .settings: "gearshape"
         }
@@ -50,7 +50,7 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
         case .favorites: .favorites
         case .archive: .archive
         case .published: .published
-        case .categories, .collect, .admin, .settings: nil
+        case .categories, .collectHistory, .admin, .settings: nil
         }
     }
 
@@ -66,11 +66,12 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
         [.inbox, .favorites, .archive, .published]
     }
 
+    /// 系统管理分组：分类管理下面是历史任务。
     static var utilitySidebarDestinations: [AppDestination] {
-        [.categories, .settings, .admin]
+        [.categories, .collectHistory, .settings, .admin]
     }
 
-    /// 主侧栏中的管理员入口只对管理员展示；设置是所有用户都能进入的常用功能。
+    /// 主侧栏中的管理员入口只对管理员展示；设置是所有用户都能进入的系统管理入口。
     static func visibleUtilitySidebarDestinations(isAdmin: Bool) -> [AppDestination] {
         utilitySidebarDestinations.filter { destination in
             !destination.isAdminOnly || isAdmin
@@ -85,7 +86,7 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
         case .archive: "archivebox.fill"
         case .published: "globe.americas.fill"
         case .categories: "folder.fill"
-        case .collect: "plus.rectangle.on.rectangle.fill"
+        case .collectHistory: "clock.arrow.circlepath"
         case .admin: "shield.lefthalf.filled"
         case .settings: "gearshape.fill"
         }
@@ -345,7 +346,7 @@ final class AppModel {
         self.destination = destination
         hasExplicitDestinationSelection = true
         selectArticle(nil)
-        if destination == .collect {
+        if destination == .collectHistory {
             Task {
                 await collectModel.refreshJobs()
             }

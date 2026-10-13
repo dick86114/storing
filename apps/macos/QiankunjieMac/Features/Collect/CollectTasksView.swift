@@ -5,6 +5,8 @@ import SwiftUI
 
 struct CollectTasksView: View {
     @Bindable var model: CollectModel
+    /// 右侧当前打开的正文。
+    var selectedArticleID: Int?
     let onOpenArticle: @MainActor (CollectJob) -> Void
     @Environment(\.colorScheme) private var colorScheme
 
@@ -21,12 +23,6 @@ struct CollectTasksView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            toolbar
-
-            Rectangle()
-                .fill(QiankunjieColors.outline(for: colorScheme))
-                .frame(height: 1)
-
             if let message = model.refreshErrorMessage ?? model.actionErrorMessage {
                 Text(message)
                     .qiankunjieFont(.labelMedium)
@@ -79,54 +75,6 @@ struct CollectTasksView: View {
         }
     }
 
-    private var toolbar: some View {
-        HStack(spacing: 10) {
-            Text("采集任务")
-                .qiankunjieFont(.headlineSmall)
-                .foregroundStyle(QiankunjieColors.onBackground(for: colorScheme))
-
-            Spacer()
-
-            Button {
-                Task {
-                    await model.refreshJobs()
-                }
-            } label: {
-                if model.isRefreshingJobs {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                }
-            }
-            .buttonStyle(.borderless)
-            .disabled(
-                model.isRefreshingJobs
-                    || model.isLoadingMoreJobs
-                    || model.isClearingFinishedJobs
-                    || model.userID == nil
-            )
-            .help("刷新任务")
-
-            Button {
-                model.isClearConfirmationPresented = true
-            } label: {
-                Image(systemName: "trash.slash")
-            }
-            .buttonStyle(.borderless)
-            .disabled(
-                model.userID == nil
-                    || model.jobs.isEmpty
-                    || model.isRefreshingJobs
-                    || model.isLoadingMoreJobs
-                    || model.isClearingFinishedJobs
-            )
-            .help("清理已完成和失败的任务")
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-    }
-
     @ViewBuilder
     private var content: some View {
         if model.userID == nil {
@@ -155,6 +103,7 @@ struct CollectTasksView: View {
                 ForEach(model.jobs, id: \.id) { job in
                     CollectJobRow(
                         job: job,
+                        isSelected: job.articleId != nil && job.articleId == selectedArticleID,
                         isMutating: model.mutatingJobIDs.contains(job.id),
                         onOpenArticle: job.articleId == nil ? nil : {
                             onOpenArticle(job)
@@ -219,7 +168,7 @@ struct CollectTasksView: View {
         ContentUnavailableView(
             "暂无采集任务",
             systemImage: "tray",
-            description: Text("在采集页提交公开链接后，任务会显示在这里")
+            description: Text("用左下角 + 按钮或全局快捷键粘贴公开链接，采集记录会显示在这里")
         )
     }
 

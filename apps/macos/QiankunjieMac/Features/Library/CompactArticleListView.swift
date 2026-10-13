@@ -42,6 +42,7 @@ struct CompactArticleListView: View {
     @State private var contextBulkCategoryRequest: BulkCategoryRequest?
     @State private var contextObsidianArticleID: Int?
     @State private var isContextObsidianSheetPresented = false
+    @State private var resultToast: String?
 
     private let paginationPreviewCount = 6
     private let layoutMetrics = CompactArticleListLayoutMetrics()
@@ -56,8 +57,33 @@ struct CompactArticleListView: View {
                 .fill(QiankunjieColors.outline(for: colorScheme))
                 .frame(height: 1)
             content
+                .statusToast(message: $resultToast)
         }
         .background(QiankunjieColors.background(for: colorScheme))
+        .onChange(of: model.bulkResult) { _, result in
+            guard let result else { return }
+            // 成功（含跳过）用弱提醒；有失败/异常时保留结果，交给下面的弹窗。
+            guard result.issues.isEmpty else { return }
+            resultToast = successSummary(result)
+            model.clearBulkResult()
+        }
+        .alert(
+            "操作失败",
+            isPresented: Binding(
+                get: { model.bulkResult?.issues.isEmpty == false },
+                set: { isPresented in
+                    if !isPresented {
+                        model.clearBulkResult()
+                    }
+                }
+            )
+        ) {
+            Button("关闭", role: .cancel) {
+                model.clearBulkResult()
+            }
+        } message: {
+            Text(failureMessage)
+        }
         .confirmationDialog(
             contextBulkAction.map {
                 BulkToolbarPolicy.confirmation(
@@ -148,6 +174,35 @@ struct CompactArticleListView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    /// 成功结果的弱提醒文案（不需要用户确认）。
+    private func successSummary(_ result: NativeBulkResult) -> String {
+        var parts = ["成功 \(result.succeededCount) 篇"]
+        if result.skippedCount > 0 {
+            parts.append("跳过 \(result.skippedCount) 篇")
+        }
+        if let exportURL = model.bulkExportURL {
+            parts.append("已保存到 \(exportURL.lastPathComponent)")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// 失败/异常的详细文案（弹窗里展示，需要用户自行关闭）。
+    private var failureMessage: String {
+        guard let result = model.bulkResult else { return "" }
+
+        var lines = [
+            "成功 \(result.succeededCount) 篇 · 跳过 \(result.skippedCount) 篇 · 失败 \(result.issues.count) 篇"
+        ]
+        for issue in result.issues {
+            let message = issue.message ?? "未知原因"
+            lines.append("ID \(issue.articleID)：\(issue.code) · \(message)")
+        }
+        if let exportURL = model.bulkExportURL {
+            lines.append("已保存：\(exportURL.path)")
+        }
+        return lines.joined(separator: "\n")
+    }
+
     private var articleList: some View {
         ThinScrollView {
             LazyVStack(spacing: 8) {
@@ -166,11 +221,6 @@ struct CompactArticleListView: View {
                         let operatesOnCurrentSelection = model.isBulkSelecting
                             && !model.bulkSelection.isEmpty
                             && model.bulkSelection.contains(article.id)
-                        if !operatesOnCurrentSelection {
-                            Text("操作《\(article.title ?? "未命名文章")》")
-                                .disabled(true)
-                            Divider()
-                        }
                         let targetArticleID = operatesOnCurrentSelection ? nil : article.id
                         ForEach(
                             BulkArticlePolicy.toolbarActions(for: model.view),

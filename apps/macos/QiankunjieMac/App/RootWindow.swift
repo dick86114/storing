@@ -95,7 +95,8 @@ struct RootWindow: View {
         NavigationSplitView(columnVisibility: $sidebarVisibility) {
             SidebarView(
                 model: model,
-                destinationSelection: destinationSelection
+                destinationSelection: destinationSelection,
+                onShowAbout: showAboutPanel
             )
                 .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
         } content: {
@@ -130,7 +131,8 @@ struct RootWindow: View {
         NavigationSplitView(columnVisibility: $sidebarVisibility) {
             SidebarView(
                 model: model,
-                destinationSelection: destinationSelection
+                destinationSelection: destinationSelection,
+                onShowAbout: showAboutPanel
             )
             .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
         } detail: {
@@ -207,10 +209,12 @@ struct RootWindow: View {
                     presentationMode: presentationModeBinding
                 )
                 .id(libraryView)
-            } else if model.destination == .collect {
-                CollectView(
+            } else if model.destination == .collectHistory {
+                CollectHistoryView(
                     model: model.collectModel,
-                    onOpenArticle: model.openCollectArticle
+                    onOpenArticle: model.openCollectArticle,
+                    selectedArticleID: model.selectedArticleID,
+                    onRequestLogin: model.presentLogin
                 )
             } else {
                 LibraryPlaceholderView(destination: model.destination)

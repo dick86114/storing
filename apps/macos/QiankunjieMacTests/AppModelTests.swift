@@ -162,20 +162,24 @@ struct AppModelTests {
         #expect(
             AppDestination.allCases == [
                 .inbox, .favorites, .archive, .published,
-                .categories, .collect, .admin, .settings,
+                .categories, .collectHistory, .admin, .settings,
             ]
         )
         #expect(AppDestination.admin.isAdminOnly)
         #expect(AppDestination.settings.title == "设置")
         #expect(AppDestination.categories.title == "分类管理")
+        #expect(AppDestination.collectHistory.title == "历史任务")
         #expect(AppDestination.admin.title == "管理员设置")
     }
 
     @Test func 侧栏主菜单只显示资料库栏目() {
         #expect(AppDestination.sidebarDestinations == [.inbox, .favorites, .archive, .published])
-        #expect(AppDestination.utilitySidebarDestinations == [.categories, .settings, .admin])
-        #expect(AppDestination.visibleUtilitySidebarDestinations(isAdmin: false) == [.categories, .settings])
-        #expect(AppDestination.visibleUtilitySidebarDestinations(isAdmin: true) == [.categories, .settings, .admin])
+        #expect(AppDestination.utilitySidebarDestinations == [.categories, .collectHistory, .settings, .admin])
+        #expect(AppDestination.visibleUtilitySidebarDestinations(isAdmin: false) == [.categories, .collectHistory, .settings])
+        #expect(
+            AppDestination.visibleUtilitySidebarDestinations(isAdmin: true)
+                == [.categories, .collectHistory, .settings, .admin]
+        )
     }
 
     @Test func 侧栏选中状态使用实心图标() {
