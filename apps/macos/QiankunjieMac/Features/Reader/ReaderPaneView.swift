@@ -26,7 +26,7 @@ struct ReaderPaneView: View {
     @State private var renameDraft = ""
     @State private var titleCopied = false
     @State private var showCategoryReason = false
-    @State private var isCategoryEditorPresented = false
+    @State private var categorySheetMode: ReaderCategorySheetMode?
     @Environment(\.colorScheme) private var colorScheme
 
     init(
@@ -158,10 +158,11 @@ struct ReaderPaneView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
         }
-        .sheet(isPresented: $isCategoryEditorPresented) {
+        .sheet(item: $categorySheetMode) { mode in
             ReaderCategoryEditorSheet(
                 model: model,
-                article: article
+                article: article,
+                mode: mode
             ) {
                 onLibraryDidChange()
             }
@@ -437,7 +438,7 @@ struct ReaderPaneView: View {
             Text("分类")
             if selection?.isGuest == false && article.isArchived {
                 Button {
-                    isCategoryEditorPresented = true
+                    categorySheetMode = .move
                 } label: {
                     HStack(spacing: 3) {
                         Text(article.category?.name ?? article.aiCategory ?? "未分类")
@@ -523,6 +524,9 @@ struct ReaderPaneView: View {
         switch action {
         case .favorite:
             perform(action)
+        case .archive:
+            // 归档前先选分类，或明确交给 AI 判断。
+            categorySheetMode = .archive
         default:
             pendingAction = action
         }
@@ -570,11 +574,33 @@ struct ReaderPaneView: View {
     }
 }
 
+private enum ReaderCategorySheetMode: String, Identifiable {
+    case archive
+    case move
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .archive: "归档到哪里？"
+        case .move: "修改分类"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .archive: "选择预设分类，或让 AI 根据内容判断。"
+        case .move: "选择预设分类，或让 AI 重新判断。"
+        }
+    }
+}
+
 private struct ReaderCategoryEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     let model: ReaderModel
     let article: ReaderArticle
+    let mode: ReaderCategorySheetMode
     let onChanged: () -> Void
     @State private var newCategoryName = ""
 
@@ -585,6 +611,7 @@ private struct ReaderCategoryEditorSheet: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 8) {
+                    aiCategoryButton
                     if model.isLoadingCategories {
                         HStack {
                             ProgressView()
@@ -621,10 +648,10 @@ private struct ReaderCategoryEditorSheet: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("修改分类")
+                Text(mode.title)
                     .qiankunjieFont(.titleMedium)
                     .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
-                Text("选择一个分类；新增后会直接应用到当前文章。")
+                Text(mode.subtitle)
                     .qiankunjieFont(.labelMedium)
                     .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
             }
@@ -641,12 +668,63 @@ private struct ReaderCategoryEditorSheet: View {
         .padding(16)
     }
 
+    private var aiCategoryButton: some View {
+        Button {
+            Task {
+                switch mode {
+                case .archive:
+                    await model.archive()
+                    if model.actionErrorMessage == nil {
+                        onChanged()
+                        dismiss()
+                    }
+                case .move:
+                    await model.classifyArticle()
+                    if model.actionErrorMessage == nil {
+                        onChanged()
+                        dismiss()
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 9) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("由 AI 判断")
+                        .qiankunjieFont(.bodyMedium)
+                    Text("低置信度会进入待整理")
+                        .qiankunjieFont(.labelMedium)
+                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(QiankunjieColors.accent(for: colorScheme).opacity(0.12))
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(model.isPerformingAction || model.isLoadingCategories)
+        .accessibilityLabel("由 AI 判断分类")
+    }
+
     private func categoryButton(_ category: ArticleCategory) -> some View {
         let isSelected = category.id == article.category?.id
 
         return Button {
             Task {
-                if await model.moveToCategory(category.id) {
+                let changed: Bool
+                switch mode {
+                case .archive:
+                    await model.archive(categoryID: category.id)
+                    changed = model.actionErrorMessage == nil
+                case .move:
+                    changed = await model.moveToCategory(category.id)
+                }
+                if changed {
                     onChanged()
                     dismiss()
                 }

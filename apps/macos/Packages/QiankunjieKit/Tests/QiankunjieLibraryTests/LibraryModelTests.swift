@@ -328,6 +328,46 @@ struct LibraryModelTests {
         #expect(model.articles.isEmpty)
     }
 
+    @Test func 单篇右键操作会切换成该文章的唯一批量选择() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [41, 42], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(repository: repository, cache: EmptyLibraryCache())
+        await model.load(reset: true)
+
+        model.beginBulkOperation(for: 42)
+
+        #expect(model.isBulkSelecting)
+        #expect(model.bulkSelection == [42])
+    }
+
+    @Test func 列表会刷新生成完成的AI摘要() async {
+        let article = ArticleCard(
+            id: 41,
+            title: "文章 41",
+            source: "测试来源",
+            aiStatus: "queued"
+        )
+        let repository = 模拟资料库仓库(pages: [1: .fixture(ids: [41], page: 1, totalPages: 1)])
+        await repository.setArticleCard(article)
+        let model = LibraryModel(repository: repository, cache: EmptyLibraryCache())
+        await model.load(reset: true)
+
+        await repository.setArticleCard(
+            ArticleCard(
+                id: 41,
+                title: "文章 41",
+                source: "测试来源",
+                aiSummary: "生成完成",
+                aiStatus: "succeeded"
+            )
+        )
+        await model.refreshAIStatusesOnce()
+
+        #expect(model.articles.first?.aiSummary == "生成完成")
+        #expect(model.articles.first?.aiStatus == "succeeded")
+    }
+
     @Test func 同步列表重载不会清除当前选择() async {
         let repository = 模拟资料库仓库(
             pages: [1: .fixture(ids: [41], page: 1, totalPages: 1)]
@@ -377,6 +417,18 @@ private actor 模拟资料库仓库: LibraryLoading {
             throw currentError
         }
         return pages[query.page] ?? .fixture(ids: [], page: query.page, totalPages: 0)
+    }
+
+    func setArticleCard(_ card: ArticleCard) {
+        pages = pages.mapValues { page in
+            ArticleListPage(
+                articles: page.articles.map { $0.id == card.id ? card : $0 },
+                total: page.total,
+                page: page.page,
+                perPage: page.perPage,
+                totalPages: page.totalPages
+            )
+        }
     }
 
     func loadCounts(userID: Int?) async throws -> ArticleCounts {

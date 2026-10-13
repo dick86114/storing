@@ -739,7 +739,6 @@ class LibraryViewModel @Inject constructor(
   }
 
   fun reclassify(article: ArticleDetail) {
-    if (article.categoryResult?.reviewStatus != "needs_review") return
     if (mutableState.value.processingAction != null) return
     viewModelScope.launch {
       mutableState.update { it.copy(processingAction = ArticleProcessingAction.ReclassifyCategory, processingError = null) }
@@ -912,6 +911,47 @@ class LibraryViewModel @Inject constructor(
       }.onFailure { error ->
         mutableState.update { it.copy(bulkRunningAction = null, processingError = error.message ?: "批量操作失败") }
       }
+    }
+  }
+
+  fun runBulkArchive(ids: Set<Int>, categoryId: Int? = null) {
+    if (mutableState.value.bulkRunningAction != null) return
+    val articleIds = validatedBulkArticleIds(ids)
+    mutableState.update { it.copy(bulkRunningAction = BulkToolbarAction.Archive, bulkResult = null, processingError = null) }
+    viewModelScope.launch {
+      runCatching { repository.bulkAction(BulkArticleAction.Archive, articleIds, categoryId) }
+        .onSuccess { result ->
+          mutableState.update { state ->
+            state.copy(
+              bulkResult = NativeBulkResult.from(result),
+              bulkRunningAction = null,
+              articles = state.articles.filterNot { it.id in result.succeededIds && state.view != LibraryView.Archive },
+            )
+          }
+          loadInitial(refreshing = true, preserveLoadedContent = true)
+          loadCounts()
+        }
+        .onFailure { error ->
+          mutableState.update { it.copy(bulkRunningAction = null, processingError = error.message ?: "批量归档失败") }
+        }
+    }
+  }
+
+  fun runBulkCategoryAi(ids: Set<Int>) {
+    if (mutableState.value.bulkRunningAction != null) return
+    val articleIds = validatedBulkArticleIds(ids)
+    mutableState.update { it.copy(bulkRunningAction = BulkToolbarAction.SetCategory, bulkResult = null, processingError = null) }
+    viewModelScope.launch {
+      runCatching { repository.bulkRegenerateAi(articleIds, includeCategory = true, resetUserCategory = true) }
+        .onSuccess { result ->
+          mutableState.update { it.copy(bulkResult = NativeBulkResult.from(result), bulkRunningAction = null) }
+          loadInitial(refreshing = true, preserveLoadedContent = true)
+          loadCounts()
+          loadArchiveCategories(force = true)
+        }
+        .onFailure { error ->
+          mutableState.update { it.copy(bulkRunningAction = null, processingError = error.message ?: "批量 AI 分类失败") }
+        }
     }
   }
 

@@ -11,6 +11,7 @@ import { BulkActionBar, type BulkToolbarAction } from '@/components/article/Bulk
 import { ListToolbar } from '@/components/article/ListToolbar';
 import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type ArticleSortOption } from '@/components/article/ArticleSortControl';
 import { PullToRefresh } from '@/components/ui/PullToRefresh';
+import { CategoryAssignmentDialog } from '@/components/article/WechatDetailPanel';
 import { api } from '@/lib/api';
 import { scrollListToTop, setListScrollTop } from '@/lib/listScroll';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
@@ -55,10 +56,16 @@ function FavoritesContentInner() {
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkResult, setBulkResult] = useState<ArticleBulkActionResult | ArticleBulkAiResult | null>(null);
   const [bulkExportJob, setBulkExportJob] = useState<BulkExportJob | null>(null);
+  const [bulkArchivePickerOpen, setBulkArchivePickerOpen] = useState(false);
   const removingIdsRef = useRef<Set<number>>(new Set());
   const articleIds = useMemo(() => allArticles.map((article) => article.id), [allArticles]);
   const selection = useArticleSelection(articleIds);
   const bulkActions = useBulkArticleActions();
+  const { data: categoryData, mutate: mutateCategoryData } = useSWR(
+    isAuthenticated ? 'categories:archive-action' : null,
+    () => api.getCategories(),
+    { revalidateOnFocus: false },
+  );
 
   const confirmSelectionClear = useCallback(() => {
     if (!bulkMode || selection.selectedIds.size === 0) return true;
@@ -213,6 +220,10 @@ function FavoritesContentInner() {
     if (ids.length === 0) return;
     try {
       if (action === 'set-category') return;
+      if (action === 'archive') {
+        setBulkArchivePickerOpen(true);
+        return;
+      }
       if (action === 'generate-ai' || action === 'reclassify') {
         setBulkResult(await bulkActions.runAi(ids, action === 'reclassify'));
       } else if (action === 'export-zip') {
@@ -232,8 +243,46 @@ function FavoritesContentInner() {
     }
   }, [bulkActions, selection, showToast]);
 
+  const confirmBulkArchive = useCallback(async (categoryId?: number) => {
+    const ids = [...selection.selectedIds];
+    if (ids.length === 0 || bulkActions.loadingAction !== null) return;
+    setBulkArchivePickerOpen(false);
+    try {
+      setBulkResult(await bulkActions.runAction('archive', ids, categoryId));
+      await refreshList();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '批量归档失败');
+    }
+  }, [bulkActions, refreshList, selection, showToast]);
+
+  const handleCreateCategory = useCallback(async (name: string) => {
+    const created = await api.createCategory({
+      name,
+      description: null,
+      includeExamples: [],
+      excludeExamples: [],
+      color: null,
+    });
+    await mutateCategoryData();
+    return created;
+  }, [mutateCategoryData]);
+
   return (
     <>
+      {bulkArchivePickerOpen && (
+        <CategoryAssignmentDialog
+          categories={categoryData?.categories ?? []}
+          currentCategoryId={null}
+          loading={bulkActions.loadingAction !== null}
+          title="批量归档到哪里？"
+          subtitle={`为已选 ${selection.selectedIds.size} 篇文章选择预设分类，或让 AI 根据内容判断。`}
+          onClose={() => setBulkArchivePickerOpen(false)}
+          onSelect={(categoryId) => confirmBulkArchive(categoryId)}
+          onSelectAi={() => confirmBulkArchive()}
+          onCreateCategory={handleCreateCategory}
+        />
+      )}
+
       {/* 书签提示弹窗 */}
       {bookmarkPrompt && (
         <div

@@ -62,13 +62,17 @@ class ArticleRepository @Inject constructor(
   suspend fun moveToCategory(articleIds: List<Int>, categoryId: Int): ArticleBulkActionResult =
     api.moveToCategoryBulk(ArticleBulkCategoryRequest(articleIds, categoryId))
 
-  suspend fun bulkAction(action: BulkArticleAction, articleIds: List<Int>): ArticleBulkActionResult =
-    api.bulkAction(ArticleBulkActionRequest(action, articleIds))
+  suspend fun bulkAction(action: BulkArticleAction, articleIds: List<Int>, categoryId: Int? = null): ArticleBulkActionResult =
+    api.bulkAction(ArticleBulkActionRequest(action, articleIds, categoryId))
   suspend fun classify(id: Int) = api.classify(id)
   suspend fun classify(articleIds: List<Int>) = bulkRegenerateAi(articleIds, includeCategory = true)
 
-  suspend fun bulkRegenerateAi(articleIds: List<Int>, includeCategory: Boolean): ArticleBulkAiResult =
-    api.bulkRegenerateAi(ArticleBulkAiRequest(articleIds, includeCategory))
+  suspend fun bulkRegenerateAi(
+    articleIds: List<Int>,
+    includeCategory: Boolean,
+    resetUserCategory: Boolean = false,
+  ): ArticleBulkAiResult =
+    api.bulkRegenerateAi(ArticleBulkAiRequest(articleIds, includeCategory, resetUserCategory))
 
   suspend fun createBulkExport(articleIds: List<Int>): ArticleBulkExportJob =
     api.createBulkExport(ArticleBulkExportRequest(articleIds))

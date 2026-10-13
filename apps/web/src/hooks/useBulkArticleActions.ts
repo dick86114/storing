@@ -31,10 +31,11 @@ export function useBulkArticleActions() {
   const runAction = useCallback(async function runAction(
     action: ArticleBulkAction,
     ids: number[],
+    categoryId?: number,
   ): Promise<ArticleBulkActionResult | null> {
     setLoadingAction(action);
     try {
-      const result = await api.bulkArticles(action, ids);
+      const result = await api.bulkArticles(action, ids, categoryId);
       await refreshArticleCaches();
       return result;
     } finally {
@@ -45,10 +46,11 @@ export function useBulkArticleActions() {
   const runAi = useCallback(async function runAi(
     ids: number[],
     includeCategory: boolean,
+    resetUserCategory = false,
   ): Promise<ArticleBulkAiResult | null> {
     setLoadingAction('ai');
     try {
-      const result = await api.bulkRegenerateArticleAi(ids, includeCategory);
+      const result = await api.bulkRegenerateArticleAi(ids, includeCategory, resetUserCategory);
       await refreshArticleCaches();
       return result;
     } finally {

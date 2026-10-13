@@ -144,7 +144,8 @@ private actor 批量资料库仓库: LibraryLoading, LibraryBulkOperating {
 
     func runBulkAction(
         _ action: ArticleBulkAction,
-        articleIDs: [Int]
+        articleIDs: [Int],
+        categoryID: Int?
     ) async throws -> ArticleBulkActionResult {
         bulkActionCount += 1
         return ArticleBulkActionResult(
@@ -169,7 +170,8 @@ private actor 批量资料库仓库: LibraryLoading, LibraryBulkOperating {
 
     func runBulkRegenerateAI(
         articleIDs: [Int],
-        includeCategory: Bool
+        includeCategory: Bool,
+        resetUserCategory: Bool
     ) async throws -> ArticleBulkAIResult {
         ArticleBulkAIResult(
             requestedCount: articleIDs.count,
@@ -230,7 +232,7 @@ private actor 批量动作仓库: LibraryBulkOperating {
         self.exportJob = exportJob
     }
 
-    func runBulkAction(_ action: ArticleBulkAction, articleIDs: [Int]) async throws -> ArticleBulkActionResult {
+    func runBulkAction(_ action: ArticleBulkAction, articleIDs: [Int], categoryID: Int?) async throws -> ArticleBulkActionResult {
         actionResult
     }
 
@@ -238,7 +240,7 @@ private actor 批量动作仓库: LibraryBulkOperating {
         actionResult
     }
 
-    func runBulkRegenerateAI(articleIDs: [Int], includeCategory: Bool) async throws -> ArticleBulkAIResult {
+    func runBulkRegenerateAI(articleIDs: [Int], includeCategory: Bool, resetUserCategory: Bool) async throws -> ArticleBulkAIResult {
         aiResult
     }
 
@@ -255,7 +257,7 @@ private actor 可阻塞批量动作仓库: LibraryBulkOperating {
     private var isPaused = true
     private(set) var actionCount = 0
 
-    func runBulkAction(_ action: ArticleBulkAction, articleIDs: [Int]) async throws -> ArticleBulkActionResult {
+    func runBulkAction(_ action: ArticleBulkAction, articleIDs: [Int], categoryID: Int?) async throws -> ArticleBulkActionResult {
         actionCount += 1
         while isPaused {
             try? await Task.sleep(nanoseconds: 5_000_000)
@@ -267,7 +269,7 @@ private actor 可阻塞批量动作仓库: LibraryBulkOperating {
         .init(requestedCount: articleIDs.count, succeededIDs: articleIDs, skipped: [], failed: [])
     }
 
-    func runBulkRegenerateAI(articleIDs: [Int], includeCategory: Bool) async throws -> ArticleBulkAIResult {
+    func runBulkRegenerateAI(articleIDs: [Int], includeCategory: Bool, resetUserCategory: Bool) async throws -> ArticleBulkAIResult {
         .init(requestedCount: articleIDs.count, queuedIDs: articleIDs, alreadyQueuedIDs: [], failed: [])
     }
 

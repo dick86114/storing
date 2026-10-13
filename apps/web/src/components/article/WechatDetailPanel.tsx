@@ -2487,7 +2487,7 @@ function DetailContent({
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [deleteConfirmMode, setDeleteConfirmMode] = useState<DeleteConfirmMode | null>(null);
   const [sharePoster, setSharePoster] = useState<SharePosterState | null>(null);
-  const [categoryAssignmentOpen, setCategoryAssignmentOpen] = useState(false);
+  const [moveCategoryPickerOpen, setMoveCategoryPickerOpen] = useState(false);
   const [archiveCategoryAssignmentOpen, setArchiveCategoryAssignmentOpen] = useState(false);
   const [categoryReasonOpen, setCategoryReasonOpen] = useState(false);
   const [currentView, setCurrentView] = useState<ArticleView>('archive');
@@ -2679,7 +2679,7 @@ function DetailContent({
     const category = categoryData?.categories.find((item) => item.id === categoryId);
     await runArticleAction('category', async () => {
       await api.moveArticleToCategory(article.id, categoryId);
-      setCategoryAssignmentOpen(false);
+      setMoveCategoryPickerOpen(false);
       await mutateArticle();
       onMutate();
       detailMutate('categories');
@@ -2722,8 +2722,9 @@ function DetailContent({
 
   async function handleReclassifyCategory() {
     if (!article) return;
+    setMoveCategoryPickerOpen(false);
     await runArticleAction('classify', async () => {
-      await api.classifyArticle(article.id);
+      await api.classifyArticle(article.id, true);
       await mutateArticle();
       onMutate();
       detailMutate('categories');
@@ -2898,7 +2899,7 @@ function DetailContent({
                       <span>{pendingAction === 'ai' ? '正在生成…' : '重新生成摘要和标签'}</span>
                     </button>
                     {article?.isArchived && (
-                      <button className="app-menu-item detail-more-menu-item" type="button" onClick={() => { setMoreOpen(false); setCategoryAssignmentOpen(true); }} disabled={!!pendingAction}>
+                      <button className="app-menu-item detail-more-menu-item" type="button" onClick={() => { setMoreOpen(false); setMoveCategoryPickerOpen(true); }} disabled={!!pendingAction}>
                         <FolderOutlined />
                         <span>{pendingAction === 'category' ? '正在修改…' : '修改分类'}</span>
                       </button>
@@ -2962,13 +2963,14 @@ function DetailContent({
         />
       )}
 
-      {categoryAssignmentOpen && article && (
+      {moveCategoryPickerOpen && article && (
         <CategoryAssignmentDialog
           categories={categoryData?.categories ?? []}
           currentCategoryId={article.category?.id ?? null}
           loading={categoriesLoading || pendingAction === 'category'}
-          onClose={() => setCategoryAssignmentOpen(false)}
+          onClose={() => setMoveCategoryPickerOpen(false)}
           onSelect={handleMoveToCategory}
+          onSelectAi={handleReclassifyCategory}
           onCreateCategory={handleCreateCategory}
         />
       )}
@@ -3090,7 +3092,7 @@ function DetailContent({
                 {(article.isArchived && article.category || article.categoryResult?.reason) && (
                   <div className="detail-panel-category-status" aria-label="分类状态">
                     {article.isArchived && article.category && (
-                      <button className="detail-panel-category-current" type="button" onClick={() => setCategoryAssignmentOpen(true)}>
+                      <button className="detail-panel-category-current" type="button" onClick={() => setMoveCategoryPickerOpen(true)}>
                         <span className="detail-panel-category-dot" style={{ background: article.category.color || 'var(--accent)' }} aria-hidden="true" />
                         <span className="detail-panel-category-status-label">当前分类</span>
                         <span className="detail-panel-category-status-value">{article.category.name}</span>

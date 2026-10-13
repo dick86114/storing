@@ -10,6 +10,7 @@ import { ARTICLE_BULK_ACTION_LIMIT, parseArticleBulkActionInput } from '../servi
 import type { ArticleBulkActionResult } from '@storing/shared';
 import {
   AiConfigurationRequiredError,
+  ArticleBulkCategoryNotFoundError,
   enqueueBulkArticleAi,
   publishArticleForUser,
   permanentlyDeleteArticleForUser,
@@ -745,6 +746,7 @@ articlesRoutes.post('/articles/bulk-actions', requireAuth, async (c) => {
       EMPTY_ARTICLES: '请选择至少一篇文章',
       INVALID_ARTICLES: '文章 ID 无效',
       TOO_MANY_ARTICLES: '单次最多处理 200 篇文章',
+      INVALID_CATEGORY: '分类 ID 无效',
     };
     return c.json({ error: { code: parsed.code, message: messages[parsed.code] } }, 400);
   }
@@ -752,13 +754,21 @@ articlesRoutes.post('/articles/bulk-actions', requireAuth, async (c) => {
   if (parsed.action === 'favorite' || parsed.action === 'unfavorite' || parsed.action === 'archive'
     || parsed.action === 'unarchive' || parsed.action === 'delete' || parsed.action === 'permanent_delete'
     || parsed.action === 'publish' || parsed.action === 'unpublish') {
-    const result: ArticleBulkActionResult = await runSimpleArticleBulkAction(
-      getCurrentUser(c).id as number,
-      parsed.action,
-      parsed.articleIds,
-    );
-    if (parsed.action === 'publish') result.publications ??= [];
-    return c.json(result);
+    try {
+      const result: ArticleBulkActionResult = await runSimpleArticleBulkAction(
+        getCurrentUser(c).id as number,
+        parsed.action,
+        parsed.articleIds,
+        parsed.action === 'archive' ? { categoryId: parsed.categoryId } : {},
+      );
+      if (parsed.action === 'publish') result.publications ??= [];
+      return c.json(result);
+    } catch (error) {
+      if (error instanceof ArticleBulkCategoryNotFoundError) {
+        return c.json({ error: { code: 'CATEGORY_NOT_FOUND', message: error.message } }, 404);
+      }
+      throw error;
+    }
   }
 
   return c.json({ error: { code: 'UNSUPPORTED_ACTION', message: '批量操作暂不支持该动作' } }, 400);
@@ -786,7 +796,7 @@ articlesRoutes.post('/articles/bulk-classify', requireAuth, async (c) => {
 });
 
 articlesRoutes.post('/articles/bulk-regenerate-ai', requireAuth, async (c) => {
-  const body = await c.req.json().catch(() => null) as { articleIds?: unknown; includeCategory?: unknown } | null;
+  const body = await c.req.json().catch(() => null) as { articleIds?: unknown; includeCategory?: unknown; resetUserCategory?: unknown } | null;
   const ids = parseBulkArticleIds(body?.articleIds);
   if (!ids.ok) {
     const messages = {
@@ -800,7 +810,10 @@ articlesRoutes.post('/articles/bulk-regenerate-ai', requireAuth, async (c) => {
     return c.json(await enqueueBulkArticleAi(
       getCurrentUser(c).id as number,
       ids.articleIds,
-      { includeCategory: body?.includeCategory === true },
+      {
+        includeCategory: body?.includeCategory === true,
+        resetUserCategory: body?.resetUserCategory === true,
+      },
     ));
   } catch (error) {
     if (error instanceof AiConfigurationRequiredError) {

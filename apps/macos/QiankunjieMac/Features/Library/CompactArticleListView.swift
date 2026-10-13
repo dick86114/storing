@@ -29,6 +29,9 @@ struct CompactArticleListView: View {
     @Binding var selection: Int?
     @Binding var presentationMode: ArticleListPresentationMode
     @Environment(\.colorScheme) private var colorScheme
+    @State private var contextBulkAction: BulkToolbarAction?
+    @State private var contextBulkCategoryPurpose: BulkCategoryPurpose?
+    @State private var isContextObsidianSheetPresented = false
 
     private let paginationPreviewCount = 6
     private let layoutMetrics = CompactArticleListLayoutMetrics()
@@ -45,6 +48,55 @@ struct CompactArticleListView: View {
             content
         }
         .background(QiankunjieColors.background(for: colorScheme))
+        .confirmationDialog(
+            contextBulkAction.map {
+                BulkToolbarPolicy.confirmation(for: $0, selectedCount: model.bulkSelection.count).title
+            } ?? "确认批量操作",
+            isPresented: Binding(
+                get: { contextBulkAction != nil && model.bulkSelection.isEmpty == false },
+                set: { isPresented in
+                    if !isPresented { contextBulkAction = nil }
+                }
+            ),
+            presenting: contextBulkAction
+        ) { action in
+            let copy = BulkToolbarPolicy.confirmation(for: action, selectedCount: model.bulkSelection.count)
+            Button(copy.confirmTitle, role: copy.isDestructive ? .destructive : nil) {
+                contextBulkAction = nil
+                Task {
+                    await model.runBulkToolbarAction(action)
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: { action in
+            Text(BulkToolbarPolicy.confirmation(for: action, selectedCount: model.bulkSelection.count).message)
+        }
+        .sheet(item: $contextBulkCategoryPurpose) { purpose in
+            BulkCategorySelectionSheet(model: model, purpose: purpose)
+        }
+        .sheet(isPresented: $isContextObsidianSheetPresented) {
+            ObsidianExportSheet(
+                initialDraft: .lastUsed(
+                    articleTitle: "批量导出",
+                    settingsStore: ObsidianExportSettingsStore()
+                ),
+                onCancel: {
+                    isContextObsidianSheetPresented = false
+                },
+                onConfirm: { draft in
+                    isContextObsidianSheetPresented = false
+                    saveLastUsedSelection(draft)
+                    Task {
+                        await model.runBulkToolbarAction(
+                            .bulkObsidian,
+                            obsidianDestination: draft.directoryURL
+                        )
+                    }
+                },
+                showsTitle: false,
+                subtitle: "已选 \(model.bulkSelection.count) 篇文章"
+            )
+        }
     }
 
     private var content: some View {
@@ -75,6 +127,36 @@ struct CompactArticleListView: View {
                             articleCard(article)
                         } else {
                             articleRow(article)
+                        }
+                    }
+                    .contextMenu {
+                        let operatesOnCurrentSelection = model.isBulkSelecting
+                            && !model.bulkSelection.isEmpty
+                            && model.bulkSelection.contains(article.id)
+                        if !operatesOnCurrentSelection {
+                            Text("操作《\(article.title ?? "未命名文章")》")
+                                .disabled(true)
+                            Divider()
+                        }
+                        ForEach(
+                            BulkArticlePolicy.toolbarActions(for: model.view),
+                            id: \.self
+                        ) { action in
+                            Button(BulkToolbarPolicy.menuTitle(for: action)) {
+                                if !operatesOnCurrentSelection {
+                                    model.beginBulkOperation(for: article.id)
+                                }
+                                switch action {
+                                case .archive:
+                                    contextBulkCategoryPurpose = .archive
+                                case .setCategory:
+                                    contextBulkCategoryPurpose = .setCategory
+                                case .bulkObsidian:
+                                    isContextObsidianSheetPresented = true
+                                default:
+                                    contextBulkAction = action
+                                }
+                            }
                         }
                     }
                     .onAppear {
@@ -547,6 +629,24 @@ private struct ArticleCoverImageView<Fallback: View>: View {
             .buttonStyle(.borderedProminent)
         }
         .padding(24)
+    }
+
+    private func saveLastUsedSelection(_ draft: ObsidianExportDraft) {
+        guard
+            let vaultURL = draft.vaultURL,
+            let directoryURL = draft.directoryURL
+        else {
+            return
+        }
+
+        let store = ObsidianExportSettingsStore()
+        store.save(
+            ObsidianExportSettings(
+                directoryURL: directoryURL,
+                conflictPolicy: store.load().conflictPolicy
+            ),
+            vaultURL: vaultURL
+        )
     }
 
     private func displayTime(_ article: ArticleCard) -> String? {

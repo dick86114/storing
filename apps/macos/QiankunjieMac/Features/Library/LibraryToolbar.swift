@@ -9,7 +9,7 @@ struct LibraryToolbar: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var isRefreshButtonHovered = false
     @State private var pendingBulkAction: BulkToolbarAction?
-    @State private var pendingBulkCategory: LibraryCategoryFilter?
+    @State private var bulkCategoryPurpose: BulkCategoryPurpose?
     @State private var isBulkObsidianSheetPresented = false
 
     var body: some View {
@@ -47,17 +47,8 @@ struct LibraryToolbar: View {
         } message: { _ in
             Text(pendingBulkConfirmation?.message ?? "")
         }
-        .confirmationDialog(
-            categoryConfirmation?.title ?? "设置分类",
-            isPresented: isBulkCategoryDialogPresented,
-            presenting: pendingBulkCategory
-        ) { category in
-            Button("设置分类") {
-                runBulkCategory(category)
-            }
-            Button("取消", role: .cancel) {}
-        } message: { _ in
-            Text(categoryConfirmation?.message ?? "")
+        .sheet(item: $bulkCategoryPurpose) { purpose in
+            BulkCategorySelectionSheet(model: model, purpose: purpose)
         }
         .alert(
             "批量操作结果",
@@ -137,17 +128,6 @@ struct LibraryToolbar: View {
             set: { isPresented in
                 if !isPresented {
                     pendingBulkAction = nil
-                }
-            }
-        )
-    }
-
-    private var isBulkCategoryDialogPresented: Binding<Bool> {
-        Binding(
-            get: { pendingBulkCategory != nil },
-            set: { isPresented in
-                if !isPresented {
-                    pendingBulkCategory = nil
                 }
             }
         )
@@ -495,16 +475,13 @@ struct LibraryToolbar: View {
     private var bulkActionMenu: some View {
         Menu {
             ForEach(BulkArticlePolicy.toolbarActions(for: model.view), id: \.self) { action in
-                if action == .setCategory {
-                    Menu("设置分类") {
-                        ForEach(model.availableCategories) { category in
-                            Button(category.name) {
-                                pendingBulkCategory = category
-                            }
-                        }
-                    }
-                } else {
-                    Button(actionTitle(action)) {
+                Button(actionTitle(action)) {
+                    switch action {
+                    case .archive:
+                        bulkCategoryPurpose = .archive
+                    case .setCategory:
+                        bulkCategoryPurpose = .setCategory
+                    default:
                         pendingBulkAction = action
                     }
                 }
@@ -557,12 +534,6 @@ struct LibraryToolbar: View {
         }
     }
 
-    private var categoryConfirmation: BulkConfirmationCopy? {
-        pendingBulkCategory.map {
-            BulkToolbarPolicy.categoryConfirmation(category: $0, selectedCount: model.bulkSelection.count)
-        }
-    }
-
     private var resultMessage: String {
         guard let result = model.bulkResult else {
             return ""
@@ -598,13 +569,6 @@ struct LibraryToolbar: View {
                 action,
                 obsidianDestination: obsidianDestination
             )
-        }
-    }
-
-    private func runBulkCategory(_ category: LibraryCategoryFilter) {
-        pendingBulkCategory = nil
-        Task {
-            await model.runBulkCategory(category.id)
         }
     }
 

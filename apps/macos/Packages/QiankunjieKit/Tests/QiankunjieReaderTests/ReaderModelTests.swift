@@ -42,6 +42,33 @@ struct ReaderModelTests {
         #expect(model.errorMessage == nil)
     }
 
+    @Test func 阅读器会刷新生成完成的AI摘要() async {
+        let client = 模拟阅读客户端(
+            detail: ArticleDetail(id: 12, isArchived: true, aiStatus: "queued")
+        )
+        let model = ReaderModel(client: client)
+        await model.open(articleID: 12)
+        await client.updateDetail(
+            ArticleDetail(id: 12, aiSummary: "生成完成", isArchived: true, aiStatus: "succeeded")
+        )
+
+        await model.refreshAIStatusOnce()
+
+        #expect(model.article?.aiSummary == "生成完成")
+        #expect(model.article?.detail.aiStatus == "succeeded")
+    }
+
+    @Test func 阅读器归档会携带手工分类并在完成后回调资料库() async {
+        let client = 模拟阅读客户端()
+        let model = ReaderModel(client: client)
+        await model.open(articleID: 12)
+
+        await model.archive(categoryID: 31)
+
+        #expect(await client.lastArchiveCategoryID == 31)
+        #expect(model.article?.isArchived == true)
+    }
+
     @Test func 阅读器详情暴露封面图() async {
         let client = 模拟阅读客户端(
             detail: 文章详情(id: 41, coverImage: "https://cdn.example.com/cover.jpg")
@@ -366,6 +393,7 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
     private(set) var paths: [String] = []
     private(set) var categoryPaths: [String] = []
     private(set) var lastMovedCategoryID: Int?
+    private(set) var lastArchiveCategoryID: Int?
     private(set) var createdCategoryNames: [String] = []
     private let categories: [ArticleCategory]
     private(set) var lastHTMLVariant: String?
@@ -419,8 +447,9 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
         return ReaderFavoriteResult(isFavorited: true)
     }
 
-    func archive(articleID: Int) async throws -> ReaderArchiveResult {
+    func archive(articleID: Int, categoryID: Int?) async throws -> ReaderArchiveResult {
         paths.append("articles/\(articleID)/archive")
+        lastArchiveCategoryID = categoryID
         return ReaderArchiveResult(isArchived: true)
     }
 
@@ -446,6 +475,11 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
 
     func regenerateAI(articleID: Int) async throws -> ReaderAIResult {
         paths.append("articles/\(articleID)/regenerate-ai")
+        return ReaderAIResult(ok: true)
+    }
+
+    func classifyArticle(articleID: Int) async throws -> ReaderAIResult {
+        paths.append("articles/\(articleID)/classify")
         return ReaderAIResult(ok: true)
     }
 
@@ -493,6 +527,10 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
     func permanentDelete(articleID: Int) async throws {
         paths.append("articles/\(articleID)/permanent")
         notifyRequestWaiters()
+    }
+
+    func updateDetail(_ detail: ArticleDetail) {
+        self.detail = detail
     }
 
     func holdFavorite() {
@@ -591,7 +629,9 @@ private func 文章详情(
     source: String? = nil,
     coverImage: String? = nil,
     contentMarkdown: String? = nil,
-    aiSummary: String? = nil
+    aiSummary: String? = nil,
+    isArchived: Bool = false,
+    aiStatus: String? = nil
 ) -> ArticleDetail {
     ArticleDetail(
         id: id,
@@ -599,6 +639,8 @@ private func 文章详情(
         source: source,
         coverImage: coverImage,
         aiSummary: aiSummary,
-        contentMarkdown: contentMarkdown
+        isArchived: isArchived,
+        contentMarkdown: contentMarkdown,
+        aiStatus: aiStatus
     )
 }

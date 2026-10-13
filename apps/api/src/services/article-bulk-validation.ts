@@ -17,9 +17,10 @@ export type ArticleBulkActionInput = {
   ok: true;
   action: ArticleBulkAction;
   articleIds: number[];
+  categoryId?: number | null;
 } | {
   ok: false;
-  code: 'INVALID_ACTION' | 'EMPTY_ARTICLES' | 'INVALID_ARTICLES' | 'TOO_MANY_ARTICLES';
+  code: 'INVALID_ACTION' | 'EMPTY_ARTICLES' | 'INVALID_ARTICLES' | 'TOO_MANY_ARTICLES' | 'INVALID_CATEGORY';
 };
 
 function parseArticleId(value: unknown): number | null {
@@ -51,5 +52,13 @@ export function parseArticleBulkActionInput(body: unknown): ArticleBulkActionInp
   if (articleIds.length > ARTICLE_BULK_ACTION_LIMIT) {
     return { ok: false, code: 'TOO_MANY_ARTICLES' };
   }
-  return { ok: true, action: action as ArticleBulkAction, articleIds };
+
+  const rawCategoryId = (body as { categoryId?: unknown }).categoryId;
+  if (rawCategoryId === undefined || rawCategoryId === null) {
+    return { ok: true, action: action as ArticleBulkAction, articleIds, categoryId: null };
+  }
+  if (typeof rawCategoryId !== 'number' || !Number.isInteger(rawCategoryId) || rawCategoryId <= 0) {
+    return { ok: false, code: 'INVALID_CATEGORY' };
+  }
+  return { ok: true, action: action as ArticleBulkAction, articleIds, categoryId: rawCategoryId };
 }

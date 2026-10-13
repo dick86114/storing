@@ -41,6 +41,7 @@ public final class LibraryModel {
     public private(set) var loadMoreErrorMessage: String?
     public private(set) var refreshErrorMessage: String?
     public private(set) var sourceErrorMessage: String?
+    public private(set) var categoryErrorMessage: String?
     public private(set) var isBulkSelecting = false
     public private(set) var bulkSelection: Set<Int> = []
     public private(set) var bulkRunningAction: BulkToolbarAction?
@@ -51,6 +52,7 @@ public final class LibraryModel {
     private let bulkRepository: any LibraryBulkOperating
     private let cache: any LibraryCaching
     private var requestGeneration = 0
+    private var aiPollTask: Task<Void, Never>?
     public var bulkExportHandler: (@MainActor (ArticleBulkExportJob) async throws -> URL)?
     public var bulkObsidianHandler: (@MainActor ([Int], URL) async throws -> NativeBulkResult)?
 
@@ -133,6 +135,7 @@ public final class LibraryModel {
         availableSources = []
         availableCategories = []
         sourceErrorMessage = nil
+        categoryErrorMessage = nil
         exitBulkMode()
         resetLoadedState()
     }
@@ -339,6 +342,7 @@ public final class LibraryModel {
         availableSources = []
         availableCategories = []
         sourceErrorMessage = nil
+        categoryErrorMessage = nil
         selectedArticleID = nil
         exitBulkMode()
         resetLoadedState()
@@ -364,6 +368,15 @@ public final class LibraryModel {
             isBulkSelecting = true
             bulkResult = nil
         }
+    }
+
+    /// 单篇右键菜单需要把该文章作为唯一批量操作对象。
+    public func beginBulkOperation(for articleID: Int) {
+        if !isBulkSelecting {
+            isBulkSelecting = true
+            bulkResult = nil
+        }
+        bulkSelection = [articleID]
     }
 
     public func toggleBulkSelection(_ articleID: Int) {
@@ -400,6 +413,7 @@ public final class LibraryModel {
 
     public func runBulkToolbarAction(
         _ action: BulkToolbarAction,
+        categoryID: Int? = nil,
         obsidianDestination: URL? = nil
     ) async {
         guard bulkRunningAction == nil, isBulkSelecting else {
@@ -450,21 +464,25 @@ public final class LibraryModel {
                     ]
                 )
             case .reclassify:
-                let result = try await bulkRepository.runBulkRegenerateAI(articleIDs: articleIDs, includeCategory: true)
+                let result = try await bulkRepository.runBulkRegenerateAI(articleIDs: articleIDs, includeCategory: true, resetUserCategory: false)
                 bulkSelection.subtract(result.queuedIDs)
                 bulkSelection.subtract(result.alreadyQueuedIDs)
                 await load(reset: false)
                 applyAIResult(result)
                 bulkResult = NativeBulkResult(from: result)
             case .generateAI:
-                let result = try await bulkRepository.runBulkRegenerateAI(articleIDs: articleIDs, includeCategory: false)
+                let result = try await bulkRepository.runBulkRegenerateAI(articleIDs: articleIDs, includeCategory: false, resetUserCategory: false)
                 bulkSelection.subtract(result.queuedIDs)
                 bulkSelection.subtract(result.alreadyQueuedIDs)
                 await load(reset: false)
                 applyAIResult(result)
                 bulkResult = NativeBulkResult(from: result)
             default:
-                let result = try await bulkRepository.runBulkAction(serverAction(for: action), articleIDs: articleIDs)
+                let result = try await bulkRepository.runBulkAction(
+                    serverAction(for: action),
+                    articleIDs: articleIDs,
+                    categoryID: action == .archive ? categoryID : nil
+                )
                 let isDelete = action == .delete || action == .permanentDelete
                 if isDelete {
                     removeArticles(withIDs: result.succeededIDs)
@@ -472,12 +490,51 @@ public final class LibraryModel {
                 await load(reset: false)
                 if isDelete {
                     removeArticles(withIDs: result.succeededIDs)
+                } else if action == .archive {
+                    updateArticles(withIDs: result.succeededIDs) { card in
+                        replacing(card, isArchived: true, aiStatus: "queued")
+                    }
+                    startAIPolling()
                 } else {
                     updateArticles(withIDs: result.succeededIDs, action: action)
                 }
                 bulkSelection.subtract(result.succeededIDs)
                 bulkResult = NativeBulkResult(from: result)
             }
+        } catch {
+            bulkResult = failedResult(articleIDs: articleIDs, error: error)
+        }
+    }
+
+    public func runBulkCategoryByAI() async {
+        guard bulkRunningAction == nil, isBulkSelecting else {
+            return
+        }
+
+        let articleIDs: [Int]
+        do {
+            articleIDs = try BulkArticlePolicy.validatedIDs(Array(bulkSelection))
+        } catch {
+            errorMessage = Self.message(for: error)
+            return
+        }
+
+        bulkRunningAction = .setCategory
+        defer {
+            bulkRunningAction = nil
+        }
+
+        do {
+            let result = try await bulkRepository.runBulkRegenerateAI(
+                articleIDs: articleIDs,
+                includeCategory: true,
+                resetUserCategory: true
+            )
+            bulkSelection.subtract(result.queuedIDs)
+            bulkSelection.subtract(result.alreadyQueuedIDs)
+            await load(reset: false)
+            applyAIResult(result)
+            bulkResult = NativeBulkResult(from: result)
         } catch {
             bulkResult = failedResult(articleIDs: articleIDs, error: error)
         }
@@ -616,6 +673,7 @@ public final class LibraryModel {
         updateArticles(withIDs: result.queuedIDs + result.alreadyQueuedIDs) { card in
             replacing(card, aiStatus: "queued")
         }
+        startAIPolling()
     }
 
     private func replacing(
@@ -652,6 +710,7 @@ public final class LibraryModel {
     }
 
     private func resetLoadedState() {
+        stopAIPolling()
         articles = []
         page = 1
         total = 0
@@ -694,6 +753,7 @@ public final class LibraryModel {
         sourceErrorMessage = nil
         isLoading = false
         bulkSelection = bulkSelection.intersection(Set(articles.map(\.id)))
+        scheduleAIPollingIfPending()
     }
 
     private func loadCachedPage(scope: LibraryCacheScope) async -> ArticleListPage? {
@@ -701,6 +761,15 @@ public final class LibraryModel {
             return nil
         }
         return try? await cache.load(scope: scope)
+    }
+
+    /// 批量归档可能在收件箱/收藏页发起，这些视图没有分类筛选，也需要按需加载分类。
+    public func loadAvailableCategories() async {
+        do {
+            availableCategories = try await repository.loadCategoryFilters(userID: userID)
+        } catch {
+            categoryErrorMessage = Self.message(for: error)
+        }
     }
 
     private func loadAuxiliaryData(generation: Int) async {
@@ -734,6 +803,66 @@ public final class LibraryModel {
             if isSourceFilterAvailable, requestGeneration == generation, availableSources.isEmpty {
                 sourceErrorMessage = Self.message(for: error)
             }
+        }
+    }
+
+    private func scheduleAIPollingIfPending() {
+        guard articles.contains(where: { $0.aiStatus == "queued" || $0.aiStatus == "running" }) else {
+            stopAIPolling()
+            return
+        }
+        startAIPolling()
+    }
+
+    private func startAIPolling() {
+        guard aiPollTask == nil else { return }
+        aiPollTask = Task { [weak self] in
+            defer { await MainActor.run { self?.aiPollTask = nil } }
+            let startedAt = ContinuousClock.now
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard let self, await self.refreshAIStatusesOnce() else { break }
+                if startedAt.duration(to: .now) > .seconds(90) { break }
+            }
+        }
+    }
+
+    private func stopAIPolling() {
+        aiPollTask?.cancel()
+        aiPollTask = nil
+    }
+
+    /// 列表轮询只回读当前筛选下已加载页，避免“排队中”占位一直停留。
+    @discardableResult
+    public func refreshAIStatusesOnce() async -> Bool {
+        guard articles.contains(where: { $0.aiStatus == "queued" || $0.aiStatus == "running" }) else {
+            stopAIPolling()
+            return false
+        }
+
+        var refreshedArticles: [ArticleCard] = []
+        var refreshedPage = page
+        var refreshedTotal = total
+        var refreshedTotalPages = totalPages
+        do {
+            let pagesToRefresh = Array(1...max(1, page))
+            for pageNumber in pagesToRefresh {
+                let pageResult = try await repository.load(currentQuery(page: pageNumber))
+                refreshedArticles.append(contentsOf: pageResult.articles)
+                refreshedPage = pageResult.page
+                refreshedTotal = pageResult.total
+                refreshedTotalPages = pageResult.totalPages
+            }
+            articles = Self.deduplicated(refreshedArticles)
+            page = refreshedPage
+            total = refreshedTotal
+            totalPages = refreshedTotalPages
+            bulkSelection = bulkSelection.intersection(Set(articles.map(\.id)))
+            scheduleAIPollingIfPending()
+            return articles.contains(where: { $0.aiStatus == "queued" || $0.aiStatus == "running" })
+        } catch {
+            // 轮询失败保留当前列表，下一轮继续尝试。
+            return true
         }
     }
 
