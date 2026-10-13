@@ -32,8 +32,6 @@ struct SettingsView: View {
             AiSettingsView(repository: model.authModel.repository)
         case .myMCP:
             MCPManagementView(scope: .personal, client: client)
-        case .categories:
-            CategoryManagementView(client: client)
         case .resetPassword:
             ResetPasswordView(client: client)
         }

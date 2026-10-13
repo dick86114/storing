@@ -17,33 +17,13 @@ struct SidebarView: View {
         List(selection: destinationSelection) {
             Section(isCollapsed ? "" : "资料库") {
                 ForEach(AppDestination.sidebarDestinations, id: \.self) { destination in
-                    Group {
-                        if isCollapsed {
-                            Image(systemName: destination.systemImage)
-                                .font(.system(size: 20, weight: .medium))
-                                .frame(width: 30, height: 30)
-                        } else {
-                            HStack(spacing: 8) {
-                                Image(systemName: destination.systemImage)
-                                    .frame(width: 18)
+                    sidebarRow(destination)
+                }
+            }
 
-                                // 显式展示文本，避免窄侧栏时 SwiftUI Label 隐藏栏目名。
-                                Text(destination.title)
-                                    .lineLimit(1)
-
-                                Spacer(minLength: 0)
-
-                                if let count = destination.libraryView.flatMap({ model.libraryModel.count(for: $0) }) {
-                                    Text("\(count)")
-                                        .font(.caption)
-                                        .monospacedDigit()
-                                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                                }
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, minHeight: isCollapsed ? 42 : 0, alignment: .center)
-                    .tag(destination)
+            Section(isCollapsed ? "" : "常用功能") {
+                ForEach(AppDestination.utilitySidebarDestinations, id: \.self) { destination in
+                    sidebarRow(destination)
                 }
             }
         }
@@ -55,6 +35,48 @@ struct SidebarView: View {
         .safeAreaInset(edge: .bottom) {
             bottomControls
         }
+    }
+
+    @ViewBuilder
+    private func sidebarRow(_ destination: AppDestination) -> some View {
+        let isSelected = destinationSelection.wrappedValue == destination
+        Group {
+            if isCollapsed {
+                sidebarIcon(destination, isSelected: isSelected)
+                    .font(.system(size: 20, weight: .medium))
+                    .frame(width: 30, height: 30)
+            } else {
+                HStack(spacing: 8) {
+                    sidebarIcon(destination, isSelected: isSelected)
+                        .frame(width: 18)
+
+                    // 显式展示文本，避免窄侧栏时 SwiftUI Label 隐藏栏目名。
+                    Text(destination.title)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 0)
+
+                    if let count = destination.libraryView.flatMap({ model.libraryModel.count(for: $0) }) {
+                        Text("\(count)")
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: isCollapsed ? 42 : 0, alignment: .center)
+        .tag(destination)
+    }
+
+    private func sidebarIcon(
+        _ destination: AppDestination,
+        isSelected: Bool
+    ) -> some View {
+        Image(systemName: destination.selectedSystemImage(isSelected: isSelected))
+            .contentTransition(.symbolEffect(.replace))
+            .symbolEffect(.bounce, options: .speed(1.35), value: isSelected)
+            .animation(.easeOut(duration: 0.16), value: isSelected)
     }
 
     private var topControls: some View {
@@ -92,12 +114,6 @@ struct SidebarView: View {
                 onLogin: {
                     showsAccountMenu = false
                     model.presentLogin()
-                },
-                onLogout: {
-                    showsAccountMenu = false
-                    Task {
-                        await model.didLogout()
-                    }
                 },
                 onSettings: {
                     showsAccountMenu = false
@@ -313,7 +329,6 @@ private struct AccountMenuView: View {
     let user: AuthenticatedUser?
     let colorScheme: ColorScheme
     let onLogin: () -> Void
-    let onLogout: () -> Void
     let onSettings: () -> Void
     let onAdminSettings: () -> Void
 
@@ -363,13 +378,6 @@ private struct AccountMenuView: View {
                     "管理员设置",
                     systemImage: "shield.lefthalf.filled",
                     action: onAdminSettings
-                )
-            }
-            if user != nil {
-                menuButton(
-                    "退出登录",
-                    systemImage: "rectangle.portrait.and.arrow.right",
-                    action: onLogout
                 )
             }
         }

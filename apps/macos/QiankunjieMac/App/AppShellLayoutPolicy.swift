@@ -18,7 +18,7 @@ struct AppShellLayoutPolicy: Sendable {
         selectedArticleID: Int?,
         destination: AppDestination = .published
     ) -> AppShellLayout {
-        if destination == .settings || destination == .admin {
+        if destination == .settings || destination == .admin || destination == .categories {
             return .settings
         }
 

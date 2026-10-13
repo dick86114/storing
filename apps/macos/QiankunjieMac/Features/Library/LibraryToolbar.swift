@@ -9,7 +9,7 @@ struct LibraryToolbar: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var isRefreshButtonHovered = false
     @State private var pendingBulkAction: BulkToolbarAction?
-    @State private var bulkCategoryPurpose: BulkCategoryPurpose?
+    @State private var bulkCategoryRequest: BulkCategoryRequest?
     @State private var isBulkObsidianSheetPresented = false
 
     var body: some View {
@@ -47,8 +47,8 @@ struct LibraryToolbar: View {
         } message: { _ in
             Text(pendingBulkConfirmation?.message ?? "")
         }
-        .sheet(item: $bulkCategoryPurpose) { purpose in
-            BulkCategorySelectionSheet(model: model, purpose: purpose)
+        .sheet(item: $bulkCategoryRequest) { request in
+            BulkCategorySelectionSheet(model: model, request: request)
         }
         .alert(
             "批量操作结果",
@@ -478,9 +478,9 @@ struct LibraryToolbar: View {
                 Button(actionTitle(action)) {
                     switch action {
                     case .archive:
-                        bulkCategoryPurpose = .archive
+                        bulkCategoryRequest = BulkCategoryRequest(purpose: .archive, targetArticleID: nil)
                     case .setCategory:
-                        bulkCategoryPurpose = .setCategory
+                        bulkCategoryRequest = BulkCategoryRequest(purpose: .setCategory, targetArticleID: nil)
                     default:
                         pendingBulkAction = action
                     }

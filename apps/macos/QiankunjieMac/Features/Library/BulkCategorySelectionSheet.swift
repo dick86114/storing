@@ -2,6 +2,15 @@ import QiankunjieDesignSystem
 import QiankunjieLibrary
 import SwiftUI
 
+struct BulkCategoryRequest: Identifiable {
+    let purpose: BulkCategoryPurpose
+    let targetArticleID: Int?
+
+    var id: String {
+        "\(purpose.rawValue)-\(targetArticleID.map(String.init) ?? "bulk")"
+    }
+}
+
 enum BulkCategoryPurpose: String, Identifiable {
     case archive
     case setCategory
@@ -29,7 +38,12 @@ struct BulkCategorySelectionSheet: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let model: LibraryModel
-    let purpose: BulkCategoryPurpose
+    let request: BulkCategoryRequest
+
+    private var purpose: BulkCategoryPurpose { request.purpose }
+    private var targetCount: Int {
+        request.targetArticleID == nil ? model.bulkSelection.count : 1
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -66,7 +80,7 @@ struct BulkCategorySelectionSheet: View {
                 Text(purpose.title)
                     .qiankunjieFont(.titleMedium)
                     .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
-                Text("已选 \(model.bulkSelection.count) 篇。\(purpose.subtitle)")
+                Text("已选 \(targetCount) 篇。\(purpose.subtitle)")
                     .qiankunjieFont(.labelMedium)
                     .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
             }
@@ -86,11 +100,20 @@ struct BulkCategorySelectionSheet: View {
     private var aiCategoryButton: some View {
         Button {
             Task {
-                switch purpose {
-                case .archive:
-                    await model.runBulkToolbarAction(.archive)
-                case .setCategory:
-                    await model.runBulkCategoryByAI()
+                if let articleID = request.targetArticleID {
+                    switch purpose {
+                    case .archive:
+                        await model.runArticleToolbarAction(.archive, articleID: articleID)
+                    case .setCategory:
+                        await model.runArticleCategoryByAI(articleID: articleID)
+                    }
+                } else {
+                    switch purpose {
+                    case .archive:
+                        await model.runBulkToolbarAction(.archive)
+                    case .setCategory:
+                        await model.runBulkCategoryByAI()
+                    }
                 }
                 dismiss()
             }
@@ -122,11 +145,27 @@ struct BulkCategorySelectionSheet: View {
     private func categoryButton(_ category: LibraryCategoryFilter) -> some View {
         Button {
             Task {
-                switch purpose {
-                case .archive:
-                    await model.runBulkToolbarAction(.archive, categoryID: category.id)
-                case .setCategory:
-                    await model.runBulkCategory(category.id)
+                if let articleID = request.targetArticleID {
+                    switch purpose {
+                    case .archive:
+                        await model.runArticleToolbarAction(
+                            .archive,
+                            articleID: articleID,
+                            categoryID: category.id
+                        )
+                    case .setCategory:
+                        await model.runArticleCategory(
+                            articleID: articleID,
+                            categoryID: category.id
+                        )
+                    }
+                } else {
+                    switch purpose {
+                    case .archive:
+                        await model.runBulkToolbarAction(.archive, categoryID: category.id)
+                    case .setCategory:
+                        await model.runBulkCategory(category.id)
+                    }
                 }
                 dismiss()
             }

@@ -32,9 +32,11 @@ struct AppShellLayoutPolicyTests {
         let wideLayout = policy.layout(availableWidth: 1000, selectedArticleID: nil, destination: .settings)
         let narrowLayout = policy.layout(availableWidth: 640, selectedArticleID: nil, destination: .settings)
         let adminLayout = policy.layout(availableWidth: 1000, selectedArticleID: nil, destination: .admin)
+        let categoriesLayout = policy.layout(availableWidth: 1000, selectedArticleID: nil, destination: .categories)
 
         #expect(wideLayout == .settings)
         #expect(narrowLayout == .settings)
         #expect(adminLayout == .settings)
+        #expect(categoriesLayout == .settings)
     }
 }

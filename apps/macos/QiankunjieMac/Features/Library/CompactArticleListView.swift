@@ -24,13 +24,23 @@ extension ArticleCard {
     }
 }
 
+private struct ContextBulkActionRequest: Identifiable {
+    let action: BulkToolbarAction
+    let targetArticleID: Int?
+
+    var id: String {
+        "\(action)-\(targetArticleID.map(String.init) ?? "bulk")"
+    }
+}
+
 struct CompactArticleListView: View {
     @Bindable var model: LibraryModel
     @Binding var selection: Int?
     @Binding var presentationMode: ArticleListPresentationMode
     @Environment(\.colorScheme) private var colorScheme
-    @State private var contextBulkAction: BulkToolbarAction?
-    @State private var contextBulkCategoryPurpose: BulkCategoryPurpose?
+    @State private var contextBulkAction: ContextBulkActionRequest?
+    @State private var contextBulkCategoryRequest: BulkCategoryRequest?
+    @State private var contextObsidianArticleID: Int?
     @State private var isContextObsidianSheetPresented = false
 
     private let paginationPreviewCount = 6
@@ -50,29 +60,42 @@ struct CompactArticleListView: View {
         .background(QiankunjieColors.background(for: colorScheme))
         .confirmationDialog(
             contextBulkAction.map {
-                BulkToolbarPolicy.confirmation(for: $0, selectedCount: model.bulkSelection.count).title
-            } ?? "确认批量操作",
+                BulkToolbarPolicy.confirmation(
+                    for: $0.action,
+                    selectedCount: contextSelectedCount(for: $0)
+                ).title
+            } ?? "确认操作",
             isPresented: Binding(
-                get: { contextBulkAction != nil && model.bulkSelection.isEmpty == false },
+                get: { contextBulkAction != nil },
                 set: { isPresented in
                     if !isPresented { contextBulkAction = nil }
                 }
             ),
             presenting: contextBulkAction
-        ) { action in
-            let copy = BulkToolbarPolicy.confirmation(for: action, selectedCount: model.bulkSelection.count)
+        ) { request in
+            let copy = BulkToolbarPolicy.confirmation(
+                for: request.action,
+                selectedCount: contextSelectedCount(for: request)
+            )
             Button(copy.confirmTitle, role: copy.isDestructive ? .destructive : nil) {
                 contextBulkAction = nil
                 Task {
-                    await model.runBulkToolbarAction(action)
+                    if let articleID = request.targetArticleID {
+                        await model.runArticleToolbarAction(request.action, articleID: articleID)
+                    } else {
+                        await model.runBulkToolbarAction(request.action)
+                    }
                 }
             }
             Button("取消", role: .cancel) {}
-        } message: { action in
-            Text(BulkToolbarPolicy.confirmation(for: action, selectedCount: model.bulkSelection.count).message)
+        } message: { request in
+            Text(BulkToolbarPolicy.confirmation(
+                for: request.action,
+                selectedCount: contextSelectedCount(for: request)
+            ).message)
         }
-        .sheet(item: $contextBulkCategoryPurpose) { purpose in
-            BulkCategorySelectionSheet(model: model, purpose: purpose)
+        .sheet(item: $contextBulkCategoryRequest) { request in
+            BulkCategorySelectionSheet(model: model, request: request)
         }
         .sheet(isPresented: $isContextObsidianSheetPresented) {
             ObsidianExportSheet(
@@ -86,11 +109,21 @@ struct CompactArticleListView: View {
                 onConfirm: { draft in
                     isContextObsidianSheetPresented = false
                     saveLastUsedSelection(draft)
+                    let targetArticleID = contextObsidianArticleID
+                    contextObsidianArticleID = nil
                     Task {
-                        await model.runBulkToolbarAction(
-                            .bulkObsidian,
-                            obsidianDestination: draft.directoryURL
-                        )
+                        if let targetArticleID {
+                            await model.runArticleToolbarAction(
+                                .bulkObsidian,
+                                articleID: targetArticleID,
+                                obsidianDestination: draft.directoryURL
+                            )
+                        } else {
+                            await model.runBulkToolbarAction(
+                                .bulkObsidian,
+                                obsidianDestination: draft.directoryURL
+                            )
+                        }
                     }
                 },
                 showsTitle: false,
@@ -138,23 +171,31 @@ struct CompactArticleListView: View {
                                 .disabled(true)
                             Divider()
                         }
+                        let targetArticleID = operatesOnCurrentSelection ? nil : article.id
                         ForEach(
                             BulkArticlePolicy.toolbarActions(for: model.view),
                             id: \.self
                         ) { action in
                             Button(BulkToolbarPolicy.menuTitle(for: action)) {
-                                if !operatesOnCurrentSelection {
-                                    model.beginBulkOperation(for: article.id)
-                                }
                                 switch action {
                                 case .archive:
-                                    contextBulkCategoryPurpose = .archive
+                                    contextBulkCategoryRequest = BulkCategoryRequest(
+                                        purpose: .archive,
+                                        targetArticleID: targetArticleID
+                                    )
                                 case .setCategory:
-                                    contextBulkCategoryPurpose = .setCategory
+                                    contextBulkCategoryRequest = BulkCategoryRequest(
+                                        purpose: .setCategory,
+                                        targetArticleID: targetArticleID
+                                    )
                                 case .bulkObsidian:
+                                    contextObsidianArticleID = targetArticleID
                                     isContextObsidianSheetPresented = true
                                 default:
-                                    contextBulkAction = action
+                                    contextBulkAction = ContextBulkActionRequest(
+                                        action: action,
+                                        targetArticleID: targetArticleID
+                                    )
                                 }
                             }
                         }
@@ -629,6 +670,10 @@ private struct ArticleCoverImageView<Fallback: View>: View {
             .buttonStyle(.borderedProminent)
         }
         .padding(24)
+    }
+
+    private func contextSelectedCount(for request: ContextBulkActionRequest) -> Int {
+        request.targetArticleID == nil ? model.bulkSelection.count : 1
     }
 
     private func saveLastUsedSelection(_ draft: ObsidianExportDraft) {

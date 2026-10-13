@@ -328,19 +328,6 @@ struct LibraryModelTests {
         #expect(model.articles.isEmpty)
     }
 
-    @Test func 单篇右键操作会切换成该文章的唯一批量选择() async {
-        let repository = 模拟资料库仓库(
-            pages: [1: .fixture(ids: [41, 42], page: 1, totalPages: 1)]
-        )
-        let model = LibraryModel(repository: repository, cache: EmptyLibraryCache())
-        await model.load(reset: true)
-
-        model.beginBulkOperation(for: 42)
-
-        #expect(model.isBulkSelecting)
-        #expect(model.bulkSelection == [42])
-    }
-
     @Test func 列表会刷新生成完成的AI摘要() async {
         let article = ArticleCard(
             id: 41,
