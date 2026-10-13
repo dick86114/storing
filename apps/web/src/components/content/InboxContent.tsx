@@ -35,6 +35,7 @@ function InboxContentInner() {
   const { getBookmark, clearBookmark } = useBookmark();
   const [bookmarkPrompt, setBookmarkPrompt] = useState<ReadingBookmark | null>(null);
   const [archiveTargetId, setArchiveTargetId] = useState<number | null>(null);
+  const [bulkArchivePickerOpen, setBulkArchivePickerOpen] = useState(false);
 
   useEffect(() => {
     // 游客统一落 /published：原先这里 replace 到 /archive，会被 (main)/layout 的私有路由守卫
@@ -207,6 +208,18 @@ function InboxContentInner() {
     }
   }, [archive, archiveTargetId, showToast, refreshList]);
 
+  const confirmBulkArchive = useCallback(async (categoryId?: number) => {
+    const ids = [...selection.selectedIds];
+    if (ids.length === 0 || bulkActions.loadingAction !== null) return;
+    setBulkArchivePickerOpen(false);
+    try {
+      setBulkResult(await bulkActions.runAction('archive', ids, categoryId));
+      selection.remove(ids);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '批量归档失败');
+    }
+  }, [bulkActions, selection, showToast]);
+
   const handleCreateCategory = useCallback(async (name: string) => {
     const created = await api.createCategory({
       name,
@@ -224,6 +237,10 @@ function InboxContentInner() {
     if (ids.length === 0) return;
     try {
       if (action === 'set-category') return;
+      if (action === 'archive') {
+        setBulkArchivePickerOpen(true);
+        return;
+      }
       if (action === 'generate-ai' || action === 'reclassify') {
         setBulkResult(await bulkActions.runAi(ids, action === 'reclassify'));
       } else if (action === 'export-zip') {
@@ -295,6 +312,20 @@ function InboxContentInner() {
           </div>
         </div>
       )}
+      {bulkArchivePickerOpen && (
+        <CategoryAssignmentDialog
+          categories={categoryData?.categories ?? []}
+          currentCategoryId={null}
+          loading={bulkActions.loadingAction !== null}
+          title="批量归档到哪里？"
+          subtitle={`为已选 ${selection.selectedIds.size} 篇文章选择预设分类，或让 AI 根据内容判断。`}
+          onClose={() => setBulkArchivePickerOpen(false)}
+          onSelect={(categoryId) => confirmBulkArchive(categoryId)}
+          onSelectAi={() => confirmBulkArchive()}
+          onCreateCategory={handleCreateCategory}
+        />
+      )}
+
       {archiveTargetId && (
         <CategoryAssignmentDialog
           categories={categoryData?.categories ?? []}

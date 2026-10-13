@@ -318,7 +318,7 @@ struct UILabReaderClient: ReaderNetworkClient {
         ReaderFavoriteResult(isFavorited: true)
     }
 
-    func archive(articleID: Int) async throws -> ReaderArchiveResult {
+    func archive(articleID: Int, categoryID: Int?) async throws -> ReaderArchiveResult {
         ReaderArchiveResult(isArchived: false)
     }
 
@@ -339,6 +339,10 @@ struct UILabReaderClient: ReaderNetworkClient {
     }
 
     func regenerateAI(articleID: Int) async throws -> ReaderAIResult {
+        ReaderAIResult(ok: true)
+    }
+
+    func classifyArticle(articleID: Int) async throws -> ReaderAIResult {
         ReaderAIResult(ok: true)
     }
 

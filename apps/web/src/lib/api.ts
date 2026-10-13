@@ -619,8 +619,12 @@ export const api = {
   bulkMoveArticlesToCategory: (articleIds: number[], categoryId: number) =>
     fetchJSON<{ updatedCount: number }>('/articles/bulk-category', { method: 'POST', body: JSON.stringify({ articleIds, categoryId }) }),
 
-  classifyArticle: (articleId: number) =>
-    fetchJSON<{ articleId: number; ok: true }>(`/articles/${articleId}/classify`, { method: 'POST', timeoutMs: 120000 }),
+  classifyArticle: (articleId: number, overrideUserCategory = false) =>
+    fetchJSON<{ articleId: number; ok: true }>(`/articles/${articleId}/classify`, {
+      method: 'POST',
+      body: JSON.stringify({ overrideUserCategory }),
+      timeoutMs: 120000,
+    }),
 
   bulkClassifyArticles: (articleIds: number[]) =>
     fetchJSON<{
@@ -629,10 +633,10 @@ export const api = {
       failed: Array<{ articleId: number; message: string }>;
     }>('/articles/bulk-classify', { method: 'POST', body: JSON.stringify({ articleIds }), timeoutMs: 120000 }),
 
-  bulkArticles: (action: ArticleBulkAction, articleIds: number[]) =>
+  bulkArticles: (action: ArticleBulkAction, articleIds: number[], categoryId?: number) =>
     fetchJSON<ArticleBulkActionResult>('/articles/bulk-actions', {
       method: 'POST',
-      body: JSON.stringify({ action, articleIds }),
+      body: JSON.stringify({ action, articleIds, ...(categoryId !== undefined ? { categoryId } : {}) }),
       timeoutMs: 120000,
     }),
 
@@ -643,10 +647,10 @@ export const api = {
       timeoutMs: 30000,
     }),
 
-  bulkRegenerateArticleAi: (articleIds: number[], includeCategory: boolean) =>
+  bulkRegenerateArticleAi: (articleIds: number[], includeCategory: boolean, resetUserCategory = false) =>
     fetchJSON<ArticleBulkAiResult>('/articles/bulk-regenerate-ai', {
       method: 'POST',
-      body: JSON.stringify({ articleIds, includeCategory }),
+      body: JSON.stringify({ articleIds, includeCategory, resetUserCategory }),
       timeoutMs: 30000,
     }),
 

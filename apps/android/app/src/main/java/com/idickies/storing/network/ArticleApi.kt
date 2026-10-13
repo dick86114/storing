@@ -24,6 +24,7 @@ import com.idickies.storing.library.CategoryReorderResponse
 import com.idickies.storing.library.CategoryOptimizeRequest
 import com.idickies.storing.library.CategoryOptimizeResponse
 import com.idickies.storing.library.ArticleClassifyResponse
+import com.idickies.storing.library.ArticleClassifyRequest
 import com.idickies.storing.library.ArticleListResponse
 import com.idickies.storing.library.ArticleSource
 import com.idickies.storing.library.ArticleTag
@@ -131,7 +132,10 @@ interface ArticleApi {
   suspend fun bulkExport(@Path("jobId") jobId: Int): ArticleBulkExportJob
 
   @POST("articles/{id}/classify")
-  suspend fun classify(@Path("id") id: Int): ArticleClassifyResponse
+  suspend fun classify(
+    @Path("id") id: Int,
+    @Body request: ArticleClassifyRequest = ArticleClassifyRequest(),
+  ): ArticleClassifyResponse
 
   @POST("articles/{id}/publish")
   suspend fun publish(@Path("id") id: Int): PublicationResponse

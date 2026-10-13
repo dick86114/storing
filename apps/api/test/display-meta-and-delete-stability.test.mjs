@@ -19,8 +19,8 @@ test('internal WeChat imports do not repeatedly repair display metadata', () => 
 });
 
 test('permanent deletion is transactional and locks the shared article row', () => {
-  const routes = read('src/routes/articles.ts');
-  const permanent = routes.slice(routes.indexOf("'/articles/:id/permanent', requireAuth"));
+  const service = read('src/services/article-bulk.service.ts');
+  const permanent = service.slice(service.indexOf('export async function permanentlyDeleteArticleForUser'));
 
   assert.match(permanent, /await db\.transaction\(async \(tx\) => \{/);
   assert.match(permanent, /\.for\('update'\)/);

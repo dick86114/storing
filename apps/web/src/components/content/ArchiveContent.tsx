@@ -306,6 +306,18 @@ function ArchiveContentInner() {
     }
   }, [bulkActions.loadingAction, categories, refreshList, selection, showToast]);
 
+  const handleBulkCategoryAi = useCallback(async () => {
+    const ids = [...selection.selectedIds];
+    if (ids.length === 0 || bulkActions.loadingAction !== null) return;
+    setBulkCategoryPickerOpen(false);
+    try {
+      setBulkResult(await bulkActions.runAi(ids, true, true));
+      await refreshList();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '批量 AI 分类失败');
+    }
+  }, [bulkActions, refreshList, selection, showToast]);
+
   const handleCreateCategory = useCallback(async (name: string) => {
     const created = await api.createCategory({
       name,
@@ -522,6 +534,7 @@ function ArchiveContentInner() {
           loading={bulkActions.loadingAction !== null}
           onClose={() => setBulkCategoryPickerOpen(false)}
           onSelect={handleBulkCategorySelect}
+          onSelectAi={handleBulkCategoryAi}
           onCreateCategory={handleCreateCategory}
         />
       )}

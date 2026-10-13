@@ -237,6 +237,7 @@ data class ArticleBulkClassifyFailure(
 data class ArticleBulkActionRequest(
   val action: BulkArticleAction,
   @SerialName("articleIds") val articleIds: List<Int>,
+  @SerialName("categoryId") val categoryId: Int? = null,
 )
 
 @Serializable
@@ -265,6 +266,7 @@ data class ArticleBulkActionResult(
 data class ArticleBulkAiRequest(
   @SerialName("articleIds") val articleIds: List<Int>,
   @SerialName("includeCategory") val includeCategory: Boolean,
+  @SerialName("resetUserCategory") val resetUserCategory: Boolean = false,
 )
 
 @Serializable
@@ -307,6 +309,11 @@ data class ArticleBulkExportJob(
 
 fun toggleArchiveBatchSelection(selected: Set<Int>, articleId: Int): Set<Int> =
   if (articleId in selected) selected - articleId else selected + articleId
+
+@Serializable
+data class ArticleClassifyRequest(
+  @SerialName("overrideUserCategory") val overrideUserCategory: Boolean = true,
+)
 
 @Serializable
 data class ArticleClassifyResponse(

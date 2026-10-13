@@ -13,7 +13,7 @@ test('文章详情提供分类选择并在保存后刷新归档数据', () => {
   assert.match(detailPanel, /categoryResult\?\.reviewStatus === 'needs_review'/);
   assert.match(detailPanel, /categoryResult\.reason/);
   assert.match(detailPanel, /重新判断分类/);
-  assert.match(detailPanel, /api\.classifyArticle\(article\.id\)/);
+  assert.match(detailPanel, /api\.classifyArticle\(article\.id, true\)/);
   assert.match(detailPanel, /api\.createCategory/);
   assert.match(detailPanel, /onCreateCategory/);
   assert.match(detailPanel, /api\.archive\(article\.id, categoryId\)/);

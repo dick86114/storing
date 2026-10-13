@@ -42,7 +42,8 @@ public protocol LibraryNetworkClient: Sendable {
     ) async throws -> [LibraryCategoryFilter]
     func sendBulkAction(
         _ action: ArticleBulkAction,
-        articleIDs: [Int]
+        articleIDs: [Int],
+        categoryID: Int?
     ) async throws -> ArticleBulkActionResult
     func sendBulkCategory(
         articleIDs: [Int],
@@ -50,7 +51,8 @@ public protocol LibraryNetworkClient: Sendable {
     ) async throws -> ArticleBulkActionResult
     func sendBulkRegenerateAI(
         articleIDs: [Int],
-        includeCategory: Bool
+        includeCategory: Bool,
+        resetUserCategory: Bool
     ) async throws -> ArticleBulkAIResult
     func sendCreateBulkExport(
         articleIDs: [Int]
@@ -94,10 +96,11 @@ private struct APIClientLibraryNetworkClient: LibraryNetworkClient {
 
     func sendBulkAction(
         _ action: ArticleBulkAction,
-        articleIDs: [Int]
+        articleIDs: [Int],
+        categoryID: Int?
     ) async throws -> ArticleBulkActionResult {
         try await apiClient.send(
-            .post("articles/bulk-actions", body: try JSONEncoder.qiankunjie.encode(BulkActionRequest(action: action, articleIDs: articleIDs))),
+            .post("articles/bulk-actions", body: try JSONEncoder.qiankunjie.encode(BulkActionRequest(action: action, articleIDs: articleIDs, categoryID: categoryID))),
             authenticated: true
         )
     }
@@ -114,10 +117,11 @@ private struct APIClientLibraryNetworkClient: LibraryNetworkClient {
 
     func sendBulkRegenerateAI(
         articleIDs: [Int],
-        includeCategory: Bool
+        includeCategory: Bool,
+        resetUserCategory: Bool
     ) async throws -> ArticleBulkAIResult {
         try await apiClient.send(
-            .post("articles/bulk-regenerate-ai", body: try JSONEncoder.qiankunjie.encode(BulkAIRequest(articleIDs: articleIDs, includeCategory: includeCategory))),
+            .post("articles/bulk-regenerate-ai", body: try JSONEncoder.qiankunjie.encode(BulkAIRequest(articleIDs: articleIDs, includeCategory: includeCategory, resetUserCategory: resetUserCategory))),
             authenticated: true
         )
     }
@@ -146,9 +150,9 @@ public protocol LibraryLoading: Sendable {
 }
 
 public protocol LibraryBulkOperating: Sendable {
-    func runBulkAction(_ action: ArticleBulkAction, articleIDs: [Int]) async throws -> ArticleBulkActionResult
+    func runBulkAction(_ action: ArticleBulkAction, articleIDs: [Int], categoryID: Int?) async throws -> ArticleBulkActionResult
     func runBulkCategory(articleIDs: [Int], categoryID: Int) async throws -> ArticleBulkActionResult
-    func runBulkRegenerateAI(articleIDs: [Int], includeCategory: Bool) async throws -> ArticleBulkAIResult
+    func runBulkRegenerateAI(articleIDs: [Int], includeCategory: Bool, resetUserCategory: Bool) async throws -> ArticleBulkAIResult
     func runCreateBulkExport(articleIDs: [Int]) async throws -> ArticleBulkExportJob
     func runBulkExportJob(jobID: Int) async throws -> ArticleBulkExportJob
 }
@@ -283,10 +287,11 @@ public struct LibraryRepository: LibraryLoading, Sendable {
 extension LibraryRepository: LibraryBulkOperating {
     public func runBulkAction(
         _ action: ArticleBulkAction,
-        articleIDs: [Int]
+        articleIDs: [Int],
+        categoryID: Int? = nil
     ) async throws -> ArticleBulkActionResult {
         let client: any LibraryNetworkClient = networkClient
-        return try await client.sendBulkAction(action, articleIDs: articleIDs)
+        return try await client.sendBulkAction(action, articleIDs: articleIDs, categoryID: categoryID)
     }
 
     public func runBulkCategory(
@@ -299,10 +304,15 @@ extension LibraryRepository: LibraryBulkOperating {
 
     public func runBulkRegenerateAI(
         articleIDs: [Int],
-        includeCategory: Bool
+        includeCategory: Bool,
+        resetUserCategory: Bool = false
     ) async throws -> ArticleBulkAIResult {
         let client: any LibraryNetworkClient = networkClient
-        return try await client.sendBulkRegenerateAI(articleIDs: articleIDs, includeCategory: includeCategory)
+        return try await client.sendBulkRegenerateAI(
+            articleIDs: articleIDs,
+            includeCategory: includeCategory,
+            resetUserCategory: resetUserCategory
+        )
     }
 
     public func runCreateBulkExport(articleIDs: [Int]) async throws -> ArticleBulkExportJob {

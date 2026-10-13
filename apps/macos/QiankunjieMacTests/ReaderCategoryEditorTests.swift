@@ -16,8 +16,10 @@ struct ReaderCategoryEditorTests {
         let model = try String(contentsOf: modelURL, encoding: .utf8)
 
         #expect(pane.contains("ReaderCategoryEditorSheet"))
-        #expect(pane.contains("isCategoryEditorPresented = true"))
+        #expect(pane.contains("categorySheetMode = .move"))
+        #expect(pane.contains("categorySheetMode = .archive"))
         #expect(pane.contains("model.moveToCategory"))
+        #expect(pane.contains("由 AI 判断"))
         #expect(model.contains("func loadCategories() async"))
         #expect(model.contains("func createCategory(name: String) async -> ArticleCategory?"))
         #expect(model.contains("func moveToCategory(_ categoryID: Int) async -> Bool"))

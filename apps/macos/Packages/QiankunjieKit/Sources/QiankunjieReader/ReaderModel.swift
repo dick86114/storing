@@ -8,12 +8,13 @@ public protocol ReaderNetworkClient: Sendable {
         _ selection: ReaderSelection
     ) async throws -> ArticleDetail
     func toggleFavorite(articleID: Int) async throws -> ReaderFavoriteResult
-    func archive(articleID: Int) async throws -> ReaderArchiveResult
+    func archive(articleID: Int, categoryID: Int?) async throws -> ReaderArchiveResult
     func unarchive(articleID: Int) async throws -> ReaderArchiveResult
     func publish(articleID: Int) async throws -> ReaderPublicationResult
     func unpublish(articleID: Int) async throws -> ReaderPublicationResult
     func refetch(articleID: Int) async throws -> ReaderRefetchResult
     func regenerateAI(articleID: Int) async throws -> ReaderAIResult
+    func classifyArticle(articleID: Int) async throws -> ReaderAIResult
     func delete(articleID: Int) async throws -> ReaderDeleteResult
     func permanentDelete(articleID: Int) async throws
     func renameArticle(articleID: Int, title: String) async throws
@@ -150,6 +151,18 @@ public struct ReaderAIResult: Decodable, Sendable {
     }
 }
 
+private struct ArchiveRequest: Encodable, Sendable {
+    let categoryID: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case categoryID = "categoryId"
+    }
+}
+
+private struct ClassifyRequest: Encodable, Sendable {
+    let overrideUserCategory = true
+}
+
 public struct ReaderDeleteResult: Decodable, Sendable {
     public let deleted: Bool
 
@@ -281,6 +294,7 @@ public final class ReaderModel {
     public private(set) var userID: Int?
     private var requestGeneration = 0
     private var actionGeneration = 0
+    private var aiPollTask: Task<Void, Never>?
 
     public init(
         client: any ReaderNetworkClient = APIClient(),
@@ -303,6 +317,7 @@ public final class ReaderModel {
         categoryErrorMessage = nil
         selection = nil
         savedReadingState = nil
+        stopAIPolling()
     }
 
     public var displayHTML: String {
@@ -324,6 +339,7 @@ public final class ReaderModel {
     public func open(_ selection: ReaderSelection) async {
         actionGeneration += 1
         requestGeneration += 1
+        stopAIPolling()
         await load(selection, requestGeneration: requestGeneration)
     }
 
@@ -361,6 +377,7 @@ public final class ReaderModel {
             article = ReaderArticle(detail: detail)
             contentToken = UUID().uuidString
             errorMessage = nil
+            scheduleAIPollingIfPending()
         } catch {
             guard requestGeneration == generation else {
                 return
@@ -398,13 +415,17 @@ public final class ReaderModel {
         }
     }
 
-    public func archive() async {
+    public func archive(categoryID: Int? = nil) async {
         await performAction { articleID, actionGeneration in
-            let result = try await self.client.archive(articleID: articleID)
+            let result = try await self.client.archive(
+                articleID: articleID,
+                categoryID: categoryID
+            )
             guard self.isCurrentAction(actionGeneration) else {
                 return
             }
             self.article?.isArchived = result.isArchived
+            self.startAIPolling()
         }
     }
 
@@ -449,6 +470,15 @@ public final class ReaderModel {
         await performAction { articleID, _ in
             _ = try await self.client.regenerateAI(articleID: articleID)
             await self.reloadCurrentArticle()
+            self.startAIPolling()
+        }
+    }
+
+    public func classifyArticle() async {
+        await performAction { articleID, _ in
+            _ = try await self.client.classifyArticle(articleID: articleID)
+            await self.reloadCurrentArticle()
+            self.startAIPolling()
         }
     }
 
@@ -525,6 +555,50 @@ public final class ReaderModel {
             await self.reloadCurrentArticle()
         }
         return actionErrorMessage == nil
+    }
+
+    /// 归档后的 AI 任务是后台完成的；阅读器需要定时回读，不能永远停留“生成中”。
+    private func scheduleAIPollingIfPending() {
+        guard let article, article.detail.aiStatus == "queued" || article.detail.aiStatus == "running" else {
+            stopAIPolling()
+            return
+        }
+        startAIPolling()
+    }
+
+    private func startAIPolling() {
+        guard aiPollTask == nil else { return }
+        aiPollTask = Task { [weak self] in
+            defer { await MainActor.run { self?.aiPollTask = nil } }
+            let startedAt = ContinuousClock.now
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard let self, await self.refreshAIStatusOnce() else { break }
+                if startedAt.duration(to: .now) > .seconds(90) { break }
+            }
+        }
+    }
+
+    private func stopAIPolling() {
+        aiPollTask?.cancel()
+        aiPollTask = nil
+    }
+
+    @discardableResult
+    public func refreshAIStatusOnce() async -> Bool {
+        guard let selection, let currentArticle = article else { return false }
+
+        do {
+            let detail = try await client.articleDetail(selection)
+            guard articleID == selection.articleID, article?.id == currentArticle.id else { return false }
+            article = ReaderArticle(detail: detail)
+            errorMessage = nil
+            let status = detail.aiStatus
+            return status == "queued" || status == "running"
+        } catch {
+            // 轮询失败不打断阅读，下一轮或手动刷新再尝试。
+            return true
+        }
     }
 
     private func applyPublication(
@@ -824,8 +898,14 @@ private struct ReaderCategoryUpdateEnvelope: Decodable {
         try await send(.post("articles/\(articleID)/favorite"), authenticated: true)
     }
 
-    public func archive(articleID: Int) async throws -> ReaderArchiveResult {
-        try await send(.post("articles/\(articleID)/archive"), authenticated: true)
+    public func archive(articleID: Int, categoryID: Int?) async throws -> ReaderArchiveResult {
+        try await send(
+            .post(
+                "articles/\(articleID)/archive",
+                body: try JSONEncoder.qiankunjie.encode(ArchiveRequest(categoryID: categoryID))
+            ),
+            authenticated: true
+        )
     }
 
     public func unarchive(articleID: Int) async throws -> ReaderArchiveResult {
@@ -846,6 +926,16 @@ private struct ReaderCategoryUpdateEnvelope: Decodable {
 
     public func regenerateAI(articleID: Int) async throws -> ReaderAIResult {
         try await send(.post("articles/\(articleID)/regenerate-ai"), authenticated: true)
+    }
+
+    public func classifyArticle(articleID: Int) async throws -> ReaderAIResult {
+        try await send(
+            .post(
+                "articles/\(articleID)/classify",
+                body: try JSONEncoder.qiankunjie.encode(ClassifyRequest())
+            ),
+            authenticated: true
+        )
     }
 
     public func delete(articleID: Int) async throws -> ReaderDeleteResult {

@@ -5,7 +5,7 @@ import { db } from '../db/index.js';
 import { adminAuditLogs, aiGenerationJobs, articles, articleMetadata, collectJobs, wechatImportJobs } from '../db/schema.js';
 import { getArticleContent, processCoverImage } from './reader.service.js';
 import { enqueueAiGeneration, queueArchiveAiIfNeeded } from './ai-generation.service.js';
-import { getPendingCategory, moveArticlesToCategory } from './category.service.js';
+import { getCategoryById, getPendingCategory, moveArticlesToCategory } from './category.service.js';
 import { resolveUserAiRuntimeConfig } from './user-ai-settings.service.js';
 import type { ArticleBulkActionResult, ArticleBulkAiResult } from '@storing/shared';
 
@@ -47,6 +47,13 @@ export type ArticlePublishOutcome =
 export type ArticleUnpublishOutcome =
   | { status: 'succeeded' }
   | { status: 'skipped'; code: 'ALREADY_UNPUBLISHED' };
+
+export class ArticleBulkCategoryNotFoundError extends Error {
+  constructor() {
+    super('分类不存在、已停用或无权访问');
+    this.name = 'ArticleBulkCategoryNotFoundError';
+  }
+}
 
 export class AiConfigurationRequiredError extends Error {
   constructor() {
@@ -132,6 +139,7 @@ export async function runSimpleArticleBulkAction(
   userId: number,
   action: SimpleArticleBulkAction,
   articleIds: number[],
+  options: { categoryId?: number | null } = {},
 ): Promise<ArticleBulkActionResult> {
   const result = emptyResult(articleIds.length);
   const records = await loadOwnedArticleBulkRecords(userId, articleIds);
@@ -160,13 +168,17 @@ export async function runSimpleArticleBulkAction(
         inArray(articleMetadata.articleId, actionableIds),
       ));
     } else if (action === 'archive') {
-      const pendingCategory = await getPendingCategory(userId);
+      const requestedCategory = options.categoryId
+        ? await getCategoryById(userId, options.categoryId, { requireActive: true }).catch(() => null)
+        : null;
+      if (options.categoryId && !requestedCategory) throw new ArticleBulkCategoryNotFoundError();
+      const category = requestedCategory ?? await getPendingCategory(userId);
       await db.update(articleMetadata).set({
         isArchived: true,
         archivedAt: now,
-        categoryId: pendingCategory.id,
-        categorySource: 'rule',
-        categoryReviewStatus: 'needs_review',
+        categoryId: category.id,
+        categorySource: options.categoryId ? 'user' : 'rule',
+        categoryReviewStatus: options.categoryId ? 'confirmed' : 'needs_review',
         categoryConfidence: null,
         categoryReason: null,
         categoryModelVersion: null,
@@ -181,7 +193,7 @@ export async function runSimpleArticleBulkAction(
         if (!record) continue;
         const existingAiReady = Boolean(record.aiSummary && record.aiTags?.length);
         queueArchiveAiIfNeeded(userId, articleId, {
-          userSelectedCategory: false,
+          userSelectedCategory: Boolean(options.categoryId),
           existingAiReady,
         }).catch((error) => console.error('Bulk archive AI trigger failed:', error instanceof Error ? error.message : error));
         processCoverImage(articleId, userId).catch((error) => console.error('Bulk archive cover process failed:', error.message));
@@ -413,7 +425,7 @@ export async function runBulkArticleCategory(
 export async function enqueueBulkArticleAi(
   userId: number,
   articleIds: number[],
-  options: { includeCategory: boolean },
+  options: { includeCategory: boolean; resetUserCategory?: boolean },
 ): Promise<ArticleBulkAiResult> {
   const runtimeConfig = await resolveUserAiRuntimeConfig(userId);
   if (!runtimeConfig) throw new AiConfigurationRequiredError();
@@ -435,6 +447,27 @@ export async function enqueueBulkArticleAi(
       inArray(aiGenerationJobs.status, ['queued', 'running']),
     ));
   const alreadyQueuedIds = new Set(activeJobs.map((job) => job.articleId));
+  const eligibleForUserOverrideReset = new Set(
+    articleIds.filter((articleId) => {
+      const record = ownedById.get(articleId);
+      return record?.isArchived === true;
+    }),
+  );
+
+  if (options.resetUserCategory && eligibleForUserOverrideReset.size > 0) {
+    // 用户在分类弹窗里明确选择「由 AI 判断」表示允许覆盖手工确认。
+    await db.update(articleMetadata).set({
+      categorySource: 'rule',
+      categoryReviewStatus: 'needs_review',
+      categoryConfidence: null,
+      categoryReason: null,
+      categoryModelVersion: null,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(articleMetadata.userId, userId),
+      inArray(articleMetadata.articleId, [...eligibleForUserOverrideReset]),
+    ));
+  }
 
   for (const articleId of articleIds) {
     const record = ownedById.get(articleId);
@@ -442,11 +475,11 @@ export async function enqueueBulkArticleAi(
       result.failed.push({ articleId, code: 'NOT_FOUND', message: '文章不存在或无权访问' });
       continue;
     }
-    if (options.includeCategory && (record.isArchived !== true || record.categorySource === 'user')) {
+    if (options.includeCategory && record.isArchived !== true) {
       result.failed.push({
         articleId,
-        code: record.isArchived !== true ? 'NOT_ARCHIVED' : 'CATEGORY_USER_OVERRIDE',
-        message: record.isArchived !== true ? '仅归档文章可以重新判断分类' : '文章分类已由用户确认，不能自动覆盖',
+        code: 'NOT_ARCHIVED',
+        message: '仅归档文章可以重新判断分类',
       });
       continue;
     }

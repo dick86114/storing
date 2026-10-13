@@ -10,7 +10,7 @@ test('批量客户端提供统一 API 和选择方法', () => {
   const selection = read('src/hooks/useArticleSelection.ts');
   const actions = read('src/hooks/useBulkArticleActions.ts');
 
-  assert.match(api, /bulkArticles: \(action: ArticleBulkAction, articleIds: number\[\]\)/);
+  assert.match(api, /bulkArticles: \(action: ArticleBulkAction, articleIds: number\[\], categoryId\?: number\)/);
   assert.match(api, /bulkSetCategory/);
   assert.match(api, /bulkRegenerateArticleAi/);
   assert.match(api, /createBulkExport/);

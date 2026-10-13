@@ -37,20 +37,24 @@ test('authenticated publication management remains scoped to the current user', 
 
 test('publish prepares a private archive before it exposes a public token', () => {
   const routes = read('src/routes/articles.ts');
+  const service = read('src/services/article-bulk.service.ts');
+  const publish = service.slice(service.indexOf('export async function publishArticleForUser'));
 
-  assert.match(routes, /import \{ randomUUID \} from 'node:crypto';/);
+  assert.match(service, /import \{ randomUUID \} from 'node:crypto';/);
   assert.doesNotMatch(routes, /await generateSummaryAndTags\(id, userId\)/);
-  assert.match(routes, /isArchived: true/);
-  assert.match(routes, /isPublished: true/);
-  assert.match(routes, /publicId: existingMetadata\.publicId \|\| randomUUID\(\)/);
-  assert.match(routes, /publicUrl: `\/p\/\$\{published\.publicId\}`/);
+  assert.match(publish, /isArchived: true/);
+  assert.match(publish, /isPublished: true/);
+  assert.match(publish, /publicId: record\.publicId \|\| randomUUID\(\)/);
+  assert.match(publish, /publicUrl: `\/p\/\$\{updated\.publicId\}`/);
 });
 
 test('unpublish preserves archive data and hides only the public state', () => {
   const routes = read('src/routes/articles.ts');
+  const service = read('src/services/article-bulk.service.ts');
+  const unpublish = service.slice(service.indexOf('export async function unpublishArticleForUser'));
 
   assert.match(routes, /articlesRoutes\.post\('\/articles\/:id\/unpublish', requireAuth/);
-  assert.match(routes, /\.set\(\{[\s\S]*isPublished: false/);
-  assert.doesNotMatch(routes, /unpublish[\s\S]{0,900}isArchived: false/);
-  assert.doesNotMatch(routes, /unpublish[\s\S]{0,900}publishedAt: null/);
+  assert.match(unpublish, /\.set\(\{[\s\S]*isPublished: false/);
+  assert.doesNotMatch(unpublish, /isArchived: false/);
+  assert.doesNotMatch(unpublish, /publishedAt: null/);
 });

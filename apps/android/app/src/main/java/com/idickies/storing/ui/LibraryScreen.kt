@@ -1248,7 +1248,10 @@ fun LibraryScreen(
           onResetSort = libraryViewModel::resetSort, sortOrder = state.sortOrder, presentationMode = presentationMode,
           onPresentationModeChange = libraryLayoutViewModel::setPresentationMode, onArchiveSources = libraryViewModel::selectArchiveSources, onArchiveTags = libraryViewModel::selectArchiveTags, onArchiveCategory = libraryViewModel::selectArchiveCategory,
           onBulkToolbarAction = libraryViewModel::runBulkToolbarAction,
+          onBulkArchive = libraryViewModel::runBulkArchive,
           onBulkCategory = libraryViewModel::runBulkCategory,
+          onBulkCategoryAi = libraryViewModel::runBulkCategoryAi,
+          onPrepareArchiveCategories = libraryViewModel::prepareArchiveCategories,
           onDownloadBulkExport = libraryViewModel::downloadBulkExport,
           onClearBulkResult = libraryViewModel::clearBulkResult,
           onCreateCategory = libraryViewModel::createArchiveCategory,
@@ -1858,7 +1861,10 @@ private fun LibraryList(
   onArchiveTags: (List<String>) -> Unit,
   onArchiveCategory: (Int?) -> Unit,
   onBulkToolbarAction: (BulkToolbarAction, Set<Int>) -> Unit,
+  onBulkArchive: (Set<Int>, Int?) -> Unit,
   onBulkCategory: (Set<Int>, Int) -> Unit,
+  onBulkCategoryAi: (Set<Int>) -> Unit,
+  onPrepareArchiveCategories: () -> Unit,
   onDownloadBulkExport: () -> Unit,
   onClearBulkResult: () -> Unit,
   onCreateCategory: (String, (ArticleCategory?, String?) -> Unit) -> Unit,
@@ -1877,6 +1883,7 @@ private fun LibraryList(
   var bulkMenuExpanded by remember { mutableStateOf(false) }
   var selectedArticleIds by remember { mutableStateOf<Set<Int>>(emptySet()) }
   var batchCategoryPickerOpen by remember { mutableStateOf(false) }
+  var batchArchivePickerOpen by remember { mutableStateOf(false) }
   val gridState = rememberLazyStaggeredGridState()
   LaunchedEffect(state.articles) {
     selectedArticleIds = selectedArticleIds intersect state.articles.map { it.id }.toSet()
@@ -1970,7 +1977,12 @@ private fun LibraryList(
             onAction = { action, ids ->
               if (action == BulkToolbarAction.SetCategory) {
                 bulkMenuExpanded = false
+                onPrepareArchiveCategories()
                 batchCategoryPickerOpen = true
+              } else if (action == BulkToolbarAction.Archive) {
+                bulkMenuExpanded = false
+                onPrepareArchiveCategories()
+                batchArchivePickerOpen = true
               } else {
                 bulkMenuExpanded = false
                 onBulkToolbarAction(action, ids)
@@ -2182,6 +2194,27 @@ private fun LibraryList(
     loading = state.bulkRunningAction != null,
     onSelect = { categoryId ->
       onBulkCategory(selectedArticleIds, categoryId)
+    },
+    onSelectAi = {
+      batchCategoryPickerOpen = false
+      onBulkCategoryAi(selectedArticleIds)
+    },
+    onCreateCategory = onCreateCategory,
+  )
+  if (batchArchivePickerOpen) CategoryAssignmentDialog(
+    onDismissRequest = { batchArchivePickerOpen = false },
+    title = "批量归档到哪里？",
+    subtitle = "为已选 ${selectedArticleIds.size} 篇文章选择预设分类，或让 AI 根据内容判断。",
+    categories = state.archiveCategories,
+    currentCategoryId = null,
+    loading = state.bulkRunningAction != null,
+    onSelect = { categoryId ->
+      batchArchivePickerOpen = false
+      onBulkArchive(selectedArticleIds, categoryId)
+    },
+    onSelectAi = {
+      batchArchivePickerOpen = false
+      onBulkArchive(selectedArticleIds, null)
     },
     onCreateCategory = onCreateCategory,
   )
@@ -2626,13 +2659,17 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
   if (categoryPickerOpen) CategoryAssignmentDialog(
     onDismissRequest = { categoryPickerOpen = false },
     title = "修改分类",
-    subtitle = "选择一个预设分类。",
+    subtitle = "选择预设分类，或让 AI 根据内容判断。",
     categories = archiveCategories,
     currentCategoryId = article.category?.id,
     loading = processingAction != null,
     onSelect = { categoryId ->
       categoryPickerOpen = false
       onMoveToCategory(categoryId)
+    },
+    onSelectAi = {
+      categoryPickerOpen = false
+      onReclassify()
     },
     onCreateCategory = onCreateCategory,
   )

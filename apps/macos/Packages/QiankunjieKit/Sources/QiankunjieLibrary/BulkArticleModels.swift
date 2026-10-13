@@ -214,10 +214,20 @@ public struct NativeBulkResult: Equatable, Sendable {
 struct BulkActionRequest: Encodable, Sendable {
     let action: ArticleBulkAction
     let articleIDs: [Int]
+    let categoryID: Int?
 
     enum CodingKeys: String, CodingKey {
         case action
         case articleIDs = "articleIds"
+        case categoryID = "categoryId"
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(action, forKey: .action)
+        try container.encode(articleIDs, forKey: .articleIDs)
+        // AI 判断时省略字段，避免把 null 误解释为显式配置。
+        try container.encodeIfPresent(categoryID, forKey: .categoryID)
     }
 }
 
@@ -234,10 +244,21 @@ struct BulkCategoryRequest: Encodable, Sendable {
 struct BulkAIRequest: Encodable, Sendable {
     let articleIDs: [Int]
     let includeCategory: Bool
+    let resetUserCategory: Bool
 
     enum CodingKeys: String, CodingKey {
         case articleIDs = "articleIds"
         case includeCategory = "includeCategory"
+        case resetUserCategory
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(articleIDs, forKey: .articleIDs)
+        try container.encode(includeCategory, forKey: .includeCategory)
+        if resetUserCategory {
+            try container.encode(true, forKey: .resetUserCategory)
+        }
     }
 }
 

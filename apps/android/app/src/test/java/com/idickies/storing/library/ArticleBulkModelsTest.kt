@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ArticleBulkModelsTest {
-  private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
+  private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
 
   @Test
   fun `批量动作请求序列化为服务端契约`() {
@@ -17,6 +17,21 @@ class ArticleBulkModelsTest {
 
     assertTrue(body.contains("\"action\":\"favorite\""))
     assertTrue(body.contains("\"articleIds\":[1,2]"))
+  }
+
+  @Test
+  fun `批量归档请求可选携带手工分类`() {
+    val withoutCategory = json.encodeToString(
+      ArticleBulkActionRequest.serializer(),
+      ArticleBulkActionRequest(BulkArticleAction.Archive, listOf(1, 2)),
+    )
+    val withCategory = json.encodeToString(
+      ArticleBulkActionRequest.serializer(),
+      ArticleBulkActionRequest(BulkArticleAction.Archive, listOf(1, 2), categoryId = 12),
+    )
+
+    assertTrue(!withoutCategory.contains("categoryId"))
+    assertTrue(withCategory.contains("\"categoryId\":12"))
   }
 
   @Test
