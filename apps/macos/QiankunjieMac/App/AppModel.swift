@@ -67,7 +67,14 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
     }
 
     static var utilitySidebarDestinations: [AppDestination] {
-        [.categories]
+        [.categories, .settings, .admin]
+    }
+
+    /// 主侧栏中的管理员入口只对管理员展示；设置是所有用户都能进入的常用功能。
+    static func visibleUtilitySidebarDestinations(isAdmin: Bool) -> [AppDestination] {
+        utilitySidebarDestinations.filter { destination in
+            !destination.isAdminOnly || isAdmin
+        }
     }
 
     func selectedSystemImage(isSelected: Bool) -> String {
@@ -86,6 +93,7 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
 }
 
 enum SettingsTool: String, CaseIterable, Hashable, Identifiable, Sendable {
+    case general
     case aiModel
     case myMCP
     case resetPassword
@@ -94,6 +102,7 @@ enum SettingsTool: String, CaseIterable, Hashable, Identifiable, Sendable {
 
     var title: String {
         switch self {
+        case .general: "通用"
         case .aiModel: "AI 模型"
         case .myMCP: "我的 MCP"
         case .resetPassword: "重置密码"
@@ -102,9 +111,19 @@ enum SettingsTool: String, CaseIterable, Hashable, Identifiable, Sendable {
 
     var systemImage: String {
         switch self {
+        case .general: "switch.2"
         case .aiModel: "sparkles"
         case .myMCP: "point.3.connected.trianglepath.dotted"
         case .resetPassword: "lock.rotation"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .general: "偏好、更新与账号"
+        case .aiModel: "模型配置与生成任务"
+        case .myMCP: "连接、密钥与调用"
+        case .resetPassword: "账号密码安全"
         }
     }
 }

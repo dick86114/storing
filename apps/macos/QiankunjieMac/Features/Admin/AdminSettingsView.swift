@@ -148,31 +148,51 @@ struct AdminSettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("管理员设置")
-                        .font(.system(size: 26, weight: .semibold, design: .serif))
-                        .foregroundStyle(WorkspacePalette.primary(for: colorScheme))
-                    Text("统一管理系统账号、MCP 连接和平台策略。")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-
-                Picker("", selection: $selectedTab) {
-                    ForEach(AdminSettingsTab.allCases) { tab in
-                        Label(tab.title, systemImage: tab.systemImage).tag(tab)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .tint(WorkspacePalette.primary(for: colorScheme))
-                .frame(width: 360)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(20)
-            .background(WorkspacePalette.pageBackground(for: colorScheme))
-
+            header
             Divider()
 
+            HStack(spacing: 0) {
+                WorkspaceSidebar(
+                    sectionTitle: "管理模块",
+                    items: AdminSettingsTab.allCases.map { tab in
+                        WorkspaceSidebarItem(
+                            id: tab,
+                            title: tab.title,
+                            systemImage: tab.systemImage,
+                            subtitle: tab.subtitle
+                        )
+                    },
+                    selection: $selectedTab
+                )
+
+                Divider()
+
+                selectedContent
+            }
+        }
+        .frame(minWidth: 880, minHeight: 620)
+        .background(QiankunjieColors.background(for: colorScheme))
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 18) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("管理员设置")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(WorkspacePalette.primary(for: colorScheme))
+                Text("统一管理系统账号、MCP 连接和平台策略。")
+                    .font(.callout)
+                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(20)
+    }
+
+    @ViewBuilder
+    private var selectedContent: some View {
+        Group {
             switch selectedTab {
             case .users:
                 AdminUserManagementView(repository: repository)
@@ -185,6 +205,18 @@ struct AdminSettingsView: View {
             case .trash:
                 AdminTrashView(client: ManagementAPIClient(repository: repository))
             }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(QiankunjieColors.background(for: colorScheme))
+    }
+}
+
+private extension AdminSettingsTab {
+    var subtitle: String {
+        switch self {
+        case .users: "账号、角色与状态"
+        case .mcp: "连接配额与调用记录"
+        case .trash: "恢复或彻底删除内容"
         }
     }
 }
@@ -278,7 +310,9 @@ private struct AdminUserManagementView: View {
                 .tableStyle(.inset(alternatesRowBackgrounds: true))
             }
         }
-        .searchable(text: $query, placement: .toolbar, prompt: "搜索用户名")
+        .safeAreaInset(edge: .top, spacing: 0) {
+            userControls
+        }
         .safeAreaInset(edge: .bottom) {
             HStack {
                 Text(summaryText)
@@ -294,44 +328,6 @@ private struct AdminUserManagementView: View {
             .padding(.horizontal, 12)
             .frame(height: 28)
             .background(.bar)
-        }
-        .toolbar {
-            ToolbarItemGroup {
-                Menu {
-                    Picker("角色", selection: $roleFilter) {
-                        Text("全部角色").tag("all")
-                        Text("管理员").tag("admin")
-                        Text("普通用户").tag("user")
-                        Text("服务账号").tag("service")
-                    }
-                } label: {
-                    Label("角色", systemImage: "person.2")
-                }
-
-                Menu {
-                    Picker("状态", selection: $statusFilter) {
-                        Text("全部状态").tag("all")
-                        Text("启用").tag("active")
-                        Text("禁用").tag("disabled")
-                    }
-                } label: {
-                    Label("状态", systemImage: "line.3.horizontal.decrease.circle")
-                }
-
-                Button {
-                    Task { await model.load() }
-                } label: {
-                    Label("刷新", systemImage: "arrow.clockwise")
-                }
-                .disabled(model.isLoading)
-
-                Button {
-                    model.isCreating = true
-                } label: {
-                    Label("新建用户", systemImage: "plus")
-                }
-                .disabled(model.isSaving)
-            }
         }
         .task {
             await model.load()
@@ -356,6 +352,62 @@ private struct AdminUserManagementView: View {
         } message: {
             Text(model.errorMessage ?? "")
         }
+    }
+
+    private var userControls: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("搜索用户名", text: $query)
+                    .textFieldStyle(.plain)
+            }
+            .padding(.horizontal, 9)
+            .frame(height: 30)
+            .frame(width: 240)
+            .background(.background, in: RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(.separator)
+            }
+
+            Picker("角色", selection: $roleFilter) {
+                Text("全部角色").tag("all")
+                Text("管理员").tag("admin")
+                Text("普通用户").tag("user")
+                Text("服务账号").tag("service")
+            }
+            .pickerStyle(.menu)
+            .frame(width: 130)
+
+            Picker("状态", selection: $statusFilter) {
+                Text("全部状态").tag("all")
+                Text("启用").tag("active")
+                Text("禁用").tag("disabled")
+            }
+            .pickerStyle(.menu)
+            .frame(width: 120)
+
+            Spacer(minLength: 12)
+
+            Button {
+                Task { await model.load() }
+            } label: {
+                Label("刷新", systemImage: "arrow.clockwise")
+            }
+            .disabled(model.isLoading)
+
+            Button {
+                model.isCreating = true
+            } label: {
+                Label("新建用户", systemImage: "plus")
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(model.isSaving)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(.bar)
     }
 
     private var filteredUsers: [AdminUser] {

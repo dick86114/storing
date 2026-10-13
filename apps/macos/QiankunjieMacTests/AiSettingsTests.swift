@@ -4,8 +4,8 @@ import Testing
 @testable import QiankunjieMac
 
 struct AiSettingsTests {
-    @Test func 设置工具按固定顺序提供AI模型入口() {
-        #expect(SettingsTool.allCases == [.aiModel, .myMCP, .resetPassword])
+    @Test func 设置工具按固定顺序提供通用和AI模型入口() {
+        #expect(SettingsTool.allCases == [.general, .aiModel, .myMCP, .resetPassword])
         #expect(SettingsTool.aiModel.title == "AI 模型")
         #expect(SettingsTool.aiModel.systemImage == "sparkles")
     }

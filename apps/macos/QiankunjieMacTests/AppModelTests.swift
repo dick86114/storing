@@ -173,7 +173,9 @@ struct AppModelTests {
 
     @Test func 侧栏主菜单只显示资料库栏目() {
         #expect(AppDestination.sidebarDestinations == [.inbox, .favorites, .archive, .published])
-        #expect(AppDestination.utilitySidebarDestinations == [.categories])
+        #expect(AppDestination.utilitySidebarDestinations == [.categories, .settings, .admin])
+        #expect(AppDestination.visibleUtilitySidebarDestinations(isAdmin: false) == [.categories, .settings])
+        #expect(AppDestination.visibleUtilitySidebarDestinations(isAdmin: true) == [.categories, .settings, .admin])
     }
 
     @Test func 侧栏选中状态使用实心图标() {
@@ -182,9 +184,9 @@ struct AppModelTests {
         #expect(AppDestination.categories.selectedSystemImage(isSelected: true) == "folder.fill")
     }
 
-    @Test func 普通设置按固定顺序提供账户与工具入口() {
-        #expect(SettingsTool.allCases == [.aiModel, .myMCP, .resetPassword])
-        #expect(SettingsTool.allCases.map(\.title) == ["AI 模型", "我的 MCP", "重置密码"])
+    @Test func 普通设置按固定顺序提供左右工作台菜单() {
+        #expect(SettingsTool.allCases == [.general, .aiModel, .myMCP, .resetPassword])
+        #expect(SettingsTool.allCases.map(\.title) == ["通用", "AI 模型", "我的 MCP", "重置密码"])
     }
 
     @Test func 管理员设置按固定顺序提供用户与MCP管理() {

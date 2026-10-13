@@ -100,7 +100,7 @@ struct UILabRootView: View {
                     onOpenArticle: { _ in }
                 )
             case .settings:
-                SettingsWindow(
+                SettingsGeneralView(
                     model: UILabFixtures.appModel.settingsModel,
                     shortcutSettings: UILabFixtures.appModel.shortcutSettings,
                     menuBarController: nil,
@@ -110,7 +110,7 @@ struct UILabRootView: View {
                     updateDefaults: UILabFixtures.preferences
                 )
             case .update:
-                SettingsWindow(
+                SettingsGeneralView(
                     model: UILabFixtures.appModel.settingsModel,
                     shortcutSettings: UILabFixtures.appModel.shortcutSettings,
                     menuBarController: nil,

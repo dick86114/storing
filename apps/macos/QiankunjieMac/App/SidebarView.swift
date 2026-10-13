@@ -22,7 +22,12 @@ struct SidebarView: View {
             }
 
             Section(isCollapsed ? "" : "常用功能") {
-                ForEach(AppDestination.utilitySidebarDestinations, id: \.self) { destination in
+                ForEach(
+                    AppDestination.visibleUtilitySidebarDestinations(
+                        isAdmin: model.user?.role == "admin"
+                    ),
+                    id: \.self
+                ) { destination in
                     sidebarRow(destination)
                 }
             }
@@ -114,14 +119,6 @@ struct SidebarView: View {
                 onLogin: {
                     showsAccountMenu = false
                     model.presentLogin()
-                },
-                onSettings: {
-                    showsAccountMenu = false
-                    destinationSelection.wrappedValue = .settings
-                },
-                onAdminSettings: {
-                    showsAccountMenu = false
-                    destinationSelection.wrappedValue = .admin
                 }
             )
         }
@@ -329,8 +326,6 @@ private struct AccountMenuView: View {
     let user: AuthenticatedUser?
     let colorScheme: ColorScheme
     let onLogin: () -> Void
-    let onSettings: () -> Void
-    let onAdminSettings: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -369,16 +364,6 @@ private struct AccountMenuView: View {
 
             if user == nil {
                 menuButton("登录", systemImage: "person.badge.key", action: onLogin)
-            } else {
-            }
-
-            menuButton("设置", systemImage: "gearshape", action: onSettings)
-            if user?.role == "admin" {
-                menuButton(
-                    "管理员设置",
-                    systemImage: "shield.lefthalf.filled",
-                    action: onAdminSettings
-                )
             }
         }
         .padding(6)

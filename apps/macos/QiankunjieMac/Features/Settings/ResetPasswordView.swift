@@ -33,7 +33,6 @@ struct ResetPasswordView: View {
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(QiankunjieColors.background(for: colorScheme))
-        .navigationTitle("重置密码")
     }
 
     private var header: some View {
