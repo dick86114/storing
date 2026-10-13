@@ -403,7 +403,6 @@ struct AiSettingsView: View {
             jobsSection
         }
         .formStyle(.grouped)
-        .navigationTitle("AI 模型")
         .task {
             await model.load()
         }

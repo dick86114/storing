@@ -315,19 +315,21 @@ struct MCPManagementView: View {
 
     var body: some View {
         if presentation == .embedded {
-            embeddedAdminContent
+            Group {
+                if model.scope == .personal {
+                    VStack(spacing: 0) {
+                        header
+                        Divider()
+                        personalContent
+                    }
+                } else {
+                    embeddedAdminContent
+                }
+            }
                 .background(QiankunjieColors.background(for: colorScheme))
                 .task { await model.load() }
-                .toolbar {
-                    ToolbarItemGroup {
-                        Button { Task { await model.load() } } label: {
-                            Label("刷新", systemImage: "arrow.clockwise")
-                        }
-                        Button { model.isCreating = true } label: {
-                            Label("新建连接", systemImage: "plus")
-                        }
-                    }
-                }
+            .background(QiankunjieColors.background(for: colorScheme))
+            .task { await model.load() }
                 .sheet(isPresented: $model.isCreating) { MCPCreateSheet(model: model) }
                 .sheet(item: $model.editingClient) { client in
                     MCPEditSheet(model: model, client: client)
@@ -484,12 +486,31 @@ struct MCPManagementView: View {
     private var embeddedAdminContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                if let limits = model.limits {
-                    HStack(spacing: 24) {
-                        metric("每分钟", "\(limits.rateLimitPerMinute)", "次")
-                        metric("每天", "\(limits.rateLimitPerDay)", "次")
-                        metric("并发", "\(limits.concurrentCollectLimit)", "个")
+                HStack(alignment: .top, spacing: 24) {
+                    if let limits = model.limits {
+                        HStack(spacing: 24) {
+                            metric("每分钟", "\(limits.rateLimitPerMinute)", "次")
+                            metric("每天", "\(limits.rateLimitPerDay)", "次")
+                            metric("并发", "\(limits.concurrentCollectLimit)", "个")
+                        }
                     }
+
+                    Spacer(minLength: 12)
+
+                    Button {
+                        Task { await model.load() }
+                    } label: {
+                        Label("刷新", systemImage: "arrow.clockwise")
+                    }
+                    .disabled(model.isLoading)
+
+                    Button {
+                        model.isCreating = true
+                    } label: {
+                        Label("新建连接", systemImage: "plus")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(model.isSaving)
                 }
 
                 sectionTitle("连接")
