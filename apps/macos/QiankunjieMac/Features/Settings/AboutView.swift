@@ -44,7 +44,7 @@ struct AboutView: View {
             }
         }
         .padding(20)
-        .frame(width: 420, alignment: .leading)
+        .frame(width: 460, alignment: .leading)
         .background(QiankunjieColors.background(for: colorScheme))
         .task {
             await model.fetchUpdateLog()
@@ -100,7 +100,9 @@ struct AboutView: View {
                             .qiankunjieFont(.labelMedium)
                             .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                     }
+                    .frame(height: 260, alignment: .topLeading)
                 } else if let log = model.updateLog, !log.isEmpty {
+                    // 固定高度保证多行长日志也能看全，超出部分在区域内滚动。
                     ScrollView {
                         Text(log)
                             .qiankunjieFont(.labelMedium)
@@ -109,11 +111,12 @@ struct AboutView: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(maxHeight: 180)
+                    .frame(height: 260)
                 } else {
                     Text(model.updateLogErrorText ?? "暂无更新日志")
                         .qiankunjieFont(.labelMedium)
                         .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                        .frame(height: 260, alignment: .topLeading)
                 }
 
                 SettingsActionsRow {

@@ -28,6 +28,7 @@ struct CollectQuickPopoverView: View {
         .frame(width: 332)
         .onAppear {
             isURLFocused = model.userID != nil
+            fillDraftFromPasteboardIfPossible()
         }
     }
 
@@ -106,6 +107,19 @@ struct CollectQuickPopoverView: View {
         guard let value = NSPasteboard.general.string(forType: .string) else { return }
         model.urlDraft = value
         isURLFocused = true
+    }
+
+    /// 打开弹窗时如果剪贴板里是可直接采集的链接，自动填进输入框：
+    /// 只在当前草稿为空或不是合法链接时覆盖，避免冲掉用户已经输好的内容。
+    private func fillDraftFromPasteboardIfPossible() {
+        guard model.userID != nil, !model.isSubmitting else { return }
+        guard let value = NSPasteboard.general.string(forType: .string) else { return }
+        guard (try? CollectUrlValidator.validate(value)) != nil else { return }
+
+        let draft = model.urlDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard draft.isEmpty || (try? CollectUrlValidator.validate(draft)) == nil else { return }
+
+        model.urlDraft = value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func submit() {
