@@ -39,38 +39,71 @@ struct SettingsGeneralView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                WorkspacePanel(
-                    title: "应用与更新",
-                    subtitle: "检查版本、阅读更新日志并选择下载源。",
-                    systemImage: "arrow.triangle.2.circlepath"
-                ) {
-                    updateContent
-                }
-
-                WorkspacePanel(
-                    title: "外观",
-                    subtitle: "跟随系统或固定应用外观，并调整全局字号。",
-                    systemImage: "sun.max"
-                ) {
-                    appearanceContent
-                }
-
-                WorkspacePanel(
-                    title: "采集",
-                    subtitle: "配置全局快捷键和微信转发入口。",
-                    systemImage: "plus.rectangle.on.rectangle"
-                ) {
-                    collectContent
-                }
-
-                accountPanel
+        SettingsPage {
+            WorkspacePanel(
+                title: "应用与更新",
+                subtitle: "版本、更新源与更新日志。",
+                systemImage: "arrow.triangle.2.circlepath"
+            ) {
+                updateContent
             }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
+
+            WorkspacePanel(
+                title: "外观与字号",
+                subtitle: "跟随系统或固定外观，并调整全局字号。",
+                systemImage: "sun.max"
+            ) {
+                SettingsRow(title: "外观") {
+                    AppearanceSettingsView(model: model)
+                }
+
+                SettingsRowDivider()
+
+                SettingsRow(title: "字号") {
+                    Picker("字号", selection: appFontSelection) {
+                        ForEach(AppFontPreference.allCases) { preference in
+                            Text(preference.displayName)
+                                .tag(preference)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
+            }
+
+            WorkspacePanel(
+                title: "采集",
+                subtitle: "全局快捷键与微信转发入口。",
+                systemImage: "plus.rectangle.on.rectangle"
+            ) {
+                SettingsRow(title: "全局快捷键", subtitle: "在任意应用里唤起采集窗口。") {
+                    Picker("全局采集快捷键", selection: shortcutSelection) {
+                        ForEach(GlobalShortcut.allCases) { shortcut in
+                            Text(shortcut.displayName)
+                                .tag(shortcut)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                }
+
+                if let message = shortcutRegistrationMessage ?? menuBarController?.hotKeyRegistrationMessage {
+                    Text(message)
+                        .qiankunjieFont(.labelMedium)
+                        .foregroundStyle(
+                            colorScheme == .dark
+                                ? QiankunjieColors.darkError
+                                : QiankunjieColors.lightError
+                        )
+                }
+
+                SettingsRowDivider()
+
+                WeChatShareSettingsView()
+            }
+
+            accountPanel
         }
-        .background(QiankunjieColors.background(for: colorScheme))
     }
 
     @ViewBuilder
@@ -87,74 +120,13 @@ struct SettingsGeneralView: View {
         }
     }
 
-    private var appearanceContent: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center, spacing: 18) {
-                settingLabel("外观")
-                Spacer(minLength: 12)
-                AppearanceSettingsView(model: model)
-                    .frame(width: 360)
-            }
-
-            Divider()
-
-            HStack(alignment: .center, spacing: 18) {
-                settingLabel("字号")
-                Spacer(minLength: 12)
-                Picker("字号", selection: appFontSelection) {
-                    ForEach(AppFontPreference.allCases) { preference in
-                        Text(preference.displayName)
-                            .tag(preference)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 360)
-            }
-        }
-    }
-
-    private var collectContent: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center, spacing: 18) {
-                settingLabel("全局快捷键")
-                Spacer(minLength: 12)
-                Picker("全局采集快捷键", selection: shortcutSelection) {
-                    ForEach(GlobalShortcut.allCases) { shortcut in
-                        Text(shortcut.displayName)
-                            .tag(shortcut)
-                    }
-                }
-                .frame(width: 220)
-            }
-
-            if let message = shortcutRegistrationMessage ?? menuBarController?.hotKeyRegistrationMessage {
-                Text(message)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-            }
-
-            Divider()
-            WeChatShareSettingsView()
-        }
-    }
-
     private var accountPanel: some View {
         WorkspacePanel(
             title: "账号",
-            subtitle: isAuthenticated ? "查看登录状态或退出当前账号。" : "登录后可以同步文章和使用个性化配置。",
+            subtitle: isAuthenticated ? "内容与分类偏好跟随当前账号。" : "登录后可同步文章并使用 AI、MCP 等能力。",
             systemImage: "person.crop.circle"
         ) {
-            HStack(alignment: .center, spacing: 18) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(isAuthenticated ? "已登录" : "未登录")
-                        .font(.callout.weight(.medium))
-                    Text(isAuthenticated ? "内容、分类偏好和 MCP 连接会跟随当前账号。" : "登录后才能使用 AI 配置、MCP 和密码管理。")
-                        .font(.callout)
-                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                }
-
-                Spacer(minLength: 12)
-
+            SettingsRow(title: isAuthenticated ? "已登录" : "未登录") {
                 if isAuthenticated {
                     Button {
                         Task {
@@ -168,10 +140,10 @@ struct SettingsGeneralView: View {
                                 Text("正在退出")
                             }
                         } else {
-                            Label("退出登录", systemImage: "rectangle.portrait.and.arrow.right")
+                            Text("退出登录")
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                     .disabled(model.isLoggingOut)
                 } else {
                     Button("登录乾坤戒", action: onLogin)
@@ -180,12 +152,6 @@ struct SettingsGeneralView: View {
             }
         }
         .tint(WorkspacePalette.primary(for: colorScheme))
-    }
-
-    private func settingLabel(_ title: String) -> some View {
-        Text(title)
-            .font(.callout.weight(.medium))
-            .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
     }
 
     private var appFontSelection: Binding<AppFontPreference> {

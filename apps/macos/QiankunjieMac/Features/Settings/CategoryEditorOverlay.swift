@@ -38,9 +38,20 @@ struct CategoryEditorOverlay: View {
                                 }
                             }
                         } label: {
-                            Label("AI 优化", systemImage: "wand.and.stars")
+                            if model.isOptimizing {
+                                HStack(spacing: 6) {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                    Text("优化中…")
+                                }
+                            } else {
+                                Label("AI 优化", systemImage: "wand.and.stars")
+                            }
                         }
-                        .disabled(draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isSaving)
+                        .disabled(
+                            draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                || model.isOptimizing
+                        )
                     }
                     TextField(
                         "用一句话说明这个分类的长期归属边界。",

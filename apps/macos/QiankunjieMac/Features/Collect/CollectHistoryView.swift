@@ -57,11 +57,26 @@ struct CollectHistoryView: View {
             Button {
                 showsCollectPopover = true
             } label: {
-                Label("采集", systemImage: "plus.rectangle.on.rectangle")
-                    .font(.system(size: 12, weight: .medium))
-                    .frame(height: 28)
+                HStack(spacing: 6) {
+                    Image(systemName: "plus.rectangle.on.rectangle")
+                        .font(.system(size: 11, weight: .medium))
+                    Text("采集")
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
+                }
+                .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
+                .padding(.horizontal, 9)
+                .frame(height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: QiankunjieRadius.control)
+                        .fill(QiankunjieColors.accent(for: colorScheme).opacity(0.14))
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: QiankunjieRadius.control)
+                        .strokeBorder(QiankunjieColors.accent(for: colorScheme).opacity(0.28))
+                }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.plain)
             .help("粘贴公开网页链接开始采集")
             .popover(isPresented: $showsCollectPopover, arrowEdge: .bottom) {
                 CollectQuickPopoverView(

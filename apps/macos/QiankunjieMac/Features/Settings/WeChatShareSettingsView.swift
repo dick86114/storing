@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import QiankunjieDesignSystem
 import QiankunjieWeChat
 import SwiftUI
 
@@ -97,6 +98,7 @@ final class WeChatShareSettingsModel {
 
 struct WeChatShareSettingsView: View {
     @State private var model = WeChatShareSettingsModel()
+    @Environment(\.colorScheme) private var colorScheme
 
     private var toggleBinding: Binding<Bool> {
         Binding(
@@ -106,42 +108,43 @@ struct WeChatShareSettingsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if model.isExtensionInstalled {
-                LabeledContent {
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsRow(title: "微信「转发到其他应用」入口", subtitle: rowSubtitle) {
+                if model.isExtensionInstalled {
                     Toggle("微信「转发到其他应用」入口", isOn: toggleBinding)
                         .toggleStyle(.switch)
                         .labelsHidden()
                         .disabled(model.isSwitching)
-                } label: {
-                    Text("微信「转发到其他应用」入口")
-                    if model.isExtensionEnabled != true {
-                        Text(statusText)
-                    }
+                } else {
+                    Text(statusText)
+                        .qiankunjieFont(.labelMedium)
+                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                 }
-            } else {
-                LabeledContent("微信「转发到其他应用」入口", value: statusText)
             }
 
             if model.switchFailed {
                 Label("开关未能生效，请到系统设置 → 通用 → 登录项与扩展 → 共享里手动打开乾坤戒。", systemImage: "exclamationmark.triangle")
-                    .font(.footnote)
+                    .qiankunjieFont(.labelMedium)
                     .foregroundStyle(.orange)
             }
 
-            Text("在微信中多选聊天记录，选择「合并转发 → 转发到其他应用」，再点选乾坤戒即可保存。")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-
             if model.pendingBatchCount > 0 {
-                Text("有 \(model.pendingBatchCount) 批微信转发等待保存；服务端更新后会自动完成上传。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                Text("有 \(model.pendingBatchCount) 批微信转发等待保存，服务端更新后会自动完成上传。")
+                    .qiankunjieFont(.labelMedium)
+                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
             }
         }
         .onAppear {
             model.refresh()
         }
+    }
+
+    /// 说明只在未启用状态出现在行内，避免与引导文案重复。
+    private var rowSubtitle: String? {
+        guard model.isExtensionInstalled else { return statusText }
+        return model.isExtensionEnabled == true
+            ? "在微信中多选聊天记录后转发到乾坤戒即可保存。"
+            : statusText + "，开启后可在微信里直接转发。"
     }
 
     private var statusText: String {

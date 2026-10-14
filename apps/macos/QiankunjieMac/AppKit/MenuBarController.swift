@@ -211,24 +211,39 @@ public final class MenuBarController: NSObject {
         panel.toggleFromStatusItem(statusItem?.button)
     }
 
+    /// 应用菜单（左上角）复用同一组动作。
+    func performOpenSettings() {
+        actions.openSettings()
+    }
+
+    func performCheckForUpdates() {
+        actions.checkForUpdates()
+    }
+
+    func performShowAbout() {
+        actions.about()
+    }
+
     /// 主窗口里的「采集」入口复用同一个快速采集弹窗。
     func presentCollectPanel() {
         panel.present(from: nil)
     }
 
+    /// 菜单里可见的标题（跳过分隔线），供测试与状态展示使用。
     var statusMenuTitles: [String] {
-        statusMenu?.items.map(\.title) ?? []
+        statusMenu?.items
+            .filter { !$0.isSeparatorItem }
+            .map(\.title) ?? []
     }
 
+    /// `index` 以可见菜单项（跳过分隔线）计数。
     @discardableResult
     func performStatusMenuAction(at index: Int) -> Bool {
-        guard
-            let item = statusMenu?.item(at: index),
-            let action = item.action
-        else {
+        let items = statusMenu?.items.filter { !$0.isSeparatorItem } ?? []
+        guard items.indices.contains(index), let action = items[index].action else {
             return false
         }
-        return NSApp.sendAction(action, to: item.target, from: item)
+        return NSApp.sendAction(action, to: items[index].target, from: items[index])
     }
 
     @discardableResult
@@ -289,13 +304,17 @@ public final class MenuBarController: NSObject {
         }
     }
 
+    /// 菜单项按用途分组，用分隔线隔开：窗口 → 设置与更新 → 帮助与关于 → 退出。
     private func makeStatusMenu() -> NSMenu {
         let menu = NSMenu()
         menu.addItem(statusMenuItem(title: "打开主窗口", action: #selector(openMainWindowFromMenu)))
+        menu.addItem(.separator())
         menu.addItem(statusMenuItem(title: "设置", action: #selector(openSettingsFromMenu)))
-        menu.addItem(statusMenuItem(title: "检测更新", action: #selector(checkForUpdatesFromMenu)))
+        menu.addItem(statusMenuItem(title: "检查更新", action: #selector(checkForUpdatesFromMenu)))
+        menu.addItem(.separator())
         menu.addItem(statusMenuItem(title: "提交问题", action: #selector(reportIssueFromMenu)))
-        menu.addItem(statusMenuItem(title: "关于 乾坤戒", action: #selector(showAboutFromMenu)))
+        menu.addItem(statusMenuItem(title: "关于", action: #selector(showAboutFromMenu)))
+        menu.addItem(.separator())
         menu.addItem(statusMenuItem(title: "退出", action: #selector(quitFromMenu)))
         return menu
     }

@@ -20,112 +20,96 @@ struct ResetPasswordView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                header
-                passwordPanel
+        SettingsPage {
+            WorkspacePanel(
+                title: "密码安全",
+                subtitle: "更新后，其他设备上的登录会失效，需要用新密码重新登录。",
+                systemImage: "lock.rotation"
+            ) {
+                SettingsRow(title: "当前密码", controlWidth: 320) {
+                    passwordField(
+                        placeholder: "输入当前密码",
+                        text: $currentPassword,
+                        isVisible: $showsCurrentPassword
+                    )
+                }
+
+                SettingsRowDivider()
+
+                SettingsRow(
+                    title: "新密码",
+                    subtitle: "至少 12 个字符，且不能与当前密码相同。",
+                    controlWidth: 320
+                ) {
+                    passwordField(
+                        placeholder: "至少 12 个字符",
+                        text: $newPassword,
+                        isVisible: $showsNewPassword
+                    )
+                }
+
+                SettingsRowDivider()
+
+                SettingsRow(title: "确认新密码", controlWidth: 320) {
+                    passwordField(
+                        placeholder: "再次输入新密码",
+                        text: $confirmation,
+                        isVisible: $showsConfirmation
+                    )
+                }
+
+                SettingsRowDivider()
+
                 feedback
-                actions
+
+                SettingsActionsRow {
+                    Button(didSave ? "返回" : "更新密码") {
+                        Task { await submit() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(WorkspacePalette.primary(for: colorScheme))
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(didSave ? false : !canSubmit)
+                }
             }
-            .padding(.horizontal, 36)
-            .padding(.vertical, 32)
-            .frame(maxWidth: 680, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .top)
-        }
-        .background(QiankunjieColors.background(for: colorScheme))
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("重置密码")
-                .font(.system(size: 26, weight: .semibold, design: .serif))
-                .foregroundStyle(WorkspacePalette.primary(for: colorScheme))
-
-            Text("输入当前密码并设置一个新密码。更新后，移动端登录会失效。")
-                .font(.callout)
-                .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-        }
-    }
-
-    private var passwordPanel: some View {
-        VStack(spacing: 0) {
-            passwordField(
-                title: "当前密码",
-                placeholder: "输入当前密码",
-                text: $currentPassword,
-                isVisible: $showsCurrentPassword
-            )
-
-            Divider()
-
-            passwordField(
-                title: "新密码",
-                placeholder: "至少 12 个字符",
-                text: $newPassword,
-                isVisible: $showsNewPassword
-            )
-
-            Divider()
-
-            passwordField(
-                title: "确认新密码",
-                placeholder: "再次输入新密码",
-                text: $confirmation,
-                isVisible: $showsConfirmation
-            )
-        }
-        .background(QiankunjieColors.surface(for: colorScheme), in: RoundedRectangle(cornerRadius: QiankunjieRadius.panel))
-        .overlay {
-            RoundedRectangle(cornerRadius: QiankunjieRadius.panel)
-                .strokeBorder(QiankunjieColors.outline(for: colorScheme))
         }
     }
 
     private func passwordField(
-        title: String,
         placeholder: String,
         text: Binding<String>,
         isVisible: Binding<Bool>
     ) -> some View {
-        HStack(alignment: .center, spacing: 20) {
-            Text(title)
-                .font(.callout.weight(.medium))
-                .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
-                .frame(width: 92, alignment: .leading)
-
-            ZStack(alignment: .trailing) {
-                Group {
-                    if isVisible.wrappedValue {
-                        TextField(placeholder, text: text)
-                    } else {
-                        SecureField(placeholder, text: text)
-                    }
+        ZStack(alignment: .trailing) {
+            Group {
+                if isVisible.wrappedValue {
+                    TextField(placeholder, text: text)
+                } else {
+                    SecureField(placeholder, text: text)
                 }
-                .textFieldStyle(.plain)
-                .font(.body)
-                .padding(.leading, 12)
-                .padding(.trailing, 44)
-                .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
-                .background(QiankunjieColors.background(for: colorScheme), in: RoundedRectangle(cornerRadius: QiankunjieRadius.control))
-                .overlay {
-                    RoundedRectangle(cornerRadius: QiankunjieRadius.control)
-                        .strokeBorder(QiankunjieColors.outline(for: colorScheme))
-                }
-
-                Button {
-                    isVisible.wrappedValue.toggle()
-                } label: {
-                    Image(systemName: Self.passwordVisibilitySymbol(isVisible: isVisible.wrappedValue))
-                        .frame(width: 28, height: 28)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                .help(isVisible.wrappedValue ? "隐藏密码" : "显示密码")
-                .padding(.trailing, 8)
             }
+            .textFieldStyle(.plain)
+            .qiankunjieFont(.bodyMedium)
+            .padding(.leading, 12)
+            .padding(.trailing, 40)
+            .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
+            .background(QiankunjieColors.background(for: colorScheme), in: RoundedRectangle(cornerRadius: QiankunjieRadius.control))
+            .overlay {
+                RoundedRectangle(cornerRadius: QiankunjieRadius.control)
+                    .strokeBorder(QiankunjieColors.outline(for: colorScheme))
+            }
+
+            Button {
+                isVisible.wrappedValue.toggle()
+            } label: {
+                Image(systemName: Self.passwordVisibilitySymbol(isVisible: isVisible.wrappedValue))
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+            .help(isVisible.wrappedValue ? "隐藏密码" : "显示密码")
+            .padding(.trailing, 6)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
     }
 
     @ViewBuilder
@@ -135,18 +119,17 @@ struct ResetPasswordView: View {
         } else if didSave {
             inlineMessage("密码已更新，后续登录请使用新密码。", systemImage: "checkmark.circle.fill", color: .green)
         } else {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 6) {
                 requirement("至少 12 个字符", satisfied: newPassword.count >= 12)
                 requirement("新密码不能与当前密码相同", satisfied: !newPassword.isEmpty && newPassword != currentPassword)
                 requirement("两次输入的新密码一致", satisfied: !confirmation.isEmpty && newPassword == confirmation)
             }
-            .padding(.horizontal, 2)
         }
     }
 
     private func inlineMessage(_ message: String, systemImage: String, color: Color) -> some View {
         Label(message, systemImage: systemImage)
-            .font(.callout)
+            .qiankunjieFont(.bodyMedium)
             .foregroundStyle(color)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -166,7 +149,7 @@ struct ResetPasswordView: View {
             Image(systemName: satisfied ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(satisfied ? .green : QiankunjieColors.onSurfaceVariant(for: colorScheme))
         }
-        .font(.caption)
+        .qiankunjieFont(.labelMedium)
     }
 
     private var actions: some View {

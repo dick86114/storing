@@ -36,6 +36,8 @@ final class CategoryManagementModel {
     private(set) var counts: [String: Int] = [:]
     private(set) var isLoading = false
     private(set) var isSaving = false
+    /// AI 优化是编辑弹窗里的独立动作，不能复用保存状态，避免底部按钮跟着变成「保存中」。
+    private(set) var isOptimizing = false
     var errorMessage: String?
     var noticeMessage: String?
     var editingCategory: ArticleCategory?
@@ -183,9 +185,11 @@ final class CategoryManagementModel {
     }
 
     func optimize(_ draft: CategoryDraft) async -> CategoryDraft? {
-        isSaving = true
+        guard !isOptimizing else { return nil }
+
+        isOptimizing = true
         errorMessage = nil
-        defer { isSaving = false }
+        defer { isOptimizing = false }
 
         do {
             let response: CategoryOptimizeResponse = try await client.send(

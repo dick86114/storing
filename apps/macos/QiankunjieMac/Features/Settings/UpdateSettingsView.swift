@@ -372,68 +372,94 @@ struct UpdateSettingsView: View {
     }
 
     var body: some View {
-        LabeledContent("版本", value: "v" + QiankunjieMacMetadata.appVersion)
-            .task(id: updateCheckRequestID) {
-                guard updateCheckRequestID > 0 else { return }
-                await model.checkForUpdate()
-            }
-            .sheet(isPresented: updatePromptBinding) {
-                if let release = model.pendingUpdate {
-                    UpdatePromptView(
-                        release: release,
-                        onConfirm: {
-                            Task {
-                                await model.confirmUpdate()
-                            }
-                        },
-                        onCancel: {
-                            model.dismissUpdatePrompt()
+        SettingsRow(title: "当前版本") {
+            Text("v" + QiankunjieMacMetadata.appVersion)
+                .qiankunjieFont(.bodyMedium)
+                .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                .monospacedDigit()
+        }
+        .task(id: updateCheckRequestID) {
+            guard updateCheckRequestID > 0 else { return }
+            await model.checkForUpdate()
+        }
+        .sheet(isPresented: updatePromptBinding) {
+            if let release = model.pendingUpdate {
+                UpdatePromptView(
+                    release: release,
+                    onConfirm: {
+                        Task {
+                            await model.confirmUpdate()
                         }
-                    )
+                    },
+                    onCancel: {
+                        model.dismissUpdatePrompt()
+                    }
+                )
+            }
+        }
+
+        SettingsRowDivider()
+
+        SettingsRow(title: "更新源", subtitle: "直连 GitHub，或填写 HTTPS 镜像地址加速下载。") {
+            Picker("更新源", selection: model.mirrorMode) {
+                ForEach(UpdateMirrorMode.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
                 }
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .disabled(!model.canModifyMirror)
+        }
+
+        if model.mirrorMode.wrappedValue == .custom {
+            SettingsBlockRow(title: "镜像地址") {
+                HStack(spacing: 8) {
+                    TextField("HTTPS 镜像根地址", text: Binding(
+                        get: { model.mirrorBase },
+                        set: { model.updateMirrorDraft($0) }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .disabled(!model.canModifyMirror)
+
+                    Button("保存") {
+                        model.saveMirror()
+                    }
+                    .disabled(!model.canModifyMirror)
+                }
+            }
+        }
+
+        SettingsRowDivider()
 
         updateLogSection
 
-        Picker("更新源", selection: model.mirrorMode) {
-            ForEach(UpdateMirrorMode.allCases) { mode in
-                Text(mode.displayName).tag(mode)
-            }
-        }
-        .pickerStyle(.segmented)
-        .disabled(!model.canModifyMirror)
-
-        if model.mirrorMode.wrappedValue == .custom {
-            TextField("HTTPS 镜像根地址", text: Binding(
-                get: { model.mirrorBase },
-                set: { model.updateMirrorDraft($0) }
-            ))
-            .textFieldStyle(.roundedBorder)
-            .disabled(!model.canModifyMirror)
-
-            Button("保存镜像") {
-                model.saveMirror()
-            }
-            .disabled(!model.canModifyMirror)
-        }
+        SettingsRowDivider()
 
         updateContent
 
-        Button {
-            Task {
-                await model.checkForUpdate()
+        SettingsActionsRow {
+            Button {
+                Task {
+                    await model.checkForUpdate()
+                }
+            } label: {
+                Text("检查更新")
             }
-        } label: {
-            Label("检查更新", systemImage: "arrow.triangle.2.circlepath")
+            .disabled(model.isBusy)
         }
-        .disabled(model.isBusy)
 
         if let failureText = model.failureText {
             Text(failureText)
-                .font(.footnote)
-                .foregroundStyle(.red)
+                .qiankunjieFont(.labelMedium)
+                .foregroundStyle(
+                    colorScheme == .dark
+                        ? QiankunjieColors.darkError
+                        : QiankunjieColors.lightError
+                )
         }
     }
+
+    @Environment(\.colorScheme) private var colorScheme
 
     private var updatePromptBinding: Binding<Bool> {
         Binding(
@@ -447,31 +473,37 @@ struct UpdateSettingsView: View {
     }
 
     private var updateLogSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("更新日志")
-                Spacer()
-                Button("获取更新日志") {
-                    Task {
-                        await model.fetchUpdateLog()
-                    }
+        SettingsBlockRow(title: "更新日志", subtitle: "只展示当前版本的更新说明。") {
+            VStack(alignment: .leading, spacing: 8) {
+                if let updateLog = model.updateLog, !updateLog.isEmpty {
+                    Text(updateLog)
+                        .qiankunjieFont(.labelMedium)
+                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else if let error = model.updateLogErrorText {
+                    Text(error)
+                        .qiankunjieFont(.labelMedium)
+                        .foregroundStyle(
+                            colorScheme == .dark
+                                ? QiankunjieColors.darkError
+                                : QiankunjieColors.lightError
+                        )
+                } else {
+                    Text("尚未获取更新日志")
+                        .qiankunjieFont(.labelMedium)
+                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                 }
-                .disabled(model.isFetchingUpdateLog)
-            }
 
-            if let updateLog = model.updateLog, !updateLog.isEmpty {
-                Text(updateLog)
-                    .font(.footnote)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else if let error = model.updateLogErrorText {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-            } else {
-                Text("尚未获取更新日志")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                SettingsActionsRow {
+                    Button("获取更新日志") {
+                        Task {
+                            await model.fetchUpdateLog()
+                        }
+                    }
+                    .disabled(model.isFetchingUpdateLog)
+                }
             }
         }
     }
@@ -480,22 +512,25 @@ struct UpdateSettingsView: View {
     private var updateContent: some View {
         switch model.phase {
         case .checking:
-            HStack {
+            HStack(spacing: 8) {
                 ProgressView()
                     .controlSize(.small)
                 Text("正在检查更新")
+                    .qiankunjieFont(.bodyMedium)
             }
         case .upToDate:
-            Text("已是最新版本")
+            Label("已是最新版本", systemImage: "checkmark.circle.fill")
+                .qiankunjieFont(.bodyMedium)
+                .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
         case .available:
             if let release = model.release {
-                VStack(alignment: .leading, spacing: 8) {
-                    LabeledContent("新版本", value: release.version)
+                SettingsRow(title: "新版本", subtitle: release.releaseNotes?.isEmpty == false ? "可在「更新日志」中查看说明。" : nil) {
                     Button("下载并安装") {
                         Task {
                             await model.confirmUpdate()
                         }
                     }
+                    .buttonStyle(.borderedProminent)
                 }
             }
         case .downloading:
@@ -503,20 +538,23 @@ struct UpdateSettingsView: View {
                 if let progress = model.progress {
                     ProgressView(value: progress)
                     Text("已下载 \(Int(progress * 100))%")
-                        .font(.footnote)
+                        .qiankunjieFont(.labelMedium)
+                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                 } else {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("正在下载更新")
-                        .font(.footnote)
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("正在下载更新")
+                            .qiankunjieFont(.bodyMedium)
+                    }
                 }
             }
         case .downloaded:
-            VStack(alignment: .leading, spacing: 8) {
-                Text("SHA-256 校验通过，正在退出并安装")
-            }
+            Text("SHA-256 校验通过，正在退出并安装")
+                .qiankunjieFont(.bodyMedium)
         case .readyToRelaunch:
             Text("正在退出应用并完成安装")
+                .qiankunjieFont(.bodyMedium)
         case .idle, .failed:
             EmptyView()
         }

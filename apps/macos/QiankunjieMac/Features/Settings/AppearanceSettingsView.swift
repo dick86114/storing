@@ -12,6 +12,7 @@ struct AppearanceSettingsView: View {
             }
         }
         .pickerStyle(.segmented)
+        .labelsHidden()
     }
 
     private var appearanceSelection: Binding<AppearancePreference> {

@@ -332,52 +332,109 @@ struct AiSettingsView: View {
     }
 
     var body: some View {
-        Form {
-            Section {
-                Picker("模型提供商", selection: $model.provider) {
-                    ForEach(Self.providers, id: \.0) { provider in
-                        Text(provider.1).tag(provider.0)
+        SettingsPage {
+            WorkspacePanel(
+                title: "模型配置",
+                subtitle: "按账号配置模型，归档时按设置自动生成。",
+                systemImage: "sparkles"
+            ) {
+                SettingsRow(title: "模型提供商") {
+                    Picker("模型提供商", selection: $model.provider) {
+                        ForEach(Self.providers, id: \.0) { provider in
+                            Text(provider.1).tag(provider.0)
+                        }
                     }
+                    .labelsHidden()
                 }
 
-                TextField("Base URL", text: $model.baseUrl, prompt: Text("自定义服务时填写 HTTPS 地址"))
-                SecureField(
-                    "API Key",
-                    text: $model.apiKey,
-                    prompt: Text(apiKeyPlaceholder)
-                )
+                SettingsRowDivider()
 
-                TextField("模型", text: $model.model, prompt: Text("选择或手动输入模型名"))
+                SettingsBlockRow(title: "Base URL", subtitle: "自定义服务时填写 HTTPS 地址。") {
+                    TextField("Base URL", text: $model.baseUrl, prompt: Text("https://…"))
+                        .textFieldStyle(.roundedBorder)
+                }
 
-                if !model.models.isEmpty {
-                    Picker("已发现模型", selection: $model.model) {
-                        Text("手动输入").tag("")
-                        ForEach(model.models) { option in
-                            Text(option.name ?? option.id).tag(option.id)
+                SettingsRowDivider()
+
+                SettingsBlockRow(title: "API Key") {
+                    SecureField("API Key", text: $model.apiKey, prompt: Text(apiKeyPlaceholder))
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                SettingsRowDivider()
+
+                SettingsBlockRow(title: "模型", subtitle: "选择已发现模型，或手动输入模型名。") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        TextField("模型", text: $model.model, prompt: Text("模型名"))
+                            .textFieldStyle(.roundedBorder)
+
+                        if !model.models.isEmpty {
+                            Picker("已发现模型", selection: $model.model) {
+                                Text("手动输入").tag("")
+                                ForEach(model.models) { option in
+                                    Text(option.name ?? option.id).tag(option.id)
+                                }
+                            }
+                            .labelsHidden()
                         }
                     }
                 }
 
-                Toggle("自动触发", isOn: $model.autoTriggerOnArchive)
+                SettingsRowDivider()
 
-                HStack {
+                SettingsRow(title: "自动触发", subtitle: "归档文章时自动生成 AI 摘要与标签。") {
+                    Toggle("自动触发", isOn: $model.autoTriggerOnArchive)
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                }
+
+                if let settings = model.settings {
+                    SettingsRowDivider()
+
+                    SettingsRow(title: "已配置 Key") {
+                        Text(settings.apiKeyLast4 ?? "已保存")
+                            .qiankunjieFont(.bodyMedium)
+                            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                            .monospacedDigit()
+                    }
+
+                    SettingsRow(title: "更新时间") {
+                        Text(Self.displayDate(settings.updatedAt))
+                            .qiankunjieFont(.bodyMedium)
+                            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                            .monospacedDigit()
+                    }
+                }
+
+                if let errorMessage = model.errorMessage {
+                    Text(errorMessage)
+                        .qiankunjieFont(.labelMedium)
+                        .foregroundStyle(
+                            colorScheme == .dark
+                                ? QiankunjieColors.darkError
+                                : QiankunjieColors.lightError
+                        )
+                }
+
+                if let noticeMessage = model.noticeMessage {
+                    Text(noticeMessage)
+                        .qiankunjieFont(.labelMedium)
+                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                }
+
+                SettingsRowDivider()
+
+                SettingsActionsRow {
                     Button {
                         Task { await model.discoverModels() }
                     } label: {
                         if model.isDiscovering {
                             ProgressView().controlSize(.small)
                         } else {
-                            Label("获取模型", systemImage: "arrow.triangle.2.circlepath")
+                            Text("获取模型")
                         }
                     }
                     .disabled(model.isDiscovering || model.isLoading)
-
-                    Spacer()
-
-                    Button("保存配置") {
-                        Task { await model.save() }
-                    }
-                    .disabled(!model.canSave || model.isLoading)
 
                     Button("测试生成") {
                         Task { await model.test() }
@@ -388,21 +445,17 @@ struct AiSettingsView: View {
                         model.isDeleteConfirming = true
                     }
                     .disabled(model.isDeleting || model.isLoading || model.settings == nil)
-                }
 
-                if let settings = model.settings {
-                    LabeledContent("已配置 Key", value: settings.apiKeyLast4 ?? "已保存")
-                    LabeledContent("更新时间", value: settings.updatedAt)
+                    Button("保存配置") {
+                        Task { await model.save() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!model.canSave || model.isLoading)
                 }
-            } header: {
-                Text("模型配置")
-            } footer: {
-                Text("按账号配置模型，归档时按设置触发生成。")
             }
 
-            jobsSection
+            jobsPanel
         }
-        .formStyle(.grouped)
         .task {
             await model.load()
         }
@@ -420,61 +473,101 @@ struct AiSettingsView: View {
         }
     }
 
-    @ViewBuilder
-    private var jobsSection: some View {
-        Section("最近任务") {
-            if let errorMessage = model.errorMessage {
-                Text(errorMessage)
-                    .foregroundStyle(.red)
-            }
-            if let noticeMessage = model.noticeMessage {
-                Text(noticeMessage)
-                    .foregroundStyle(.secondary)
+    private var jobsPanel: some View {
+        WorkspacePanel(
+            title: "最近任务",
+            subtitle: "最近生成记录与用量。",
+            systemImage: "clock.arrow.circlepath"
+        ) {
+            if let usage = model.usage {
+                SettingsRow(title: "任务汇总") {
+                    valueText("共 \(usage.totalJobs) 次")
+                }
+
+                SettingsRow(title: "成功 / 失败") {
+                    valueText("\(usage.succeededJobs) / \(usage.failedJobs)")
+                }
+
+                SettingsRow(title: "Token") {
+                    valueText("\(usage.totalTokens)")
+                }
             }
 
-            if let usage = model.usage {
-                LabeledContent("任务汇总", value: "共 \(usage.totalJobs) 次")
-                LabeledContent("成功 / 失败", value: "\(usage.succeededJobs) / \(usage.failedJobs)")
-                LabeledContent("Token", value: "\(usage.totalTokens)")
+            if model.jobs.isEmpty {
+                Text("还没有生成记录")
+                    .qiankunjieFont(.labelMedium)
+                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
             }
 
             ForEach(model.jobs) { job in
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("#\(job.id) · 文章 \(job.articleId)")
-                            .qiankunjieFont(.labelLarge)
-                        Spacer()
-                        Text(job.status)
-                            .qiankunjieFont(.labelMedium)
-                            .foregroundStyle(.secondary)
-                    }
+                SettingsRowDivider()
 
-                    HStack {
-                        Text(job.model)
-                        Spacer()
-                        if let totalTokens = job.totalTokens {
-                            Text("\(totalTokens) tokens")
-                        }
-                    }
-                    .qiankunjieFont(.labelMedium)
-                    .foregroundStyle(.secondary)
-
-                    if let errorMessage = job.errorMessage, !errorMessage.isEmpty {
-                        Text(errorMessage)
-                            .qiankunjieFont(.labelMedium)
-                            .foregroundStyle(.red)
-                    }
-
-                    if job.status == "failed" {
-                        Button("重试") {
-                            Task { await model.retry(job) }
-                        }
-                        .disabled(model.retryingJobID == job.id)
-                    }
-                }
-                .padding(.vertical, 2)
+                jobRow(job)
             }
         }
+    }
+
+    private func jobRow(_ job: AiJobSummary) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 8) {
+                Text("#\(job.id) · 文章 \(job.articleId)")
+                    .qiankunjieFont(.bodyMedium)
+                    .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+
+                Spacer(minLength: 8)
+
+                Text(job.status)
+                    .qiankunjieFont(.labelMedium)
+                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+            }
+
+            HStack(spacing: 8) {
+                Text(job.model)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                if let totalTokens = job.totalTokens {
+                    Text("\(totalTokens) tokens")
+                        .monospacedDigit()
+                }
+            }
+            .qiankunjieFont(.labelMedium)
+            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+
+            if let errorMessage = job.errorMessage, !errorMessage.isEmpty {
+                Text(errorMessage)
+                    .qiankunjieFont(.labelMedium)
+                    .foregroundStyle(
+                        colorScheme == .dark
+                            ? QiankunjieColors.darkError
+                            : QiankunjieColors.lightError
+                    )
+            }
+
+            if job.status == "failed" {
+                SettingsActionsRow {
+                    Button("重试") {
+                        Task { await model.retry(job) }
+                    }
+                    .disabled(model.retryingJobID == job.id)
+                }
+            }
+        }
+    }
+
+    /// 后端返回 ISO8601 字符串，界面上转成易读的本地时间。
+    static func displayDate(_ raw: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = formatter.date(from: raw) ?? ISO8601DateFormatter().date(from: raw)
+        guard let date else { return raw }
+        return date.formatted(.dateTime.year().month().day().hour().minute())
+    }
+
+    private func valueText(_ text: String) -> some View {
+        Text(text)
+            .qiankunjieFont(.bodyMedium)
+            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+            .monospacedDigit()
     }
 
     private var apiKeyPlaceholder: String {

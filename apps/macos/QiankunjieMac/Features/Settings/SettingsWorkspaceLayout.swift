@@ -162,3 +162,127 @@ struct WorkspacePanel<Content: View>: View {
         }
     }
 }
+
+/// 设置类页面统一的内容容器：整页滚动 + 卡片间距 + 页面留白。
+struct SettingsPage<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                content()
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(QiankunjieColors.background(for: colorScheme))
+    }
+}
+
+/// 设置页统一的一行：左侧标题（可带说明），右侧控件。
+struct SettingsRow<Content: View>: View {
+    let title: String
+    var subtitle: String?
+    /// 右侧控件宽度，四个页面统一取值，保证列对齐。
+    var controlWidth: CGFloat = 360
+    @ViewBuilder let content: () -> Content
+    @Environment(\.colorScheme) private var colorScheme
+
+    init(
+        title: String,
+        subtitle: String? = nil,
+        controlWidth: CGFloat = 360,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.controlWidth = controlWidth
+        self.content = content
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 18) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .qiankunjieFont(.bodyMedium)
+                    .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+
+                if let subtitle {
+                    Text(subtitle)
+                        .qiankunjieFont(.labelMedium)
+                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Spacer(minLength: 12)
+
+            content()
+                .frame(width: controlWidth, alignment: .trailing)
+        }
+    }
+}
+
+/// 设置页统一的整块内容行：标题与说明在上，控件占满整行。
+struct SettingsBlockRow<Content: View>: View {
+    let title: String
+    var subtitle: String?
+    @ViewBuilder let content: () -> Content
+    @Environment(\.colorScheme) private var colorScheme
+
+    init(
+        title: String,
+        subtitle: String? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .qiankunjieFont(.bodyMedium)
+                    .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+
+                if let subtitle {
+                    Text(subtitle)
+                        .qiankunjieFont(.labelMedium)
+                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// 设置页统一的行间分隔线。
+struct SettingsRowDivider: View {
+    var body: some View {
+        Divider()
+            .padding(.vertical, 2)
+    }
+}
+
+/// 设置页统一的操作行：右侧对齐的按钮组。
+struct SettingsActionsRow<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    init(@ViewBuilder content: @escaping () -> Content) {
+        self.content = content
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Spacer(minLength: 0)
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+}

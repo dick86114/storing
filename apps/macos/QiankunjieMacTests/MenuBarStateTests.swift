@@ -20,7 +20,10 @@ struct MenuBarStateTests {
 
         controller.start()
 
-        #expect(controller.statusMenuTitles == ["打开主窗口", "设置", "检测更新", "提交问题", "关于 乾坤戒", "退出"])
+        #expect(
+            controller.statusMenuTitles
+                == ["打开主窗口", "设置", "检查更新", "提交问题", "关于", "退出"]
+        )
     }
 
     @Test func 右键菜单操作调用对应回调并打开主窗口() {
@@ -30,9 +33,9 @@ struct MenuBarStateTests {
         let actions = MenuBarActions(
             openMainWindow: { events.append("打开主窗口") },
             openSettings: { events.append("设置") },
-            checkForUpdates: { events.append("检测更新") },
+            checkForUpdates: { events.append("检查更新") },
             reportIssue: { events.append("提交问题") },
-            about: { events.append("关于 乾坤戒") },
+            about: { events.append("关于") },
             quit: { events.append("退出") }
         )
         let controller = MenuBarController(
@@ -52,7 +55,7 @@ struct MenuBarStateTests {
         for index in 1..<controller.statusMenuTitles.count {
             #expect(controller.performStatusMenuAction(at: index))
         }
-        #expect(events == ["打开主窗口", "设置", "检测更新", "提交问题", "关于 乾坤戒", "退出"])
+        #expect(events == ["打开主窗口", "设置", "检查更新", "提交问题", "关于", "退出"])
     }
 
     @Test func 关闭最后一个普通窗口后隐藏Dock() {
