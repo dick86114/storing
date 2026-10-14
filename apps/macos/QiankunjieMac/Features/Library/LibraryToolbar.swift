@@ -6,6 +6,8 @@ import SwiftUI
 struct LibraryToolbar: View {
     @Bindable var model: LibraryModel
     @Binding var presentationMode: ArticleListPresentationMode
+    /// 复制当前批量选择里所有文章的原文链接。
+    var onCopyOriginalLinks: () -> Void = {}
     @Environment(\.colorScheme) private var colorScheme
     @State private var isRefreshButtonHovered = false
     @State private var pendingBulkAction: BulkToolbarAction?
@@ -453,15 +455,28 @@ struct LibraryToolbar: View {
 
     private var bulkActionMenu: some View {
         Menu {
-            ForEach(BulkArticlePolicy.toolbarActions(for: model.view), id: \.self) { action in
-                Button(actionTitle(action)) {
-                    switch action {
-                    case .archive:
-                        bulkCategoryRequest = BulkCategoryRequest(purpose: .archive, targetArticleID: nil)
-                    case .setCategory:
-                        bulkCategoryRequest = BulkCategoryRequest(purpose: .setCategory, targetArticleID: nil)
-                    default:
-                        pendingBulkAction = action
+            Button("复制选中文章原文链接") {
+                onCopyOriginalLinks()
+            }
+            .disabled(model.bulkSelection.isEmpty)
+
+            Divider()
+
+            ForEach(BulkArticlePolicy.actionGroups(for: model.view), id: \.self) { group in
+                if group != BulkArticlePolicy.actionGroups(for: model.view).first {
+                    Divider()
+                }
+
+                ForEach(BulkArticlePolicy.actions(in: group, for: model.view), id: \.self) { action in
+                    Button(actionTitle(action)) {
+                        switch action {
+                        case .archive:
+                            bulkCategoryRequest = BulkCategoryRequest(purpose: .archive, targetArticleID: nil)
+                        case .setCategory:
+                            bulkCategoryRequest = BulkCategoryRequest(purpose: .setCategory, targetArticleID: nil)
+                        default:
+                            pendingBulkAction = action
+                        }
                     }
                 }
             }

@@ -1,3 +1,4 @@
+import AppKit
 import QiankunjieCore
 import QiankunjieDesignSystem
 import QiankunjieLibrary
@@ -51,7 +52,10 @@ struct CompactArticleListView: View {
         VStack(spacing: 0) {
             LibraryToolbar(
                 model: model,
-                presentationMode: $presentationMode
+                presentationMode: $presentationMode,
+                onCopyOriginalLinks: {
+                    copyOriginalLinks(selectedArticles())
+                }
             )
             Rectangle()
                 .fill(QiankunjieColors.outline(for: colorScheme))
@@ -203,6 +207,57 @@ struct CompactArticleListView: View {
         return lines.joined(separator: "\n")
     }
 
+    private func hasOriginalLink(_ article: ArticleCard) -> Bool {
+        article.originalURL?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
+    /// 当前批量选择里的文章（按列表顺序）。
+    private func selectedArticles() -> [ArticleCard] {
+        model.articles.filter { model.bulkSelection.contains($0.id) }
+    }
+
+    /// 复制一或多篇文章的原文链接（多条按行拼接），并用弱提醒反馈。
+    private func copyOriginalLinks(_ articles: [ArticleCard]) {
+        let links = articles
+            .compactMap { $0.originalURL?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !links.isEmpty else { return }
+
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(links.joined(separator: "\n"), forType: .string)
+        resultToast = links.count == 1 ? "已复制原文链接" : "已复制 \(links.count) 条原文链接"
+    }
+
+    @ViewBuilder
+    private func contextMenuButton(
+        _ action: BulkToolbarAction,
+        targetArticleID: Int?
+    ) -> some View {
+        Button(BulkToolbarPolicy.menuTitle(for: action)) {
+            switch action {
+            case .archive:
+                contextBulkCategoryRequest = BulkCategoryRequest(
+                    purpose: .archive,
+                    targetArticleID: targetArticleID
+                )
+            case .setCategory:
+                contextBulkCategoryRequest = BulkCategoryRequest(
+                    purpose: .setCategory,
+                    targetArticleID: targetArticleID
+                )
+            case .bulkObsidian:
+                contextObsidianArticleID = targetArticleID
+                isContextObsidianSheetPresented = true
+            default:
+                contextBulkAction = ContextBulkActionRequest(
+                    action: action,
+                    targetArticleID: targetArticleID
+                )
+            }
+        }
+    }
+
     private var articleList: some View {
         ThinScrollView {
             LazyVStack(spacing: 8) {
@@ -222,31 +277,33 @@ struct CompactArticleListView: View {
                             && !model.bulkSelection.isEmpty
                             && model.bulkSelection.contains(article.id)
                         let targetArticleID = operatesOnCurrentSelection ? nil : article.id
+
+                        Button(
+                            operatesOnCurrentSelection
+                                ? "复制选中文章原文链接"
+                                : "复制原文链接"
+                        ) {
+                            copyOriginalLinks(
+                                operatesOnCurrentSelection ? selectedArticles() : [article]
+                            )
+                        }
+                        .disabled(
+                            operatesOnCurrentSelection
+                                ? selectedArticles().isEmpty
+                                : !hasOriginalLink(article)
+                        )
+
                         ForEach(
-                            BulkArticlePolicy.toolbarActions(for: model.view),
+                            BulkArticlePolicy.actionGroups(for: model.view),
                             id: \.self
-                        ) { action in
-                            Button(BulkToolbarPolicy.menuTitle(for: action)) {
-                                switch action {
-                                case .archive:
-                                    contextBulkCategoryRequest = BulkCategoryRequest(
-                                        purpose: .archive,
-                                        targetArticleID: targetArticleID
-                                    )
-                                case .setCategory:
-                                    contextBulkCategoryRequest = BulkCategoryRequest(
-                                        purpose: .setCategory,
-                                        targetArticleID: targetArticleID
-                                    )
-                                case .bulkObsidian:
-                                    contextObsidianArticleID = targetArticleID
-                                    isContextObsidianSheetPresented = true
-                                default:
-                                    contextBulkAction = ContextBulkActionRequest(
-                                        action: action,
-                                        targetArticleID: targetArticleID
-                                    )
-                                }
+                        ) { group in
+                            Divider()
+
+                            ForEach(
+                                BulkArticlePolicy.actions(in: group, for: model.view),
+                                id: \.self
+                            ) { action in
+                                contextMenuButton(action, targetArticleID: targetArticleID)
                             }
                         }
                     }
