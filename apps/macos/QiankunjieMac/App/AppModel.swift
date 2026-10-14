@@ -38,8 +38,8 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
         case .archive: "archivebox"
         case .published: "globe.americas"
         case .categories: "folder"
-        case .collectHistory: "clock.arrow.circlepath"
-        case .admin: "shield.lefthalf.filled"
+        case .collectHistory: "clock"
+        case .admin: "shield"
         case .settings: "gearshape"
         }
     }
@@ -78,6 +78,7 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
         }
     }
 
+    /// 未选中用空心符号、选中用实心符号；两者成对，保证切换时图标一定变化。
     func selectedSystemImage(isSelected: Bool) -> String {
         guard isSelected else { return systemImage }
         return switch self {
@@ -86,8 +87,8 @@ enum AppDestination: String, CaseIterable, Hashable, Sendable {
         case .archive: "archivebox.fill"
         case .published: "globe.americas.fill"
         case .categories: "folder.fill"
-        case .collectHistory: "clock.arrow.circlepath"
-        case .admin: "shield.lefthalf.filled"
+        case .collectHistory: "clock.fill"
+        case .admin: "shield.fill"
         case .settings: "gearshape.fill"
         }
     }

@@ -186,6 +186,11 @@ struct AppModelTests {
         #expect(AppDestination.inbox.selectedSystemImage(isSelected: false) == "tray")
         #expect(AppDestination.inbox.selectedSystemImage(isSelected: true) == "tray.fill")
         #expect(AppDestination.categories.selectedSystemImage(isSelected: true) == "folder.fill")
+        // 常用功能两项目前也要能区分空心/实心。
+        #expect(AppDestination.admin.selectedSystemImage(isSelected: false) == "shield")
+        #expect(AppDestination.admin.selectedSystemImage(isSelected: true) == "shield.fill")
+        #expect(AppDestination.collectHistory.selectedSystemImage(isSelected: false) == "clock")
+        #expect(AppDestination.collectHistory.selectedSystemImage(isSelected: true) == "clock.fill")
     }
 
     @Test func 普通设置按固定顺序提供左右工作台菜单() {
