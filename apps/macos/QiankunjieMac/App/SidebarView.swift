@@ -73,10 +73,7 @@ struct SidebarView: View {
         _ destination: AppDestination,
         isSelected: Bool
     ) -> some View {
-        Image(systemName: destination.selectedSystemImage(isSelected: isSelected))
-            .contentTransition(.symbolEffect(.replace))
-            .symbolEffect(.bounce, options: .speed(1.35), value: isSelected)
-            .animation(.easeOut(duration: 0.16), value: isSelected)
+        SidebarDestinationIcon(destination: destination, isSelected: isSelected)
     }
 
     private var topControls: some View {
@@ -395,5 +392,27 @@ private struct AccountMenuView: View {
             RoundedRectangle(cornerRadius: 6)
                 .fill(Color.clear)
         }
+    }
+}
+
+/// 侧栏栏目图标：空心/实心随选中状态切换，只有「刚被选中」时跳动一次。
+private struct SidebarDestinationIcon: View {
+    let destination: AppDestination
+    let isSelected: Bool
+    @State private var bounceToken = 0
+
+    var body: some View {
+        Image(systemName: destination.selectedSystemImage(isSelected: isSelected))
+            // 只有「变成激活」才做实心替换与弹跳；取消选中时图标瞬间变回空心，不做任何动画，
+            // 否则上一个栏目也会跟着动一下。
+            .contentTransition(isSelected ? .symbolEffect(.replace) : .identity)
+            .symbolEffect(.bounce, options: .speed(1.35), value: bounceToken)
+            .animation(isSelected ? .easeOut(duration: 0.16) : nil, value: isSelected)
+            .onChange(of: isSelected) { _, newValue in
+                // 取消选中不跳动，只有变成激活项才触发一次。
+                if newValue {
+                    bounceToken += 1
+                }
+            }
     }
 }
