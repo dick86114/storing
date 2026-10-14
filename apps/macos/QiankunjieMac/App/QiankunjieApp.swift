@@ -83,6 +83,44 @@ struct QiankunjieMacApp: App {
             mainContent
                 // 标题由根视图内容列的工具栏项提供，这里不再设置 navigationTitle。
         }
+
+        Window("关于 \(QiankunjieMacMetadata.displayName)", id: "about") {
+            AboutView()
+                .preferredColorScheme(model?.settingsModel.resolvedColorScheme)
+        }
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
+        .restorationBehavior(.disabled)
+
+        // 应用菜单（左上角）参考系统应用：关于 / 设置 / 检查更新 / 退出登录。
+        .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("关于 \(QiankunjieMacMetadata.displayName)") {
+                    menuBarController?.performShowAbout()
+                }
+            }
+
+            CommandGroup(replacing: .appSettings) {
+                Button("设置") {
+                    menuBarController?.performOpenSettings()
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+
+            CommandGroup(after: .appSettings) {
+                Button("检查更新…") {
+                    menuBarController?.performCheckForUpdates()
+                }
+
+                Button("退出登录") {
+                    guard let model else { return }
+                    Task {
+                        await model.settingsModel.logout()
+                    }
+                }
+                .disabled(model?.user == nil)
+            }
+        }
     }
 
     @ViewBuilder

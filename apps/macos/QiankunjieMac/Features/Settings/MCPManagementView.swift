@@ -396,40 +396,37 @@ struct MCPManagementView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 18) {
-            VStack(alignment: .leading, spacing: 5) {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(model.scope.title)
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(WorkspacePalette.primary(for: colorScheme))
+                    .qiankunjieFont(.titleMedium)
+                    .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+
                 Text(model.scope.intro)
-                    .font(.callout)
+                    .qiankunjieFont(.labelMedium)
                     .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                    .lineLimit(2)
             }
 
-            Spacer()
-
-            if let limits = model.limits {
-                metric("每分钟", "\(limits.rateLimitPerMinute)", "次")
-                metric("每天", "\(limits.rateLimitPerDay)", "次")
-                metric("并发", "\(limits.concurrentCollectLimit)", "个")
-            }
+            Spacer(minLength: 12)
 
             Button {
                 Task { await model.load() }
             } label: {
-                Label("刷新", systemImage: "arrow.clockwise")
+                Text("刷新")
             }
             .disabled(model.isLoading)
 
             Button {
                 model.isCreating = true
             } label: {
-                Label("新建连接", systemImage: "plus")
+                Text("新建连接")
             }
             .buttonStyle(.borderedProminent)
             .disabled(model.isSaving)
         }
-        .padding(20)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
     }
 
     private var tabs: some View {
@@ -446,7 +443,7 @@ struct MCPManagementView: View {
 
             if model.scope == .admin {
                 Text("管理员可调整连接配额与生命周期")
-                    .font(.caption)
+                    .qiankunjieFont(.labelMedium)
                     .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
             }
         }
@@ -456,76 +453,146 @@ struct MCPManagementView: View {
 
     @ViewBuilder
     private var content: some View {
-        ScrollView {
+        SettingsPage {
             switch selectedTab {
             case .connections:
-                connections
+                WorkspacePanel(
+                    title: model.scope.title,
+                    subtitle: "每个连接对应一个专属 API Key，只在创建时展示一次。",
+                    systemImage: "point.3.connected.trianglepath.dotted"
+                ) {
+                    connections
+                }
             case .guide:
-                guide
+                WorkspacePanel(
+                    title: "接入指南",
+                    subtitle: "按客户端选择接入方式。",
+                    systemImage: "book"
+                ) {
+                    guide
+                }
             case .defaults:
-                defaults
+                WorkspacePanel(
+                    title: "默认配额",
+                    subtitle: "新建连接时的默认限额。",
+                    systemImage: "gauge.with.needle"
+                ) {
+                    defaults
+                }
             case .logs:
-                logs
+                WorkspacePanel(
+                    title: "调用记录",
+                    subtitle: "最近 20 次调用。",
+                    systemImage: "clock.arrow.circlepath"
+                ) {
+                    logs
+                }
             }
         }
     }
 
     private var personalContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+        SettingsPage {
+            WorkspacePanel(
+                title: "快速开始",
+                subtitle: "把乾坤戒接入到你的 AI 客户端。",
+                systemImage: "book"
+            ) {
                 guide
-                sectionTitle("连接")
+            }
+
+            WorkspacePanel(
+                title: "连接",
+                subtitle: "每个连接对应一个专属 API Key，只在创建时展示一次。",
+                systemImage: "point.3.connected.trianglepath.dotted"
+            ) {
                 personalConnections
-                sectionTitle("调用记录")
+            }
+
+            WorkspacePanel(
+                title: "调用记录",
+                subtitle: "最近 20 次调用。",
+                systemImage: "clock.arrow.circlepath"
+            ) {
                 personalLogs
             }
-            .padding(20)
         }
     }
 
     private var embeddedAdminContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                HStack(alignment: .top, spacing: 24) {
-                    if let limits = model.limits {
-                        HStack(spacing: 24) {
-                            metric("每分钟", "\(limits.rateLimitPerMinute)", "次")
-                            metric("每天", "\(limits.rateLimitPerDay)", "次")
-                            metric("并发", "\(limits.concurrentCollectLimit)", "个")
-                        }
+        SettingsPage {
+            WorkspacePanel(
+                title: "连接与配额",
+                subtitle: "管理员可调整连接配额与生命周期。",
+                systemImage: "speedometer"
+            ) {
+                if let limits = model.limits {
+                    SettingsRow(title: "每分钟") {
+                        quotaValue("\(limits.rateLimitPerMinute) 次")
                     }
 
-                    Spacer(minLength: 12)
+                    SettingsRow(title: "每天") {
+                        quotaValue("\(limits.rateLimitPerDay) 次")
+                    }
 
+                    SettingsRow(title: "并发") {
+                        quotaValue("\(limits.concurrentCollectLimit) 个")
+                    }
+                }
+
+                SettingsRowDivider()
+
+                SettingsActionsRow {
                     Button {
                         Task { await model.load() }
                     } label: {
-                        Label("刷新", systemImage: "arrow.clockwise")
+                        Text("刷新")
                     }
                     .disabled(model.isLoading)
 
                     Button {
                         model.isCreating = true
                     } label: {
-                        Label("新建连接", systemImage: "plus")
+                        Text("新建连接")
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(model.isSaving)
                 }
+            }
 
-                sectionTitle("连接")
+            WorkspacePanel(
+                title: "连接",
+                subtitle: "全部用户的 MCP 连接。",
+                systemImage: "point.3.connected.trianglepath.dotted"
+            ) {
                 adminConnectionTable
+            }
 
-                sectionTitle("默认配额")
+            WorkspacePanel(
+                title: "默认配额",
+                subtitle: "新建连接时的默认限额。",
+                systemImage: "gauge.with.needle"
+            ) {
                 MCPDefaultLimitsEditor(limits: model.limits, isSaving: model.isSaving) { limits in
                     Task { await model.saveDefaultLimits(limits) }
                 }
+            }
 
-                sectionTitle("调用记录")
+            WorkspacePanel(
+                title: "调用记录",
+                subtitle: "最近 20 次调用。",
+                systemImage: "clock.arrow.circlepath"
+            ) {
                 adminLogTable
             }
-            .padding(20)
         }
+    }
+
+    private func quotaValue(_ text: String) -> some View {
+        Text(text)
+            .qiankunjieFont(.bodyMedium)
+            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+            .monospacedDigit()
     }
 
     private var adminConnectionTable: some View {
@@ -607,16 +674,16 @@ struct MCPManagementView: View {
                                 HStack(spacing: 8) {
                                     Text(client.name).fontWeight(.medium)
                                     Text(client.enabled ? "运行中" : "已暂停")
-                                        .font(.caption)
+                                        .qiankunjieFont(.labelMedium)
                                         .foregroundStyle(client.enabled ? .green : .orange)
                                 }
                                 Text(client.scopes.joined(separator: " · "))
-                                    .font(.caption)
+                                    .qiankunjieFont(.labelMedium)
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
                             Text(client.lastUsedAt ?? "从未")
-                                .font(.caption)
+                                .qiankunjieFont(.labelMedium)
                                 .foregroundStyle(.secondary)
                             Menu {
                                 Button("编辑权限", systemImage: "pencil") { model.editingClient = client }
@@ -651,12 +718,12 @@ struct MCPManagementView: View {
                             Image(systemName: log.status == "success" ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                                 .foregroundStyle(log.status == "success" ? .green : .orange)
                             Text(log.toolName).fontWeight(.medium)
-                            Text(log.statusLabel).font(.caption).foregroundStyle(.secondary)
+                            Text(log.statusLabel).qiankunjieFont(.labelMedium).foregroundStyle(.secondary)
                             Spacer()
                             Text(log.durationMS.map { "\($0) ms" } ?? "—")
-                                .font(.caption).foregroundStyle(.secondary)
+                                .qiankunjieFont(.labelMedium).foregroundStyle(.secondary)
                             Text(log.createdAt ?? "—")
-                                .font(.caption).foregroundStyle(.secondary)
+                                .qiankunjieFont(.labelMedium).foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 12)
                         if index < model.logs.count - 1 { Divider() }
@@ -664,12 +731,6 @@ struct MCPManagementView: View {
                 }
             }
         }
-    }
-
-    private func sectionTitle(_ title: String) -> some View {
-        Text(title)
-            .font(.headline)
-            .foregroundStyle(WorkspacePalette.primary(for: colorScheme))
     }
 
     private var connections: some View {
@@ -691,23 +752,23 @@ struct MCPManagementView: View {
                             HStack(spacing: 8) {
                                 Text(client.name).fontWeight(.medium)
                                 Text(client.enabled ? "运行中" : "已暂停")
-                                    .font(.caption)
+                                    .qiankunjieFont(.labelMedium)
                                     .foregroundStyle(client.enabled ? .green : .orange)
                             }
                             if model.scope == .admin {
                                 Text("Owner：\(client.ownerUsername ?? "用户 #\(client.ownerUserID)")")
-                                    .font(.caption)
+                                    .qiankunjieFont(.labelMedium)
                                     .foregroundStyle(.secondary)
                             }
                             Text(client.scopes.joined(separator: " · "))
-                                .font(.caption)
+                                .qiankunjieFont(.labelMedium)
                                 .foregroundStyle(.secondary)
                         }
 
                         Spacer()
 
                         Text(client.lastUsedAt ?? "从未")
-                            .font(.caption)
+                            .qiankunjieFont(.labelMedium)
                             .foregroundStyle(.secondary)
 
                         Menu {
@@ -740,7 +801,6 @@ struct MCPManagementView: View {
             ) { limits in
                 Task { await model.saveDefaultLimits(limits) }
             }
-            .padding(20)
         } else {
             ContentUnavailableView(
                 "平台统一管理配额",
@@ -769,17 +829,17 @@ struct MCPManagementView: View {
                             .fontWeight(.medium)
 
                         Text(log.statusLabel)
-                            .font(.caption)
+                            .qiankunjieFont(.labelMedium)
                             .foregroundStyle(.secondary)
 
                         Spacer()
 
                         Text(log.durationMS.map { "\($0) ms" } ?? "—")
-                            .font(.caption)
+                            .qiankunjieFont(.labelMedium)
                             .foregroundStyle(.secondary)
 
                         Text(log.createdAt ?? "—")
-                            .font(.caption)
+                            .qiankunjieFont(.labelMedium)
                             .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 3)
@@ -787,40 +847,6 @@ struct MCPManagementView: View {
                 .listStyle(.inset(alternatesRowBackgrounds: true))
             }
         }
-    }
-
-    private func metric(_ title: String, _ value: String, _ unit: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(value)
-                    .font(.title3.weight(.semibold))
-                Text(unit)
-                    .font(.caption)
-                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-            }
-        }
-        .padding(.horizontal, 10)
-    }
-
-    private func inlineNotice(_ message: String, isError: Bool) -> some View {
-        Text(message)
-            .font(.callout)
-            .foregroundStyle(isError ? .red : .green)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(10)
-            .background((isError ? Color.red : Color.green).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func logSubtitle(_ log: MCPRequestLog) -> String {
-        var parts: [String] = []
-        if let transport = log.transport { parts.append(transport) }
-        if let duration = log.durationMS { parts.append("\(duration) ms") }
-        if let createdAt = log.createdAt { parts.append(createdAt) }
-        if let errorCode = log.errorCode { parts.append(errorCode) }
-        return parts.joined(separator: " · ")
     }
 
     private var availableTabs: [MCPManagementTab] {
@@ -864,11 +890,6 @@ private struct MCPGuideView: View {
         HStack(alignment: .top, spacing: 20) {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("远程接入")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(WorkspacePalette.primary(for: colorScheme))
-                    Text("把 Storing 连接到 SaaS 或 Agent")
-                        .font(.title2.weight(.semibold))
                     Text("外部 SaaS 默认使用 Streamable HTTP；stdio 仅作为本地客户端兼容方案。")
                         .font(.callout)
                         .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
@@ -928,7 +949,7 @@ private struct MCPGuideView: View {
                     }
                 }
                 Text(option.detail)
-                    .font(.caption)
+                    .qiankunjieFont(.labelMedium)
                     .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -951,7 +972,7 @@ private struct MCPGuideView: View {
         VStack(alignment: .leading, spacing: 12) {
             callout(
                 icon: "checkmark.shield",
-                title: "远程方式无需安装 Storing MCP 程序",
+                title: "远程方式无需安装 乾坤戒 MCP 程序",
                 text: "SaaS 客户端直接通过 HTTPS 访问你的 MCP URL，并在 Authorization Header 中携带刚申请的 API Key。"
             )
 
@@ -1116,7 +1137,7 @@ private struct MCPGuideView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(title)
-                    .font(.caption.weight(.semibold))
+                    .qiankunjieFont(.labelMedium)
                 Spacer()
                 Button(copiedItem == copyKey ? "已复制" : "复制配置", systemImage: "doc.on.doc") {
                     copy(value, key: copyKey)
@@ -1176,14 +1197,14 @@ private struct MCPClientCard: View {
                     }
                     if showsOwner {
                         Text("Owner：\(client.ownerUsername ?? "用户 #\(client.ownerUserID)")")
-                            .font(.caption)
+                            .qiankunjieFont(.labelMedium)
                             .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                     }
                     Text("权限：\(client.scopes.joined(separator: " · "))")
-                        .font(.caption)
+                        .qiankunjieFont(.labelMedium)
                         .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                     Text(limitText)
-                        .font(.caption)
+                        .qiankunjieFont(.labelMedium)
                         .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                 }
 
@@ -1231,7 +1252,7 @@ private struct MCPDefaultLimitsEditor: View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("普通用户默认配额")
-                    .font(.title3.weight(.semibold))
+                    .qiankunjieFont(.titleMedium)
                 Text("仅影响之后由普通用户自助创建的 MCP 连接，已有连接保留原配额。")
                     .font(.callout)
                     .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
@@ -1313,7 +1334,7 @@ private struct MCPCreateSheet: View {
                 }
                 .pickerStyle(.radioGroup)
                 Text(preset.detail)
-                    .font(.caption)
+                    .qiankunjieFont(.labelMedium)
                     .foregroundStyle(.secondary)
                 Toggle("采集默认保存到收件箱", isOn: $saveToInbox)
             }
@@ -1445,7 +1466,7 @@ private struct MCPAPIKeySheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Label(result.title, systemImage: "key.horizontal.fill")
-                .font(.title2.weight(.semibold))
+                .qiankunjieFont(.titleMedium)
             Text("\(result.clientName) 的 API Key 只显示这一次，请立即保存。")
                 .foregroundStyle(.secondary)
 
@@ -1457,7 +1478,7 @@ private struct MCPAPIKeySheet: View {
                 .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
 
             Text("已启用权限：\(result.scopes.joined(separator: " · "))")
-                .font(.caption)
+                .qiankunjieFont(.labelMedium)
                 .foregroundStyle(.secondary)
 
             HStack {

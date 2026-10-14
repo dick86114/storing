@@ -374,12 +374,9 @@ struct RootWindow: View {
     }
 
     private func showAboutPanel() {
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
-        NSApp.orderFrontStandardAboutPanel(options: [
-            .applicationName: QiankunjieMacMetadata.displayName,
-            .applicationVersion: "v" + QiankunjieMacMetadata.appVersion,
-            .version: "",
-        ])
+        openWindow(id: "about")
     }
 
     private func openIssueReport() {

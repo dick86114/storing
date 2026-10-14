@@ -47,7 +47,8 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleDisplayName: storing
-        INFOPLIST_KEY_CFBundleName: storing
+        # 应用菜单标题取自 CFBundleName；界面统一显示「乾坤戒」。
+        INFOPLIST_KEY_CFBundleName: 乾坤戒
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         MARKETING_VERSION: 0.1.0
         PRODUCT_BUNDLE_IDENTIFIER: com.idickies.storing.macos

@@ -16,6 +16,8 @@ enum BulkToolbarPolicy {
         switch action {
         case .exportZIP: "导出 ZIP"
         case .bulkObsidian: "导出 Obsidian"
+        case .generateAI: "生成AI摘要和标签"
+        case .reclassify: "重新生成AI分类"
         default:
             confirmation(for: action, selectedCount: 0).confirmTitle
         }
