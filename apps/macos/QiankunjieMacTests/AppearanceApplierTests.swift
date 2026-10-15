@@ -32,4 +32,24 @@ struct AppearanceApplierTests {
         let resolved = AppearanceApplier.resolvedWindowAppearance(for: .system)
         #expect(resolved?.name == NSApp.effectiveAppearance.name)
     }
+
+    @Test func 外观同步不冻结菜单栏图标窗口() {
+        AppearanceApplier.apply(.system)
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        defer {
+            NSStatusBar.system.removeStatusItem(statusItem)
+            AppearanceApplier.apply(.system)
+        }
+
+        guard let statusBarWindow = statusItem.button?.window else {
+            Issue.record("状态栏图标应拥有 NSStatusBarWindow")
+            return
+        }
+
+        // 系统负责让状态栏窗口跟随真实菜单栏外观；手动写入会把模板图标
+        // 冻结在写入瞬间的系统深浅色上，之后切换系统主题就可能反色失效。
+        statusBarWindow.appearance = nil
+        AppearanceApplier.apply(.light)
+        #expect(statusBarWindow.appearance == nil)
+    }
 }
