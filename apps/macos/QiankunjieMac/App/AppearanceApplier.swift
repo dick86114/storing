@@ -50,11 +50,19 @@ enum AppearanceApplier {
         // 立即触发部分 SwiftUI 窗口重新解析颜色方案；显式写入当前系统外观可
         // 强制本帧刷新，后续系统外观变化再由通知统一更新。
         let windowAppearance = resolvedWindowAppearance(for: preference, application: application)
-        for window in application.windows {
+        // 菜单栏图标窗口由系统按真实菜单栏外观渲染。显式写入它的 appearance
+        // 会把模板图标冻结在写入瞬间的深浅色上；之后系统主题切换、或壁纸使
+        // 菜单栏与 App 有效外观不一致时，反色就会失效。这里保留普通窗口的
+        // 立即刷新，同时把 NSStatusBarWindow 留给系统管理。
+        for window in application.windows where !isStatusBarWindow(window) {
             window.appearance = windowAppearance
             window.contentView?.needsDisplay = true
             window.contentView?.displayIfNeeded()
         }
+    }
+
+    private static func isStatusBarWindow(_ window: NSWindow) -> Bool {
+        window.className == "NSStatusBarWindow"
     }
 
     static func resolvedWindowAppearance(
