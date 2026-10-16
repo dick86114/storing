@@ -999,8 +999,11 @@ class LibraryViewModel @Inject constructor(
   private fun pollBulkExport(jobId: Int) {
     bulkExportPollJob?.cancel()
     bulkExportPollJob = viewModelScope.launch {
+      val startedAtNanos = System.nanoTime()
       while (true) {
-        delay(1_500)
+        // 导出前期保持 1.5 秒响应，超过 1 分钟后降到 5 秒，减少长时间轮询的耗电。
+        val elapsedSeconds = (System.nanoTime() - startedAtNanos) / 1_000_000_000
+        delay(if (elapsedSeconds < 60) 1_500 else 5_000)
         runCatching { repository.bulkExport(jobId) }
           .onSuccess { job ->
             mutableState.update { it.copy(bulkExportJob = job) }

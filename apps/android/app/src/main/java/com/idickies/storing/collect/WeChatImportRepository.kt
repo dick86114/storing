@@ -31,13 +31,18 @@ class WeChatImportRepository @Inject constructor(
     onQueued(created)
 
     return withTimeout(QUEUE_TIMEOUT_MILLIS) {
+      val startedAtNanos = System.nanoTime()
       var job = created
+      var consecutiveFailures = 0
       while (job.status == "pending" || job.status == "running") {
-        delay(POLL_INTERVAL_MILLIS)
+        val elapsedMillis = (System.nanoTime() - startedAtNanos) / 1_000_000
+        delay(ShareImportPollPolicy.intervalMillis(elapsedMillis, consecutiveFailures))
         try {
           job = authenticatedRequest { api.job(job.id).job }
+          consecutiveFailures = 0
         } catch (error: IOException) {
-          // 轮询网络抖动不能判定导入失败；任务仍在服务端队列里。
+          // 轮询网络抖动不能判定导入失败；任务仍在服务端队列里，退避后再查。
+          consecutiveFailures += 1
           continue
         }
       }
@@ -83,7 +88,6 @@ class WeChatImportRepository @Inject constructor(
   }
 
   private companion object {
-    const val POLL_INTERVAL_MILLIS = 2_000L
     const val QUEUE_TIMEOUT_MILLIS = 30 * 60_000L
   }
 }

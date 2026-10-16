@@ -2,6 +2,7 @@ package com.idickies.storing.ui.components
 
 import com.idickies.storing.ui.theme.isQiankunjieDarkTheme
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -33,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -189,13 +191,18 @@ fun CompactBottomBarItem(
   )
   val isDark = isQiankunjieDarkTheme()
   val itemMetrics = compactBottomBarItemMetrics(isDark)
-  val refreshTransition = rememberInfiniteTransition(label = "bottomNavRefresh")
-  val refreshRotation by refreshTransition.animateFloat(
-    initialValue = 0f,
-    targetValue = if (selected && refreshing) 360f else 0f,
-    animationSpec = infiniteRepeatable(tween(720), RepeatMode.Restart),
-    label = "bottomNavRefreshRotation",
-  )
+  // 只在当前条目正在刷新时创建无限旋转动画；常驻无限动画会持续驱动帧刷新，白白耗电。
+  val refreshRotation: Float = if (selected && refreshing) {
+    val refreshTransition = rememberInfiniteTransition(label = "bottomNavRefresh")
+    refreshTransition.animateFloat(
+      initialValue = 0f,
+      targetValue = 360f,
+      animationSpec = infiniteRepeatable(tween(720), RepeatMode.Restart),
+      label = "bottomNavRefreshRotation",
+    ).value
+  } else {
+    0f
+  }
   Column(
     modifier = Modifier
       .offset(y = itemMetrics.contentVerticalOffset)
@@ -227,13 +234,15 @@ fun CompactBottomBarItem(
         tint = contentColor,
       )
       if (badgeCount != null && badgeCount > 0) {
-        val transition = rememberInfiniteTransition(label = "badge")
-        val pulseAlpha by transition.animateFloat(
-          initialValue = 1f,
-          targetValue = 0.4f,
-          animationSpec = infiniteRepeatable(tween(1200), RepeatMode.Reverse),
-          label = "badgePulse",
-        )
+        // 角标出现时只播放两轮脉冲并停在常亮状态，避免无限动画带来的常驻帧负载。
+        val pulse = remember { Animatable(1f) }
+        LaunchedEffect(badgeCount) {
+          pulse.snapTo(1f)
+          repeat(2) {
+            pulse.animateTo(0.4f, animationSpec = tween(1200))
+            pulse.animateTo(1f, animationSpec = tween(1200))
+          }
+        }
         Surface(
           color = MaterialTheme.colorScheme.primary,
           contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -241,7 +250,7 @@ fun CompactBottomBarItem(
           modifier = Modifier
             .offset(x = 7.dp, y = (-5).dp)
             .size(compactBottomBarBadgeMetrics.size)
-            .alpha(pulseAlpha),
+            .alpha(pulse.value),
         ) {
           Box(
             modifier = Modifier.fillMaxSize(),
