@@ -12,6 +12,8 @@ struct SidebarView: View {
     @State private var isCollectButtonHovered = false
     @State private var isCollectActive = false
     @State private var showsCollectPulse = false
+    /// 侧栏脉冲提示的任务句柄，视图消失时取消。
+    @State private var collectPulseTask: Task<Void, Never>?
     @State private var collectIconRotation: Double = 0
     @State private var showsCollectPopover = false
 
@@ -107,8 +109,27 @@ struct SidebarView: View {
         .padding(.horizontal, 12)
         .padding(.bottom, 12)
         .onAppear {
-            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
-                showsCollectPulse = true
+            startCollectPulse()
+        }
+        .onDisappear {
+            collectPulseTask?.cancel()
+            collectPulseTask = nil
+        }
+    }
+
+    /// 采集按钮的呼吸提示只播放两轮后静止。
+    /// 常驻无限动画会持续驱动 SwiftUI 显示周期，窗口最小化或应用隐藏时也不会暂停，
+    /// 实测空闲 CPU 占用可达 6%～10%，因此改为有限次数动画。
+    private func startCollectPulse() {
+        collectPulseTask?.cancel()
+        collectPulseTask = Task { @MainActor in
+            for _ in 0..<2 {
+                withAnimation(.easeInOut(duration: 1.8)) { showsCollectPulse = true }
+                try? await Task.sleep(for: .seconds(1.8))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeInOut(duration: 1.8)) { showsCollectPulse = false }
+                try? await Task.sleep(for: .seconds(1.8))
+                guard !Task.isCancelled else { return }
             }
         }
     }
