@@ -1,18 +1,22 @@
 package com.idickies.storing.ui
 
+import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.Add
@@ -25,16 +29,19 @@ import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.CleaningServices
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.SmartToy
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -53,6 +60,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.idickies.storing.BuildConfig
@@ -61,6 +69,10 @@ import com.idickies.storing.cache.CacheManager
 import com.idickies.storing.diagnostics.DiagnosticsExporter
 import com.idickies.storing.update.settingsUpdatePresentation
 import com.idickies.storing.update.UpdateSource
+
+private const val SETTINGS_UI_PREFERENCES = "qiankunjie_settings_ui"
+private const val GITHUB_STAR_PROMPT_DISMISSED = "github_star_prompt_dismissed"
+private const val GITHUB_REPOSITORY_URL = "https://github.com/dick86114/storing"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,7 +100,17 @@ fun QiankunjieSettingsScreen(
   onBack: () -> Unit,
 ) {
   var confirmLogout by remember { mutableStateOf(false) }
+  // Star 引导关闭后持久化，避免用户每次进入设置都被重复打扰。
+  val context = LocalContext.current
+  val settingsPreferences = remember {
+    context.getSharedPreferences(SETTINGS_UI_PREFERENCES, Context.MODE_PRIVATE)
+  }
+  var showStarPrompt by remember { mutableStateOf(false) }
+  val uriHandler = LocalUriHandler.current
   val update = settingsUpdatePresentation(checkingUpdate)
+  LaunchedEffect(Unit) {
+    showStarPrompt = !settingsPreferences.getBoolean(GITHUB_STAR_PROMPT_DISMISSED, false)
+  }
   Scaffold(
     topBar = {
       TopAppBar(
@@ -113,6 +135,62 @@ fun QiankunjieSettingsScreen(
             Text("乾坤戒", style = MaterialTheme.typography.titleLarge)
             Text("当前设备上的应用与采集运行设置。", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
             Text("版本 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
+          }
+        }
+      }
+      if (showStarPrompt) {
+        item {
+          Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.primaryContainer,
+          ) {
+            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Icon(
+                  Icons.Filled.Star,
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.primary,
+                  modifier = Modifier.size(20.dp),
+                )
+                Text(
+                  "如果乾坤戒帮到了你，请在 GitHub 点个 Star，这对作者意义重大",
+                  modifier = Modifier.weight(1f),
+                  color = MaterialTheme.colorScheme.onPrimaryContainer,
+                  style = MaterialTheme.typography.bodyMedium,
+                )
+                IconButton(
+                  onClick = {
+                    showStarPrompt = false
+                    settingsPreferences.edit()
+                      .putBoolean(GITHUB_STAR_PROMPT_DISMISSED, true)
+                      .apply()
+                  },
+                  modifier = Modifier.size(28.dp),
+                ) {
+                  Icon(
+                    Icons.Outlined.Close,
+                    contentDescription = "关闭 GitHub Star 引导",
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(18.dp),
+                  )
+                }
+              }
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+              ) {
+                Button(onClick = { uriHandler.openUri(GITHUB_REPOSITORY_URL) }) {
+                  Icon(Icons.Filled.Star, contentDescription = null, modifier = Modifier.size(16.dp))
+                  Spacer(modifier = Modifier.width(6.dp))
+                  Text("去点 Star")
+                }
+              }
+            }
           }
         }
       }
