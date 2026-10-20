@@ -147,4 +147,12 @@ struct ObsidianDirectoryIndex: Sendable {
                 || item.relativePath.localizedCaseInsensitiveContains(normalizedQuery)
         }
     }
+
+    func item(relativePath: String) -> ObsidianDirectoryItem? {
+        let normalizedPath = relativePath
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: "/", omittingEmptySubsequences: true)
+            .joined(separator: "/")
+        return allItems.first { $0.relativePath == normalizedPath }
+    }
 }

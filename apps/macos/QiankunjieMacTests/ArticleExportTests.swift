@@ -645,6 +645,102 @@ struct ArticleExportTests {
         #expect(searchResults.map(\.relativePath) == ["技术/阅读"])
     }
 
+    @Test func Obsidian常用目录按保管库分别保存并保持顺序() {
+        let suiteName = "storing.obsidian.favorite-directories.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = ObsidianFavoriteDirectoriesStore(defaults: defaults)
+        let firstVault = URL(fileURLWithPath: "/tmp/第一仓库", isDirectory: true)
+        let secondVault = URL(fileURLWithPath: "/tmp/第二仓库", isDirectory: true)
+
+        store.save(["技术/阅读", "", "工作/周报"], forVaultURL: firstVault)
+        store.save(["第二仓库目录"], forVaultURL: secondVault)
+
+        #expect(store.load(forVaultURL: firstVault) == ["技术/阅读", "", "工作/周报"])
+        #expect(store.load(forVaultURL: secondVault) == ["第二仓库目录"])
+    }
+
+    @Test func Obsidian常用目录去重并限制为六个() {
+        let suiteName = "storing.obsidian.favorite-limit.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = ObsidianFavoriteDirectoriesStore(defaults: defaults)
+        let vault = URL(fileURLWithPath: "/tmp/常用目录限制", isDirectory: true)
+
+        store.save(["一", "一", "二"], forVaultURL: vault)
+        #expect(store.load(forVaultURL: vault) == ["一", "二"])
+
+        for path in ["三", "四", "五", "六", "七"] {
+            store.toggle(path, forVaultURL: vault)
+        }
+
+        #expect(store.load(forVaultURL: vault) == ["一", "二", "三", "四", "五", "六"])
+    }
+
+    @Test func Obsidian常用目录支持拖动排序并按相对路径查找目录() throws {
+        let suiteName = "storing.obsidian.favorite-order.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = ObsidianFavoriteDirectoriesStore(defaults: defaults)
+        let vault = URL(fileURLWithPath: "/tmp/常用目录排序", isDirectory: true)
+        store.save(["技术/阅读", "工作/周报", ""], forVaultURL: vault)
+
+        store.move("工作/周报", before: "技术/阅读", forVaultURL: vault)
+
+        #expect(store.load(forVaultURL: vault) == ["工作/周报", "技术/阅读", ""])
+
+        let directoryVault = FileManager.default.temporaryDirectory
+            .appendingPathComponent("storing-obsidian-favorite-index-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directoryVault.appendingPathComponent("技术/阅读", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: directoryVault) }
+
+        let index = try ObsidianDirectoryIndex(vaultURL: directoryVault)
+        #expect(index.item(relativePath: "技术/阅读")?.name == "阅读")
+        #expect(index.item(relativePath: "不存在") == nil)
+    }
+
+    @Test func Obsidian导出路径弹层提供常用目录固定与拖动排序() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("QiankunjieMac/Features/Reader/ArticleExportMenu.swift"),
+            encoding: .utf8
+        )
+
+        #expect(source.contains("常用目录"))
+        #expect(source.contains("固定到常用目录"))
+        #expect(source.contains("取消固定"))
+        #expect(source.contains("pin.fill"))
+        #expect(source.contains("onDrag"))
+        #expect(source.contains("onDrop"))
+        #expect(source.contains("ObsidianFavoriteDirectoriesStore.maximumCount"))
+        #expect(source.contains("rotationEffect(.degrees(isPinned ?"))
+        #expect(source.contains("symbolEffect(.bounce"))
+        #expect(source.contains("contentTransition(.symbolEffect(.replace))"))
+        #expect(source.contains("withAnimation(.spring"))
+        #expect(source.contains("transition(.move(edge: .top)"))
+    }
+
+    @Test func Obsidian主表单不在路径旁显示无语境图钉() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("QiankunjieMac/Features/Reader/ArticleExportMenu.swift"),
+            encoding: .utf8
+        )
+
+        #expect(!source.contains("currentDirectoryPinButton"))
+        #expect(!source.contains("固定当前目录到常用目录"))
+    }
+
     @Test func 文件导出成功提示立即打开复制成功走通知() {
         let fileURL = URL(fileURLWithPath: "/tmp/导出.md")
         let fileCompletion = ArticleExportCompletion.file(fileURL)
