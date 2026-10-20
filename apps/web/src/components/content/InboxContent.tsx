@@ -318,7 +318,7 @@ function InboxContentInner() {
           currentCategoryId={null}
           loading={bulkActions.loadingAction !== null}
           title="批量归档到哪里？"
-          subtitle={`为已选 ${selection.selectedIds.size} 篇文章选择预设分类，或让 AI 根据内容判断。`}
+          subtitle={`分类只用于归档文章。为已选 ${selection.selectedIds.size} 篇文章选择分类后，这些文章会移入「归档」；也可以让 AI 判断。`}
           onClose={() => setBulkArchivePickerOpen(false)}
           onSelect={(categoryId) => confirmBulkArchive(categoryId)}
           onSelectAi={() => confirmBulkArchive()}
@@ -332,7 +332,7 @@ function InboxContentInner() {
           currentCategoryId={null}
           loading={false}
           title="归档到哪里？"
-          subtitle="选择预设分类，或让 AI 根据内容判断。"
+          subtitle="分类只用于归档文章。选择分类后，文章会移入「归档」；也可以让 AI 判断。"
           onClose={() => setArchiveTargetId(null)}
           onSelect={(categoryId) => confirmArchive(categoryId)}
           onSelectAi={() => confirmArchive()}

@@ -748,9 +748,16 @@ private struct ArticleCoverImageView<Fallback: View>: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 96, height: 96)
-            Text("资料库为空")
+            Text(model.view == .archive ? "归档资料库为空" : "资料库为空")
                 .qiankunjieFont(.titleMedium)
                 .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+            if model.view == .archive, model.appliedSearchText.isEmpty {
+                Text("归档后的文章会被整理到这里，并可按分类浏览；随时可以移回收件箱。")
+                    .qiankunjieFont(.bodyMedium)
+                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 360)
+            }
         }
     }
 

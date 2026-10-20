@@ -1,3 +1,4 @@
+import Foundation
 import QiankunjieLibrary
 import Testing
 @testable import QiankunjieMac
@@ -37,5 +38,31 @@ struct LibraryBulkToolbarPolicyTests {
 
         let titles = BulkArticlePolicy.toolbarActions(for: .archive).map(BulkToolbarPolicy.menuTitle(for:))
         #expect(Set(titles).count == titles.count)
+    }
+
+    @Test func 未归档动作说明下一步会进入分类() {
+        let copy = BulkToolbarPolicy.confirmation(for: .archive, selectedCount: 3)
+
+        #expect(copy.title == "归档 3 篇文章并分类？")
+        #expect(copy.confirmTitle == "归档并分类")
+        #expect(copy.message.contains("下一步可选择分类，或交给 AI 判断"))
+    }
+
+    @Test func 界面文案解释分类依赖归档() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+
+        let picker = try String(contentsOf: repositoryRoot.appendingPathComponent("QiankunjieMac/Features/Library/BulkCategorySelectionSheet.swift"), encoding: .utf8)
+        let reader = try String(contentsOf: repositoryRoot.appendingPathComponent("QiankunjieMac/Features/Reader/ReaderPaneView.swift"), encoding: .utf8)
+        let actionBar = try String(contentsOf: repositoryRoot.appendingPathComponent("QiankunjieMac/Features/Reader/ArticleActionBar.swift"), encoding: .utf8)
+        let library = try String(contentsOf: repositoryRoot.appendingPathComponent("QiankunjieMac/Features/Library/CompactArticleListView.swift"), encoding: .utf8)
+        let categorySettings = try String(contentsOf: repositoryRoot.appendingPathComponent("QiankunjieMac/Features/Settings/CategoryManagementView.swift"), encoding: .utf8)
+
+        #expect(picker.contains("分类只用于归档文章"))
+        #expect(reader.contains("分类只用于归档文章"))
+        #expect(actionBar.contains("\"归档并分类\""))
+        #expect(library.contains("归档后的文章会被整理到这里，并可按分类浏览"))
+        #expect(categorySettings.contains("分类只用于组织已归档文章"))
     }
 }

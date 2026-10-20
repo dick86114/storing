@@ -26,7 +26,7 @@ enum BulkCategoryPurpose: String, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .archive: "选择预设分类，或让 AI 根据内容判断。"
+        case .archive: "分类只用于归档文章。选择分类后，文章会移入「归档」；也可以让 AI 判断。"
         case .setCategory: "选择预设分类，或让 AI 重新判断。"
         }
     }

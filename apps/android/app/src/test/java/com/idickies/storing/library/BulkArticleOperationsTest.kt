@@ -3,6 +3,7 @@ package com.idickies.storing.library
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BulkArticleOperationsTest {
@@ -31,6 +32,7 @@ class BulkArticleOperationsTest {
   @Test
   fun `批量菜单显示中文动作名`() {
     assertEquals("收藏", bulkToolbarActionTitle(BulkToolbarAction.Favorite))
+    assertEquals("归档并分类", bulkToolbarActionTitle(BulkToolbarAction.Archive))
     assertEquals("彻底删除", bulkToolbarActionTitle(BulkToolbarAction.PermanentDelete))
     assertEquals("设置分类", bulkToolbarActionTitle(BulkToolbarAction.SetCategory))
     assertEquals("导出 ZIP", bulkToolbarActionTitle(BulkToolbarAction.ExportZip))
@@ -38,6 +40,14 @@ class BulkArticleOperationsTest {
     BulkToolbarAction.entries.forEach { action ->
       assertFalse(bulkToolbarActionTitle(action).equals(action.name, ignoreCase = true))
     }
+  }
+
+  @Test
+  fun `批量归档确认说明下一步可以选择分类`() {
+    val confirmation = bulkActionConfirmation(BulkToolbarAction.Archive, selectedCount = 3)
+
+    assertEquals("确认批量归档并分类？", confirmation.title)
+    assertTrue(confirmation.message.contains("下一步可选择分类，或交给 AI 判断"))
   }
 
   @Test

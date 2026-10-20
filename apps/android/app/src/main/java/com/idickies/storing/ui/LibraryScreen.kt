@@ -1616,7 +1616,7 @@ private fun ArchiveCategoryPickerDialog(
   CategoryAssignmentDialog(
     onDismissRequest = onDismiss,
     title = "归档到哪里？",
-    subtitle = "选择预设分类，或让 AI 根据内容判断。",
+    subtitle = "分类只用于归档文章。选择分类后，文章会移入「归档」；也可以让 AI 判断。",
     categories = categories,
     currentCategoryId = null,
     loading = false,
@@ -1805,7 +1805,7 @@ private fun ArticleLongPressSheet(
       androidx.compose.material3.HorizontalDivider()
       Spacer(Modifier.height(4.dp))
       LongPressActionRow(icon = if (article.isFavorited) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, label = if (article.isFavorited) "取消收藏" else "收藏", tint = MaterialTheme.colorScheme.primary, onClick = onFavorite)
-      LongPressActionRow(icon = if (article.isArchived) Icons.Outlined.MoveToInbox else Icons.Outlined.Archive, label = if (article.isArchived) "移回收件箱" else "归档", tint = MaterialTheme.colorScheme.primary, onClick = onArchive)
+      LongPressActionRow(icon = if (article.isArchived) Icons.Outlined.MoveToInbox else Icons.Outlined.Archive, label = if (article.isArchived) "移回收件箱" else "归档并分类", tint = MaterialTheme.colorScheme.primary, onClick = onArchive)
       if (isPublished) LongPressActionRow(icon = Icons.AutoMirrored.Outlined.Label, label = "取消发布", tint = MaterialTheme.colorScheme.primary, onClick = onUnpublish)
       LongPressActionRow(icon = Icons.Outlined.DeleteOutline, label = "删除", tint = MaterialTheme.colorScheme.error, onClick = onDelete)
       LongPressActionRow(icon = Icons.Outlined.DeleteForever, label = "彻底删除", tint = MaterialTheme.colorScheme.error, onClick = onDeletePermanent)
@@ -2204,7 +2204,7 @@ private fun LibraryList(
   if (batchArchivePickerOpen) CategoryAssignmentDialog(
     onDismissRequest = { batchArchivePickerOpen = false },
     title = "批量归档到哪里？",
-    subtitle = "为已选 ${selectedArticleIds.size} 篇文章选择预设分类，或让 AI 根据内容判断。",
+    subtitle = "分类只用于归档文章。为已选 ${selectedArticleIds.size} 篇文章选择分类后，这些文章会移入「归档」；也可以让 AI 判断。",
     categories = state.archiveCategories,
     currentCategoryId = null,
     loading = state.bulkRunningAction != null,
@@ -2409,7 +2409,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                 leadingIcon = { Icon(if (article.isFavorited) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, contentDescription = null) },
               )
               if (canManage) DropdownMenuItem(
-                text = { Text(if (article.isArchived) "移回收件箱" else "归档", style = MaterialTheme.typography.bodyLarge) },
+                text = { Text(if (article.isArchived) "移回收件箱" else "归档并分类", style = MaterialTheme.typography.bodyLarge) },
                 onClick = { moreExpanded = false; onArchive() },
                 leadingIcon = { Icon(if (article.isArchived) Icons.Outlined.MoveToInbox else Icons.Outlined.Archive, contentDescription = null) },
               )
@@ -2754,7 +2754,7 @@ internal fun LibraryEmptyState(view: LibraryView, isSearchResult: Boolean) {
   } else when (view) {
     LibraryView.Inbox -> Triple(Icons.Outlined.Inbox, "收件箱还是空的", "从浏览器、微信或其他应用分享网页到乾坤戒，内容会出现在这里。")
     LibraryView.Favorites -> Triple(Icons.Outlined.StarBorder, "还没有收藏", "在阅读器中点按收藏图标，就能把文章留在这里。")
-    LibraryView.Archive -> Triple(Icons.Outlined.Inventory2, "归档资料库为空", "归档后的文章会被整理到这里，随时可以移回收件箱。")
+    LibraryView.Archive -> Triple(Icons.Outlined.Inventory2, "归档资料库为空", "归档后的文章会被整理到这里，并可按分类浏览；随时可以移回收件箱。")
     LibraryView.Published -> Triple(Icons.Outlined.Public, "暂时还没有公开文章", "发布后的文章会出现在这里，任何人都可以阅读。")
   }
   Column(

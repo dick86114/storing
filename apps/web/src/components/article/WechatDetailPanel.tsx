@@ -2981,7 +2981,7 @@ function DetailContent({
           currentCategoryId={null}
           loading={categoriesLoading || pendingAction === 'archive'}
           title="归档到哪里？"
-          subtitle="选择预设分类，或让 AI 根据内容判断。"
+          subtitle="分类只用于归档文章。选择分类后，文章会移入「归档」；也可以让 AI 判断。"
           onClose={() => setArchiveCategoryAssignmentOpen(false)}
           onSelect={(categoryId) => handleArchiveToCategory(categoryId)}
           onSelectAi={() => handleArchiveToCategory()}
@@ -3305,7 +3305,7 @@ function DetailContent({
                 ) : (
                   <FolderOutlined style={{ fontSize: '20px', color: 'var(--text)' }} />
                 )}
-                <span className="detail-panel-action-label" style={{ fontSize: '11px', color: article.isArchived ? 'var(--accent)' : 'var(--text-muted)' }}>{article.isArchived ? '取消归档' : '归档'}</span>
+                <span className="detail-panel-action-label" style={{ fontSize: '11px', color: article.isArchived ? 'var(--accent)' : 'var(--text-muted)' }}>{article.isArchived ? '取消归档' : '归档并分类'}</span>
               </button>
               <button className={`detail-panel-action-btn${article.isFavorited ? ' favorited' : ''}`} onClick={handleFavorite} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
                 {article.isFavorited ? (

@@ -31,7 +31,7 @@ enum ReaderArticleAction: Identifiable, Equatable {
 
     var confirmationTitle: String {
         switch self {
-        case .archive: "归档这篇文章？"
+        case .archive: "归档这篇文章并分类？"
         case .inbox: "移回收件箱？"
         case .publish: "公开这篇文章？"
         case .unpublish: "取消公开？"
@@ -46,7 +46,7 @@ enum ReaderArticleAction: Identifiable, Equatable {
 
     var confirmationMessage: String {
         switch self {
-        case .archive: "文章会从当前视图移到归档。"
+        case .archive: "文章会进入归档。下一步可选择分类，或交给 AI 判断。"
         case .inbox: "文章会从归档移回收件箱。"
         case .publish: "公开后游客可以访问这篇文章。"
         case .unpublish: "取消后公开链接将不可访问。"
@@ -61,7 +61,7 @@ enum ReaderArticleAction: Identifiable, Equatable {
 
     var buttonTitle: String {
         switch self {
-        case .archive: "归档"
+        case .archive: "归档并分类"
         case .inbox: "移回收件箱"
         case .publish: "公开"
         case .unpublish: "取消公开"
@@ -125,7 +125,7 @@ struct ArticleActionBar: View {
                 }
                 .disabled(accountActionsDisabled)
             } else {
-                actionButton("archivebox", "归档", isSelected: false) {
+                actionButton("archivebox", "归档并分类", isSelected: false) {
                     onAction(.archive)
                 }
                 .disabled(accountActionsDisabled)

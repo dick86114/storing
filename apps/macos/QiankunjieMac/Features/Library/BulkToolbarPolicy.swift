@@ -35,7 +35,7 @@ enum BulkToolbarPolicy {
         case .unfavorite:
             return copy("取消收藏 \(plural)文章？", "将把 \(plural)文章移出收藏。", "取消收藏")
         case .archive:
-            return copy("归档 \(plural)文章？", "将把 \(plural)文章移入归档。", "归档")
+            return copy("归档 \(plural)文章并分类？", "将把 \(plural)文章移入归档。下一步可选择分类，或交给 AI 判断。", "归档并分类")
         case .unarchive:
             return copy("取消归档 \(plural)文章？", "将把 \(plural)文章移回收件箱。", "取消归档")
         case .delete:

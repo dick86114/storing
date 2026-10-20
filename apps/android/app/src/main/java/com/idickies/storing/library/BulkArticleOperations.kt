@@ -75,7 +75,7 @@ fun bulkToolbarActions(view: LibraryView): List<BulkToolbarAction> = when (view)
 fun bulkToolbarActionTitle(action: BulkToolbarAction): String = when (action) {
   BulkToolbarAction.Favorite -> "收藏"
   BulkToolbarAction.Unfavorite -> "取消收藏"
-  BulkToolbarAction.Archive -> "归档"
+  BulkToolbarAction.Archive -> "归档并分类"
   BulkToolbarAction.Unarchive -> "移回收件箱"
   BulkToolbarAction.Delete -> "删除"
   BulkToolbarAction.PermanentDelete -> "彻底删除"
@@ -156,7 +156,7 @@ fun bulkActionConfirmation(action: BulkToolbarAction, selectedCount: Int): BulkA
   val detail = when (action) {
     BulkToolbarAction.Favorite -> "将把${noun}统一标记为收藏。"
     BulkToolbarAction.Unfavorite -> "将把${noun}从收藏中移除。"
-    BulkToolbarAction.Archive -> "未归档文章会进入「待整理」，并按设置触发 AI 任务。"
+    BulkToolbarAction.Archive -> "未归档文章会进入「归档」；下一步可选择分类，或交给 AI 判断。"
     BulkToolbarAction.Unarchive -> "所选文章将全部回到收件箱。"
     BulkToolbarAction.Delete -> "将从当前账号移除${noun}。"
     BulkToolbarAction.PermanentDelete -> "共享原文只会在没有其他用户引用时物理删除，此操作不可恢复。"
@@ -170,7 +170,7 @@ fun bulkActionConfirmation(action: BulkToolbarAction, selectedCount: Int): BulkA
   val title = when (action) {
     BulkToolbarAction.Favorite -> "确认批量收藏？"
     BulkToolbarAction.Unfavorite -> "确认批量取消收藏？"
-    BulkToolbarAction.Archive -> "确认批量归档？"
+    BulkToolbarAction.Archive -> "确认批量归档并分类？"
     BulkToolbarAction.Unarchive -> "确认批量移回收件箱？"
     BulkToolbarAction.Delete -> "确认批量删除？"
     BulkToolbarAction.PermanentDelete -> "确认批量彻底删除？"

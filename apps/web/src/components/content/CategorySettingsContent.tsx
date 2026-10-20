@@ -212,7 +212,7 @@ export function CategorySettingsContent() {
       <div>
         <span className="category-settings-eyebrow">归档组织</span>
         <h1>分类管理</h1>
-        <p>分类决定归档文章的长期归属，AI 只会从这里选择，不会自行创建分类。</p>
+        <p>分类只用于组织已归档文章；文章归档时即可选择分类，AI 只会从这里选择，不会自行创建分类。</p>
       </div>
       <button className="category-settings-create-button" type="button" onClick={openCreate}>
         <PlusOutlined aria-hidden="true" />
