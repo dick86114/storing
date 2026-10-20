@@ -241,6 +241,13 @@ final class UpdateSettingsModel {
 
         do {
             try installer.install(downloadedUpdate)
+            if let release {
+                UpdateCompletionNotice.record(
+                    release: release,
+                    previousVersion: currentVersion,
+                    defaults: defaults
+                )
+            }
             updateLogCache.clear()
             updateLog = nil
             updateLogErrorText = nil

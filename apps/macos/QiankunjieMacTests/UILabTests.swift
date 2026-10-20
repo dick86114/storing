@@ -1,3 +1,4 @@
+import SwiftUI
 import Testing
 @testable import QiankunjieMac
 
@@ -5,10 +6,12 @@ import Testing
 struct UILabTests {
     @Test func uiLabCoversEveryCoreScenario() {
         #expect(UILabScenario.allCases == [
-            .login, .library, .empty, .loading, .offline, .reader, .collect, .tasks, .settings, .update
+            .login, .library, .empty, .loading, .offline, .reader, .collect, .tasks, .settings, .update, .updateNotice
         ])
         #expect(UILabFixtures.article.id == 1001)
         #expect(UILabFixtures.user.id == 9001)
+        #expect(UILabFixtures.updateCompletionNotice.version == "0.2.0")
+        #expect(UILabFixtures.updateCompletionNotice.previousVersion == "0.1.0")
     }
 
     @Test func uiLabTaskFixturesCoverEveryActionState() {
@@ -40,5 +43,15 @@ struct UILabTests {
         #expect(UILabFixtures.preferences != .standard)
         #expect(UILabFixtures.preferenceSuiteName.hasPrefix("com.idickies.storing.macos.uilab."))
         #expect(UILabFixtures.updateService is UILabFixtureUpdateService)
+    }
+
+    @Test func uiLabCanForceLightAndDarkAppearanceFromCommandLine() {
+        #expect(UILabAppearance.commandLineColorScheme(
+            arguments: ["/tmp/storing", "--ui-lab", "update-notice", "--ui-lab-appearance", "light"]
+        ) == .light)
+        #expect(UILabAppearance.commandLineColorScheme(
+            arguments: ["/tmp/storing", "--ui-lab", "update-notice", "--ui-lab-appearance", "dark"]
+        ) == .dark)
+        #expect(UILabAppearance.commandLineColorScheme(arguments: ["/tmp/storing"]) == nil)
     }
 }
