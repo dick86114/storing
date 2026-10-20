@@ -343,6 +343,11 @@ struct ObsidianExportSheet: View {
     @State private var isLoadingDirectories = false
     @State private var isPathPickerPresented = false
     @State private var pathSearch = ""
+    @State private var favoriteDirectoryPaths: [String] = []
+    @State private var draggedFavoritePath: String?
+    @State private var hoveredDirectoryPath: String?
+
+    private let favoriteDirectoriesStore: ObsidianFavoriteDirectoriesStore
 
     init(
         initialDraft: ObsidianExportDraft,
@@ -356,6 +361,7 @@ struct ObsidianExportSheet: View {
         self.onConfirm = onConfirm
         self.showsTitle = showsTitle
         self.subtitle = subtitle
+        self.favoriteDirectoriesStore = ObsidianFavoriteDirectoriesStore()
     }
 
     var body: some View {
@@ -492,7 +498,7 @@ struct ObsidianExportSheet: View {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("搜索", text: $pathSearch)
+                TextField("搜索目录", text: $pathSearch)
                     .textFieldStyle(.plain)
             }
             .padding(8)
@@ -508,41 +514,22 @@ struct ObsidianExportSheet: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let directoryIndex {
                 let items = directoryIndex.items(matching: pathSearch)
-                if items.isEmpty {
-                    Text("没有匹配的目录")
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 2) {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 2) {
+                        if pathSearch.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            favoriteDirectorySection
+                            Divider()
+                                .padding(.vertical, 6)
+                        }
+
+                        if items.isEmpty {
+                            Text("没有匹配的目录")
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 24)
+                        } else {
                             ForEach(items) { item in
-                                Button {
-                                    selectDirectory(item)
-                                } label: {
-                                    HStack(spacing: 7) {
-                                        Color.clear
-                                            .frame(width: CGFloat(item.depth) * 14, height: 1)
-                                        Image(systemName: item.relativePath.isEmpty ? "folder.fill" : "folder")
-                                            .foregroundStyle(.secondary)
-                                        Text(item.name)
-                                            .lineLimit(1)
-                                        Spacer(minLength: 8)
-                                        if isSelected(item) {
-                                            Image(systemName: "checkmark")
-                                        }
-                                    }
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 5)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background {
-                                        if isSelected(item) {
-                                            RoundedRectangle(cornerRadius: 6)
-                                                .fill(Color.accentColor.opacity(0.16))
-                                        }
-                                    }
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
+                                allDirectoryRow(item)
                             }
                         }
                     }
@@ -554,7 +541,150 @@ struct ObsidianExportSheet: View {
             }
         }
         .padding(12)
-        .frame(width: 380, height: 360)
+        .frame(width: 420, height: 440)
+    }
+
+    private var favoriteDirectorySection: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text("常用目录")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("最多 \(ObsidianFavoriteDirectoriesStore.maximumCount) 个")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 3)
+
+            if favoriteDirectoryItems.isEmpty {
+                Text(favoriteDirectoryPaths.isEmpty
+                    ? "点击目录右侧的图钉，可固定为常用目录。"
+                    : "已固定的目录当前不可用。"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+            } else {
+                ForEach(favoriteDirectoryItems) { item in
+                    favoriteDirectoryRow(item)
+                }
+            }
+        }
+    }
+
+    private var favoriteDirectoryItems: [ObsidianDirectoryItem] {
+        guard let directoryIndex else { return [] }
+        return favoriteDirectoryPaths.compactMap { directoryIndex.item(relativePath: $0) }
+    }
+
+    private func favoriteDirectoryRow(_ item: ObsidianDirectoryItem) -> some View {
+        HStack(spacing: 7) {
+            Image(systemName: "line.3.horizontal")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .frame(width: 12, height: 20)
+                .help("拖动排序")
+                .onDrag {
+                    draggedFavoritePath = item.relativePath
+                    return NSItemProvider(object: item.relativePath as NSString)
+                }
+
+            Image(systemName: item.relativePath.isEmpty ? "folder.fill" : "folder")
+                .foregroundStyle(.secondary)
+
+            Button {
+                selectDirectory(item)
+            } label: {
+                Text(item.name)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            ObsidianPinButton(
+                isPinned: true,
+                isAtLimit: false,
+                itemName: item.name,
+                isProminent: true
+            ) {
+                toggleFavorite(item.relativePath)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background {
+            if isSelected(item) {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.accentColor.opacity(0.16))
+            }
+        }
+        .contentShape(Rectangle())
+        .onDrop(
+            of: [UTType.text],
+            delegate: ObsidianFavoriteDirectoryDropDelegate(
+                targetPath: item.relativePath,
+                draggedPath: $draggedFavoritePath,
+                onMove: moveFavoriteBefore
+            )
+        )
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+
+    private func allDirectoryRow(_ item: ObsidianDirectoryItem) -> some View {
+        let isPinned = favoriteDirectoryPaths.contains(item.relativePath)
+        let isHovered = hoveredDirectoryPath == item.relativePath
+        let isAtLimit = !isPinned && favoriteDirectoryPaths.count >= ObsidianFavoriteDirectoriesStore.maximumCount
+
+        return HStack(spacing: 7) {
+            Color.clear
+                .frame(width: CGFloat(item.depth) * 14, height: 1)
+            Image(systemName: item.relativePath.isEmpty ? "folder.fill" : "folder")
+                .foregroundStyle(.secondary)
+
+            Button {
+                selectDirectory(item)
+            } label: {
+                HStack(spacing: 8) {
+                    Text(item.name)
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    if isSelected(item) {
+                        Image(systemName: "checkmark")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            ObsidianPinButton(
+                isPinned: isPinned,
+                isAtLimit: isAtLimit,
+                itemName: item.name,
+                isProminent: isHovered
+            ) {
+                toggleFavorite(item.relativePath)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background {
+            if isSelected(item) || isHovered {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.accentColor.opacity(isSelected(item) ? 0.16 : 0.08))
+            }
+        }
+        .onHover { hovering in
+            if hovering {
+                hoveredDirectoryPath = item.relativePath
+            } else if hoveredDirectoryPath == item.relativePath {
+                hoveredDirectoryPath = nil
+            }
+        }
     }
 
     private func loadVaults() {
@@ -577,6 +707,7 @@ struct ObsidianExportSheet: View {
 
             if let currentURL = draft.vaultURL {
                 selectedVaultID = currentURL.standardizedFileURL.path
+                favoriteDirectoryPaths = favoriteDirectoriesStore.load(forVaultURL: currentURL)
                 loadDirectoryIndex(for: currentURL)
             } else if let firstVault = discoveredVaults.first {
                 selectVault(firstVault)
@@ -591,6 +722,9 @@ struct ObsidianExportSheet: View {
         draft.vaultURL = vault.url.standardizedFileURL
         draft.destinationURL = nil
         pathSearch = ""
+        draggedFavoritePath = nil
+        hoveredDirectoryPath = nil
+        favoriteDirectoryPaths = favoriteDirectoriesStore.load(forVaultURL: vault.url)
         errorMessage = nil
         loadDirectoryIndex(for: vault.url)
     }
@@ -647,6 +781,24 @@ struct ObsidianExportSheet: View {
             : vaultURL.appendingPathComponent(item.relativePath, isDirectory: true).standardizedFileURL
         isPathPickerPresented = false
         pathSearch = ""
+        draggedFavoritePath = nil
+        hoveredDirectoryPath = nil
+    }
+
+    private func toggleFavorite(_ relativePath: String) {
+        guard let vaultURL = draft.vaultURL else { return }
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
+            favoriteDirectoryPaths = favoriteDirectoriesStore.toggle(relativePath, forVaultURL: vaultURL)
+        }
+    }
+
+    private func moveFavoriteBefore(_ sourcePath: String, _ targetPath: String) {
+        guard let vaultURL = draft.vaultURL else { return }
+        favoriteDirectoryPaths = favoriteDirectoriesStore.move(
+            sourcePath,
+            before: targetPath,
+            forVaultURL: vaultURL
+        )
     }
 
     private func isSelected(_ item: ObsidianDirectoryItem) -> Bool {
@@ -675,4 +827,54 @@ struct ObsidianExportSheet: View {
         onConfirm(draft)
     }
 
+}
+
+private struct ObsidianPinButton: View {
+    let isPinned: Bool
+    let isAtLimit: Bool
+    let itemName: String
+    let isProminent: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: isPinned ? "pin.fill" : "pin")
+                .contentTransition(.symbolEffect(.replace))
+                .symbolEffect(.bounce, value: isPinned)
+                .rotationEffect(.degrees(isPinned ? 24 : -18))
+                .scaleEffect(isPinned ? 1.08 : 0.92)
+                .foregroundStyle(isPinned ? .primary : .secondary)
+                .opacity(isPinned || isProminent ? 1 : 0.32)
+                .frame(width: 18, height: 18)
+                .animation(.spring(response: 0.3, dampingFraction: 0.58), value: isPinned)
+        }
+        .buttonStyle(.borderless)
+        .disabled(isAtLimit)
+        .help(isPinned ? "取消固定" : isAtLimit ? "最多固定 6 个常用目录" : "固定到常用目录")
+        .accessibilityLabel(
+            isPinned
+                ? "取消固定 \(itemName)"
+                : isAtLimit ? "最多固定 6 个常用目录" : "固定 \(itemName) 到常用目录"
+        )
+    }
+}
+
+private struct ObsidianFavoriteDirectoryDropDelegate: DropDelegate {
+    let targetPath: String
+    @Binding var draggedPath: String?
+    let onMove: (String, String) -> Void
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedPath, draggedPath != targetPath else { return }
+        onMove(draggedPath, targetPath)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggedPath = nil
+        return true
+    }
 }
