@@ -274,7 +274,7 @@ struct CategoryManagementView: View {
                 Text("分类管理")
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(WorkspacePalette.primary(for: colorScheme))
-                Text("分类决定归档文章的长期归属，AI 只会从这里选择，不会自行创建分类。")
+                Text("分类只用于组织已归档文章；文章归档时即可选择分类，AI 只会从这里选择，不会自行创建分类。")
                     .font(.callout)
                     .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
             }

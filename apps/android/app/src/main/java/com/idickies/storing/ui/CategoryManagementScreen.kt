@@ -194,7 +194,7 @@ private fun CategoryManagementIntro(categoryCount: Int, onCreate: () -> Unit) {
         Text("建立归档边界", style = MaterialTheme.typography.titleMedium)
         if (categoryCount > 0) Text("$categoryCount 个分类", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
       }
-      Text("分类决定归档文章的长期归属，AI 只会从已启用的分类中选择。", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+      Text("分类只用于组织已归档文章；文章归档时即可选择分类，AI 只会从已启用的分类中选择。", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
       TextButton(onClick = onCreate, modifier = Modifier.align(Alignment.End)) {
         Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(17.dp))
         Spacer(Modifier.width(4.dp))

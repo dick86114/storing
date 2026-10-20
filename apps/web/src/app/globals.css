@@ -3476,6 +3476,17 @@ body {
   border-radius: 50%;
 }
 
+.category-navigation-hint {
+  margin: 10px 4px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.category-navigation-hint--compact {
+  margin: 8px 16px 2px;
+}
+
 .category-navigation--compact {
   display: flex;
   overflow-x: auto;

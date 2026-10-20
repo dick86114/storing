@@ -129,7 +129,7 @@ function CardMenu({ article, open, setOpen, wrapRef, showMenu, selectable, onTog
               ) : (
                 <FolderOutlined style={{ fontSize: '16px' }} />
               )}
-              {article.isArchived ? '取消归档' : '归档'}
+              {article.isArchived ? '取消归档' : '归档并分类'}
             </button>
             {onPublish && (
               <button

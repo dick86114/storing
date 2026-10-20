@@ -52,7 +52,7 @@ const VIEW_ACTIONS: Record<BulkToolbarView, BulkToolbarAction[]> = {
 const ACTION_LABELS: Record<BulkToolbarAction, string> = {
   favorite: '收藏',
   unfavorite: '取消收藏',
-  archive: '归档',
+  archive: '归档并分类',
   unarchive: '移回收件箱',
   delete: '删除',
   permanent_delete: '彻底删除',
@@ -67,7 +67,7 @@ const ACTION_LABELS: Record<BulkToolbarAction, string> = {
 const ACTION_CONFIRMATIONS: Record<BulkToolbarAction, { title: string; copy: string }> = {
   favorite: { title: '确认批量收藏？', copy: '将把所选文章统一标记为收藏。' },
   unfavorite: { title: '确认批量取消收藏？', copy: '将把所选文章从收藏中移除。' },
-  archive: { title: '确认批量归档？', copy: '未归档文章会进入「待整理」，并按设置触发 AI 任务。' },
+  archive: { title: '确认批量归档并分类？', copy: '未归档文章会进入「归档」；下一步可选择分类，或交给 AI 判断。' },
   unarchive: { title: '确认批量移回收件箱？', copy: '所选文章将全部回到收件箱。' },
   delete: { title: '确认批量删除？', copy: '将从当前账号移除所选文章。' },
   permanent_delete: { title: '确认批量彻底删除？', copy: '共享原文只会在没有其他用户引用时物理删除，此操作不可恢复。' },
