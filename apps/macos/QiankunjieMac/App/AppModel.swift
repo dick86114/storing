@@ -271,6 +271,7 @@ final class AppModel {
         weChatImportCoordinator?.start()
         await authModel.restore()
         await synchronizeWithAuthentication()
+        UpdateCompletionNoticeWindowController.shared.presentPendingUpdateCompletionNoticeIfNeeded()
     }
 
     func didAuthenticate() {
@@ -298,6 +299,10 @@ final class AppModel {
 
     func requestUpdateCheck() {
         updateCheckRequestID += 1
+    }
+
+    func presentCurrentVersionDetails() {
+        UpdateCompletionNoticeWindowController.shared.presentCurrentVersion()
     }
 
     func toggleSearch() {

@@ -12,6 +12,29 @@ struct UILabTaskActionAvailability: Equatable, Sendable {
     let canDelete: Bool
 }
 
+enum UILabAppearance: String, Sendable {
+    case light
+    case dark
+
+    var colorScheme: ColorScheme {
+        switch self {
+        case .light: .light
+        case .dark: .dark
+        }
+    }
+
+    static func commandLineColorScheme(arguments: [String] = CommandLine.arguments) -> ColorScheme? {
+        guard
+            let index = arguments.firstIndex(of: "--ui-lab-appearance"),
+            arguments.indices.contains(index + 1),
+            let appearance = UILabAppearance(rawValue: arguments[index + 1])
+        else {
+            return nil
+        }
+        return appearance.colorScheme
+    }
+}
+
 /// UI Lab 仅服务 Debug 视觉验收；Release 构建不包含这些类型和入口。
 enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
     case login
@@ -24,6 +47,7 @@ enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
     case tasks
     case settings
     case update
+    case updateNotice = "update-notice"
 
     var id: String { rawValue }
 
@@ -39,6 +63,7 @@ enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
         case .tasks: "任务"
         case .settings: "设置"
         case .update: "更新"
+        case .updateNotice: "更新完成"
         }
     }
 
@@ -116,11 +141,19 @@ struct UILabRootView: View {
                     updateService: UILabFixtures.updateService,
                     updateDefaults: UILabFixtures.preferences
                 )
+            case .updateNotice:
+                UpdateCompletionNoticeView(
+                    notice: UILabFixtures.updateCompletionNotice,
+                    presentation: .updateCompleted,
+                    onOpenFullNotes: {},
+                    onDismiss: {}
+                )
             }
         }
         .frame(minWidth: 960, minHeight: 620)
         .background(QiankunjieColors.background(for: colorScheme))
         .foregroundStyle(QiankunjieColors.onBackground(for: colorScheme))
+        .preferredColorScheme(UILabAppearance.commandLineColorScheme())
         .navigationTitle("UI Lab · \(scenario.displayName)")
     }
 

@@ -82,6 +82,13 @@ final class UpdateInstallerSpy: UpdateInstalling {
     }
 }
 
+@MainActor
+final class FailingUpdateInstallerSpy: UpdateInstalling {
+    func install(_ update: DownloadedUpdate) throws {
+        throw UpdateServiceError.installFailed
+    }
+}
+
 extension AppRelease {
     fileprivate static func fixture() -> AppRelease {
         let downloadURL = URL(
@@ -133,6 +140,29 @@ struct UpdateSettingsModelTests {
 
         #expect(model.pendingUpdate == nil)
         #expect(installer.installCount == 1)
+        let notice = UpdateCompletionNotice.consume(defaults: defaults)
+        #expect(notice?.version == "1.3.0")
+        #expect(notice?.previousVersion == "1.2.0")
+        #expect(notice?.notes == "测试更新")
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    @Test func 安装失败不会记录更新完成通知() async throws {
+        let (defaults, suiteName) = try temporaryDefaults()
+        let model = UpdateSettingsModel(
+            currentVersion: "1.2.0",
+            service: ImmediateUpdateService(),
+            defaults: defaults,
+            installer: FailingUpdateInstallerSpy(),
+            terminateApplication: {}
+        )
+
+        await model.checkForUpdate()
+        await model.download()
+        model.install()
+
+        #expect(model.phase == .failed("安装失败，旧版本备份已尝试恢复"))
+        #expect(UpdateCompletionNotice.consume(defaults: defaults) == nil)
         defaults.removePersistentDomain(forName: suiteName)
     }
 

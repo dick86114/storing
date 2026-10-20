@@ -13,6 +13,20 @@ enum UILabFixtures {
     static let preferenceSuiteName = "com.idickies.storing.macos.uilab.preferences.\(UUID().uuidString)"
     static let preferences = UserDefaults(suiteName: preferenceSuiteName)!
     static let updateService = UILabFixtureUpdateService()
+    static let updateCompletionNotice = UpdateCompletionNotice(
+        version: "0.2.0",
+        previousVersion: "0.1.0",
+        notes: """
+        ## 新增
+        - 更新完成后展示当前版本与完整更新日志
+        - 首页版本号可直接回看更新内容
+
+        ## 修复
+        - 修复部分长日志在深色主题下对比度不足的问题
+        """,
+        releaseURL: URL(string: "https://github.com/dick86114/storing/releases/tag/macos-v0.2.0")!,
+        publishedAt: ISO8601DateFormatter().date(from: "2026-10-20T12:00:00Z")
+    )
 
     static let user = AuthenticatedUser(
         id: 9001,

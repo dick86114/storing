@@ -2,17 +2,17 @@
 set -euo pipefail
 
 usage() {
-  echo "用法：$0 <login|library|empty|loading|offline|reader|collect|tasks|settings|update>"
+  echo "用法：$0 <login|library|empty|loading|offline|reader|collect|tasks|settings|update|update-notice> [light|dark]"
 }
 
-if [[ "${1:-}" == "-h" || "${1:-}" == "--help" || $# -ne 1 ]]; then
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" || $# -lt 1 || $# -gt 2 ]]; then
   usage
   exit 1
 fi
 
 scenario="${1}"
 case "${scenario}" in
-  "login"|"library"|"empty"|"loading"|"offline"|"reader"|"collect"|"tasks"|"settings"|"update")
+  "login"|"library"|"empty"|"loading"|"offline"|"reader"|"collect"|"tasks"|"settings"|"update"|"update-notice")
     ;;
   *)
     echo "错误：未知 UI Lab 场景 $scenario。"
@@ -20,6 +20,12 @@ case "${scenario}" in
     exit 1
     ;;
 esac
+
+appearance="${2:-}"
+if [[ -n "$appearance" && "$appearance" != "light" && "$appearance" != "dark" ]]; then
+  echo "错误：外观必须是 light 或 dark。"
+  exit 1
+fi
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 macos_dir="$(cd "${script_dir}/.." && pwd)"
@@ -42,7 +48,11 @@ xcodebuild \
 
 app_path="${derived_data}/Build/Products/Debug/storing.app"
 mkdir -p "${screenshot_dir}"
-open -n "${app_path}" --args --ui-lab "${scenario}"
+appearance_args=()
+if [[ -n "$appearance" ]]; then
+  appearance_args=(--ui-lab-appearance "$appearance")
+fi
+open -n "${app_path}" --args --ui-lab "${scenario}" "${appearance_args[@]}"
 
 echo "UI Lab 场景已启动：${scenario}"
 echo "浅色截图路径：${screenshot_dir}/light.png"

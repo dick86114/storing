@@ -230,12 +230,12 @@ struct RootWindow: View {
     private var contentColumnTitleToolbarItem: some ToolbarContent {
         if #available(macOS 26.0, *) {
             ToolbarItem(placement: .navigation) {
-                MainWindowTitleLabel()
+                MainWindowTitleLabel(onOpenVersionDetails: model.presentCurrentVersionDetails)
             }
             .sharedBackgroundVisibility(.hidden)
         } else {
             ToolbarItem(placement: .navigation) {
-                MainWindowTitleLabel()
+                MainWindowTitleLabel(onOpenVersionDetails: model.presentCurrentVersionDetails)
             }
         }
     }
