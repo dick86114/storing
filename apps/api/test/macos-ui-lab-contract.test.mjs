@@ -16,7 +16,13 @@ const scenarios = [
   'tasks',
   'settings',
   'update',
+  'update-notice',
+  'current-version',
 ];
+const scenarioCaseNames = {
+  'update-notice': 'updateNotice',
+  'current-version': 'currentVersion',
+};
 
 test('macOS UI Lab 固定全部核心验收场景', () => {
   const scenarioSource = read('apps/macos/QiankunjieMac/UILab/UILabScenario.swift');
@@ -24,7 +30,8 @@ test('macOS UI Lab 固定全部核心验收场景', () => {
   const testSource = read('apps/macos/QiankunjieMacTests/UILabTests.swift');
 
   for (const scenario of scenarios) {
-    assert.match(scenarioSource, new RegExp(`case ${scenario}\\b`));
+    const caseName = scenarioCaseNames[scenario] ?? scenario;
+    assert.match(scenarioSource, new RegExp(`case ${caseName}\\b`));
   }
   assert.match(scenarioSource, /SWIFT_STRICT_CONCURRENCY|Sendable/);
   assert.match(fixtureSource, /static let article/);
@@ -45,7 +52,7 @@ test('macOS UI Lab 只在 Debug 路由且不触碰生产数据边界', () => {
   assert.doesNotMatch(fixtureSource, /KeychainSessionStore|(?<!Empty)LibraryCache\(|UserDefaults\.standard|APIClient\(/);
 });
 
-test('macOS UI Lab 脚本和文档覆盖十个截图场景', () => {
+test('macOS UI Lab 脚本和文档覆盖全部截图场景', () => {
   const script = read('apps/macos/scripts/macos-ui-lab.sh');
   const guide = read('docs/MacOS-UI-Lab.md');
 

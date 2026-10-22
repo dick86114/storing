@@ -3,6 +3,20 @@ import QiankunjieUpdating
 import Testing
 @testable import QiankunjieMac
 
+actor UpdateNoticeLogLoader {
+    private var responses: [String?]
+    private(set) var callCount = 0
+
+    init(responses: [String?]) {
+        self.responses = responses
+    }
+
+    func load() -> String? {
+        callCount += 1
+        return responses.removeFirst()
+    }
+}
+
 struct UpdateCompletionNoticeTests {
     @Test func 更新完成通知跨启动保存且只消费一次() {
         let suiteName = "storing.update-completion-notice.\(UUID().uuidString)"
@@ -87,6 +101,39 @@ struct UpdateCompletionNoticeTests {
         ])
     }
 
+    @Test func 当前版本有缓存时刷新按钮才强制请求远端() async {
+        let loader = UpdateNoticeLogLoader(responses: ["刷新后的日志"])
+        let state = await UpdateCompletionNoticeNotesState(
+            initialNotes: "缓存日志",
+            loadNotes: { await loader.load() }
+        )
+
+        await state.loadIfNeeded()
+        #expect(await loader.callCount == 0)
+        #expect(await state.displayedNotes == "缓存日志")
+
+        await state.refresh()
+
+        #expect(await loader.callCount == 1)
+        #expect(await state.displayedNotes == "刷新后的日志")
+        #expect(await state.isRefreshingNotes == false)
+        #expect(await state.refreshError == nil)
+    }
+
+    @Test func 刷新失败时保留旧日志并显示错误() async {
+        let loader = UpdateNoticeLogLoader(responses: [nil])
+        let state = await UpdateCompletionNoticeNotesState(
+            initialNotes: "已有缓存日志",
+            loadNotes: { await loader.load() }
+        )
+
+        await state.refresh()
+
+        #expect(await loader.callCount == 1)
+        #expect(await state.displayedNotes == "已有缓存日志")
+        #expect(await state.refreshError == "刷新更新日志失败，请稍后重试")
+    }
+
     @Test func 更新完成窗口和首页版本入口契约() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -126,6 +173,9 @@ struct UpdateCompletionNoticeTests {
         #expect(noticeView.contains("@Environment(\\.colorScheme)"))
         #expect(noticeView.contains("UpdateLogCache().save(normalized, for: version)"))
         #expect(noticeView.contains("notice.replacingNotes(resolvedNotes)"))
+        #expect(noticeView.contains("arrow.clockwise"))
+        #expect(noticeView.contains("重新获取更新日志"))
+        #expect(noticeView.contains("let loadNotes: @Sendable () async -> String?"))
         #expect(updateSettingsView.contains("isFetchingPendingUpdateLog"))
         #expect(updateSettingsView.contains("正在读取新版本更新日志"))
     }
