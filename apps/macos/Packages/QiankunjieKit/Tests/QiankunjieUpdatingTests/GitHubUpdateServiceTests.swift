@@ -19,7 +19,11 @@ actor MockUpdateNetwork {
 
     func data(for request: URLRequest) async throws -> UpdateDataResponse {
         requests.append(request)
-        guard case let .data(statusCode, body) = responses.removeFirst() else {
+        let response = responses.removeFirst()
+        guard case let .data(statusCode, body) = response else {
+            if case let .failure(error) = response {
+                throw error
+            }
             fatalError("网络测试配置错误：此处应为普通 HTTP 数据响应")
         }
         return UpdateDataResponse(data: body, statusCode: statusCode, headers: [:])
@@ -134,13 +138,66 @@ extension AppRelease {
     #expect(log == "优化一些东西")
 }
 
+@Test func atomUpdateLogPreservesHeadingAndListStructure() async throws {
+    let atom = """
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>tag:github.com,2008:Repository/1/macos-v1.3.0</id>
+        <title>乾坤戒 macOS v1.3.0</title>
+        <content type="html">&lt;h2&gt;修复&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;修复日志缓存&lt;/li&gt;&lt;li&gt;修复确认弹窗&lt;/li&gt;&lt;/ul&gt;</content>
+      </entry>
+    </feed>
+    """
+    let network = MockUpdateNetwork([
+        .data(statusCode: 403, body: Data("{}".utf8)),
+        .data(statusCode: 200, body: Data(atom.utf8)),
+    ])
+    let service = GitHubUpdateService.fixture(currentVersion: "1.3.0", network: network)
+
+    let log = try await service.fetchUpdateLog(for: "1.3.0")
+
+    #expect(log == "## 修复\n- 修复日志缓存\n- 修复确认弹窗")
+}
+
 @Test func missingUpdateLogReturnsNil() async throws {
+    let atom = """
+    <feed xmlns="http://www.w3.org/2005/Atom"></feed>
+    """
     let network = MockUpdateNetwork([
         .data(statusCode: 404, body: Data(#"{"message":"Not Found"}"#.utf8)),
+        .data(statusCode: 200, body: Data(atom.utf8)),
     ])
     let service = GitHubUpdateService.fixture(currentVersion: "1.3.0", network: network)
 
     #expect(try await service.fetchUpdateLog(for: "1.3.0") == nil)
+}
+
+@Test func updateLogFallsBackToAtomForServerErrorsAndNetworkFailures() async throws {
+    let atom = """
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>tag:github.com,2008:Repository/1/macos-v1.3.0</id>
+        <title>乾坤戒 macOS v1.3.0</title>
+        <content type="html">&lt;p&gt;服务器错误时仍能读取日志&lt;/p&gt;</content>
+      </entry>
+    </feed>
+    """
+
+    for firstResponse in [
+        MockUpdateNetwork.Response.data(statusCode: 500, body: Data("{}".utf8)),
+        .failure(URLError(.timedOut)),
+        .data(statusCode: 200, body: Data("not-json".utf8)),
+    ] {
+        let network = MockUpdateNetwork([
+            firstResponse,
+            .data(statusCode: 200, body: Data(atom.utf8)),
+        ])
+        let service = GitHubUpdateService.fixture(currentVersion: "1.3.0", network: network)
+
+        let log = try await service.fetchUpdateLog(for: "1.3.0")
+
+        #expect(log == "服务器错误时仍能读取日志")
+    }
 }
 
 @Test func githubAPIFailureFallsBackToAtomFeed() async throws {
