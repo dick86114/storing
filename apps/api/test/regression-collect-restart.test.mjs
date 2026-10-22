@@ -10,8 +10,8 @@ const readWorkspace = (path) => readFileSync(new URL(path, workspaceRoot), 'utf8
 test('collect persistence keeps every source save in the inbox', () => {
   const collect = readApi('src/services/collect.service.ts');
   assert.match(collect, /const markArchived = false;/);
+  assert.match(collect, /isDeleted: false,/);
   assert.match(collect, /isArchived: markArchived,/);
-  assert.match(collect, /archivedAt: markArchived \? now : null,/);
   assert.doesNotMatch(collect, /function shouldArchiveCollectedArticle/);
 });
 

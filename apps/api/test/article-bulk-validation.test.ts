@@ -7,7 +7,7 @@ test('归一化重复文章 ID 并保持正整数', () => {
   assert.deepEqual(parseArticleBulkActionInput({
     action: 'favorite',
     articleIds: [3, 1, 3, '2'],
-  }), { ok: true, action: 'favorite', articleIds: [3, 1, 2] });
+  }), { ok: true, action: 'favorite', articleIds: [3, 1, 2], categoryId: null });
 });
 
 test('拒绝未知动作、空列表、非法 ID 和超过 200 篇', () => {
