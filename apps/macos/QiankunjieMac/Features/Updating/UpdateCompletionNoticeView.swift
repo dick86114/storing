@@ -426,12 +426,23 @@ final class UpdateCompletionNoticeWindowController: NSObject, NSWindowDelegate {
         guard let notice = UpdateCompletionNotice.consume(defaults: defaults) else {
             return false
         }
-        present(notice, presentation: .updateCompleted)
+        let cachedNotes = UpdateReleaseNotesText.normalized(
+            UpdateLogCache(defaults: defaults).read(currentVersion: notice.version),
+            version: notice.version
+        )
+        let resolvedNotes = cachedNotes ?? UpdateReleaseNotesText.normalized(notice.notes, version: notice.version)
+        present(
+            notice.replacingNotes(resolvedNotes),
+            presentation: .updateCompleted
+        )
         return true
     }
 
     func presentCurrentVersion(version: String = QiankunjieMacMetadata.appVersion) {
-        let cachedNotes = UpdateLogCache().read(currentVersion: version)
+        let cachedNotes = UpdateReleaseNotesText.normalized(
+            UpdateLogCache().read(currentVersion: version),
+            version: version
+        )
         let notice = UpdateCompletionNotice.currentVersion(
             version: version,
             notes: cachedNotes ?? ""
@@ -440,7 +451,13 @@ final class UpdateCompletionNoticeWindowController: NSObject, NSWindowDelegate {
         let loadNotes: (@Sendable () async -> String?)?
         if cachedNotes == nil {
             loadNotes = { @Sendable in
-                try? await service.fetchUpdateLog(for: version)
+                guard let fetched = try? await service.fetchUpdateLog(for: version),
+                      let normalized = UpdateReleaseNotesText.normalized(fetched, version: version)
+                else { return nil }
+                await MainActor.run {
+                    UpdateLogCache().save(normalized, for: version)
+                }
+                return normalized
             }
         } else {
             loadNotes = nil

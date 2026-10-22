@@ -54,6 +54,8 @@ final class UpdateSettingsModel {
     private(set) var release: AppRelease?
     /// 检测到新版本后待用户确认的更新；非 nil 时界面弹出更新确认窗。
     private(set) var pendingUpdate: AppRelease?
+    private(set) var isFetchingPendingUpdateLog = false
+    private(set) var pendingUpdateLogErrorText: String?
     private(set) var downloadedUpdate: DownloadedUpdate?
     private(set) var progress: Double?
     private(set) var updateLog: String?
@@ -68,6 +70,7 @@ final class UpdateSettingsModel {
     private let installer: any UpdateInstalling
     private let terminateApplication: @MainActor () -> Void
     private var downloadGeneration = 0
+    private var pendingLogRequestGeneration = 0
 
     convenience init(currentVersion: String) {
         self.init(
@@ -97,7 +100,10 @@ final class UpdateSettingsModel {
         self.currentVersion = currentVersion
         let updateLogCache = UpdateLogCache(defaults: defaults)
         self.updateLogCache = updateLogCache
-        updateLog = updateLogCache.read(currentVersion: currentVersion)
+        updateLog = UpdateReleaseNotesText.normalized(
+            updateLogCache.read(currentVersion: currentVersion),
+            version: currentVersion
+        )
         self.installer = installer
         self.terminateApplication = terminateApplication
         mirrorBase = defaults.string(forKey: Self.mirrorStorageKey) ?? ""
@@ -156,15 +162,21 @@ final class UpdateSettingsModel {
 
     func checkForUpdate() async {
         guard !isBusy else { return }
+        pendingLogRequestGeneration += 1
+        isFetchingPendingUpdateLog = false
+        pendingUpdateLogErrorText = nil
         phase = .checking
         do {
             let checkedRelease = try await service.checkForUpdate()
             release = checkedRelease
-            if checkedRelease == nil {
-                phase = .upToDate
-            } else {
+            if let checkedRelease {
                 phase = .available
                 pendingUpdate = checkedRelease
+                await loadPendingUpdateLogIfNeeded(for: checkedRelease)
+            } else {
+                pendingUpdate = nil
+                pendingUpdateLogErrorText = nil
+                phase = .upToDate
             }
         } catch {
             phase = .failed(Self.failureMessage(error))
@@ -179,12 +191,14 @@ final class UpdateSettingsModel {
         defer { isFetchingUpdateLog = false }
 
         do {
-            let fetchedLog = try await service.fetchUpdateLog(for: currentVersion)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let fetchedLog = UpdateReleaseNotesText.normalized(
+                try await service.fetchUpdateLog(for: currentVersion),
+                version: currentVersion
+            )
             guard !Task.isCancelled else { return }
             guard let fetchedLog, !fetchedLog.isEmpty else {
                 updateLog = nil
-                updateLogCache.clear()
+                updateLogCache.clear(currentVersion: currentVersion)
                 updateLogErrorText = "未找到当前版本的更新日志"
                 return
             }
@@ -198,7 +212,12 @@ final class UpdateSettingsModel {
 
     /// 用户在更新确认窗里确认更新：关掉确认窗并自动完成下载与安装。
     func confirmUpdate() async {
-        pendingUpdate = nil
+        guard
+            !isFetchingPendingUpdateLog,
+            let confirmedRelease = pendingUpdate,
+            UpdateReleaseNotesText.normalized(confirmedRelease.releaseNotes, version: confirmedRelease.version) != nil
+        else { return }
+        self.pendingUpdate = nil
         await download()
         guard phase == .downloaded else { return }
         install()
@@ -206,7 +225,15 @@ final class UpdateSettingsModel {
 
     /// 用户关闭更新确认窗，保留下载入口但不自动安装。
     func dismissUpdatePrompt() {
+        pendingLogRequestGeneration += 1
+        isFetchingPendingUpdateLog = false
         pendingUpdate = nil
+        pendingUpdateLogErrorText = nil
+    }
+
+    func retryPendingUpdateLog() async {
+        guard let pendingUpdate else { return }
+        await loadPendingUpdateLogIfNeeded(for: pendingUpdate, force: true)
     }
 
     func download() async {
@@ -242,14 +269,24 @@ final class UpdateSettingsModel {
         do {
             try installer.install(downloadedUpdate)
             if let release {
+                let cachedNotes = UpdateReleaseNotesText.normalized(
+                    updateLogCache.read(currentVersion: release.version),
+                    version: release.version
+                )
+                let notes = cachedNotes ?? UpdateReleaseNotesText.normalized(
+                    release.releaseNotes,
+                    version: release.version
+                )
+                if let notes {
+                    updateLogCache.save(notes, for: release.version)
+                }
                 UpdateCompletionNotice.record(
                     release: release,
                     previousVersion: currentVersion,
+                    notes: notes,
                     defaults: defaults
                 )
             }
-            updateLogCache.clear()
-            updateLog = nil
             updateLogErrorText = nil
             phase = .readyToRelaunch
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -295,6 +332,67 @@ final class UpdateSettingsModel {
         }
     }
 
+    private func loadPendingUpdateLogIfNeeded(for release: AppRelease, force: Bool = false) async {
+        if !force,
+           let cached = UpdateReleaseNotesText.normalized(
+               updateLogCache.read(currentVersion: release.version),
+               version: release.version
+           ) {
+            let enriched = release.replacingReleaseNotes(cached)
+            self.release = enriched
+            pendingUpdate = enriched
+            pendingUpdateLogErrorText = nil
+            return
+        }
+
+        if !force,
+           let supplied = UpdateReleaseNotesText.normalized(release.releaseNotes, version: release.version) {
+            updateLogCache.save(supplied, for: release.version)
+            let enriched = release.replacingReleaseNotes(supplied)
+            self.release = enriched
+            pendingUpdate = enriched
+            pendingUpdateLogErrorText = nil
+            return
+        }
+
+        pendingLogRequestGeneration += 1
+        let generation = pendingLogRequestGeneration
+        isFetchingPendingUpdateLog = true
+        pendingUpdateLogErrorText = nil
+        defer {
+            if pendingLogRequestGeneration == generation {
+                isFetchingPendingUpdateLog = false
+            }
+        }
+
+        do {
+            let fetched = try await service.fetchUpdateLog(for: release.version)
+            guard let notes = UpdateReleaseNotesText.normalized(fetched, version: release.version) else {
+                guard !Task.isCancelled,
+                      pendingLogRequestGeneration == generation,
+                      pendingUpdate?.version == release.version
+                else { return }
+                pendingUpdateLogErrorText = "未找到该版本的更新日志"
+                return
+            }
+
+            updateLogCache.save(notes, for: release.version)
+            guard !Task.isCancelled,
+                  pendingLogRequestGeneration == generation,
+                  pendingUpdate?.version == release.version
+            else { return }
+            let enriched = release.replacingReleaseNotes(notes)
+            self.release = enriched
+            pendingUpdate = enriched
+        } catch {
+            guard !Task.isCancelled,
+                  pendingLogRequestGeneration == generation,
+                  pendingUpdate?.version == release.version
+            else { return }
+            pendingUpdateLogErrorText = "获取更新日志失败，请稍后重试"
+        }
+    }
+
     var failureText: String? {
         if case let .failed(message) = phase {
             return message
@@ -303,11 +401,29 @@ final class UpdateSettingsModel {
     }
 }
 
+private extension AppRelease {
+    func replacingReleaseNotes(_ releaseNotes: String?) -> AppRelease {
+        AppRelease(
+            version: version,
+            tagName: tagName,
+            releaseNotes: releaseNotes,
+            publishedAt: publishedAt,
+            assetName: assetName,
+            downloadURL: downloadURL,
+            checksumURL: checksumURL,
+            sha256: sha256
+        )
+    }
+}
+
 /// 检测到新版本后的确认窗：展示该版本的更新日志，确认后自动下载安装。
 private struct UpdatePromptView: View {
     let release: AppRelease
+    let isLoadingReleaseNotes: Bool
+    let releaseNotesErrorText: String?
     let onConfirm: () -> Void
     let onCancel: () -> Void
+    let onRetryReleaseNotes: () -> Void
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -316,18 +432,46 @@ private struct UpdatePromptView: View {
                 .qiankunjieFont(.titleMedium)
                 .foregroundStyle(QiankunjieColors.onBackground(for: colorScheme))
 
-            if releaseNotes.isEmpty {
+            HStack(spacing: 8) {
+                Image(systemName: "doc.text")
+                    .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
+                Text("更新内容")
+                    .qiankunjieFont(.labelLarge)
+                    .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+            }
+
+            if isLoadingReleaseNotes {
+                HStack(spacing: 9) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("正在读取新版本更新日志…")
+                        .qiankunjieFont(.bodyMedium)
+                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                }
+            } else if !releaseNotes.isEmpty {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(UpdateReleaseNotesFormatter.lines(from: releaseNotes)) { line in
+                            releaseNoteRow(line)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 280)
+                .textSelection(.enabled)
+            } else if let releaseNotesErrorText {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(releaseNotesErrorText)
+                        .qiankunjieFont(.bodyMedium)
+                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                    Button("重新获取") {
+                        onRetryReleaseNotes()
+                    }
+                }
+            } else {
                 Text("本次更新没有提供说明。")
                     .qiankunjieFont(.bodyMedium)
                     .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-            } else {
-                ScrollView {
-                    Text(releaseNotes)
-                        .qiankunjieFont(.bodyMedium)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(maxHeight: 280)
             }
 
             HStack {
@@ -339,6 +483,7 @@ private struct UpdatePromptView: View {
                     onConfirm()
                 }
                 .buttonStyle(.borderedProminent)
+                .disabled(isLoadingReleaseNotes || releaseNotes.isEmpty)
                 .keyboardShortcut(.defaultAction)
             }
         }
@@ -348,7 +493,32 @@ private struct UpdatePromptView: View {
     }
 
     private var releaseNotes: String {
-        (release.releaseNotes ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        UpdateReleaseNotesText.normalized(release.releaseNotes, version: release.version) ?? ""
+    }
+
+    @ViewBuilder
+    private func releaseNoteRow(_ line: UpdateReleaseNoteLine) -> some View {
+        switch line.kind {
+        case .heading:
+            Text(line.text)
+                .qiankunjieFont(.titleMedium)
+                .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
+        case .bullet:
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Circle()
+                    .fill(QiankunjieColors.accent(for: colorScheme))
+                    .frame(width: 5, height: 5)
+                Text(line.text)
+                    .qiankunjieFont(.bodyMedium)
+                    .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        case .paragraph:
+            Text(line.text)
+                .qiankunjieFont(.bodyMedium)
+                .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
 
@@ -393,6 +563,8 @@ struct UpdateSettingsView: View {
             if let release = model.pendingUpdate {
                 UpdatePromptView(
                     release: release,
+                    isLoadingReleaseNotes: model.isFetchingPendingUpdateLog,
+                    releaseNotesErrorText: model.pendingUpdateLogErrorText,
                     onConfirm: {
                         Task {
                             await model.confirmUpdate()
@@ -400,6 +572,11 @@ struct UpdateSettingsView: View {
                     },
                     onCancel: {
                         model.dismissUpdatePrompt()
+                    },
+                    onRetryReleaseNotes: {
+                        Task {
+                            await model.retryPendingUpdateLog()
+                        }
                     }
                 )
             }

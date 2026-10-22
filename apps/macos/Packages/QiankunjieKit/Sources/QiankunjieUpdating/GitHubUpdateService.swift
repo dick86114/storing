@@ -63,6 +63,14 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading, UpdateLogPr
             throw UpdateServiceError.invalidRelease
         }
 
+        if let log = try? await fetchAPIUpdateLog(for: version) {
+            return log
+        }
+        return try await fetchAtomUpdateLog(for: version)
+    }
+
+    private func fetchAPIUpdateLog(for version: String) async throws -> String? {
+
         var request = URLRequest(
             url: Self.releaseTagBaseURL.appendingPathComponent("macos-v\(version)")
         )
@@ -70,12 +78,6 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading, UpdateLogPr
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("Qiankunjie-macOS-updater", forHTTPHeaderField: "User-Agent")
         let response = try await network.data(for: request)
-        if response.statusCode == 404 {
-            return nil
-        }
-        if response.statusCode == 403 || response.statusCode == 429 {
-            return try await fetchAtomUpdateLog(for: version)
-        }
         guard (200..<300).contains(response.statusCode) else {
             throw UpdateServiceError.invalidResponse
         }
@@ -434,12 +436,36 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading, UpdateLogPr
     }
 
     private static func plainText(fromHTML html: String) -> String {
-        html
+        var text = html
+            .replacingOccurrences(of: #"<br\s*/?>"#, with: "\n", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: #"<li[^>]*>"#, with: "- ", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: #"</li>"#, with: "\n", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: #"</(?:p|div|ul|ol|blockquote|pre)>"#, with: "\n", options: [.regularExpression, .caseInsensitive])
+
+        for level in 1...6 {
+            text = text
+                .replacingOccurrences(
+                    of: "<h\(level)[^>]*>",
+                    with: "\n## ",
+                    options: [.regularExpression, .caseInsensitive]
+                )
+                .replacingOccurrences(
+                    of: "</h\(level)>",
+                    with: "\n",
+                    options: [.regularExpression, .caseInsensitive]
+                )
+        }
+
+        return text
             .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
             .replacingOccurrences(of: "&lt;", with: "<")
             .replacingOccurrences(of: "&gt;", with: ">")
             .replacingOccurrences(of: "&amp;", with: "&")
             .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+            .replacingOccurrences(of: #"[ \t]+\n"#, with: "\n", options: .regularExpression)
+            .replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
