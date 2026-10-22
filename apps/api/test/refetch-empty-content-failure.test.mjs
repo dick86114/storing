@@ -28,6 +28,6 @@ test('refetch does not block its response on slow cover-image uploads and the br
   const route = getRefetchRoute();
 
   assert.doesNotMatch(route, /const \[contentHtml, contentHtmlMobile, contentMd, coverImage\] = await Promise\.all\(/);
-  assert.match(route, /void processCoverImage\(id, userId\)\.catch\(/);
+  assert.match(route, /coverImageBackfillQueue\.enqueue\(\[\{ articleId: id, userId \}\]\)/);
   assert.match(nextConfig, /experimental:\s*\{\s*proxyTimeout:\s*120_000,/);
 });

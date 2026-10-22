@@ -1,10 +1,12 @@
-import { JSDOM } from 'jsdom';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { articleMetadata, articles, collectJobs } from '../db/schema.js';
 import { buildArticleSummaryResult } from './ai.service.js';
+import { allocateArticleIdInTransaction } from './article-id.service.js';
+import { coverImageBackfillQueue } from './cover-image-backfill.service.js';
 import { assertSafeOutboundUrl, normalizeOutboundUrl } from './outbound-url-policy.service.js';
-import { ensureArticleMetadataContentHtmlMobileColumn, extractWechatCoverImage, fetchArticleContentFromSources, fetchWechatJson, getArticleContent, processCoverImage, uploadImage } from './reader.service.js';
+import { ensureArticleMetadataContentHtmlMobileColumn, uploadImage } from './reader.service.js';
+import { captureWechatArticleInMemory } from './wechat-collect-capture.service.js';
 import {
   type CollectCaptureStrategy,
   type HtmlVariant,
@@ -75,106 +77,68 @@ function isWechatUrl(url: string) {
 function normalizeCollectUrl(rawUrl: string) {
   return normalizeOutboundUrl(rawUrl).toString();
 }
-function extractTitle(doc: Document, fallbackUrl: string) {
-  const values = [
-    doc.querySelector('meta[property="og:title"]')?.getAttribute('content'),
-    doc.querySelector('meta[name="og:title"]')?.getAttribute('content'),
-    doc.querySelector('meta[name="twitter:title"]')?.getAttribute('content'),
-    doc.querySelector('meta[property="twitter:title"]')?.getAttribute('content'),
-    doc.querySelector('meta[itemprop="headline"]')?.getAttribute('content'),
-    doc.querySelector('meta[itemprop="name"]')?.getAttribute('content'),
-    doc.querySelector('meta[name="title"]')?.getAttribute('content'),
-    doc.querySelector('title')?.textContent,
-    doc.querySelector('article h1')?.textContent,
-    doc.querySelector('main h1')?.textContent,
-    doc.querySelector('h1')?.textContent,
-    doc.querySelector('article h2')?.textContent,
-    doc.querySelector('main h2')?.textContent,
-    doc.querySelector('h2')?.textContent,
-  ];
+export type CollectPersistence = {
+  articleId: number;
+  createdArticle: boolean;
+  createdMetadata: boolean;
+};
 
-  for (const value of values) {
-    const title = value?.replace(/\s+/g, ' ').trim();
-    if (title) return title.slice(0, 180);
-  }
-  return fallbackUrl;
-}
-
-function extractSource(url: string, doc?: Document) {
-  const siteName = doc?.querySelector('meta[property="og:site_name"]')?.getAttribute('content')?.trim();
-  if (siteName) return siteName.slice(0, 80);
-  return new URL(url).hostname.replace(/^www\./, '').slice(0, 80);
-}
-
-async function fetchWechatPageMeta(url: string) {
-  try {
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-      signal: AbortSignal.timeout(12000),
-    });
-    if (!res.ok) return null;
-
-    const html = await res.text();
-    const dom = new JSDOM(html);
-    const doc = dom.window.document;
-    const title = extractTitle(doc, url);
-    const source =
-      doc.querySelector('#js_name')?.textContent?.replace(/\s+/g, ' ').trim() ||
-      doc.querySelector('meta[property="og:article:author"]')?.getAttribute('content')?.trim() ||
-      doc.querySelector('meta[name="author"]')?.getAttribute('content')?.trim() ||
-      '微信公众号';
-
-    return {
-      title: title === url ? null : title,
-      source: source.slice(0, 80),
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function getNextArticleId() {
-  const [row] = await db.select({ nextId: sql<number>`COALESCE(MAX(${articles.id}), 0) + 1` }).from(articles);
-  return Number(row?.nextId || 1);
-}
-
-async function upsertArticleFromCapture(input: {
+type CollectCaptureInput = {
   normalizedUrl: string;
   title: string;
   source: string;
   contentHtml?: string | null;
   contentHtmlMobile?: string | null;
   contentMarkdown?: string | null;
+  content?: unknown;
   coverImage?: string | null;
   method: CollectMethod;
-}, options: { persistMetadata?: boolean; userId?: number | null; clientId?: number | null; sourceType?: string; markArchived?: boolean } = {}) {
+};
+
+type CollectCaptureOptions = {
+  persistMetadata?: boolean;
+  userId?: number | null;
+  clientId?: number | null;
+  sourceType?: string;
+  markArchived?: boolean;
+};
+
+export type CollectTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export async function upsertArticleFromCaptureInTransaction(
+  tx: CollectTransaction,
+  input: CollectCaptureInput,
+  options: CollectCaptureOptions = {},
+): Promise<CollectPersistence> {
   const persistMetadata = options.persistMetadata ?? true;
-  const [existing] = await db
-    .select({ id: articles.id })
-    .from(articles)
-    .where(eq(articles.originalUrl, input.normalizedUrl))
-    .limit(1);
+  if (persistMetadata && !options.userId) throw new Error('保存文章到收件箱需要用户归属');
+
+  // URL 锁只覆盖短暂持久化事务，不跨网络抓取持有连接。
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('storing:collect-url'), hashtext(${input.normalizedUrl}))`);
+  const [existing] = await tx
+      .select({ id: articles.id })
+      .from(articles)
+      .where(eq(articles.originalUrl, input.normalizedUrl))
+      .limit(1);
 
   const now = new Date();
   let articleId = existing?.id;
+  const createdArticle = !articleId;
 
   if (articleId) {
-    await db
-      .update(articles)
-      .set({
-        title: input.title,
-        source: input.source,
-        coverImage: input.coverImage ?? undefined,
-        contentHtml: input.contentHtml ?? undefined,
-        contentMarkdown: input.contentMarkdown ?? undefined,
-        updatedAt: now,
-      })
-      .where(eq(articles.id, articleId));
+    const articleValues: Partial<typeof articles.$inferInsert> = {
+      title: input.title,
+      source: input.source,
+      coverImage: input.coverImage ?? undefined,
+      contentHtml: input.contentHtml ?? undefined,
+      contentMarkdown: input.contentMarkdown ?? undefined,
+      content: input.content === undefined ? undefined : input.content,
+      updatedAt: now,
+    };
+    await tx.update(articles).set(articleValues).where(eq(articles.id, articleId));
   } else {
-    articleId = await getNextArticleId();
-    await db.insert(articles).values({
+    articleId = await allocateArticleIdInTransaction(tx);
+    await tx.insert(articles).values({
       id: articleId,
       title: input.title,
       source: input.source,
@@ -182,27 +146,34 @@ async function upsertArticleFromCapture(input: {
       contentHtml: input.contentHtml ?? null,
       contentMarkdown: input.contentMarkdown ?? null,
       coverImage: input.coverImage ?? null,
-      content: { collectMethod: input.method, originalUrl: input.normalizedUrl },
+      content: input.content ?? { collectMethod: input.method, originalUrl: input.normalizedUrl },
       readStatus: 'unread',
       createdAt: now,
       updatedAt: now,
     });
   }
 
-  if (!persistMetadata) return articleId;
+  if (!persistMetadata || !options.userId) {
+    return {
+      articleId,
+      createdArticle,
+      createdMetadata: false,
+    };
+  }
 
-  if (!options.userId) throw new Error('保存文章到收件箱需要用户归属');
+  const [meta] = await tx
+      .select({ id: articleMetadata.id })
+      .from(articleMetadata)
+      .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, options.userId)));
 
-  const [meta] = await db
-    .select({ id: articleMetadata.id })
-    .from(articleMetadata)
-    .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, options.userId)));
+  // 只有正文验证通过后才会进入这个事务，因此可以直接把文章放回收件箱。
   const markArchived = false;
   const metadataValues: Partial<typeof articleMetadata.$inferInsert> = {
-    // 主动重新采集表示用户希望重新纳入资料库，恢复此前删除的当前用户元数据。
     isDeleted: false,
     isArchived: markArchived,
     archivedAt: markArchived ? now : null,
+    // 新一次采集可能带来新封面，重置版本让统一队列重新处理。
+    coverVersion: 0,
     updatedAt: now,
   };
   if (input.contentHtml !== undefined) metadataValues.contentHtml = input.contentHtml;
@@ -211,9 +182,12 @@ async function upsertArticleFromCapture(input: {
   if (input.coverImage !== undefined) metadataValues.coverImage = input.coverImage;
 
   if (meta) {
-    await db.update(articleMetadata).set(metadataValues).where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, options.userId)));
+    await tx
+        .update(articleMetadata)
+        .set(metadataValues)
+        .where(and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, options.userId)));
   } else {
-    await db.insert(articleMetadata).values({
+    await tx.insert(articleMetadata).values({
       articleId,
       userId: options.userId,
       clientId: options.clientId ?? null,
@@ -223,7 +197,18 @@ async function upsertArticleFromCapture(input: {
     });
   }
 
-  return articleId;
+  return {
+    articleId,
+    createdArticle,
+    createdMetadata: !meta,
+  };
+}
+
+async function upsertArticleFromCapture(
+  input: CollectCaptureInput,
+  options: CollectCaptureOptions = {},
+): Promise<CollectPersistence> {
+  return db.transaction((tx) => upsertArticleFromCaptureInTransaction(tx, input, options));
 }
 
 async function updateCollectJob(id: number, values: Partial<typeof collectJobs.$inferInsert>) {
@@ -244,7 +229,7 @@ async function finishArticleSideEffects(jobId: number, articleId: number, option
   if (options.saveToInbox) {
     if (!options.userId) throw new Error('保存文章到收件箱需要用户归属');
     if (!options.coverProcessed) {
-      processCoverImage(articleId, options.userId).catch((e) => console.error('Collect cover image failed:', e.message));
+      coverImageBackfillQueue.enqueue([{ articleId, userId: options.userId }]);
     }
     return;
   }
@@ -267,12 +252,19 @@ async function finishArticleSideEffects(jobId: number, articleId: number, option
 }
 
 async function processWechatJob(jobId: number, normalizedUrl: string, options: { saveToInbox: boolean; userId?: number | null; clientId?: number | null; sourceType?: string }) {
-  const title = normalizedUrl;
-  const source = '微信公众号';
-  const articleId = await upsertArticleFromCapture({
+  await updateCollectJob(jobId, { stage: 'reader_fetch', captureStrategy: 'wechat_reader', title: normalizedUrl });
+
+  // 所有候选数据只保存在内存中；正文验证成功前不写共享文章或用户元数据。
+  const capture = await captureWechatArticleInMemory(normalizedUrl);
+  await updateCollectJob(jobId, { stage: 'saving', title: capture.title });
+  const persistence = await upsertArticleFromCapture({
     normalizedUrl,
-    title,
-    source,
+    title: capture.title,
+    source: capture.source,
+    contentHtml: capture.contentHtml,
+    contentMarkdown: capture.contentMarkdown,
+    content: capture.content,
+    coverImage: capture.coverImage,
     method: 'reader',
   }, {
     persistMetadata: options.saveToInbox,
@@ -281,72 +273,11 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
     sourceType: options.sourceType,
     markArchived: false,
   });
+  const { articleId } = persistence;
 
-  await updateCollectJob(jobId, { stage: 'reader_fetch', captureStrategy: 'wechat_reader', articleId, title });
-
-  // 用 json 格式抓取公众号结构化数据，填充 articles.content.content_noencode，
-  // 作为 html/markdown 空壳页的兜底数据源（既有 content_noencode 提取逻辑会消费它）
-  const wechatJson = await fetchWechatJson(normalizedUrl).catch((e) => {
-    console.error('Wechat json fetch failed:', (e as Error).message);
-    return null;
-  });
-  let finalTitle = title;
-  let finalSource = source;
-  if (wechatJson && (wechatJson.content_noencode || wechatJson.picture_page_info_list?.length)) {
-    const wechatCoverImage = extractWechatCoverImage(wechatJson);
-    await db
-      .update(articles)
-      .set({
-        content: {
-          collectMethod: 'reader',
-          collectSource: wechatJson.collect_source || 'reader_json',
-          originalUrl: normalizedUrl,
-          content_noencode: wechatJson.content_noencode || '',
-          picture_page_info_list: wechatJson.picture_page_info_list ?? [],
-          ...(wechatCoverImage ? { wechatCoverImage } : {}),
-        },
-        ...(wechatCoverImage ? { coverImage: wechatCoverImage } : {}),
-        ...(typeof wechatJson.title === 'string' && wechatJson.title ? { title: wechatJson.title } : {}),
-        ...(typeof wechatJson.nick_name === 'string' && wechatJson.nick_name ? { source: wechatJson.nick_name } : {}),
-        updatedAt: new Date(),
-      })
-      .where(eq(articles.id, articleId));
-    if (typeof wechatJson.title === 'string' && wechatJson.title) finalTitle = wechatJson.title;
-    if (typeof wechatJson.nick_name === 'string' && wechatJson.nick_name) finalSource = wechatJson.nick_name;
-    await updateCollectJob(jobId, { title: finalTitle });
-  } else {
-    const pageMeta = await fetchWechatPageMeta(normalizedUrl);
-    if (pageMeta?.title) finalTitle = pageMeta.title;
-    if (pageMeta?.source) finalSource = pageMeta.source;
-    if (pageMeta?.title || pageMeta?.source) {
-      await db
-        .update(articles)
-        .set({ title: finalTitle, source: finalSource, updatedAt: new Date() })
-        .where(eq(articles.id, articleId));
-      await updateCollectJob(jobId, { title: finalTitle });
-    }
-  }
-
-  if (options.saveToInbox) {
-    const contentResults = await Promise.allSettled([
-      getArticleContent(articleId, 'html', 'desktop', options.userId ?? undefined),
-      getArticleContent(articleId, 'markdown', 'desktop', options.userId ?? undefined),
-    ]);
-    const hasCapturedContent = contentResults.some(
-      (result) => result.status === 'fulfilled' && typeof result.value === 'string' && result.value.trim().length > 0
-    );
-
-    if (!hasCapturedContent) {
-      throw new Error('微信公众号正文抓取失败：所有可用抓取方式均未返回有效正文');
-    }
-  }
-  if (options.saveToInbox) {
-    // The official WeChat cover is available in Reader JSON before the job finishes.
-    // Persist it synchronously so the first list response cannot show body image #1.
-    const coverImage = await processCoverImage(articleId, options.userId ?? undefined).catch((error) => {
-      console.error('Wechat cover image process failed:', error instanceof Error ? error.message : error);
-      return null;
-    });
+  if (!options.saveToInbox) {
+    await updateCollectJob(jobId, { stage: 'summarizing', articleId });
+    await finishArticleSideEffects(jobId, articleId, { saveToInbox: false });
     await updateCollectJob(jobId, {
       status: 'completed',
       stage: 'completed',
@@ -354,22 +285,23 @@ async function processWechatJob(jobId: number, normalizedUrl: string, options: {
       articleId,
       finishedAt: new Date(),
     });
-    await finishArticleSideEffects(jobId, articleId, {
-      saveToInbox: true,
-      userId: options.userId,
-      coverProcessed: Boolean(coverImage),
-    });
     return;
   }
 
-  await updateCollectJob(jobId, { stage: 'summarizing', articleId });
-  await finishArticleSideEffects(jobId, articleId, { saveToInbox: false });
+  if (!options.userId) throw new Error('保存文章到收件箱需要用户归属');
+  // 文章已经通过正文校验并原子入库；封面统一交给有界后台队列。
+  coverImageBackfillQueue.enqueue([{ articleId, userId: options.userId }]);
   await updateCollectJob(jobId, {
     status: 'completed',
     stage: 'completed',
     error: null,
     articleId,
     finishedAt: new Date(),
+  });
+  await finishArticleSideEffects(jobId, articleId, {
+    saveToInbox: true,
+    userId: options.userId,
+    coverProcessed: true,
   });
 }
 
@@ -653,7 +585,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string, option
       captureStrategy: capture.strategy,
     });
 
-    const articleId = await upsertArticleFromCapture({
+    const persistence = await upsertArticleFromCapture({
       normalizedUrl,
       title: primaryPrepared.title,
       source: primaryPrepared.source,
@@ -662,6 +594,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string, option
       coverImage: primaryPrepared.coverImage,
       method: 'singlefile',
     }, { persistMetadata: false });
+    const { articleId } = persistence;
 
     await updateCollectJob(jobId, {
       stage: 'summarizing',
@@ -703,7 +636,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string, option
 
   const contentMarkdown = extractTextFromHtml(primaryHtml);
   await updateCollectJob(jobId, { stage: 'saving', title: primaryPrepared.title });
-  const articleId = await upsertArticleFromCapture({
+  const persistence = await upsertArticleFromCapture({
     normalizedUrl,
     title: primaryPrepared.title,
     source: primaryPrepared.source,
@@ -713,6 +646,7 @@ async function processSingleFileJob(jobId: number, normalizedUrl: string, option
     coverImage: uploadedCoverImage || primaryPrepared.coverImage,
     method: 'singlefile',
   }, { persistMetadata: true, userId: options.userId, clientId: options.clientId, sourceType: options.sourceType, markArchived: false });
+  const { articleId } = persistence;
 
   await updateCollectJob(jobId, {
     status: 'completed',

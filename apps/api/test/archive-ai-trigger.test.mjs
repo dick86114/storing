@@ -14,7 +14,7 @@ test('归档接口按用户设置触发 AI，不在归档请求内等待生成',
   const archiveRoute = articles.match(/articlesRoutes\.post\('\/articles\/:id\/archive'[\s\S]*?\n}\);/)?.[0] ?? '';
   assert.match(archiveRoute, /queueArchiveAiIfNeeded\(/);
   assert.match(archiveRoute, /existingAiReady/);
-  assert.match(archiveRoute, /processCoverImage\(/);
+  assert.match(archiveRoute, /coverImageBackfillQueue\.enqueue\(/);
   assert.doesNotMatch(archiveRoute, /generateSummaryAndTags\(/);
   assert.doesNotMatch(archiveRoute, /classifyStoredArticleForArchive\(/);
   assert.match(aiGeneration, /export async function queueArchiveAiIfNeeded/);
