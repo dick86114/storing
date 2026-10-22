@@ -138,6 +138,7 @@ struct UILabRootView: View {
                     menuBarController: nil,
                     isAuthenticated: true,
                     onLogin: {},
+                    updateCheckRequestID: 1,
                     updateService: UILabFixtures.updateService,
                     updateDefaults: UILabFixtures.preferences
                 )

@@ -27,12 +27,12 @@ struct UpdateCompletionNotice: Codable, Equatable, Sendable {
         self.publishedAt = publishedAt
     }
 
-    init(release: AppRelease, previousVersion: String) {
+    init(release: AppRelease, previousVersion: String, notes: String? = nil) {
         let normalizedPrevious = previousVersion.trimmingCharacters(in: .whitespacesAndNewlines)
         self.init(
             version: release.version,
             previousVersion: normalizedPrevious.isEmpty ? nil : normalizedPrevious,
-            notes: release.releaseNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+            notes: UpdateReleaseNotesText.normalized(notes ?? release.releaseNotes, version: release.version) ?? "",
             releaseURL: Self.releaseURL(forTag: release.tagName, version: release.version),
             publishedAt: release.publishedAt
         )
@@ -42,19 +42,31 @@ struct UpdateCompletionNotice: Codable, Equatable, Sendable {
         UpdateCompletionNotice(
             version: version,
             previousVersion: nil,
-            notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
+            notes: UpdateReleaseNotesText.normalized(notes, version: version) ?? "",
             releaseURL: releaseURL(forTag: "macos-v\(version)", version: version)
+        )
+    }
+
+    func replacingNotes(_ notes: String?) -> UpdateCompletionNotice {
+        UpdateCompletionNotice(
+            version: version,
+            previousVersion: previousVersion,
+            notes: UpdateReleaseNotesText.normalized(notes, version: version) ?? "",
+            releaseURL: releaseURL,
+            publishedAt: publishedAt
         )
     }
 
     static func record(
         release: AppRelease,
         previousVersion: String,
+        notes: String? = nil,
         defaults: UserDefaults = .standard
     ) {
         let notice = UpdateCompletionNotice(
             release: release,
-            previousVersion: previousVersion
+            previousVersion: previousVersion,
+            notes: notes
         )
         guard let data = try? JSONEncoder().encode(notice) else { return }
         defaults.set(data, forKey: storageKey)

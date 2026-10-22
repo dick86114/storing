@@ -382,7 +382,7 @@ struct UILabFixtureUpdateService: UpdateServicing {
     private let release = AppRelease(
         version: "0.2.0",
         tagName: "macos-v0.2.0",
-        releaseNotes: "UI Lab 固定更新说明。",
+        releaseNotes: "乾坤戒 macOS v0.2.0",
         publishedAt: nil,
         assetName: "Qiankunjie-0.2.0-arm64.dmg",
         downloadURL: URL(string: "https://example.com/Qiankunjie.dmg")!,
@@ -390,12 +390,21 @@ struct UILabFixtureUpdateService: UpdateServicing {
         sha256: String(repeating: "a", count: 64)
     )
 
+    private let detailedReleaseNotes = """
+        ## 新增
+        - 下载确认弹窗展示新版本更新日志
+        - 更新日志按版本持久化，重新打开无需再次请求
+
+        ## 修复
+        - 更新完成弹窗立即展示已缓存日志
+        """
+
     func checkForUpdate() async throws -> AppRelease? {
         release
     }
 
     func fetchUpdateLog(for version: String) async throws -> String? {
-        release.releaseNotes
+        detailedReleaseNotes
     }
 
     func download(
