@@ -119,6 +119,58 @@ enum UpdateReleaseNotesFormatter {
     }
 }
 
+@MainActor
+@Observable
+final class UpdateCompletionNoticeNotesState {
+    private(set) var displayedNotes: String
+    private(set) var isLoadingNotes: Bool
+    private(set) var notesError: String?
+    private(set) var isRefreshingNotes = false
+    private(set) var refreshError: String?
+
+    private let loadNotes: (@Sendable () async -> String?)?
+
+    init(initialNotes: String, loadNotes: (@Sendable () async -> String?)?) {
+        displayedNotes = initialNotes
+        self.loadNotes = loadNotes
+        isLoadingNotes = initialNotes.isEmpty && loadNotes != nil
+    }
+
+    var canRefreshNotes: Bool {
+        loadNotes != nil
+    }
+
+    func loadIfNeeded() async {
+        guard displayedNotes.isEmpty, !isLoadingNotes, let loadNotes else { return }
+        isLoadingNotes = true
+        notesError = nil
+        let loaded = await loadNotes()
+        isLoadingNotes = false
+        if let loaded, !loaded.isEmpty {
+            displayedNotes = loaded
+        } else {
+            notesError = "更新日志暂时无法加载。"
+        }
+    }
+
+    func refresh() async {
+        guard !isLoadingNotes, !isRefreshingNotes, let loadNotes else { return }
+        isRefreshingNotes = true
+        refreshError = nil
+        let loaded = await loadNotes()
+        isRefreshingNotes = false
+        if let loaded, !loaded.isEmpty {
+            displayedNotes = loaded
+            notesError = nil
+            refreshError = nil
+        } else if displayedNotes.isEmpty {
+            notesError = "更新日志暂时无法加载。"
+        } else {
+            refreshError = "刷新更新日志失败，请稍后重试"
+        }
+    }
+}
+
 struct UpdateCompletionNoticeView: View {
     @Environment(\.colorScheme) private var colorScheme
 
@@ -128,9 +180,7 @@ struct UpdateCompletionNoticeView: View {
     let onOpenFullNotes: () -> Void
     let onDismiss: () -> Void
 
-    @State private var displayedNotes: String
-    @State private var isLoadingNotes: Bool
-    @State private var notesError: String?
+    @State private var notesState: UpdateCompletionNoticeNotesState
 
     init(
         notice: UpdateCompletionNotice,
@@ -144,8 +194,10 @@ struct UpdateCompletionNoticeView: View {
         self.loadNotes = loadNotes
         self.onOpenFullNotes = onOpenFullNotes
         self.onDismiss = onDismiss
-        _displayedNotes = State(initialValue: notice.notes)
-        _isLoadingNotes = State(initialValue: notice.notes.isEmpty && loadNotes != nil)
+        _notesState = State(initialValue: UpdateCompletionNoticeNotesState(
+            initialNotes: notice.notes,
+            loadNotes: loadNotes
+        ))
     }
 
     var body: some View {
@@ -172,7 +224,7 @@ struct UpdateCompletionNoticeView: View {
         .tint(QiankunjieColors.accent(for: colorScheme))
         .onExitCommand(perform: onDismiss)
         .task(id: notice.version) {
-            await loadNotesIfNeeded()
+            await notesState.loadIfNeeded()
         }
     }
 
@@ -257,9 +309,32 @@ struct UpdateCompletionNoticeView: View {
                     .qiankunjieFont(.labelLarge)
                     .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
                 Spacer()
-                if isLoadingNotes {
+                if notesState.isLoadingNotes {
                     ProgressView()
                         .controlSize(.small)
+                }
+                if presentation == .currentVersion, notesState.canRefreshNotes {
+                    Button {
+                        Task { await notesState.refresh() }
+                    } label: {
+                        if notesState.isRefreshingNotes {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 12, weight: .semibold))
+                                .frame(width: 24, height: 24)
+                                .background {
+                                    Circle()
+                                        .fill(QiankunjieColors.surface(for: colorScheme))
+                                }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                    .disabled(notesState.isLoadingNotes || notesState.isRefreshingNotes)
+                    .help("重新获取更新日志")
+                    .accessibilityLabel("重新获取更新日志")
                 }
             }
 
@@ -283,7 +358,7 @@ struct UpdateCompletionNoticeView: View {
 
     @ViewBuilder
     private var notesContent: some View {
-        if isLoadingNotes {
+        if notesState.isLoadingNotes {
             HStack(spacing: 9) {
                 ProgressView()
                     .controlSize(.small)
@@ -291,30 +366,41 @@ struct UpdateCompletionNoticeView: View {
                     .qiankunjieFont(.bodyMedium)
                     .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
             }
-        } else if let notesError {
+        } else if let notesError = notesState.notesError, notesState.displayedNotes.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Text(notesError)
                     .qiankunjieFont(.bodyMedium)
                     .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                if loadNotes != nil {
+                if notesState.canRefreshNotes {
                     Button("重新获取") {
-                        Task { await retryLoadNotes() }
+                        Task { await notesState.loadIfNeeded() }
                     }
                 }
             }
-        } else if displayedNotes.isEmpty {
+        } else if notesState.displayedNotes.isEmpty {
             Text("本次更新未提供详细说明。")
                 .qiankunjieFont(.bodyMedium)
                 .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
         } else {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(UpdateReleaseNotesFormatter.lines(from: displayedNotes)) { line in
-                        releaseNoteRow(line)
+            VStack(alignment: .leading, spacing: 8) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(UpdateReleaseNotesFormatter.lines(from: notesState.displayedNotes)) { line in
+                            releaseNoteRow(line)
+                        }
                     }
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                if let refreshError = notesState.refreshError {
+                    Text(refreshError)
+                        .qiankunjieFont(.labelMedium)
+                        .foregroundStyle(
+                            colorScheme == .dark
+                                ? QiankunjieColors.darkError
+                                : QiankunjieColors.lightError
+                        )
+                }
             }
         }
     }
@@ -364,24 +450,6 @@ struct UpdateCompletionNoticeView: View {
                 .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
                 .fixedSize(horizontal: false, vertical: true)
         }
-    }
-
-    private func loadNotesIfNeeded() async {
-        guard displayedNotes.isEmpty, let loadNotes else { return }
-        isLoadingNotes = true
-        notesError = nil
-        let loaded = await loadNotes()
-        isLoadingNotes = false
-        if let loaded, !loaded.isEmpty {
-            displayedNotes = loaded
-        } else {
-            notesError = "更新日志暂时无法加载。"
-        }
-    }
-
-    private func retryLoadNotes() async {
-        notesError = nil
-        await loadNotesIfNeeded()
     }
 
     private static let dateFormatter: DateFormatter = {
@@ -448,19 +516,14 @@ final class UpdateCompletionNoticeWindowController: NSObject, NSWindowDelegate {
             notes: cachedNotes ?? ""
         )
         let service = GitHubUpdateService(currentVersion: version)
-        let loadNotes: (@Sendable () async -> String?)?
-        if cachedNotes == nil {
-            loadNotes = { @Sendable in
-                guard let fetched = try? await service.fetchUpdateLog(for: version),
-                      let normalized = UpdateReleaseNotesText.normalized(fetched, version: version)
-                else { return nil }
-                await MainActor.run {
-                    UpdateLogCache().save(normalized, for: version)
-                }
-                return normalized
+        let loadNotes: @Sendable () async -> String? = {
+            guard let fetched = try? await service.fetchUpdateLog(for: version),
+                  let normalized = UpdateReleaseNotesText.normalized(fetched, version: version)
+            else { return nil }
+            await MainActor.run {
+                UpdateLogCache().save(normalized, for: version)
             }
-        } else {
-            loadNotes = nil
+            return normalized
         }
 
         present(

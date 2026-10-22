@@ -48,6 +48,7 @@ enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
     case settings
     case update
     case updateNotice = "update-notice"
+    case currentVersion = "current-version"
 
     var id: String { rawValue }
 
@@ -64,6 +65,7 @@ enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
         case .settings: "设置"
         case .update: "更新"
         case .updateNotice: "更新完成"
+        case .currentVersion: "当前版本更新"
         }
     }
 
@@ -146,6 +148,16 @@ struct UILabRootView: View {
                 UpdateCompletionNoticeView(
                     notice: UILabFixtures.updateCompletionNotice,
                     presentation: .updateCompleted,
+                    onOpenFullNotes: {},
+                    onDismiss: {}
+                )
+            case .currentVersion:
+                UpdateCompletionNoticeView(
+                    notice: UILabFixtures.currentVersionNotice,
+                    presentation: .currentVersion,
+                    loadNotes: { @Sendable in
+                        await MainActor.run { UILabFixtures.refreshedCurrentVersionNotes }
+                    },
                     onOpenFullNotes: {},
                     onDismiss: {}
                 )

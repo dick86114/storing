@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-  echo "用法：$0 <login|library|empty|loading|offline|reader|collect|tasks|settings|update|update-notice> [light|dark]"
+  echo "用法：$0 <login|library|empty|loading|offline|reader|collect|tasks|settings|update|update-notice|current-version> [light|dark]"
 }
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" || $# -lt 1 || $# -gt 2 ]]; then
@@ -12,7 +12,7 @@ fi
 
 scenario="${1}"
 case "${scenario}" in
-  "login"|"library"|"empty"|"loading"|"offline"|"reader"|"collect"|"tasks"|"settings"|"update"|"update-notice")
+  "login"|"library"|"empty"|"loading"|"offline"|"reader"|"collect"|"tasks"|"settings"|"update"|"update-notice"|"current-version")
     ;;
   *)
     echo "错误：未知 UI Lab 场景 $scenario。"
