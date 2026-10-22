@@ -27,6 +27,23 @@ enum UILabFixtures {
         releaseURL: URL(string: "https://github.com/dick86114/storing/releases/tag/macos-v0.2.0")!,
         publishedAt: ISO8601DateFormatter().date(from: "2026-10-20T12:00:00Z")
     )
+    static let currentVersionNotice = UpdateCompletionNotice.currentVersion(
+        version: "0.2.0",
+        notes: """
+        修复：采集失败导致阻塞收件箱的问题
+        修复：检测更新不显示更新日志的问题
+        优化：增加更新日志缓存
+        """
+    )
+    static let refreshedCurrentVersionNotes = """
+    ## 修复
+    - 采集失败导致阻塞收件箱的问题
+    - 检测更新不显示更新日志的问题
+
+    ## 优化
+    - 增加更新日志缓存
+    - 当前版本窗口支持手动刷新更新日志
+    """
 
     static let user = AuthenticatedUser(
         id: 9001,

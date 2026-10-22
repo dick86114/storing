@@ -15,7 +15,7 @@ apps/macos/scripts/macos-ui-lab.sh update-notice light
 apps/macos/scripts/macos-ui-lab.sh update-notice dark
 ```
 
-脚本会校验 Xcode、生成工程、构建 Debug App、启动指定场景，并输出截图路径。可用场景与脚本接口保持一致：`login`、`library`、`empty`、`loading`、`offline`、`reader`、`collect`（快速采集弹窗）、`tasks`（历史任务页）、`settings`、`update`、`update-notice`。第二个参数可省略，支持 `light` 或 `dark`。
+脚本会校验 Xcode、生成工程、构建 Debug App、启动指定场景，并输出截图路径。可用场景与脚本接口保持一致：`login`、`library`、`empty`、`loading`、`offline`、`reader`、`collect`（快速采集弹窗）、`tasks`（历史任务页）、`settings`、`update`、`update-notice`、`current-version`。第二个参数可省略，支持 `light` 或 `dark`。
 
 ## 场景与截图路径
 
@@ -32,6 +32,7 @@ apps/macos/scripts/macos-ui-lab.sh update-notice dark
 | `settings` | 版本、环境、外观和快捷键 | `artifacts/macos-ui-lab/settings/light.png`、`dark.png` |
 | `update` | 新版本、更新说明、下载和 SHA-256 | `artifacts/macos-ui-lab/update/light.png`、`dark.png` |
 | `update-notice` | 更新完成后的版本信息、更新日志和深浅色主题 | `artifacts/macos-ui-lab/update-notice/light.png`、`dark.png` |
+| `current-version` | 当前版本日志、刷新按钮、刷新后的结构和日志缓存更新 | `artifacts/macos-ui-lab/current-version/light.png`、`dark.png` |
 
 截图只保存在本机 `artifacts/` 目录，不应提交包含真实路径、账号或系统隐私的图片。每个场景至少保留浅色和深色证据；交互验证时补充点击前后的截图。
 
