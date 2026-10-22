@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import yauzl from 'yauzl';
 import { db } from '../db/index.js';
 import { articleMetadata, articles } from '../db/schema.js';
+import { allocateArticleIdInTransaction } from './article-id.service.js';
 import { COVER_IMAGE_PROCESSING_VERSION } from './reader.service.js';
 import {
   detectWeChatMediaKind,
@@ -158,11 +159,6 @@ function extractZipFiles(buffer: Buffer): Promise<ZipEntryFile[]> {
   });
 }
 
-async function getNextArticleId(): Promise<number> {
-  const [row] = await db.select({ nextId: sql<number>`COALESCE(MAX(${articles.id}), 0) + 1` }).from(articles);
-  return Number(row?.nextId || 1);
-}
-
 function formatDateTime(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -256,12 +252,10 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
   );
   const coverImage = hasInlineImage ? null : WECHAT_DEFAULT_COVER;
 
-  const articleId = await getNextArticleId();
   const now = new Date();
   // 客户端上传重试共用同一批次：originalUrl 以批次 ID 稳定，重复导入时改为更新而非新条目。
   const originalUrl = `qiankunjie://wechat-import/${randomUUID()}`;
   const articleValues = {
-    id: articleId,
     title,
     author: WECHAT_AUTHOR,
     source: '微信',
@@ -288,7 +282,6 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
     updatedAt: now,
   };
   const metadataValues = {
-    articleId,
     userId: options.userId,
     sourceType: `wechat_${options.source}`,
     contentMd: markdown,
@@ -300,9 +293,11 @@ export async function importWeChatShare(files: WeChatSharedFile[], options: WeCh
     createdAt: now,
     updatedAt: now,
   };
+  let articleId = 0;
   await db.transaction(async (tx) => {
-    await tx.insert(articles).values(articleValues);
-    await tx.insert(articleMetadata).values(metadataValues);
+    articleId = await allocateArticleIdInTransaction(tx);
+    await tx.insert(articles).values({ id: articleId, ...articleValues });
+    await tx.insert(articleMetadata).values({ articleId, ...metadataValues });
   });
 
   return {

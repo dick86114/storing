@@ -24,7 +24,7 @@ test('collect inbox side effects pass collection user scope', () => {
   assert.match(collect, /finishArticleSideEffects\(jobId: number, articleId: number, options: \{[^}]*userId\?: number \| null/);
   assert.match(collect, /buildArticleSummaryResult\(articleId, options\.userId\)/);
   assert.doesNotMatch(collect, /generateSummaryAndTags\(/);
-  assert.match(collect, /processCoverImage\(articleId, options\.userId\)/);
+  assert.match(collect, /coverImageBackfillQueue\.enqueue\(\[\{ articleId, userId: options\.userId \}\]\)/);
 });
 
 test('combined AI generation is scoped to user settings and does not fall back to shared keys', () => {

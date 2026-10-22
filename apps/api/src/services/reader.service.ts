@@ -25,6 +25,8 @@ const IMG_API_KEY = process.env.IMG_API_KEY || '';
 /** 失败的展示元数据修复先冷却，避免每次翻页都重放同一批网络错误。 */
 const DISPLAY_META_RETRY_DELAY_MS = 15 * 60 * 1000;
 const displayMetaRetryAt = new Map<number, number>();
+const COVER_IMAGE_RETRY_DELAY_MS = 15 * 60 * 1000;
+const coverImageRetryAt = new Map<string, number>();
 
 let ensureMobileHtmlColumnPromise: Promise<void> | null = null;
 let ensureCoverVersionColumnPromise: Promise<void> | null = null;
@@ -195,7 +197,7 @@ function hasUsefulHtmlContent(html: string): boolean {
   return !hasEmptyWechatShareShell && (bodyTextLength >= 80 || imageCount > 0);
 }
 
-function hasUsefulContent(content: string, format: 'markdown' | 'html'): boolean {
+export function hasUsefulContent(content: string, format: 'markdown' | 'html'): boolean {
   return format === 'html' ? hasUsefulHtmlContent(content) : hasUsefulMarkdownContent(content);
 }
 
@@ -829,7 +831,7 @@ function getRawContentPictureUrls(rawContent: any): string[] {
   return getRawContentPictures(rawContent).map((picture) => picture.cdn_url);
 }
 
-async function buildHtmlFromRawContent(rawContent: any): Promise<string | null> {
+export async function buildHtmlFromRawContent(rawContent: any): Promise<string | null> {
   if (!rawContent?.content_noencode) return null;
 
   const html = normalizeWechatContentHtml(normalizeRawHtmlFragment(rawContent.content_noencode));
@@ -1221,23 +1223,20 @@ async function fetchSingleFileMarkdownContent(originalUrl: string) {
   return html ? extractTextFromHtml(html) : null;
 }
 
-export async function fetchArticleContentFromSources(
+type ArticleContentSource = {
+  originalUrl: string | null;
+  content: unknown;
+  contentMarkdown: string | null;
+  contentHtml: string | null;
+};
+
+async function fetchArticleContentFromSourceData(
+  article: ArticleContentSource,
   articleId: number,
   format: 'markdown' | 'html',
-  htmlVariant: HtmlVariant = 'desktop'
+  htmlVariant: HtmlVariant,
+  allowStoredContent: boolean,
 ): Promise<string | null> {
-  const [article] = await db
-    .select({
-      originalUrl: articles.originalUrl,
-      content: articles.content,
-      contentMarkdown: articles.contentMarkdown,
-      contentHtml: articles.contentHtml,
-    })
-    .from(articles)
-    .where(eq(articles.id, articleId));
-
-  if (!article) return null;
-
   let content: string | null = null;
 
   if (format === 'html' && article.originalUrl && isSingleFileCollectedArticle(article)) {
@@ -1359,7 +1358,7 @@ export async function fetchArticleContentFromSources(
   }
 
 
-  if (!content) {
+  if (!content && allowStoredContent) {
     const storedContent = format === 'html' ? article.contentHtml : article.contentMarkdown;
     if (storedContent && hasUsefulContent(storedContent, format)) {
       content = storedContent;
@@ -1367,6 +1366,34 @@ export async function fetchArticleContentFromSources(
   }
 
   return content;
+}
+
+/** 采集阶段在内存中验证远程正文，成功前不向共享文章表写入任何候选状态。 */
+export async function fetchCapturedArticleContent(
+  article: ArticleContentSource,
+  format: 'markdown' | 'html',
+  htmlVariant: HtmlVariant = 'desktop',
+): Promise<string | null> {
+  return fetchArticleContentFromSourceData(article, 0, format, htmlVariant, false);
+}
+
+export async function fetchArticleContentFromSources(
+  articleId: number,
+  format: 'markdown' | 'html',
+  htmlVariant: HtmlVariant = 'desktop'
+): Promise<string | null> {
+  const [article] = await db
+    .select({
+      originalUrl: articles.originalUrl,
+      content: articles.content,
+      contentMarkdown: articles.contentMarkdown,
+      contentHtml: articles.contentHtml,
+    })
+    .from(articles)
+    .where(eq(articles.id, articleId));
+
+  if (!article) return null;
+  return fetchArticleContentFromSourceData(article, articleId, format, htmlVariant, true);
 }
 
 async function saveArticleContentCache(
@@ -1553,36 +1580,72 @@ function extractFirstImageUrl(md: string): string | null {
   return match ? match[1] : null;
 }
 
+/** 从缓存正文 HTML 中选择首个普通正文图片，用于没有显式封面元素的旧文章。 */
+export function extractFirstContentImageUrl(html: string, baseUrl?: string | null): string | null {
+  const doc = new JSDOM(html).window.document;
+  const images = doc.querySelectorAll<HTMLImageElement>('#js_content img, article img, main img, figure img, img');
+  for (const image of Array.from(images)) {
+    const raw = getImgOriginalUrl(image);
+    if (!raw || raw.startsWith('data:')) continue;
+    try {
+      const absolute = new URL(raw, baseUrl || undefined).toString();
+      if (/^https?:\/\//i.test(absolute)) return absolute;
+    } catch {
+      const normalized = normalizeImageUrl(raw);
+      if (/^https?:\/\//i.test(normalized)) return normalized;
+    }
+  }
+  return null;
+}
+
 /**
  * 处理封面图：上传到图床，如果没有则从正文取第一张图
  * 保存到 article_metadata.cover_image
  */
 export async function processCoverImage(articleId: number, userId?: number): Promise<string | null> {
-  // 查询文章的封面图和原始链接
+  const scopedUserId = userId ?? await getAdminUserId();
+  const metadataScope = and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, scopedUserId));
+  const retryKey = `${scopedUserId}:${articleId}`;
+  const retryAt = coverImageRetryAt.get(retryKey) ?? 0;
+  if (retryAt > Date.now()) return null;
+  if (retryAt) coverImageRetryAt.delete(retryKey);
+
+  // 优先读取已缓存正文，避免为了确认“是否真的没有封面”再次发起远程抓取。
   const [article] = await db
     .select({
       coverImage: articles.coverImage,
       content: articles.content,
       originalUrl: articles.originalUrl,
+      cachedHtml: articleMetadata.contentHtml,
+      cachedMarkdown: articleMetadata.contentMd,
     })
     .from(articles)
+    .leftJoin(articleMetadata, metadataScope)
     .where(eq(articles.id, articleId));
 
   if (!article) return null;
 
   let coverImageUrl: string | null = null;
+  let contentResolved = Boolean(
+    (article.cachedHtml && hasUsefulContent(article.cachedHtml, 'html'))
+    || (article.cachedMarkdown && hasUsefulContent(article.cachedMarkdown, 'markdown'))
+    || article.coverImage,
+  );
 
   // WeChat's Reader JSON has a dedicated cdn_url for the public article cover.
   // It must win over the first body image in content_noencode/picture_page_info_list.
   let wechatCover = extractWechatCoverImage(article.content);
+  let wechatLookupFailed = false;
   const originalUrl = article.originalUrl;
   if (!wechatCover && originalUrl && isWechatArticleUrl(originalUrl)) {
     const wechatJson = await fetchWechatJson(originalUrl).catch((error) => {
       console.error(`Wechat cover fetch failed for article ${articleId}:`, error instanceof Error ? error.message : error);
+      wechatLookupFailed = true;
       return null;
     });
     wechatCover = extractWechatCoverImage(wechatJson);
     if (wechatCover) {
+      contentResolved = true;
       const existingContent = article.content && typeof article.content === 'object' && !Array.isArray(article.content)
         ? article.content as Record<string, unknown>
         : {};
@@ -1597,34 +1660,60 @@ export async function processCoverImage(articleId: number, userId?: number): Pro
   }
 
   // For ordinary web pages, select an explicit document cover before any fallback.
-  const html = !wechatCover ? await getArticleContent(articleId, 'html', 'desktop', userId) : null;
+  let html = !wechatCover && article.cachedHtml && hasUsefulContent(article.cachedHtml, 'html')
+    ? article.cachedHtml
+    : null;
+  if (!wechatCover && !html) {
+    html = await getArticleContent(articleId, 'html', 'desktop', userId);
+    if (html) contentResolved = true;
+  }
   const explicitCover = html && article.originalUrl
     ? extractPreferredCoverImage(new JSDOM(html).window.document, article.originalUrl)
+    : null;
+  const bodyImageCover = !wechatCover && !explicitCover && html
+    ? extractFirstContentImageUrl(html, article.originalUrl)
     : null;
 
   if (wechatCover) {
     coverImageUrl = wechatCover;
   } else if (explicitCover) {
     coverImageUrl = explicitCover;
+  } else if (bodyImageCover) {
+    coverImageUrl = bodyImageCover;
   } else if (article.coverImage) {
     coverImageUrl = article.coverImage;
   } else {
-    const markdown = await getArticleContent(articleId, 'markdown', 'desktop', userId);
+    const markdown = article.cachedMarkdown && hasUsefulContent(article.cachedMarkdown, 'markdown')
+      ? article.cachedMarkdown
+      : await getArticleContent(articleId, 'markdown', 'desktop', userId);
+    if (markdown) contentResolved = true;
     if (markdown) coverImageUrl = extractFirstImageUrl(markdown);
   }
 
-  if (!coverImageUrl) return null;
+  if (!coverImageUrl) {
+    if (wechatLookupFailed || !contentResolved) {
+      coverImageRetryAt.set(retryKey, Date.now() + COVER_IMAGE_RETRY_DELAY_MS);
+      throw new Error('封面候选抓取失败，稍后再试');
+    }
+    // “没有可用封面”也是确定的处理结果；记录版本后列表无需在每次翻页时重复抓取。
+    coverImageRetryAt.delete(retryKey);
+    await db
+      .update(articleMetadata)
+      .set({ coverVersion: COVER_IMAGE_PROCESSING_VERSION, updatedAt: new Date() })
+      .where(metadataScope);
+    return null;
+  }
 
   // 上传到图床；如果采集流程已经上传过，直接复用。
   const uploadedUrl = coverImageUrl.startsWith(IMG_HOST) ? coverImageUrl : await uploadImage(coverImageUrl);
   if (!uploadedUrl) {
+    coverImageRetryAt.set(retryKey, Date.now() + COVER_IMAGE_RETRY_DELAY_MS);
     console.error(`Cover image upload failed for article ${articleId}: ${coverImageUrl}`);
-    return null;
+    throw new Error('封面图上传失败，稍后再试');
   }
+  coverImageRetryAt.delete(retryKey);
 
   // 确保当前用户 metadata 记录存在并保存封面图
-  const scopedUserId = userId ?? await getAdminUserId();
-  const metadataScope = and(eq(articleMetadata.articleId, articleId), eq(articleMetadata.userId, scopedUserId));
   const [existingMeta] = await db
     .select({ id: articleMetadata.id })
     .from(articleMetadata)

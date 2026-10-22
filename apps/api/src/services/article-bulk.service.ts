@@ -3,7 +3,8 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { db } from '../db/index.js';
 import { adminAuditLogs, aiGenerationJobs, articles, articleMetadata, collectJobs, wechatImportJobs } from '../db/schema.js';
-import { getArticleContent, processCoverImage } from './reader.service.js';
+import { getArticleContent } from './reader.service.js';
+import { coverImageBackfillQueue } from './cover-image-backfill.service.js';
 import { enqueueAiGeneration, queueArchiveAiIfNeeded } from './ai-generation.service.js';
 import { getCategoryById, getPendingCategory, moveArticlesToCategory } from './category.service.js';
 import { resolveUserAiRuntimeConfig } from './user-ai-settings.service.js';
@@ -196,7 +197,7 @@ export async function runSimpleArticleBulkAction(
           userSelectedCategory: Boolean(options.categoryId),
           existingAiReady,
         }).catch((error) => console.error('Bulk archive AI trigger failed:', error instanceof Error ? error.message : error));
-        processCoverImage(articleId, userId).catch((error) => console.error('Bulk archive cover process failed:', error.message));
+        coverImageBackfillQueue.enqueue([{ articleId, userId }]);
       }
     } else if (action === 'unarchive') {
       await db.update(articleMetadata).set({
@@ -335,7 +336,7 @@ export async function publishArticleForUser(
     return { status: 'failed', code: 'PUBLIC_ID_FAILED', message: '公开链接生成失败' };
   }
   if (!wasArchived) {
-    processCoverImage(articleId, userId).catch((error) => console.error('Publish cover process failed:', error.message));
+        coverImageBackfillQueue.enqueue([{ articleId, userId }]);
   }
   return { status: 'succeeded', publicUrl: `/p/${updated.publicId}` };
 }
