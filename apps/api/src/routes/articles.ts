@@ -31,9 +31,9 @@ import {
   ensureArticleMetadataContentHtmlMobileColumn,
   getArticleContent,
   isInternalWeChatImportUrl,
-  processCoverImage,
   repairArticleDisplayMeta,
 } from '../services/reader.service.js';
+import { coverImageBackfillQueue } from '../services/cover-image-backfill.service.js';
 import { requireAuth, optionalAuth, isAuthenticated, getCurrentUser } from '../middleware/auth.js';
 import { sanitizeCapturedHtml } from '../services/singlefile.service.js';
 
@@ -340,23 +340,13 @@ async function repairMissingDisplayMeta<T extends {
   return repairedRows;
 }
 
-async function backfillOutdatedCoverImages(
+function scheduleOutdatedCoverImageBackfill(
   rows: Array<{ id: number; coverVersion: number | null }>,
   userId: number,
-): Promise<Map<number, string>> {
+): void {
   const candidates = rows.filter((row) => (row.coverVersion ?? 0) < COVER_IMAGE_PROCESSING_VERSION);
-  if (candidates.length === 0) return new Map();
-
-  const results = await Promise.all(candidates.map(async (row) => {
-    try {
-      return [row.id, await processCoverImage(row.id, userId)] as const;
-    } catch (error) {
-      console.error(`Cover image backfill failed for article ${row.id}:`, error instanceof Error ? error.message : error);
-      return [row.id, null] as const;
-    }
-  }));
-
-  return new Map(results.filter((entry): entry is readonly [number, string] => entry[1] !== null));
+  if (candidates.length === 0) return;
+  coverImageBackfillQueue.enqueue(candidates.map((row) => ({ articleId: row.id, userId })));
 }
 
 /**
@@ -369,8 +359,10 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
   const categoryFilters = archiveCategoryFilters(c);
   const tagFilters = archiveTagFilters(c);
   const categoryId = c.req.query('categoryId');
-  const page = parseInt(c.req.query('page') || '1');
-  const perPage = parseInt(c.req.query('perPage') || '8');
+  const requestedPage = parseInt(c.req.query('page') || '1');
+  const requestedPerPage = parseInt(c.req.query('perPage') || '8');
+  const page = Number.isFinite(requestedPage) ? Math.max(1, requestedPage) : 1;
+  const perPage = Number.isFinite(requestedPerPage) ? Math.min(100, Math.max(1, requestedPerPage)) : 8;
   const sort = normalizeArticleSort(view, c.req.query('sort'));
   const order = normalizeSortOrder(c.req.query('order'));
   const hasActionTimestamps = await hasMetadataTimestampColumns();
@@ -533,8 +525,8 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
     .orderBy(getArticleOrderBy(sort, order, hasActionTimestamps), desc(articles.id))
     .limit(perPage)
     .offset((page - 1) * perPage);
-  // 显式版本化封面策略：旧卡片会在首次列表请求中同步重算并立即返回新封面。
-  const coverOverrides = await backfillOutdatedCoverImages(data, userId);
+  // 封面回填属于后台增强，绝不能让单篇失效文章拖住整页列表。
+  scheduleOutdatedCoverImageBackfill(data, userId);
   // 异步修复缺失的显示字段，不阻塞当前列表响应；下次请求即为修复后的数据
   repairMissingDisplayMeta(data, userId).catch((error) =>
     console.error('Background display meta repair failed:', error.message)
@@ -543,7 +535,7 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
   return c.json({
     articles: data.map(({ coverVersion: _coverVersion, category, categoryId: _categoryId, categorySource, categoryConfidence, categoryReason, categoryReviewStatus, categoryModelVersion, ...article }) => ({
       ...article,
-      coverImage: coverOverrides.get(article.id) ?? article.coverImage,
+      coverImage: article.coverImage,
       publicUrl: article.isPublished && article.publicId ? `/p/${article.publicId}` : null,
       isFavorited: article.isFavorited ?? false,
       isArchived: article.isArchived ?? false,
@@ -632,8 +624,8 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
     );
   }
 
-  if (!article.metadataCoverImage || (article.metadataCoverVersion ?? 0) < COVER_IMAGE_PROCESSING_VERSION) {
-    processCoverImage(id, userId).catch((error) => console.error('Cover image process failed:', error.message));
+  if ((article.metadataCoverVersion ?? 0) < COVER_IMAGE_PROCESSING_VERSION) {
+    coverImageBackfillQueue.enqueue([{ articleId: id, userId }]);
   }
 
   const content = await getArticleContent(id, format as 'markdown' | 'html', htmlVariant, userId).catch((error) => {
@@ -720,7 +712,7 @@ articlesRoutes.post('/articles/:id/archive', requireAuth, async (c) => {
     userSelectedCategory: Boolean(requestedCategoryId),
     existingAiReady,
   }).catch((error) => console.error('Archive AI trigger failed:', error instanceof Error ? error.message : error));
-  processCoverImage(id, userId).catch((e) => console.error('Cover image process failed:', e.message));
+  coverImageBackfillQueue.enqueue([{ articleId: id, userId }]);
 
   return c.json({ articleId: id, isArchived: true, category: category ? { id: category.id, name: category.name } : null });
 });
@@ -1032,11 +1024,8 @@ articlesRoutes.post('/articles/:id/refetch', requireAuth, async (c) => {
     }, 422);
   }
 
-  // Cover processing can include a slow image download/upload. Keep refetch
-  // responsive and let the next list/detail read observe the eventual update.
-  void processCoverImage(id, userId).catch((error) => {
-    console.error('Cover image process failed after refetch:', error instanceof Error ? error.message : error);
-  });
+  // 封面处理可能包含较慢的图片下载和上传，统一放入有界后台队列。
+  coverImageBackfillQueue.enqueue([{ articleId: id, userId }]);
   const refreshedArticle = await getArticleRecord(id, userId);
 
   return c.json({

@@ -62,9 +62,9 @@ test('macOS 设置合并应用与更新并将日志缓存绑定当前版本', ()
   const updateLogCache = read('apps/macos/QiankunjieMac/Core/Updating/UpdateLogCache.swift');
 
   assert.doesNotMatch(settingsWindow, /服务地址|环境/);
-  assert.match(settingsWindow, /Section\("应用与更新"\)/);
-  assert.match(updateView, /LabeledContent\("版本"/);
-  assert.match(updateView, /Text\("更新日志"\)/);
+  assert.match(settingsWindow, /title: "应用与更新"/);
+  assert.match(updateView, /SettingsRow\(title: "当前版本"/);
+  assert.match(updateView, /SettingsBlockRow\(title: "更新日志"/);
   assert.match(updateView, /Button\("获取更新日志"\)/);
   assert.match(updateView, /fetchUpdateLog/);
   assert.match(updateLogCache, /currentVersion/);
