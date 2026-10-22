@@ -47,6 +47,26 @@ struct UpdateCompletionNoticeTests {
         #expect(notice.releaseURL.absoluteString == "https://github.com/dick86114/storing/releases/tag/macos-v0.4.0")
     }
 
+    @Test func 只有版本标题时不能冒充更新日志() {
+        let suiteName = "storing.update-title-only.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let release = AppRelease(
+            version: "0.4.0",
+            tagName: "macos-v0.4.0",
+            releaseNotes: "乾坤戒 macOS v0.4.0",
+            publishedAt: nil,
+            assetName: "Qiankunjie-0.4.0-arm64.dmg",
+            downloadURL: URL(string: "https://example.com/Qiankunjie-0.4.0.dmg")!,
+            checksumURL: nil,
+            sha256: nil
+        )
+
+        UpdateCompletionNotice.record(release: release, previousVersion: "0.3.9", defaults: defaults)
+
+        #expect(UpdateCompletionNotice.consume(defaults: defaults)?.notes == "")
+    }
+
     @Test func 更新日志保留标题与列表层级() {
         let lines = UpdateReleaseNotesFormatter.lines(from: """
         ## 新增
@@ -88,6 +108,10 @@ struct UpdateCompletionNoticeTests {
             contentsOf: repositoryRoot.appendingPathComponent("QiankunjieMac/Features/Updating/UpdateCompletionNoticeView.swift"),
             encoding: .utf8
         )
+        let updateSettingsView = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("QiankunjieMac/Features/Settings/UpdateSettingsView.swift"),
+            encoding: .utf8
+        )
 
         #expect(appModel.contains("presentPendingUpdateCompletionNoticeIfNeeded"))
         #expect(appModel.contains("presentCurrentVersionDetails"))
@@ -100,5 +124,9 @@ struct UpdateCompletionNoticeTests {
         #expect(noticeView.contains("GlassSurface"))
         #expect(noticeView.contains("QiankunjieColors"))
         #expect(noticeView.contains("@Environment(\\.colorScheme)"))
+        #expect(noticeView.contains("UpdateLogCache().save(normalized, for: version)"))
+        #expect(noticeView.contains("notice.replacingNotes(resolvedNotes)"))
+        #expect(updateSettingsView.contains("isFetchingPendingUpdateLog"))
+        #expect(updateSettingsView.contains("正在读取新版本更新日志"))
     }
 }
