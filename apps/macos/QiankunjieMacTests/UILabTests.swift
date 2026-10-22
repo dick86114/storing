@@ -6,7 +6,8 @@ import Testing
 struct UILabTests {
     @Test func uiLabCoversEveryCoreScenario() {
         #expect(UILabScenario.allCases == [
-            .login, .library, .empty, .loading, .offline, .reader, .collect, .tasks, .settings, .update, .updateNotice
+            .login, .library, .empty, .loading, .offline, .reader, .collect, .tasks, .settings, .update, .updateNotice,
+            .currentVersion,
         ])
         #expect(UILabFixtures.article.id == 1001)
         #expect(UILabFixtures.user.id == 9001)
