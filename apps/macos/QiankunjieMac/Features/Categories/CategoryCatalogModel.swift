@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 import QiankunjieCore
 
@@ -6,6 +7,7 @@ import QiankunjieCore
 final class CategoryCatalogModel: Observable {
     private let service: any CategoryCatalogServicing
     private let recentStore: any CategoryRecentStoring
+    private let refreshTTL: TimeInterval
 
     private(set) var categories: [ArticleCategory] = []
     private(set) var counts: [Int: Int] = [:]
@@ -23,6 +25,9 @@ final class CategoryCatalogModel: Observable {
     @ObservationIgnored private var activeMutationCount = 0
     @ObservationIgnored private var refreshFlight: 目录刷新任务?
     @ObservationIgnored private var refreshFlightID = 0
+    @ObservationIgnored private var lastSuccessfulRefreshAt: Date?
+    @ObservationIgnored private var needsRefresh = true
+    @ObservationIgnored private let now: @MainActor () -> Date
 
     var activeCategories: [ArticleCategory] {
         categories.filter(\.isActive)
@@ -35,9 +40,16 @@ final class CategoryCatalogModel: Observable {
         return recentCategoryIDs.compactMap { activeCategoriesByID[$0] }
     }
 
-    init(service: any CategoryCatalogServicing, recentStore: any CategoryRecentStoring) {
+    init(
+        service: any CategoryCatalogServicing,
+        recentStore: any CategoryRecentStoring,
+        refreshTTL: TimeInterval = 60,
+        now: @escaping @MainActor () -> Date = { Date() }
+    ) {
         self.service = service
         self.recentStore = recentStore
+        self.refreshTTL = refreshTTL
+        self.now = now
     }
 
     func prepareUser(userID: Int?) {
@@ -58,6 +70,8 @@ final class CategoryCatalogModel: Observable {
         )
         isLoading = false
         hasLoadedCatalog = false
+        lastSuccessfulRefreshAt = nil
+        needsRefresh = true
         isMutating = false
         errorMessage = nil
         publishCatalogChangesIfNeeded(
@@ -75,12 +89,26 @@ final class CategoryCatalogModel: Observable {
         await loadCatalog(force: false)
     }
 
+    /// 缓存只有成功刷新后在 TTL 内、且没有待同步变更时才算新鲜。
+    private var shouldRefreshCatalog: Bool {
+        guard hasLoadedCatalog, !needsRefresh, let lastSuccessfulRefreshAt else {
+            return true
+        }
+        return now().timeIntervalSince(lastSuccessfulRefreshAt) >= refreshTTL
+    }
+
     private func loadCatalog(force: Bool) async {
         guard userID != nil else { return }
-        if !force, hasLoadedCatalog { return }
+        if !force, !shouldRefreshCatalog { return }
 
         if let refreshFlight {
             await refreshFlight.task.value
+            if
+                refreshFlight.requestGeneration != requestGeneration
+                    || refreshFlight.revision != catalogRevision
+            {
+                await loadCatalog(force: force)
+            }
             return
         }
 
@@ -98,6 +126,9 @@ final class CategoryCatalogModel: Observable {
             defer {
                 if generation == requestGeneration, sequence == loadSequence {
                     isLoading = false
+                }
+                if refreshFlight?.id == flightID {
+                    refreshFlight = nil
                 }
             }
 
@@ -122,15 +153,18 @@ final class CategoryCatalogModel: Observable {
                     return
                 }
                 errorMessage = managementErrorMessage(for: error)
+                lastSuccessfulRefreshAt = nil
+                needsRefresh = true
             }
         }
 
-        refreshFlight = 目录刷新任务(id: flightID, task: task)
+        refreshFlight = 目录刷新任务(
+            id: flightID,
+            requestGeneration: generation,
+            revision: revision,
+            task: task
+        )
         await task.value
-
-        if refreshFlight?.id == flightID {
-            refreshFlight = nil
-        }
     }
 
     private func refreshCatalogDirect() async throws {
@@ -149,6 +183,8 @@ final class CategoryCatalogModel: Observable {
         categories = sortedCategories(response.categories)
         counts = normalizedCounts(response.counts)
         hasLoadedCatalog = true
+        lastSuccessfulRefreshAt = now()
+        needsRefresh = false
         pruneRecentCategories()
         publishCatalogChangesIfNeeded(
             previousCategories: previousCategories,
@@ -380,6 +416,7 @@ final class CategoryCatalogModel: Observable {
     private func beginMutation() throws -> Int {
         guard userID != nil else { throw CategoryCatalogInternalError.未登录 }
         catalogRevision += 1
+        needsRefresh = true
         activeMutationCount += 1
         isMutating = true
         errorMessage = nil
@@ -558,5 +595,7 @@ private enum CategoryCatalogInternalError: Error {
 
 private struct 目录刷新任务 {
     let id: Int
+    let requestGeneration: Int
+    let revision: Int
     let task: Task<Void, Never>
 }

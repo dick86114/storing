@@ -98,6 +98,33 @@ struct CategoryNavigationTests {
         #expect(model.libraryModel.appliedSearchText.isEmpty)
     }
 
+    @Test func 分类中清除未提交搜索草稿会保留当前分类() async {
+        let 分类目录 = 创建分类目录(列表响应: [
+            CategoriesResponse(
+                categories: [分类(id: 21, sortOrder: 10)],
+                counts: ["21": 4]
+            ),
+        ])
+        分类目录.prepareUser(userID: 9)
+        await 分类目录.load()
+
+        let model = 创建应用模型(
+            用户ID: 9,
+            目的地: .archive,
+            资料库仓库: 导航资料库仓库(),
+            分类目录: 分类目录
+        )
+        model.selectCategory(21)
+        model.libraryModel.searchDraft = "尚未提交的产品设计"
+
+        model.clearLibrarySearch()
+
+        #expect(model.selectedCategoryID == 21)
+        #expect(model.libraryModel.categoryId == 21)
+        #expect(model.libraryModel.searchDraft.isEmpty)
+        #expect(model.libraryModel.appliedSearchText.isEmpty)
+    }
+
     @Test func 多个资料库变更信号会去抖为一次分类目录刷新() async {
         let service = 导航分类服务(
             列表响应: [

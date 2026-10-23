@@ -262,6 +262,195 @@ struct CategoryCatalogModelTests {
         #expect(model.errorMessage == nil)
     }
 
+    @Test func 强制刷新遇到旧revision飞行请求会在完成后补发新请求() async throws {
+        let service = 旧读取与创建交错服务桩(
+            初始目录: CategoriesResponse(
+                categories: [分类(id: 1, sortOrder: 10)],
+                counts: ["1": 2]
+            ),
+            旧目录结果: .success(CategoriesResponse(
+                categories: [分类(id: 1, sortOrder: 10)],
+                counts: ["1": 2]
+            )),
+            新分类: 分类(id: 2, name: "设计", sortOrder: 20),
+            后续目录: CategoriesResponse(
+                categories: [
+                    分类(id: 1, sortOrder: 10),
+                    分类(id: 2, name: "设计", sortOrder: 20),
+                    分类(id: 3, name: "研究", sortOrder: 30),
+                ],
+                counts: ["1": 2, "2": 0, "3": 1]
+            )
+        )
+        let model = CategoryCatalogModel(service: service, recentStore: 最近分类存储桩())
+
+        model.prepareUser(userID: 5)
+        await model.load()
+        let 旧读取 = Task { @MainActor in
+            await model.load()
+        }
+        await service.等待第二次列表请求开始()
+
+        var draft = CategoryDraft()
+        draft.name = "设计"
+        _ = try await model.create(draft)
+        let 强制刷新 = Task { @MainActor in
+            await model.load()
+        }
+        await Task.yield()
+
+        #expect(await service.列表请求次数() == 2)
+
+        await service.放行旧目录响应()
+        await 旧读取.value
+        await 强制刷新.value
+
+        #expect(await service.列表请求次数() == 3)
+        #expect(model.categories.map(\.id) == [1, 2, 3])
+        #expect(model.counts == [1: 2, 2: 0, 3: 1])
+    }
+
+    @Test func 并发正常刷新只会发起一次请求() async {
+        let service = 并发目录服务桩(
+            响应: CategoriesResponse(
+                categories: [分类(id: 1, sortOrder: 10)],
+                counts: ["1": 3]
+            )
+        )
+        var now = Date(timeIntervalSince1970: 1_000)
+        let model = CategoryCatalogModel(
+            service: service,
+            recentStore: 最近分类存储桩(),
+            refreshTTL: 60,
+            now: { now }
+        )
+        model.prepareUser(userID: 7)
+
+        let 首次加载 = Task { @MainActor in
+            await model.load()
+        }
+        await service.等待列表请求次数(1)
+        await service.放行列表响应()
+        await 首次加载.value
+        now = now.addingTimeInterval(61)
+
+        let 第一次刷新 = Task { @MainActor in
+            await model.refreshIfNeeded()
+        }
+        await service.等待列表请求次数(2)
+        let 第二次刷新 = Task { @MainActor in
+            await model.refreshIfNeeded()
+        }
+        await Task.yield()
+
+        #expect(await service.列表请求次数() == 2)
+
+        await service.放行列表响应()
+        await 第一次刷新.value
+        await 第二次刷新.value
+
+        #expect(await service.列表请求次数() == 2)
+    }
+
+    @Test func 新鲜缓存不请求而TTL过期会静默刷新() async {
+        let service = 分类服务桩(列表响应: [
+            .success(CategoriesResponse(
+                categories: [分类(id: 1, sortOrder: 10)],
+                counts: ["1": 3]
+            )),
+            .success(CategoriesResponse(
+                categories: [分类(id: 1, sortOrder: 10)],
+                counts: ["1": 5]
+            )),
+        ])
+        var now = Date(timeIntervalSince1970: 1_000)
+        let model = CategoryCatalogModel(
+            service: service,
+            recentStore: 最近分类存储桩(),
+            refreshTTL: 60,
+            now: { now }
+        )
+        model.prepareUser(userID: 7)
+        await model.load()
+
+        now = now.addingTimeInterval(30)
+        await model.refreshIfNeeded()
+        #expect(await service.列表请求次数() == 1)
+        #expect(model.count(for: 1) == 3)
+
+        now = now.addingTimeInterval(31)
+        await model.refreshIfNeeded()
+        #expect(await service.列表请求次数() == 2)
+        #expect(model.count(for: 1) == 5)
+    }
+
+    @Test func 分类变更会标记目录需要刷新() async throws {
+        let service = 分类服务桩(
+            列表响应: [
+                .success(CategoriesResponse(
+                    categories: [分类(id: 1, sortOrder: 10)],
+                    counts: ["1": 3]
+                )),
+                .success(CategoriesResponse(
+                    categories: [
+                        分类(id: 1, sortOrder: 10),
+                        分类(id: 2, name: "设计", sortOrder: 20),
+                    ],
+                    counts: ["1": 3, "2": 4]
+                )),
+            ],
+            创建响应: [
+                .success(CategoryResponse(category: 分类(id: 2, name: "设计", sortOrder: 20))),
+            ]
+        )
+        let model = CategoryCatalogModel(
+            service: service,
+            recentStore: 最近分类存储桩(),
+            refreshTTL: 60,
+            now: { Date(timeIntervalSince1970: 1_000) }
+        )
+        model.prepareUser(userID: 7)
+        await model.load()
+        var draft = CategoryDraft()
+        draft.name = "设计"
+        _ = try await model.create(draft)
+
+        await model.refreshIfNeeded()
+
+        #expect(await service.列表请求次数() == 2)
+        #expect(model.count(for: 2) == 4)
+    }
+
+    @Test func 刷新失败后下一次刷新如果需要会立即重试() async {
+        let service = 分类服务桩(列表响应: [
+            .success(CategoriesResponse(
+                categories: [分类(id: 1, sortOrder: 10)],
+                counts: ["1": 3]
+            )),
+            .failure(.缺少响应),
+            .success(CategoriesResponse(
+                categories: [分类(id: 1, sortOrder: 10)],
+                counts: ["1": 7]
+            )),
+        ])
+        let model = CategoryCatalogModel(
+            service: service,
+            recentStore: 最近分类存储桩(),
+            refreshTTL: 60,
+            now: { Date(timeIntervalSince1970: 1_000) }
+        )
+        model.prepareUser(userID: 7)
+        await model.load()
+        await model.load()
+        #expect(model.errorMessage != nil)
+
+        await model.refreshIfNeeded()
+
+        #expect(await service.列表请求次数() == 3)
+        #expect(model.errorMessage == nil)
+        #expect(model.count(for: 1) == 7)
+    }
+
     @Test func 服务端同名冲突保留草稿并显示原始消息() async {
         let 服务端冲突消息 = "已存在同名启用分类，请换一个名称"
         let service = 分类服务桩(
@@ -472,8 +661,6 @@ private actor 分类服务桩: CategoryCatalogServicing {
 private actor 并发目录服务桩: CategoryCatalogServicing {
     private let 响应: CategoriesResponse
     private var 列表请求计数 = 0
-    private var 列表请求已开始 = false
-    private var 等待请求开始: CheckedContinuation<Void, Never>?
     private var 等待响应放行: CheckedContinuation<Void, Never>?
 
     init(响应: CategoriesResponse) {
@@ -482,9 +669,6 @@ private actor 并发目录服务桩: CategoryCatalogServicing {
 
     func list(includeInactive: Bool) async throws -> CategoriesResponse {
         列表请求计数 += 1
-        列表请求已开始 = true
-        等待请求开始?.resume()
-        等待请求开始 = nil
         await withCheckedContinuation { continuation in
             等待响应放行 = continuation
         }
@@ -492,9 +676,12 @@ private actor 并发目录服务桩: CategoryCatalogServicing {
     }
 
     func 等待列表请求开始() async {
-        if 列表请求已开始 { return }
-        await withCheckedContinuation { continuation in
-            等待请求开始 = continuation
+        await 等待列表请求次数(1)
+    }
+
+    func 等待列表请求次数(_ count: Int) async {
+        while 列表请求计数 < count {
+            await Task.yield()
         }
     }
 
@@ -598,36 +785,44 @@ private actor 旧读取与创建交错服务桩: CategoryCatalogServicing {
     private let 初始目录: CategoriesResponse
     private let 旧目录结果: Result<CategoriesResponse, 分类服务测试错误>
     private let 新分类: ArticleCategory
-    private var 列表请求次数 = 0
+    private let 后续目录: CategoriesResponse?
+    private var 列表请求计数 = 0
     private var 第二次请求已开始: CheckedContinuation<Void, Never>?
     private var 旧目录响应放行: CheckedContinuation<Void, Never>?
 
     init(
         初始目录: CategoriesResponse,
         旧目录结果: Result<CategoriesResponse, 分类服务测试错误>,
-        新分类: ArticleCategory
+        新分类: ArticleCategory,
+        后续目录: CategoriesResponse? = nil
     ) {
         self.初始目录 = 初始目录
         self.旧目录结果 = 旧目录结果
         self.新分类 = 新分类
+        self.后续目录 = 后续目录
     }
 
     func list(includeInactive: Bool) async throws -> CategoriesResponse {
-        列表请求次数 += 1
-        if 列表请求次数 == 1 {
+        列表请求计数 += 1
+        if 列表请求计数 == 1 {
             return 初始目录
         }
 
-        第二次请求已开始?.resume()
-        第二次请求已开始 = nil
-        await withCheckedContinuation { continuation in
-            旧目录响应放行 = continuation
+        if 列表请求计数 == 2 {
+            第二次请求已开始?.resume()
+            第二次请求已开始 = nil
+            await withCheckedContinuation { continuation in
+                旧目录响应放行 = continuation
+            }
+            return try 旧目录结果.get()
         }
-        return try 旧目录结果.get()
+
+        guard let 后续目录 else { throw 分类服务测试错误.缺少响应 }
+        return 后续目录
     }
 
     func 等待第二次列表请求开始() async {
-        if 列表请求次数 >= 2 { return }
+        if 列表请求计数 >= 2 { return }
         await withCheckedContinuation { continuation in
             第二次请求已开始 = continuation
         }
@@ -636,6 +831,10 @@ private actor 旧读取与创建交错服务桩: CategoryCatalogServicing {
     func 放行旧目录响应() {
         旧目录响应放行?.resume()
         旧目录响应放行 = nil
+    }
+
+    func 列表请求次数() -> Int {
+        列表请求计数
     }
 
     func create(_ request: CategoryMutationRequest) async throws -> CategoryResponse {

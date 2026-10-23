@@ -496,10 +496,12 @@ public final class ReaderModel {
 
     @discardableResult
     public func classifyArticle() async -> Bool {
-        await performAction { articleID, _ in
+        await performAction { articleID, actionGeneration in
             _ = try await self.client.classifyArticle(articleID: articleID)
             await self.reloadCurrentArticle()
+            guard self.isCurrentAction(actionGeneration) else { return }
             self.startAIPolling()
+            self.onCategoryAffectingChange?()
         }
     }
 
