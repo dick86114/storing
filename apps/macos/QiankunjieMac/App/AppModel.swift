@@ -183,6 +183,7 @@ final class AppModel {
     var isLoginPresented = false
     var isSearchPresented = false
     private(set) var updateCheckRequestID = 0
+    @ObservationIgnored private var isCreatingCategory = false
 
     init(
         authModel: AuthModel = AuthModel(repository: AuthRepository()),
@@ -389,6 +390,11 @@ final class AppModel {
     }
 
     func selectCategory(_ categoryID: Int?) {
+        if let categoryID,
+           !categoryCatalog.activeCategories.contains(where: { $0.id == categoryID }) {
+            return
+        }
+
         destination = .archive
         selectedCategoryID = categoryID
         hasExplicitDestinationSelection = true
@@ -397,6 +403,39 @@ final class AppModel {
         libraryModel.selectCategory(categoryID)
         Task {
             await libraryModel.load(reset: true)
+        }
+    }
+
+    func createCategoryAndSelect(_ draft: CategoryDraft) async -> ArticleCategory? {
+        guard categoryCatalog.hasLoadedCatalog else {
+            categoryCatalog.presentError("分类目录尚未加载完成，请稍后重试")
+            return nil
+        }
+        guard !categoryCatalog.isLoading else {
+            categoryCatalog.presentError("分类目录正在加载，请稍后重试")
+            return nil
+        }
+        guard !categoryCatalog.isMutating, !isCreatingCategory else {
+            categoryCatalog.presentError("分类目录正在处理其他操作，请稍后再试")
+            return nil
+        }
+
+        isCreatingCategory = true
+        defer { isCreatingCategory = false }
+
+        do {
+            let category = try await categoryCatalog.create(draft)
+            selectCategory(category.id)
+            guard selectedCategoryID == category.id else {
+                categoryCatalog.presentError("分类已创建，但无法进入新分类，请稍后重试")
+                return nil
+            }
+            return category
+        } catch {
+            if categoryCatalog.errorMessage == nil {
+                categoryCatalog.presentError(managementErrorMessage(for: error))
+            }
+            return nil
         }
     }
 

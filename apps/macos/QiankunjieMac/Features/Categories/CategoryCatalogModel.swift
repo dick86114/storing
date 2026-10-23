@@ -114,6 +114,31 @@ final class CategoryCatalogModel: Observable {
     }
 
     func create(_ draft: CategoryDraft) async throws -> ArticleCategory {
+        guard hasLoadedCatalog else {
+            errorMessage = "分类目录尚未加载完成，请稍后重试"
+            throw CategoryCatalogInternalError.目录未加载
+        }
+        guard !isMutating else {
+            errorMessage = "分类目录正在处理其他操作，请稍后再试"
+            throw CategoryCatalogInternalError.操作进行中
+        }
+
+        let name = trimmed(draft.name)
+        guard !name.isEmpty else {
+            errorMessage = "请输入分类名称"
+            throw CategoryCatalogInternalError.名称为空
+        }
+        guard name.count <= 40 else {
+            errorMessage = "分类名称不能超过 40 个字符"
+            throw CategoryCatalogInternalError.名称过长
+        }
+        guard !activeCategories.contains(where: {
+            $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame
+        }) else {
+            errorMessage = "已存在同名启用分类，请换一个名称"
+            throw CategoryCatalogInternalError.同名分类
+        }
+
         let generation = try beginMutation()
         defer { endMutation(generation) }
 
@@ -285,6 +310,14 @@ final class CategoryCatalogModel: Observable {
         counts[categoryID] ?? 0
     }
 
+    func presentError(_ message: String) {
+        errorMessage = message
+    }
+
+    func clearError() {
+        errorMessage = nil
+    }
+
     private func beginMutation() throws -> Int {
         guard userID != nil else { throw CategoryCatalogInternalError.未登录 }
         catalogRevision += 1
@@ -423,4 +456,9 @@ final class CategoryCatalogModel: Observable {
 private enum CategoryCatalogInternalError: Error {
     case 未登录
     case 请求已过期
+    case 目录未加载
+    case 操作进行中
+    case 名称为空
+    case 名称过长
+    case 同名分类
 }
