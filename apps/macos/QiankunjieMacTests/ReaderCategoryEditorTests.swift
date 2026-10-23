@@ -24,21 +24,40 @@ struct ReaderCategoryEditorTests {
             ReaderCategoryOutcomeMapper.outcome(
                 succeeded: true,
                 error: nil,
-                message: nil
+                message: nil,
+                operation: .move
             ) == .success(succeededCount: 1, skippedCount: 0)
         )
         #expect(
             ReaderCategoryOutcomeMapper.outcome(
                 succeeded: false,
                 error: .contentUnavailable,
-                message: "请求的文章不可用"
+                message: "请求的文章不可用",
+                operation: .move
             ) == .categoryUnavailable(message: "请求的文章不可用")
         )
         #expect(
             ReaderCategoryOutcomeMapper.outcome(
                 succeeded: false,
+                error: .contentUnavailable,
+                message: "请求的文章不可用",
+                operation: .archive
+            ) == .contentUnavailable(message: "请求的文章不可用")
+        )
+        #expect(
+            ReaderCategoryOutcomeMapper.outcome(
+                succeeded: false,
+                error: .contentUnavailable,
+                message: "请求的文章不可用",
+                operation: .classify
+            ) == .contentUnavailable(message: "请求的文章不可用")
+        )
+        #expect(
+            ReaderCategoryOutcomeMapper.outcome(
+                succeeded: false,
                 error: .network,
-                message: "网络连接失败，请稍后重试"
+                message: "网络连接失败，请稍后重试",
+                operation: .move
             ) == .failure(message: "网络连接失败，请稍后重试")
         )
     }
@@ -82,6 +101,21 @@ struct ReaderCategoryEditorTests {
         #expect(!readerModel.contains("func categories()"))
         #expect(!uiLabFixtures.contains("func categories()"))
         #expect(!uiLabFixtures.contains("func createCategory(name:"))
+    }
+
+    @Test func 归档上下文不会将收件箱保留分类视为当前分类() {
+        let 收件箱保留分类 = 31
+
+        #expect(
+            ReaderCategorySheetMode.archive.selectedCategoryID(
+                currentCategoryID: 收件箱保留分类
+            ) == nil
+        )
+        #expect(
+            ReaderCategorySheetMode.move.selectedCategoryID(
+                currentCategoryID: 收件箱保留分类
+            ) == 收件箱保留分类
+        )
     }
 
     private func 仓库根目录() -> URL {

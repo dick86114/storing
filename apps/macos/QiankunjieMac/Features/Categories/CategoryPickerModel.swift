@@ -103,7 +103,7 @@ final class CategoryPickerModel: Observable {
         defer { isSubmitting = false }
 
         guard catalog.activeCategories.contains(where: { $0.id == category.id }) else {
-            await 处理失效分类()
+            await 处理失效分类("")
             return false
         }
 
@@ -157,9 +157,11 @@ final class CategoryPickerModel: Observable {
                 ? "分类已创建，但部分文章未完成分类"
                 : "分类已创建，但部分文章未完成分类：\(message)"
             return false
-        case .categoryUnavailable:
-            errorMessage = "分类已创建，但分类已失效"
-            await catalog.load()
+        case let .categoryUnavailable(message):
+            await 处理失效分类(message)
+            return false
+        case let .contentUnavailable(message):
+            处理内容不可用(message)
             return false
         case let .failure(message):
             errorMessage = message.isEmpty
@@ -189,8 +191,11 @@ final class CategoryPickerModel: Observable {
                 ? "AI 分类未全部完成"
                 : "AI 分类未全部完成：\(message)"
             return false
-        case .categoryUnavailable:
-            await 处理失效分类()
+        case let .categoryUnavailable(message):
+            await 处理失效分类(message)
+            return false
+        case let .contentUnavailable(message):
+            处理内容不可用(message)
             return false
         case let .failure(message):
             errorMessage = message.isEmpty ? "AI 分类失败，请稍后重试" : message
@@ -224,8 +229,11 @@ final class CategoryPickerModel: Observable {
                 ? "部分文章未完成分类"
                 : "部分文章未完成分类：\(message)"
             return false
-        case .categoryUnavailable:
-            await 处理失效分类()
+        case let .categoryUnavailable(message):
+            await 处理失效分类(message)
+            return false
+        case let .contentUnavailable(message):
+            处理内容不可用(message)
             return false
         case let .failure(message):
             errorMessage = message.isEmpty ? "分类失败，请稍后重试" : message
@@ -233,9 +241,17 @@ final class CategoryPickerModel: Observable {
         }
     }
 
-    private func 处理失效分类() async {
-        errorMessage = "分类已失效"
+    private func 处理失效分类(_ message: String) async {
+        errorMessage = message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "分类已失效"
+            : message
         await catalog.load()
+    }
+
+    private func 处理内容不可用(_ message: String) {
+        errorMessage = message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "请求的文章不可用"
+            : message
     }
 
     private func 确保用户上下文有效() -> Bool {

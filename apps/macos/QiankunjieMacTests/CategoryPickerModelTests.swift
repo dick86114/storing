@@ -272,15 +272,92 @@ struct CategoryPickerModelTests {
         let 已删除分类 = catalog.activeCategories[0]
 
         let 成功 = await model.selectExisting(已删除分类) { _ in
-            .categoryUnavailable(message: "请求的文章不可用")
+            .categoryUnavailable(message: "分类已被删除")
+        }
+
+        #expect(!成功)
+        #expect(model.errorMessage == "分类已被删除")
+        #expect(await service.列表请求次数() == 2)
+        #expect(catalog.categories.map(\.id) == [2])
+        #expect(catalog.recentCategoryIDs == [2])
+        #expect(!model.isSubmitting)
+    }
+
+    @Test func 结构化内容失效结果保留文案且不刷新分类目录() async {
+        let service = 选择器分类服务桩(列表响应: [
+            目录响应(分类(id: 1, name: "产品设计", sortOrder: 10)),
+        ])
+        let catalog = CategoryCatalogModel(
+            service: service,
+            recentStore: 选择器最近分类存储桩()
+        )
+        catalog.prepareUser(userID: 7)
+        await catalog.load()
+        let model = CategoryPickerModel(
+            catalog: catalog,
+            selectedCategoryID: nil,
+            targetCount: 1
+        )
+
+        let 成功 = await model.selectExisting(catalog.activeCategories[0]) { _ in
+            .contentUnavailable(message: "请求的文章不可用")
+        }
+
+        #expect(!成功)
+        #expect(model.errorMessage == "请求的文章不可用")
+        #expect(await service.列表请求次数() == 1)
+        #expect(catalog.activeCategories.map(\.id) == [1])
+    }
+
+    @Test func 空分类失效文案回退为分类已失效() async {
+        let service = 选择器分类服务桩(列表响应: [
+            目录响应(分类(id: 1, name: "产品设计", sortOrder: 10)),
+            目录响应(分类(id: 1, name: "产品设计", sortOrder: 10)),
+        ])
+        let catalog = CategoryCatalogModel(
+            service: service,
+            recentStore: 选择器最近分类存储桩()
+        )
+        catalog.prepareUser(userID: 7)
+        await catalog.load()
+        let model = CategoryPickerModel(
+            catalog: catalog,
+            selectedCategoryID: nil,
+            targetCount: 1
+        )
+
+        let 成功 = await model.selectExisting(catalog.activeCategories[0]) { _ in
+            .categoryUnavailable(message: "   ")
         }
 
         #expect(!成功)
         #expect(model.errorMessage == "分类已失效")
         #expect(await service.列表请求次数() == 2)
-        #expect(catalog.categories.map(\.id) == [2])
-        #expect(catalog.recentCategoryIDs == [2])
-        #expect(!model.isSubmitting)
+    }
+
+    @Test func 空内容失效文案回退为请求的文章不可用() async {
+        let service = 选择器分类服务桩(列表响应: [
+            目录响应(分类(id: 1, name: "产品设计", sortOrder: 10)),
+        ])
+        let catalog = CategoryCatalogModel(
+            service: service,
+            recentStore: 选择器最近分类存储桩()
+        )
+        catalog.prepareUser(userID: 7)
+        await catalog.load()
+        let model = CategoryPickerModel(
+            catalog: catalog,
+            selectedCategoryID: nil,
+            targetCount: 1
+        )
+
+        let 成功 = await model.selectExisting(catalog.activeCategories[0]) { _ in
+            .contentUnavailable(message: "   ")
+        }
+
+        #expect(!成功)
+        #expect(model.errorMessage == "请求的文章不可用")
+        #expect(await service.列表请求次数() == 1)
     }
 
     @Test func 用户切换后标记失效并禁止继续创建或分配() async {
