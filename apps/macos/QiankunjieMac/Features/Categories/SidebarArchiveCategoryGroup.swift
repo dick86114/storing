@@ -2,12 +2,15 @@ import Foundation
 import QiankunjieCore
 import QiankunjieDesignSystem
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SidebarArchiveCategoryGroup: View {
     @Bindable var model: AppModel
     @Binding var isExpanded: Bool
     @Environment(\.colorScheme) private var colorScheme
     @State private var isQuickCreatePresented = false
+    @State private var draggedCategoryID: Int?
+    @State private var weakNoticeMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -17,6 +20,9 @@ struct SidebarArchiveCategoryGroup: View {
                 categoryContent
             }
         }
+        .selectionDisabled()
+        .listRowBackground(Color.clear)
+        .statusToast(message: $weakNoticeMessage)
         .sheet(isPresented: $isQuickCreatePresented) {
             CategoryQuickCreateView(
                 catalog: model.categoryCatalog,
@@ -25,6 +31,7 @@ struct SidebarArchiveCategoryGroup: View {
                     isQuickCreatePresented = false
                 },
                 onCreated: { category in
+                    weakNoticeMessage = "分类「\(category.name)」已创建"
                     model.selectCategory(category.id)
                     if model.selectedCategoryID == category.id {
                         isQuickCreatePresented = false
@@ -39,56 +46,45 @@ struct SidebarArchiveCategoryGroup: View {
     }
 
     private var archiveRow: some View {
-        HStack(spacing: 4) {
-            if model.isAuthenticated {
-                Button {
-                    withAnimation(.easeOut(duration: 0.16)) {
-                        isExpanded.toggle()
-                    }
-                } label: {
+        Button(action: toggleArchiveRow) {
+            HStack(spacing: 8) {
+                Image(systemName: AppDestination.archive.selectedSystemImage(
+                    isSelected: isArchiveSelected
+                ))
+                    .frame(width: 18)
+
+                Text(AppDestination.archive.title)
+                    .lineLimit(1)
+
+                if model.isAuthenticated {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                        .frame(width: 18, height: 24)
+                        .frame(width: 14, height: 18)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .help(isExpanded ? "收起归档分类" : "展开归档分类")
-                .accessibilityLabel(isExpanded ? "收起归档分类" : "展开归档分类")
-            } else {
-                Color.clear
-                    .frame(width: 18, height: 24)
-            }
 
-            Button {
-                model.selectDestination(.archive)
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: AppDestination.archive.selectedSystemImage(
-                        isSelected: isArchiveSelected
-                    ))
-                        .frame(width: 18)
+                Spacer(minLength: 0)
 
-                    Text(AppDestination.archive.title)
-                        .lineLimit(1)
-
-                    Spacer(minLength: 0)
-
-                    if let count = model.libraryModel.count(for: .archive) {
-                        Text("\(count)")
-                            .font(.caption)
-                            .monospacedDigit()
-                            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                    }
+                if let count = model.libraryModel.count(for: .archive) {
+                    Text("\(count)")
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
-            .accessibilityLabel("打开全部归档")
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+        .help(model.isAuthenticated ? (isExpanded ? "收起归档分类" : "展开归档分类") : "打开全部归档")
+        .accessibilityLabel(
+            model.isAuthenticated
+                ? (isExpanded ? "收起归档分类" : "展开归档分类")
+                : "打开全部归档"
+        )
         .padding(.vertical, 2)
         .background {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -126,13 +122,29 @@ struct SidebarArchiveCategoryGroup: View {
             ForEach(model.categoryCatalog.activeCategories, id: \.id) { category in
                 categoryRow(category)
             }
+            .animation(.snappy(duration: 0.22), value: activeCategoryIDs)
         }
 
         quickCreateRow
         managementRow
     }
 
+    @ViewBuilder
     private func categoryRow(_ category: ArticleCategory) -> some View {
+        if category.isSystem {
+            categoryRowContent(category)
+                .onDrop(of: [UTType.text], delegate: categoryDropDelegate(for: category))
+        } else {
+            categoryRowContent(category)
+                .onDrag {
+                    draggedCategoryID = category.id
+                    return NSItemProvider(object: String(category.id) as NSString)
+                }
+                .onDrop(of: [UTType.text], delegate: categoryDropDelegate(for: category))
+        }
+    }
+
+    private func categoryRowContent(_ category: ArticleCategory) -> some View {
         let isSelected = model.destination == .archive
             && model.selectedCategoryID == category.id
 
@@ -170,6 +182,31 @@ struct SidebarArchiveCategoryGroup: View {
         .buttonStyle(.plain)
         .help("查看分类：\(category.name)")
         .accessibilityLabel("\(category.name)，\(model.categoryCatalog.count(for: category.id)) 篇文章")
+    }
+
+    private func categoryDropDelegate(for category: ArticleCategory) -> SidebarCategoryReorderDropDelegate {
+        SidebarCategoryReorderDropDelegate(
+            targetCategoryID: category.id,
+            targetIsSystem: category.isSystem,
+            draggedCategoryID: $draggedCategoryID
+        ) { movingCategoryID, targetCategoryID in
+            Task {
+                try? await model.categoryCatalog.reorder(
+                    moving: movingCategoryID,
+                    to: targetCategoryID
+                )
+            }
+        }
+    }
+
+    private func toggleArchiveRow() {
+        if !isArchiveSelected {
+            model.selectCategory(nil)
+        }
+        guard model.isAuthenticated else { return }
+        withAnimation(.easeOut(duration: 0.16)) {
+            isExpanded.toggle()
+        }
     }
 
     private var managementRow: some View {
@@ -266,12 +303,47 @@ struct SidebarArchiveCategoryGroup: View {
         model.destination == .archive && model.selectedCategoryID == nil
     }
 
+    private var activeCategoryIDs: [Int] {
+        model.categoryCatalog.activeCategories.map(\.id)
+    }
+
     private var selectionFill: Color {
         QiankunjieColors.accent(for: colorScheme).opacity(0.12)
     }
 
     private var categoryFallbackColor: Color {
         QiankunjieColors.accent(for: colorScheme)
+    }
+}
+
+private struct SidebarCategoryReorderDropDelegate: DropDelegate {
+    let targetCategoryID: Int
+    let targetIsSystem: Bool
+    @Binding var draggedCategoryID: Int?
+    let onMove: (Int, Int) -> Void
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        guard
+            let draggedCategoryID,
+            draggedCategoryID != targetCategoryID,
+            !targetIsSystem
+        else {
+            return DropProposal(operation: .forbidden)
+        }
+        return DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        defer { draggedCategoryID = nil }
+        guard
+            let draggedCategoryID,
+            draggedCategoryID != targetCategoryID,
+            !targetIsSystem
+        else {
+            return false
+        }
+        onMove(draggedCategoryID, targetCategoryID)
+        return true
     }
 }
 

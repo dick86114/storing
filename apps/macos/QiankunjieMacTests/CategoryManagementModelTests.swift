@@ -67,6 +67,84 @@ struct CategoryManagementModelTests {
         #expect(await service.最近排序请求() == [2, 1, 3])
     }
 
+    @Test func 整卡拖拽提交完整顺序并保护系统分类位置() async {
+        let service = 分类管理服务桩(
+            列表响应: [
+                .success(CategoriesResponse(
+                    categories: [
+                        分类(id: 1, name: "第一类", sortOrder: 10),
+                        分类(id: 2, name: "第二类", sortOrder: 20),
+                        分类(id: 3, name: "待整理", sortOrder: 30, isSystem: true),
+                    ],
+                    counts: [:]
+                )),
+            ],
+            排序响应: [
+                .success(CategoryReorderResponse(categories: [
+                    分类(id: 2, name: "第二类", sortOrder: 10),
+                    分类(id: 1, name: "第一类", sortOrder: 20),
+                    分类(id: 3, name: "待整理", sortOrder: 30, isSystem: true),
+                ])),
+            ]
+        )
+        let catalog = CategoryCatalogModel(
+            service: service,
+            recentStore: 最近分类存储桩()
+        )
+        catalog.prepareUser(userID: 7)
+        await catalog.load()
+        let model = CategoryManagementModel(catalog: catalog)
+
+        let succeeded = await model.reorder(categoryIDs: [2, 1, 3])
+
+        #expect(succeeded)
+        #expect(catalog.categories.map(\.id) == [2, 1, 3])
+        #expect(await service.最近排序请求() == [2, 1, 3])
+        #expect(model.noticeMessage == "分类顺序已更新")
+    }
+
+    @Test func 整卡拖拽拒绝移动系统分类() async {
+        let service = 分类管理服务桩(
+            列表响应: [
+                .success(CategoriesResponse(
+                    categories: [
+                        分类(id: 1, name: "第一类", sortOrder: 10),
+                        分类(id: 2, name: "第二类", sortOrder: 20),
+                        分类(id: 3, name: "待整理", sortOrder: 30, isSystem: true),
+                    ],
+                    counts: [:]
+                )),
+            ]
+        )
+        let catalog = CategoryCatalogModel(
+            service: service,
+            recentStore: 最近分类存储桩()
+        )
+        catalog.prepareUser(userID: 7)
+        await catalog.load()
+        let model = CategoryManagementModel(catalog: catalog)
+
+        let succeeded = await model.reorder(categoryIDs: [3, 1, 2])
+
+        #expect(!succeeded)
+        #expect(model.errorMessage == "系统分类必须保持固定位置")
+        #expect(await service.最近排序请求() == nil)
+    }
+
+    @Test func 创建成功使用自动消失的弱提醒() {
+        let catalog = CategoryCatalogModel(
+            service: 分类管理服务桩(),
+            recentStore: 最近分类存储桩()
+        )
+        let model = CategoryManagementModel(catalog: catalog)
+        let category = 分类(id: 12, name: "新分类", sortOrder: 10)
+
+        model.didCreate(category)
+
+        #expect(model.noticeMessage == nil)
+        #expect(model.weakNoticeMessage == "分类「新分类」已创建")
+    }
+
     @Test func 删除分类会迁移文章并刷新目录() async {
         let service = 分类管理服务桩(
             列表响应: [

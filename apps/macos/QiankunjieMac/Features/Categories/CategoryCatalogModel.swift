@@ -297,6 +297,21 @@ final class CategoryCatalogModel: Observable {
         }
     }
 
+    func reorder(moving categoryID: Int, to targetCategoryID: Int) async throws {
+        let protectedIDs = Set(categories.filter(\.isSystem).map(\.id))
+        guard
+            let categoryIDs = CategoryOrdering.reorderedIDs(
+                categories.map(\.id),
+                moving: categoryID,
+                to: targetCategoryID,
+                protecting: protectedIDs
+            )
+        else {
+            return
+        }
+        try await reorder(categoryIDs: categoryIDs)
+    }
+
     func delete(categoryID: Int, targetCategoryID: Int) async throws -> Int {
         let generation = try beginMutation()
         defer { endMutation(generation) }
