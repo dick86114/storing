@@ -16,12 +16,11 @@ struct CategoryQuickCreateView: View {
     let onCreated: @MainActor (ArticleCategory) async -> Void
 
     private let submitAction: @MainActor (CategoryDraft) async -> ArticleCategory?
-    private let openedUserID: Int?
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var draft: CategoryDraft
     @State private var showsDetails = false
-    @State private var isSubmitting = false
+    @State private var submissionState: CategoryQuickCreateSubmissionState
     @State private var localErrorMessage: String?
     @State private var hasChosenColor = false
     @FocusState private var focusedField: 焦点字段?
@@ -38,7 +37,6 @@ struct CategoryQuickCreateView: View {
         self.primaryActionTitle = primaryActionTitle
         self.onCancel = onCancel
         self.onCreated = onCreated
-        self.openedUserID = catalog.userID
         self.submitAction = { draft in
             do {
                 return try await catalog.create(draft)
@@ -54,6 +52,9 @@ struct CategoryQuickCreateView: View {
             existingColors: catalog.activeCategories.compactMap(\.color)
         )
         _draft = State(initialValue: initialDraft)
+        _submissionState = State(
+            initialValue: CategoryQuickCreateSubmissionState(openedUserID: catalog.userID)
+        )
     }
 
     init(
@@ -69,7 +70,6 @@ struct CategoryQuickCreateView: View {
         self.primaryActionTitle = primaryActionTitle
         self.onCancel = onCancel
         self.onCreated = onCreated
-        self.openedUserID = catalog.userID
         self.submitAction = onSubmit
 
         var initialDraft = CategoryDraft()
@@ -79,6 +79,9 @@ struct CategoryQuickCreateView: View {
             existingColors: catalog.activeCategories.compactMap(\.color)
         )
         _draft = State(initialValue: initialDraft)
+        _submissionState = State(
+            initialValue: CategoryQuickCreateSubmissionState(openedUserID: catalog.userID)
+        )
     }
 
     var body: some View {
@@ -126,13 +129,11 @@ struct CategoryQuickCreateView: View {
             )
         }
         .onChange(of: catalog.userID) {
-            guard isStaleForCurrentUser else { return }
-            localErrorMessage = "登录用户已切换，请重新打开分类表单"
-            focusedField = nil
+            guard submissionState.userChanged(to: catalog.userID) else { return }
+            cancel()
         }
         .onKeyPress(.escape) {
-            guard !isBusy else { return .handled }
-            onCancel()
+            cancel()
             return .handled
         }
     }
@@ -380,10 +381,9 @@ struct CategoryQuickCreateView: View {
     private var actionBar: some View {
         HStack(spacing: 10) {
             Button("取消") {
-                onCancel()
+                cancel()
             }
             .keyboardShortcut(.cancelAction)
-            .disabled(isBusy)
             .accessibilityLabel("取消新建分类")
 
             Spacer(minLength: 0)
@@ -423,12 +423,12 @@ struct CategoryQuickCreateView: View {
         && !isStaleForCurrentUser
     }
 
-    private var isSubmittingOrMutating: Bool {
-        isSubmitting || catalog.isMutating
+    private var isSubmitting: Bool {
+        submissionState.isSubmitting
     }
 
     private var isBusy: Bool {
-        isSubmittingOrMutating || catalog.isLoading
+        isSubmitting || catalog.isMutating || catalog.isLoading
     }
 
     private var isInteractionDisabled: Bool {
@@ -440,13 +440,10 @@ struct CategoryQuickCreateView: View {
     }
 
     private var isStaleForCurrentUser: Bool {
-        catalog.userID != openedUserID
+        catalog.userID != submissionState.openedUserID
     }
 
     private var displayedErrorMessage: String? {
-        if isStaleForCurrentUser {
-            return localErrorMessage ?? "登录用户已切换，请重新打开分类表单"
-        }
         return catalog.errorMessage ?? localErrorMessage
     }
 
@@ -458,10 +455,17 @@ struct CategoryQuickCreateView: View {
         var submittedDraft = draft
         submittedDraft.name = normalizedName
         draft = submittedDraft
-        isSubmitting = true
+        guard let token = submissionState.beginSubmission(currentUserID: catalog.userID) else {
+            return
+        }
 
         let category = await submitAction(submittedDraft)
-        isSubmitting = false
+        guard submissionState.completeSubmission(
+            token: token,
+            currentUserID: catalog.userID
+        ) else {
+            return
+        }
         guard let category else {
             if catalog.errorMessage == nil {
                 localErrorMessage = "创建分类失败，请稍后重试"
@@ -471,6 +475,11 @@ struct CategoryQuickCreateView: View {
         }
 
         await onCreated(category)
+    }
+
+    private func cancel() {
+        submissionState.cancelSubmission()
+        onCancel()
     }
 
     private func optimizeDraft() async {
