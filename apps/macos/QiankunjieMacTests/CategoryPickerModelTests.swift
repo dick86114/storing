@@ -182,6 +182,76 @@ struct CategoryPickerModelTests {
         #expect(catalog.activeCategories.map(\.id) == [1])
     }
 
+    @Test func 可信缓存刷新挂起时仍可选择已有分类并使用AI() async {
+        let 已有分类 = 分类(id: 1, name: "产品设计", sortOrder: 10)
+        let service = 可信缓存刷新服务桩(
+            初始目录: 目录响应(已有分类),
+            刷新目录: 目录响应(已有分类),
+            新分类: 分类(id: 2, name: "新分类", sortOrder: 20)
+        )
+        let catalog = await 准备分类目录(service: service, userID: 7)
+        let model = CategoryPickerModel(
+            catalog: catalog,
+            selectedCategoryID: nil,
+            targetCount: 1
+        )
+        let 刷新任务 = Task { @MainActor in
+            await catalog.load()
+        }
+        await service.等待刷新请求开始()
+
+        #expect(!model.isInitialCatalogLoading)
+        #expect(!model.isInteractionDisabled)
+
+        let 选择成功 = await model.selectExisting(已有分类) { _ in
+            .success(succeededCount: 1, skippedCount: 0)
+        }
+        let AI成功 = await model.assignWithAI {
+            .success(succeededCount: 1, skippedCount: 0)
+        }
+
+        #expect(选择成功)
+        #expect(AI成功)
+
+        await service.放行刷新响应()
+        await 刷新任务.value
+    }
+
+    @Test func 可信缓存刷新挂起时仍可创建并丢弃旧刷新结果() async {
+        let 已有分类 = 分类(id: 1, name: "产品设计", sortOrder: 10)
+        let 新分类 = 分类(id: 2, name: "市场研究", sortOrder: 20)
+        let service = 可信缓存刷新服务桩(
+            初始目录: 目录响应(已有分类),
+            刷新目录: 目录响应(已有分类),
+            新分类: 新分类
+        )
+        let catalog = await 准备分类目录(service: service, userID: 7)
+        let model = CategoryPickerModel(
+            catalog: catalog,
+            selectedCategoryID: nil,
+            targetCount: 1
+        )
+        model.query = "市场研究"
+        let 刷新任务 = Task { @MainActor in
+            await catalog.load()
+        }
+        await service.等待刷新请求开始()
+
+        #expect(model.canCreate)
+        let 创建成功 = await model.createAndAssign { _ in
+            .success(succeededCount: 1, skippedCount: 0)
+        }
+
+        #expect(创建成功)
+        #expect(catalog.activeCategories.map(\.id) == [1, 2])
+
+        await service.放行刷新响应()
+        await 刷新任务.value
+
+        #expect(catalog.activeCategories.map(\.id) == [1, 2])
+        #expect(await service.已创建分类名称() == ["市场研究"])
+    }
+
     @Test func 结构化分类失效结果会显示错误并刷新目录() async {
         let service = 选择器分类服务桩(列表响应: [
             目录响应(
@@ -278,7 +348,7 @@ struct CategoryPickerModelTests {
 
 @MainActor
 private func 准备分类目录(
-    service: 选择器分类服务桩,
+    service: any CategoryCatalogServicing,
     userID: Int
 ) async -> CategoryCatalogModel {
     let catalog = CategoryCatalogModel(
@@ -311,6 +381,83 @@ private func 目录响应(_ categories: ArticleCategory...) -> CategoriesRespons
             uniqueKeysWithValues: categories.map { (String($0.id), 0) }
         )
     )
+}
+
+private actor 可信缓存刷新服务桩: CategoryCatalogServicing {
+    private let 初始目录: CategoriesResponse
+    private let 刷新目录: CategoriesResponse
+    private let 新分类: ArticleCategory
+    private var 列表请求计数 = 0
+    private var 刷新请求已开始 = false
+    private var 等待刷新开始: CheckedContinuation<Void, Never>?
+    private var 等待刷新放行: CheckedContinuation<Void, Never>?
+    private var 创建请求名称: [String] = []
+
+    init(
+        初始目录: CategoriesResponse,
+        刷新目录: CategoriesResponse,
+        新分类: ArticleCategory
+    ) {
+        self.初始目录 = 初始目录
+        self.刷新目录 = 刷新目录
+        self.新分类 = 新分类
+    }
+
+    func list(includeInactive: Bool) async throws -> CategoriesResponse {
+        列表请求计数 += 1
+        if 列表请求计数 == 1 {
+            return 初始目录
+        }
+
+        刷新请求已开始 = true
+        等待刷新开始?.resume()
+        等待刷新开始 = nil
+        await withCheckedContinuation { continuation in
+            等待刷新放行 = continuation
+        }
+        return 刷新目录
+    }
+
+    func 等待刷新请求开始() async {
+        if 刷新请求已开始 { return }
+        await withCheckedContinuation { continuation in
+            等待刷新开始 = continuation
+        }
+    }
+
+    func 放行刷新响应() {
+        等待刷新放行?.resume()
+        等待刷新放行 = nil
+    }
+
+    func create(_ request: CategoryMutationRequest) async throws -> CategoryResponse {
+        创建请求名称.append(request.name ?? "")
+        return CategoryResponse(category: 新分类)
+    }
+
+    func update(categoryID: Int, request: CategoryMutationRequest) async throws -> CategoryResponse {
+        throw 选择器服务测试错误.缺少响应
+    }
+
+    func reorder(categoryIDs: [Int]) async throws -> CategoryReorderResponse {
+        throw 选择器服务测试错误.缺少响应
+    }
+
+    func delete(categoryID: Int, targetCategoryID: Int) async throws -> DeleteCategoryResponse {
+        throw 选择器服务测试错误.缺少响应
+    }
+
+    func merge(sourceCategoryID: Int, targetCategoryID: Int) async throws {
+        throw 选择器服务测试错误.缺少响应
+    }
+
+    func optimize(_ request: CategoryOptimizeRequest) async throws -> CategoryOptimizeResponse {
+        throw 选择器服务测试错误.缺少响应
+    }
+
+    func 已创建分类名称() -> [String] {
+        创建请求名称
+    }
 }
 
 private actor 可暂停首次加载服务桩: CategoryCatalogServicing {

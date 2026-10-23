@@ -54,7 +54,6 @@ final class CategoryPickerModel: Observable {
     var canCreate: Bool {
         !isStaleForCurrentUser
             && catalog.hasLoadedCatalog
-            && !catalog.isLoading
             && !catalog.isMutating
             && !normalizedQuery.isEmpty
             && exactMatch == nil
@@ -63,6 +62,14 @@ final class CategoryPickerModel: Observable {
 
     var isLoadingCatalog: Bool {
         catalog.isLoading
+    }
+
+    var isInitialCatalogLoading: Bool {
+        catalog.isLoading && !catalog.hasLoadedCatalog
+    }
+
+    var isInteractionDisabled: Bool {
+        isSubmitting || catalog.isMutating || isInitialCatalogLoading || isStaleForCurrentUser
     }
 
     var catalogErrorMessage: String? {
@@ -243,10 +250,6 @@ final class CategoryPickerModel: Observable {
         guard 确保用户上下文有效() else { return false }
         guard catalog.hasLoadedCatalog else {
             errorMessage = "分类目录尚未加载完成，请稍后重试"
-            return false
-        }
-        guard !catalog.isLoading else {
-            errorMessage = "分类目录正在更新，请稍后再试"
             return false
         }
         guard !catalog.isMutating else {
