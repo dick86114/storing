@@ -16,6 +16,7 @@ final class CategoryManagementModel: Observable {
     private(set) var noticeMessage: String?
     private(set) var isSaving = false
     private(set) var isOptimizing = false
+    private(set) var shouldOfferRefreshAfterMerge = false
 
     @ObservationIgnored private var stateGeneration = 0
 
@@ -36,10 +37,17 @@ final class CategoryManagementModel: Observable {
         return catalog.categories.first { $0.id == selectedCategoryID }
     }
 
+    var isBusy: Bool {
+        isSaving || isOptimizing || catalog.isMutating
+    }
+
     func load() async {
+        guard !isBusy else { return }
+
         let generation = beginStateCycle()
         errorMessage = nil
         noticeMessage = nil
+        shouldOfferRefreshAfterMerge = false
 
         await catalog.load()
 
@@ -56,8 +64,10 @@ final class CategoryManagementModel: Observable {
             errorMessage = "系统分类不可编辑"
             return
         }
+        guard ensureIdle() else { return }
 
         let generation = beginSaving()
+        defer { finishSaving(generation) }
 
         do {
             if let category {
@@ -77,8 +87,6 @@ final class CategoryManagementModel: Observable {
             guard isCurrent(generation) else { return }
             present(error)
         }
-
-        finishSaving(generation)
     }
 
     func setActive(_ category: ArticleCategory, isActive: Bool) async {
@@ -86,8 +94,10 @@ final class CategoryManagementModel: Observable {
             errorMessage = "系统分类不可停用"
             return
         }
+        guard ensureIdle() else { return }
 
         let generation = beginSaving()
+        defer { finishSaving(generation) }
 
         do {
             _ = try await catalog.setActive(categoryID: category.id, isActive: isActive)
@@ -97,12 +107,11 @@ final class CategoryManagementModel: Observable {
             guard isCurrent(generation) else { return }
             present(error)
         }
-
-        finishSaving(generation)
     }
 
     func reorder(moving categoryID: Int, offset: Int) async {
         guard offset != 0 else { return }
+        guard ensureIdle() else { return }
         guard let sourceCategory = catalog.categories.first(where: { $0.id == categoryID }) else {
             return
         }
@@ -125,6 +134,7 @@ final class CategoryManagementModel: Observable {
         categoryIDs.insert(categoryID, at: targetIndex)
 
         let generation = beginSaving()
+        defer { finishSaving(generation) }
 
         do {
             try await catalog.reorder(categoryIDs: categoryIDs)
@@ -134,8 +144,6 @@ final class CategoryManagementModel: Observable {
             guard isCurrent(generation) else { return }
             present(error)
         }
-
-        finishSaving(generation)
     }
 
     func delete(_ category: ArticleCategory, targetCategoryID: Int) async {
@@ -143,6 +151,7 @@ final class CategoryManagementModel: Observable {
             errorMessage = "系统分类不可删除"
             return
         }
+        guard ensureIdle() else { return }
         guard category.id != targetCategoryID else {
             errorMessage = "不能将文章迁移到即将删除的分类"
             return
@@ -155,6 +164,7 @@ final class CategoryManagementModel: Observable {
         }
 
         let generation = beginSaving()
+        defer { finishSaving(generation) }
 
         do {
             let movedArticleCount = try await catalog.delete(
@@ -171,8 +181,6 @@ final class CategoryManagementModel: Observable {
             guard isCurrent(generation) else { return }
             present(error)
         }
-
-        finishSaving(generation)
     }
 
     func merge(_ source: ArticleCategory, into target: ArticleCategory) async {
@@ -180,6 +188,7 @@ final class CategoryManagementModel: Observable {
             errorMessage = "系统分类不可合并"
             return
         }
+        guard ensureIdle() else { return }
         guard source.id != target.id else {
             errorMessage = "不能将分类合并到自身"
             return
@@ -190,6 +199,7 @@ final class CategoryManagementModel: Observable {
         }
 
         let generation = beginSaving()
+        defer { finishSaving(generation) }
 
         do {
             try await catalog.merge(
@@ -201,27 +211,35 @@ final class CategoryManagementModel: Observable {
                 selectedCategoryID = nil
             }
             noticeMessage = "分类已合并到“\(target.name)”"
+        } catch CategoryCatalogMutationError.mergeCommittedButRefreshFailed {
+            guard isCurrent(generation) else { return }
+            catalog.clearError()
+            if selectedCategoryID == source.id {
+                selectedCategoryID = nil
+            }
+            shouldOfferRefreshAfterMerge = true
+            errorMessage = nil
+            noticeMessage = "合并已提交，但分类目录刷新失败，请重试刷新"
         } catch {
             guard isCurrent(generation) else { return }
             present(error)
         }
-
-        finishSaving(generation)
     }
 
     func optimize(_ draft: CategoryDraft) async -> CategoryDraft? {
+        guard ensureIdle() else { return nil }
+
         let generation = beginOptimizing()
+        defer { finishOptimizing(generation) }
 
         do {
             let optimized = try await catalog.optimize(draft)
             guard isCurrent(generation) else { return nil }
             noticeMessage = "已生成分类规则草案"
-            finishOptimizing(generation)
             return optimized
         } catch {
             guard isCurrent(generation) else { return nil }
             present(error)
-            finishOptimizing(generation)
             return nil
         }
     }
@@ -246,6 +264,7 @@ final class CategoryManagementModel: Observable {
 
     func clearNotice() {
         noticeMessage = nil
+        shouldOfferRefreshAfterMerge = false
     }
 
     func resetForUserChange() {
@@ -259,6 +278,7 @@ final class CategoryManagementModel: Observable {
         noticeMessage = nil
         isSaving = false
         isOptimizing = false
+        shouldOfferRefreshAfterMerge = false
     }
 
     private func beginStateCycle() -> Int {
@@ -271,6 +291,7 @@ final class CategoryManagementModel: Observable {
         isSaving = true
         errorMessage = nil
         noticeMessage = nil
+        shouldOfferRefreshAfterMerge = false
         return generation
     }
 
@@ -284,6 +305,7 @@ final class CategoryManagementModel: Observable {
         isOptimizing = true
         errorMessage = nil
         noticeMessage = nil
+        shouldOfferRefreshAfterMerge = false
         return generation
     }
 
@@ -296,7 +318,16 @@ final class CategoryManagementModel: Observable {
         generation == stateGeneration
     }
 
+    private func ensureIdle() -> Bool {
+        guard !isBusy else {
+            errorMessage = "分类操作正在进行，请稍后再试"
+            return false
+        }
+        return true
+    }
+
     private func present(_ error: any Error) {
+        shouldOfferRefreshAfterMerge = false
         errorMessage = catalog.errorMessage ?? managementErrorMessage(for: error)
     }
 }

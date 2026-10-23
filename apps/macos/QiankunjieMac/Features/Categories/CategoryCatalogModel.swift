@@ -252,11 +252,24 @@ final class CategoryCatalogModel: Observable {
                 sourceCategoryID: sourceCategoryID,
                 targetCategoryID: targetCategoryID
             )
-            try ensureCurrentGeneration(generation)
-            try await refreshCatalog()
         } catch {
             handleMutationError(error, generation: generation)
             throw error
+        }
+
+        try ensureCurrentGeneration(generation)
+        applyMergedCategoryLocally(
+            sourceCategoryID: sourceCategoryID,
+            targetCategoryID: targetCategoryID
+        )
+
+        do {
+            try await refreshCatalog()
+        } catch CategoryCatalogInternalError.请求已过期 {
+            throw CategoryCatalogInternalError.请求已过期
+        } catch {
+            handleMutationError(error, generation: generation)
+            throw CategoryCatalogMutationError.mergeCommittedButRefreshFailed
         }
     }
 
@@ -367,6 +380,41 @@ final class CategoryCatalogModel: Observable {
         if counts[category.id] == nil {
             counts[category.id] = 0
         }
+        pruneRecentCategories()
+        publishCatalogChangesIfNeeded(
+            previousCategories: previousCategories,
+            previousCounts: previousCounts
+        )
+    }
+
+    /// 合并接口成功后立即在本地镜像软停用与文章迁移，刷新失败时仍能展示已提交结果。
+    private func applyMergedCategoryLocally(
+        sourceCategoryID: Int,
+        targetCategoryID: Int
+    ) {
+        guard let sourceIndex = categories.firstIndex(where: { $0.id == sourceCategoryID }) else {
+            return
+        }
+
+        let previousCategories = categories
+        let previousCounts = counts
+        let source = categories[sourceIndex]
+        let movedArticleCount = counts[sourceCategoryID] ?? 0
+
+        categories[sourceIndex] = ArticleCategory(
+            id: source.id,
+            name: source.name,
+            articleDescription: source.articleDescription,
+            includeExamples: source.includeExamples,
+            excludeExamples: source.excludeExamples,
+            color: source.color,
+            sortOrder: source.sortOrder,
+            isActive: false,
+            isSystem: source.isSystem
+        )
+        categories = sortedCategories(categories)
+        counts[sourceCategoryID] = 0
+        counts[targetCategoryID] = count(for: targetCategoryID) + movedArticleCount
         pruneRecentCategories()
         publishCatalogChangesIfNeeded(
             previousCategories: previousCategories,
