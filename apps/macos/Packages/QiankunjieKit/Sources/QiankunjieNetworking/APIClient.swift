@@ -154,7 +154,7 @@ public struct APIClient: @unchecked Sendable {
             return .rateLimited
         case "BAD_REQUEST", "INVALID_INPUT", "VALIDATION_ERROR":
             return .invalidInput
-        case "NOT_FOUND", "CONTENT_UNAVAILABLE":
+        case "NOT_FOUND", "CONTENT_UNAVAILABLE", "CATEGORY_NOT_FOUND", "CATEGORY_INACTIVE":
             return .contentUnavailable
         default:
             break

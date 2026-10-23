@@ -3,6 +3,41 @@ import QiankunjieDesignSystem
 import QiankunjieLibrary
 import SwiftUI
 
+enum LibraryCategoryMenuState: Equatable, Sendable {
+    case loading
+    case empty
+    case failure
+    case ready
+
+    var message: String? {
+        switch self {
+        case .loading: "正在加载分类…"
+        case .empty: "暂无启用分类"
+        case .failure: "分类加载失败，重新加载"
+        case .ready: nil
+        }
+    }
+}
+
+enum LibraryCategoryMenuPolicy {
+    static func state(
+        isLoading: Bool,
+        errorMessage: String?,
+        activeCategoryCount: Int
+    ) -> LibraryCategoryMenuState {
+        if isLoading {
+            return .loading
+        }
+        if activeCategoryCount > 0 {
+            return .ready
+        }
+        if errorMessage != nil {
+            return .failure
+        }
+        return .empty
+    }
+}
+
 struct LibraryToolbar: View {
     @Bindable var model: LibraryModel
     @Bindable var categoryCatalog: CategoryCatalogModel
@@ -336,9 +371,24 @@ struct LibraryToolbar: View {
             Button("全部文章") {
                 onSelectCategory(nil)
             }
-            ForEach(categoryCatalog.activeCategories) { category in
-                Button("\(category.name)（\(categoryCatalog.count(for: category.id))）") {
-                    onSelectCategory(category.id)
+
+            Divider()
+
+            switch categoryMenuState {
+            case .loading, .empty:
+                Button(categoryMenuState.message ?? "") {}
+                    .disabled(true)
+            case .failure:
+                Button("分类加载失败，重新加载") {
+                    Task {
+                        await categoryCatalog.load()
+                    }
+                }
+            case .ready:
+                ForEach(categoryCatalog.activeCategories) { category in
+                    Button("\(category.name)（\(categoryCatalog.count(for: category.id))）") {
+                        onSelectCategory(category.id)
+                    }
                 }
             }
         } label: {
@@ -359,6 +409,14 @@ struct LibraryToolbar: View {
         .buttonStyle(.plain)
         .background { controlSurface }
         .help("选择分类")
+    }
+
+    private var categoryMenuState: LibraryCategoryMenuState {
+        LibraryCategoryMenuPolicy.state(
+            isLoading: categoryCatalog.isLoading,
+            errorMessage: categoryCatalog.errorMessage,
+            activeCategoryCount: categoryCatalog.activeCategories.count
+        )
     }
 
     private var selectedCategoryName: String {

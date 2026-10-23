@@ -427,6 +427,7 @@ struct AppModelTests {
             requestedCount: 1,
             succeededCount: 0,
             skippedCount: 0,
+            failedCount: 1,
             issues: [
                 ArticleBulkIssue(
                     articleID: 7,
@@ -446,22 +447,22 @@ struct AppModelTests {
     }
 
     @Test func AI分类内容不可用映射为内容失效() {
-        let result = NativeBulkResult(
+        let result = NativeBulkResult(from: ArticleBulkAIResult(
             requestedCount: 1,
-            succeededCount: 0,
-            skippedCount: 0,
-            issues: [
+            queuedIDs: [],
+            alreadyQueuedIDs: [],
+            failed: [
                 ArticleBulkIssue(
                     articleID: 7,
                     code: "CONTENT_UNAVAILABLE",
                     message: "请求的文章不可用"
                 )
             ]
-        )
+        ))
 
         let outcome = BulkCategoryOutcomeMapper.outcome(
             result: result,
-            error: .contentUnavailable,
+            error: nil,
             operation: .ai
         )
 
@@ -469,23 +470,18 @@ struct AppModelTests {
     }
 
     @Test func 批量分类部分成功结果保留计数与失败原因() throws {
-        let result = NativeBulkResult(
+        let result = NativeBulkResult(from: ArticleBulkAIResult(
             requestedCount: 3,
-            succeededCount: 1,
-            skippedCount: 1,
-            issues: [
-                ArticleBulkIssue(
-                    articleID: 8,
-                    code: "ALREADY_CLASSIFIED",
-                    message: "已是目标分类"
-                ),
+            queuedIDs: [7],
+            alreadyQueuedIDs: [8],
+            failed: [
                 ArticleBulkIssue(
                     articleID: 9,
                     code: "NOT_FOUND",
                     message: "文章不存在"
                 ),
             ]
-        )
+        ))
 
         let outcome = BulkCategoryOutcomeMapper.outcome(
             result: result,

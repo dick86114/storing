@@ -205,7 +205,7 @@ struct CompactArticleListView: View {
         guard let result = model.bulkResult else { return "" }
 
         var lines = [
-            "成功 \(result.succeededCount) 篇 · 跳过 \(result.skippedCount) 篇 · 失败 \(result.issues.count) 篇"
+            "成功 \(result.succeededCount) 篇 · 跳过 \(result.skippedCount) 篇 · 失败 \(result.failedCount) 篇"
         ]
         for issue in result.issues {
             let message = issue.message ?? "未知原因"

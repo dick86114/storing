@@ -5,7 +5,12 @@ import { articles, articleMetadata, categories, users } from '../db/schema.js';
 import { eq, and, asc, desc, count, sql, or, gt, inArray } from 'drizzle-orm';
 import { classifyStoredArticleForArchive } from '../services/ai.service.js';
 import { enqueueAiGeneration, queueArchiveAiIfNeeded } from '../services/ai-generation.service.js';
-import { getCategoryById, getPendingCategory, moveArticlesToCategory } from '../services/category.service.js';
+import {
+  CategoryServiceError,
+  getCategoryById,
+  getPendingCategory,
+  moveArticlesToCategory,
+} from '../services/category.service.js';
 import { ARTICLE_BULK_ACTION_LIMIT, parseArticleBulkActionInput } from '../services/article-bulk-validation.js';
 import type { ArticleBulkActionResult } from '@storing/shared';
 import {
@@ -901,6 +906,12 @@ articlesRoutes.post('/articles/bulk-category', requireAuth, async (c) => {
     );
     return c.json(result);
   } catch (error) {
+    if (
+      error instanceof CategoryServiceError
+      && (error.code === 'CATEGORY_NOT_FOUND' || error.code === 'CATEGORY_INACTIVE')
+    ) {
+      return c.json({ error: { code: 'CONTENT_UNAVAILABLE', message: error.message } }, 404);
+    }
     return c.json({ error: { code: 'BULK_CATEGORY_FAILED', message: error instanceof Error ? error.message : '批量分类失败' } }, 400);
   }
 });

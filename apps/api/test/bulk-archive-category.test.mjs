@@ -21,3 +21,16 @@ test('用户明确选择由 AI 判断时可以覆盖已确认分类并重新排�
   assert.match(service, /categorySource: 'rule'/);
   assert.match(service, /categoryReviewStatus: 'needs_review'/);
 });
+
+test('批量分类遇到分类不存在或停用时返回可识别的内容不可用', () => {
+  const bulkCategoryRoute = routes.slice(
+    routes.indexOf("articlesRoutes.post('/articles/bulk-category'"),
+    routes.indexOf("articlesRoutes.post('/articles/:id/unarchive'"),
+  );
+
+  assert.match(routes, /CategoryServiceError/);
+  assert.match(bulkCategoryRoute, /CATEGORY_NOT_FOUND/);
+  assert.match(bulkCategoryRoute, /CATEGORY_INACTIVE/);
+  assert.match(bulkCategoryRoute, /CONTENT_UNAVAILABLE/);
+  assert.match(bulkCategoryRoute, /404/);
+});
