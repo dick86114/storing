@@ -64,6 +64,7 @@ public final class CollectModel {
     private var nextPageOffset = 0
     private var activeListOperation: CollectListOperationToken?
     private var invalidatedListOperationIDs: Set<UUID> = []
+    private var retryOperationIDs: [Int: UUID] = [:]
     private var importedArticleJobIDs: Set<Int> = []
 
     public init(
@@ -227,14 +228,22 @@ public final class CollectModel {
         guard
             userID != nil,
             !mutatingJobIDs.contains(jobID),
+            retryOperationIDs[jobID] == nil,
             let failedJob = jobs.first(where: { $0.id == jobID && $0.status == "failed" })
         else { return }
 
+        let operationID = UUID()
         let operationSessionGeneration = sessionGeneration
         let operationUserID = userID
         let pollGenerationAtStart = pollGeneration
+        retryOperationIDs[jobID] = operationID
         mutatingJobIDs.insert(jobID)
-        defer { mutatingJobIDs.remove(jobID) }
+        defer {
+            if retryOperationIDs[jobID] == operationID {
+                retryOperationIDs.removeValue(forKey: jobID)
+                mutatingJobIDs.remove(jobID)
+            }
+        }
         actionErrorMessage = nil
 
         do {
@@ -251,6 +260,10 @@ public final class CollectModel {
             await poll(jobID: job.id, generation: pollGenerationAtStart)
 
             if pollGeneration != pollGenerationAtStart {
+                guard
+                    sessionGeneration == operationSessionGeneration,
+                    self.userID == operationUserID
+                else { return }
                 await poll(jobID: job.id, generation: pollGeneration)
             }
         } catch {
@@ -416,6 +429,7 @@ public final class CollectModel {
         isRefreshingJobs = false
         isLoadingMoreJobs = false
         mutatingJobIDs = []
+        retryOperationIDs = [:]
         importedArticleJobIDs = []
         if let activeListOperation {
             invalidatedListOperationIDs.insert(activeListOperation.id)
