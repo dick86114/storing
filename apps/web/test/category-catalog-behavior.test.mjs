@@ -75,3 +75,12 @@ test('损坏的最近使用缓存按空列表处理，不阻断分类选择', ()
   const storage = new 内存存储({ 'category.recents.7': '{not-json' });
   assert.deepEqual(readCategoryRecents(storage, 7, new Set([1])), []);
 });
+
+test('浏览器禁用本地存储时不阻断分类选择', () => {
+  const storage = {
+    getItem() { throw new Error('storage disabled'); },
+    setItem() { throw new Error('storage disabled'); },
+  };
+  assert.deepEqual(readCategoryRecents(storage, 7, new Set([1])), []);
+  assert.doesNotThrow(() => rememberCategoryRecent(storage, 7, 1, new Set([1])));
+});
