@@ -12,6 +12,12 @@ enum CategoryDropPlacement: Equatable {
     case after
 }
 
+/// 实际纵向拖动方向；目标行必须位于被拖动行的同侧。
+enum CategoryDragDirection: Equatable {
+    case upward
+    case downward
+}
+
 struct CategoryDragDropTarget: Equatable {
     let categoryID: Int
     let placement: CategoryDropPlacement
@@ -31,6 +37,7 @@ enum CategoryDragGeometry {
     static func target(
         pointerY: CGFloat,
         pointerX: CGFloat? = nil,
+        dragDirection: CategoryDragDirection,
         rows: [CategoryDragRowFrame],
         categoryIDs: [Int],
         movingCategoryID: Int,
@@ -68,6 +75,14 @@ enum CategoryDragGeometry {
             else {
                 return false
             }
+            let isInDragDirection: Bool
+            switch dragDirection {
+            case .upward:
+                isInDragDirection = index < movingIndex
+            case .downward:
+                isInDragDirection = index > movingIndex
+            }
+            guard isInDragDirection else { return false }
             let protectedDepth = categoryIDs[..<index]
                 .filter(protectedIDs.contains)
                 .count
@@ -154,9 +169,13 @@ struct CategoryDragState {
             dropTarget = nil
             return false
         }
+        let dragDirection: CategoryDragDirection = translation.height < 0
+            ? .upward
+            : .downward
         dropTarget = CategoryDragGeometry.target(
             pointerY: pointerY,
             pointerX: pointerX,
+            dragDirection: dragDirection,
             rows: rows,
             categoryIDs: originalCategoryIDs,
             movingCategoryID: draggedCategoryID,

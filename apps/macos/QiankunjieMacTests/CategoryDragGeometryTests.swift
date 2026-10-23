@@ -13,6 +13,7 @@ struct CategoryDragGeometryTests {
 
         let 落点 = CategoryDragGeometry.target(
             pointerY: 92,
+            dragDirection: .downward,
             rows: 行,
             categoryIDs: [1, 2, 3],
             movingCategoryID: 1,
@@ -38,6 +39,7 @@ struct CategoryDragGeometryTests {
 
         let 落点 = CategoryDragGeometry.target(
             pointerY: 90,
+            dragDirection: .downward,
             rows: 行,
             categoryIDs: [1, 2, 3],
             movingCategoryID: 1,
@@ -58,6 +60,7 @@ struct CategoryDragGeometryTests {
 
         let 落点 = CategoryDragGeometry.target(
             pointerY: 132,
+            dragDirection: .downward,
             rows: 行,
             categoryIDs: [1, 2, 9, 3, 4],
             movingCategoryID: 1,
@@ -85,6 +88,7 @@ struct CategoryDragGeometryTests {
         #expect(
             CategoryDragGeometry.target(
                 pointerY: 110,
+                dragDirection: .downward,
                 rows: 行,
                 categoryIDs: [1, 9, 2],
                 movingCategoryID: 1,
@@ -94,6 +98,7 @@ struct CategoryDragGeometryTests {
         #expect(
             CategoryDragGeometry.target(
                 pointerY: 45,
+                dragDirection: .downward,
                 rows: 行,
                 categoryIDs: [1, 9, 2],
                 movingCategoryID: 9,
@@ -146,7 +151,7 @@ struct CategoryDragGeometryTests {
         #expect(状态.dropTarget == nil)
     }
 
-    @Test func 指针略微离开列表时仍能命中附近合法行() {
+    @Test func 指针在容差内离开列表时仍能命中拖动方向上的合法行() {
         let 行 = [
             CategoryDragRowFrame(categoryID: 1, frame: CGRect(x: 0, y: 0, width: 300, height: 30)),
             CategoryDragRowFrame(categoryID: 2, frame: CGRect(x: 0, y: 30, width: 300, height: 30)),
@@ -156,13 +161,84 @@ struct CategoryDragGeometryTests {
         let 落点 = CategoryDragGeometry.target(
             pointerY: -16,
             pointerX: 315,
+            dragDirection: .upward,
             rows: 行,
             categoryIDs: [1, 2, 3],
-            movingCategoryID: 1,
+            movingCategoryID: 2,
             protecting: []
         )
 
-        #expect(落点 == CategoryDragDropTarget(categoryID: 2, placement: .after))
+        #expect(落点 == CategoryDragDropTarget(categoryID: 1, placement: .before))
+    }
+
+    @Test func 首行向上拖动时没有落点且不会提交() {
+        let 行 = [
+            CategoryDragRowFrame(categoryID: 1, frame: CGRect(x: 0, y: 0, width: 300, height: 30)),
+            CategoryDragRowFrame(categoryID: 2, frame: CGRect(x: 0, y: 30, width: 300, height: 30)),
+            CategoryDragRowFrame(categoryID: 3, frame: CGRect(x: 0, y: 60, width: 300, height: 30)),
+        ]
+        var 状态 = CategoryDragState()
+        let 已开始 = 状态.begin(categoryID: 1, categoryIDs: [1, 2, 3])
+
+        let 已更新落点 = 状态.update(
+            translation: CGSize(width: 0, height: -20),
+            pointerY: 8,
+            rows: 行,
+            protecting: [],
+            canDrop: true
+        )
+        let 提交 = 状态.finish(protecting: [], canDrop: true, minimumDistance: 4)
+
+        #expect(已开始)
+        #expect(!已更新落点)
+        #expect(状态.dropTarget == nil)
+        #expect(提交 == nil)
+    }
+
+    @Test func 末行向下拖动时没有落点且不会提交() {
+        let 行 = [
+            CategoryDragRowFrame(categoryID: 1, frame: CGRect(x: 0, y: 0, width: 300, height: 30)),
+            CategoryDragRowFrame(categoryID: 2, frame: CGRect(x: 0, y: 30, width: 300, height: 30)),
+            CategoryDragRowFrame(categoryID: 3, frame: CGRect(x: 0, y: 60, width: 300, height: 30)),
+        ]
+        var 状态 = CategoryDragState()
+        let 已开始 = 状态.begin(categoryID: 3, categoryIDs: [1, 2, 3])
+
+        let 已更新落点 = 状态.update(
+            translation: CGSize(width: 0, height: 20),
+            pointerY: 82,
+            rows: 行,
+            protecting: [],
+            canDrop: true
+        )
+        let 提交 = 状态.finish(protecting: [], canDrop: true, minimumDistance: 4)
+
+        #expect(已开始)
+        #expect(!已更新落点)
+        #expect(状态.dropTarget == nil)
+        #expect(提交 == nil)
+    }
+
+    @Test func 非等高行按实际拖拽方向而非指针位置选择目标() {
+        let 行 = [
+            CategoryDragRowFrame(categoryID: 1, frame: CGRect(x: 0, y: 0, width: 300, height: 20)),
+            CategoryDragRowFrame(categoryID: 2, frame: CGRect(x: 0, y: 20, width: 300, height: 90)),
+            CategoryDragRowFrame(categoryID: 3, frame: CGRect(x: 0, y: 110, width: 300, height: 20)),
+        ]
+        var 状态 = CategoryDragState()
+        let 已开始 = 状态.begin(categoryID: 2, categoryIDs: [1, 2, 3])
+
+        let 已更新落点 = 状态.update(
+            translation: CGSize(width: 0, height: -12),
+            pointerY: 95,
+            rows: 行,
+            protecting: [],
+            canDrop: true
+        )
+
+        #expect(已开始)
+        #expect(已更新落点)
+        #expect(状态.dropTarget == CategoryDragDropTarget(categoryID: 1, placement: .before))
     }
 
     @Test func 指针水平离开列表时没有落点() {
@@ -175,6 +251,7 @@ struct CategoryDragGeometryTests {
             CategoryDragGeometry.target(
                 pointerY: 45,
                 pointerX: 320,
+                dragDirection: .downward,
                 rows: 行,
                 categoryIDs: [1, 2],
                 movingCategoryID: 1,
