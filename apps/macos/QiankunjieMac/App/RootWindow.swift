@@ -141,9 +141,7 @@ struct RootWindow: View {
                     AdminSettingsView(repository: model.authModel.repository)
                 } else if model.destination == .categories {
                     if model.isAuthenticated {
-                        CategoryManagementView(
-                            client: ManagementAPIClient(repository: model.authModel.repository)
-                        )
+                        CategoryManagementView(catalog: model.categoryCatalog)
                     } else {
                         GuestAccessView(
                             title: "登录后管理分类",

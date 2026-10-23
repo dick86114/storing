@@ -21,6 +21,24 @@ struct CategoryEditorOverlay: View {
             VStack(alignment: .leading, spacing: 24) {
                 header
 
+                if let error = model.errorMessage {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+                        Text(error)
+                            .font(.callout)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 8)
+                        Button("关闭") {
+                            model.clearError()
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                    }
+                    .padding(10)
+                    .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                }
+
                 VStack(alignment: .leading, spacing: 8) {
                     Text("分类名称").font(.headline)
                     TextField("例如：编程开发", text: $draft.name)
