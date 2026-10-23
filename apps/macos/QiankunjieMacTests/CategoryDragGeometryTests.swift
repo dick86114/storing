@@ -352,11 +352,35 @@ struct CategoryDragGeometryTests {
                 .appending(path: "../QiankunjieMac/Features/Settings/CategoryManagementView.swift"),
             encoding: .utf8
         )
+        let handleSource = try #require(
+            source.slice(
+                from: "private func trailingReorderControl(",
+                to: "private var categoryDetail"
+            )
+        )
 
         #expect(!source.contains("Image(systemName: \"chevron.right\")"))
+        #expect(!handleSource.contains("strokeBorder"))
+        #expect(handleSource.contains("accent.opacity(0.08)"))
+        #expect(handleSource.contains(".scaleEffect(isFocused ? 1.06 : 1)"))
         #expect(source.contains(".focusEffectDisabled()"))
         #expect(source.contains(".focused($focusedReorderHandle, equals: category.id)"))
         #expect(source.contains("focusedReorderHandle == category.id"))
+        #expect(source.contains(".onKeyPress(.upArrow)"))
+        #expect(source.contains(".onKeyPress(.downArrow)"))
+        #expect(source.contains(".accessibilityAdjustableAction"))
+    }
+
+    @Test func 侧栏拖拽排序成功后显示弱提醒() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .appending(path: "../QiankunjieMac/Features/Categories/SidebarArchiveCategoryGroup.swift"),
+            encoding: .utf8
+        )
+
+        #expect(source.contains("weakNoticeMessage = \"分类顺序已更新\""))
+        #expect(source.contains(".statusToast(message: $weakNoticeMessage)"))
     }
 
     @Test func 管理页用户行只呈现可访问拖拽手柄而不呈现上下移动箭头() {
@@ -383,5 +407,17 @@ struct CategoryDragGeometryTests {
         #expect(系统行.trailingControl == .systemLock(systemImage: "lock"))
         #expect(!系统行.canMoveUp)
         #expect(!系统行.canMoveDown)
+    }
+}
+
+private extension String {
+    func slice(from start: String, to end: String) -> String? {
+        guard
+            let startRange = range(of: start),
+            let endRange = range(of: end, range: startRange.upperBound..<endIndex)
+        else {
+            return nil
+        }
+        return String(self[startRange.lowerBound..<endRange.lowerBound])
     }
 }

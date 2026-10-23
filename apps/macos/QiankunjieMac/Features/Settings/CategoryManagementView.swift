@@ -429,22 +429,19 @@ struct CategoryManagementView: View {
             Image(systemName: systemImage)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(
-                    canDrag(category)
-                        ? QiankunjieColors.onSurfaceVariant(for: colorScheme)
-                        : Color.secondary.opacity(0.35)
+                    isFocused
+                        ? accent
+                        : canDrag(category)
+                            ? QiankunjieColors.onSurfaceVariant(for: colorScheme)
+                            : Color.secondary.opacity(0.35)
                 )
                 .frame(width: 26, height: 34)
                 .background {
                     Capsule()
-                        .fill(isFocused ? accent.opacity(0.12) : Color.clear)
+                        .fill(isFocused ? accent.opacity(0.08) : Color.clear)
                 }
-                .overlay {
-                    Capsule()
-                        .strokeBorder(
-                            isFocused ? accent.opacity(0.42) : Color.clear,
-                            lineWidth: 1
-                        )
-                }
+                .scaleEffect(isFocused ? 1.06 : 1)
+                .animation(.easeOut(duration: 0.16), value: isFocused)
                 .contentShape(Rectangle())
                 .help(presentation.handleAccessibilityLabel)
                 .focusable(canDrag(category))

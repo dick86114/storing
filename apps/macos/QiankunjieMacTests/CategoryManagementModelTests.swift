@@ -100,7 +100,37 @@ struct CategoryManagementModelTests {
         #expect(succeeded)
         #expect(catalog.categories.map(\.id) == [2, 1, 3])
         #expect(await service.最近排序请求() == [2, 1, 3])
-        #expect(model.noticeMessage == "分类顺序已更新")
+        #expect(model.noticeMessage == nil)
+        #expect(model.weakNoticeMessage == "分类顺序已更新")
+    }
+
+    @Test func 排序失败不产生成功弱提醒() async {
+        let service = 分类管理服务桩(
+            列表响应: [
+                .success(CategoriesResponse(
+                    categories: [
+                        分类(id: 1, name: "第一类", sortOrder: 10),
+                        分类(id: 2, name: "第二类", sortOrder: 20),
+                        分类(id: 3, name: "第三类", sortOrder: 30),
+                    ],
+                    counts: [:]
+                )),
+            ]
+        )
+        let catalog = CategoryCatalogModel(
+            service: service,
+            recentStore: 最近分类存储桩()
+        )
+        catalog.prepareUser(userID: 7)
+        await catalog.load()
+        let model = CategoryManagementModel(catalog: catalog)
+
+        let succeeded = await model.reorder(categoryIDs: [2, 1, 3])
+
+        #expect(!succeeded)
+        #expect(model.errorMessage != nil)
+        #expect(model.noticeMessage == nil)
+        #expect(model.weakNoticeMessage == nil)
     }
 
     @Test func 整卡拖拽拒绝移动系统分类() async {
