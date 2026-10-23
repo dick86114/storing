@@ -148,8 +148,6 @@ private actor 批量资料库仓库: LibraryLoading, LibraryBulkOperating {
 
     func loadSources(userID: Int?) async throws -> [LibrarySource] { [] }
 
-    func loadCategoryFilters(userID: Int?) async throws -> [LibraryCategoryFilter] { [] }
-
     func setPage(_ page: ArticleListPage) {
         pages[page.page] = page
     }

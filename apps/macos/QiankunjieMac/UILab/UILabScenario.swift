@@ -180,6 +180,9 @@ struct UILabRootView: View {
         } content: {
             CompactArticleListView(
                 model: UILabFixtures.libraryModel,
+                categoryCatalog: UILabFixtures.categoryCatalog,
+                selectedCategoryID: nil,
+                onSelectCategory: { _ in },
                 selection: .constant(UILabFixtures.article.id),
                 presentationMode: $presentationMode
             )
@@ -216,6 +219,9 @@ struct UILabRootView: View {
             if let model = stateLibraryModel {
                 CompactArticleListView(
                     model: model,
+                    categoryCatalog: UILabFixtures.categoryCatalog,
+                    selectedCategoryID: nil,
+                    onSelectCategory: { _ in },
                     selection: .constant(nil),
                     presentationMode: $presentationMode
                 )
@@ -223,6 +229,9 @@ struct UILabRootView: View {
                 let model = UILabFixtures.libraryModel(for: state)
                 CompactArticleListView(
                     model: model,
+                    categoryCatalog: UILabFixtures.categoryCatalog,
+                    selectedCategoryID: nil,
+                    onSelectCategory: { _ in },
                     selection: .constant(nil),
                     presentationMode: $presentationMode
                 )

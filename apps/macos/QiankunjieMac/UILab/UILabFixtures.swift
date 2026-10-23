@@ -271,14 +271,6 @@ private final class FixtureLibraryRepository: LibraryLoading, @unchecked Sendabl
         [LibrarySource(source: "乾坤戒设计规范", count: 1, latestCreatedAt: nil)]
     }
 
-    func loadCategoryFilters(userID: Int?) async throws -> [LibraryCategoryFilter] {
-        [
-            LibraryCategoryFilter(
-                category: ArticleCategory(id: 1, name: "科技观察", color: nil),
-                count: 1
-            ),
-        ]
-    }
 }
 
 private struct FixtureCollectRepository: CollectServicing {

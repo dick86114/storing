@@ -214,10 +214,6 @@ private actor 导航资料库仓库: LibraryLoading {
         []
     }
 
-    func loadCategoryFilters(userID: Int?) async throws -> [LibraryCategoryFilter] {
-        []
-    }
-
     func 等待请求数(_ 数量: Int) async {
         while 查询记录.count < 数量 {
             await Task.yield()
