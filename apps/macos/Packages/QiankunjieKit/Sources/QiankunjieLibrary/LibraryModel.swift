@@ -768,6 +768,7 @@ public final class LibraryModel {
 
     private func exitBulkMode() {
         bulkOperationID += 1
+        bulkRunningAction = nil
         isBulkSelecting = false
         bulkSelection = []
         bulkResult = nil
