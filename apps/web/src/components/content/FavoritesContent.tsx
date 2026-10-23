@@ -11,13 +11,16 @@ import { BulkActionBar, type BulkToolbarAction } from '@/components/article/Bulk
 import { ListToolbar } from '@/components/article/ListToolbar';
 import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type ArticleSortOption } from '@/components/article/ArticleSortControl';
 import { PullToRefresh } from '@/components/ui/PullToRefresh';
-import { CategoryAssignmentDialog } from '@/components/article/WechatDetailPanel';
+import { CategoryPicker } from '@/components/category/CategoryPicker';
 import { api } from '@/lib/api';
+import { assignmentFailure, bulkCategoryOutcome, type CategoryAssignmentOutcome } from '@/lib/category-picker';
 import { scrollListToTop, setListScrollTop } from '@/lib/listScroll';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useArticleSelection } from '@/hooks/useArticleSelection';
 import { useBulkArticleActions } from '@/hooks/useBulkArticleActions';
 import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
+import { useCategoryCatalog, useRefreshCategoryCatalog } from '@/hooks/useCategoryCatalog';
+import { useCategoryRecents } from '@/hooks/useCategoryRecents';
 import type { ArticleBulkAiResult, ArticleBulkActionResult, ArticleListItem, BulkExportJob } from '@storing/shared';
 
 const FAVORITES_SORT_OPTIONS: ArticleSortOption[] = [
@@ -31,7 +34,10 @@ function FavoritesContentInner() {
   const { showToast } = useToast();
   const { openArticle, highlightId, setMutateFn } = useArticleContext();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const { toggleFavorite, updateArticleInView, refreshCounts } = useArticleOperations();
+  const { toggleFavorite, updateArticleInView } = useArticleOperations();
+  const refreshCategoryCatalog = useRefreshCategoryCatalog();
+  const categoryCatalog = useCategoryCatalog();
+  const categoryRecents = useCategoryRecents(categoryCatalog.activeCategories);
   const { getBookmark, clearBookmark } = useBookmark();
   const [bookmarkPrompt, setBookmarkPrompt] = useState<ReadingBookmark | null>(null);
 
@@ -57,15 +63,11 @@ function FavoritesContentInner() {
   const [bulkResult, setBulkResult] = useState<ArticleBulkActionResult | ArticleBulkAiResult | null>(null);
   const [bulkExportJob, setBulkExportJob] = useState<BulkExportJob | null>(null);
   const [bulkArchivePickerOpen, setBulkArchivePickerOpen] = useState(false);
+  const [archiveTargetId, setArchiveTargetId] = useState<number | null>(null);
   const removingIdsRef = useRef<Set<number>>(new Set());
   const articleIds = useMemo(() => allArticles.map((article) => article.id), [allArticles]);
   const selection = useArticleSelection(articleIds);
   const bulkActions = useBulkArticleActions();
-  const { data: categoryData, mutate: mutateCategoryData } = useSWR(
-    isAuthenticated ? 'categories:archive-action' : null,
-    () => api.getCategories(),
-    { revalidateOnFocus: false },
-  );
 
   const confirmSelectionClear = useCallback(() => {
     if (!bulkMode || selection.selectedIds.size === 0) return true;
@@ -195,25 +197,44 @@ function FavoritesContentInner() {
     e.stopPropagation();
     const article = allArticlesRef.current.find(a => a.id === id);
     if (!article) return;
-    const wasArchived = article.isArchived;
-    setAllArticles((prev) => prev.map((a) => a.id === id ? { ...a, isArchived: !wasArchived } : a));
+    if (!article.isArchived) {
+      setArchiveTargetId(id);
+      return;
+    }
+    setAllArticles((prev) => prev.map((a) => a.id === id ? { ...a, isArchived: false } : a));
     try {
-      if (wasArchived) {
-        await api.unarchive(id);
-      } else {
-        await api.archive(id);
-      }
-      updateArticleInView('favorites', id, { isArchived: !wasArchived });
-      updateArticleInView('archive', id, { isArchived: !wasArchived });
-      updateArticleInView('inbox', id, { isArchived: !wasArchived });
-      refreshCounts();
-      showToast(wasArchived ? '已取消归档' : '已归档');
+      await api.unarchive(id);
+      updateArticleInView('favorites', id, { isArchived: false });
+      updateArticleInView('archive', id, { isArchived: false });
+      updateArticleInView('inbox', id, { isArchived: false });
+      await refreshCategoryCatalog();
+      showToast('已取消归档');
     } catch (error) {
       console.error('Toggle archive from favorites failed:', error);
-      refreshList();
-      showToast(wasArchived ? '取消归档失败，请重试' : '归档失败，请重试');
+      await refreshList();
+      showToast('取消归档失败，请重试');
     }
-  }, [updateArticleInView, refreshCounts, showToast, refreshList]);
+  }, [updateArticleInView, refreshCategoryCatalog, showToast, refreshList]);
+
+  const confirmArchive = useCallback(async (categoryId?: number): Promise<CategoryAssignmentOutcome> => {
+    if (!archiveTargetId) return { status: 'failure', message: '文章已变化，请重新打开归档操作。' };
+    const id = archiveTargetId;
+    try {
+      await api.archive(id, categoryId);
+      updateArticleInView('favorites', id, { isArchived: true });
+      updateArticleInView('archive', id, { isArchived: true });
+      updateArticleInView('inbox', id, { isArchived: true });
+      setAllArticles((prev) => prev.map((article) => article.id === id ? { ...article, isArchived: true } : article));
+      setArchiveTargetId(null);
+      await Promise.all([refreshCategoryCatalog(), refreshList()]);
+      return {
+        status: 'success',
+        message: categoryId ? '已归档到所选分类' : '已归档，正在生成分类建议',
+      };
+    } catch (error) {
+      return assignmentFailure(error, '归档失败，请重试');
+    }
+  }, [archiveTargetId, refreshCategoryCatalog, refreshList, updateArticleInView]);
 
   const handleBulkAction = useCallback(async (action: BulkToolbarAction) => {
     const ids = [...selection.selectedIds];
@@ -243,17 +264,25 @@ function FavoritesContentInner() {
     }
   }, [bulkActions, selection, showToast]);
 
-  const confirmBulkArchive = useCallback(async (categoryId?: number) => {
+  const confirmBulkArchive = useCallback(async (categoryId?: number): Promise<CategoryAssignmentOutcome> => {
     const ids = [...selection.selectedIds];
-    if (ids.length === 0 || bulkActions.loadingAction !== null) return;
-    setBulkArchivePickerOpen(false);
-    try {
-      setBulkResult(await bulkActions.runAction('archive', ids, categoryId));
-      await refreshList();
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '批量归档失败');
+    if (ids.length === 0 || bulkActions.loadingAction !== null) {
+      return { status: 'failure', message: '没有可归档的文章，请重新选择。' };
     }
-  }, [bulkActions, refreshList, selection, showToast]);
+    try {
+      const result = await bulkActions.runAction('archive', ids, categoryId);
+      if (!result) return { status: 'failure', message: '批量归档未返回结果，请重试。' };
+      setBulkResult(result);
+      selection.remove(result.succeededIds);
+      setAllArticles((prev) => prev.map((article) => result.succeededIds.includes(article.id) ? { ...article, isArchived: true } : article));
+      await Promise.all([refreshList(), refreshCategoryCatalog()]);
+      return bulkCategoryOutcome(result, categoryId
+        ? `已将 ${result.succeededIds.length} 篇文章归档到所选分类`
+        : `已将 ${result.succeededIds.length} 篇文章归档，正在生成分类建议`);
+    } catch (error) {
+      return assignmentFailure(error, '批量归档失败');
+    }
+  }, [bulkActions, refreshCategoryCatalog, refreshList, selection]);
 
   const handleCreateCategory = useCallback(async (name: string) => {
     const created = await api.createCategory({
@@ -263,23 +292,48 @@ function FavoritesContentInner() {
       excludeExamples: [],
       color: null,
     });
-    await mutateCategoryData();
+    void refreshCategoryCatalog().catch((error) => console.error('刷新分类目录失败:', error));
     return created;
-  }, [mutateCategoryData]);
+  }, [refreshCategoryCatalog]);
 
   return (
     <>
       {bulkArchivePickerOpen && (
-        <CategoryAssignmentDialog
-          categories={categoryData?.categories ?? []}
+        <CategoryPicker
+          categories={categoryCatalog.activeCategories}
+          recentCategoryIds={categoryRecents.recentCategoryIds}
           currentCategoryId={null}
-          loading={bulkActions.loadingAction !== null}
+          loading={categoryCatalog.isLoading || bulkActions.loadingAction !== null}
+          catalogError={categoryCatalog.error instanceof Error ? categoryCatalog.error.message : null}
+          targetCount={selection.selectedIds.size}
           title="批量归档到哪里？"
           subtitle={`分类只用于归档文章。为已选 ${selection.selectedIds.size} 篇文章选择分类后，这些文章会移入「归档」；也可以让 AI 判断。`}
           onClose={() => setBulkArchivePickerOpen(false)}
           onSelect={(categoryId) => confirmBulkArchive(categoryId)}
           onSelectAi={() => confirmBulkArchive()}
           onCreateCategory={handleCreateCategory}
+          onRememberCategory={categoryRecents.remember}
+          onCatalogRefresh={refreshCategoryCatalog}
+          onNotify={showToast}
+        />
+      )}
+
+      {archiveTargetId && (
+        <CategoryPicker
+          categories={categoryCatalog.activeCategories}
+          recentCategoryIds={categoryRecents.recentCategoryIds}
+          currentCategoryId={null}
+          loading={categoryCatalog.isLoading}
+          catalogError={categoryCatalog.error instanceof Error ? categoryCatalog.error.message : null}
+          title="归档到哪里？"
+          subtitle="分类只用于归档文章。选择分类后，文章会移入「归档」；也可以让 AI 判断。"
+          onClose={() => setArchiveTargetId(null)}
+          onSelect={(categoryId) => confirmArchive(categoryId)}
+          onSelectAi={() => confirmArchive()}
+          onCreateCategory={handleCreateCategory}
+          onRememberCategory={categoryRecents.remember}
+          onCatalogRefresh={refreshCategoryCatalog}
+          onNotify={showToast}
         />
       )}
 

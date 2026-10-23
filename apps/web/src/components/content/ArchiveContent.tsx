@@ -1,8 +1,8 @@
 'use client';
 
 import { Suspense, useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { useSWRConfig } from 'swr';
 import { useToast } from '@/components/ui/Toast';
 import { useArticleContext, type ArticleListMutation } from '@/components/providers/ArticleContext';
 import { useAuth } from '@/components/providers/AuthContext';
@@ -15,14 +15,18 @@ import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type Ar
 import { SourceSidebar } from '@/components/archive/SourceSidebar';
 import { SourcePills } from '@/components/archive/SourcePills';
 import { CategoryNavigation } from '@/components/archive/CategoryNavigation';
-import { CategoryAssignmentDialog } from '@/components/article/WechatDetailPanel';
+import { CategoryPicker } from '@/components/category/CategoryPicker';
+import { CategoryQuickCreateDialog, type CategoryQuickCreateInput } from '@/components/category/CategoryQuickCreateDialog';
 import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { api, type ArchiveTag } from '@/lib/api';
+import { assignmentFailure, bulkCategoryOutcome, type CategoryAssignmentOutcome } from '@/lib/category-picker';
 import { scrollListToTop, setListScrollTop } from '@/lib/listScroll';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useArticleSelection } from '@/hooks/useArticleSelection';
 import { useBulkArticleActions } from '@/hooks/useBulkArticleActions';
 import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
+import { useCategoryCatalog, useRefreshCategoryCatalog } from '@/hooks/useCategoryCatalog';
+import { useCategoryRecents } from '@/hooks/useCategoryRecents';
 import type { ArticleBulkAiResult, ArticleBulkActionResult, ArticleListItem, BulkExportJob } from '@storing/shared';
 
 const ARCHIVE_SORT_OPTIONS: ArticleSortOption[] = [
@@ -32,11 +36,14 @@ const ARCHIVE_SORT_OPTIONS: ArticleSortOption[] = [
 ];
 
 function ArchiveContentInner() {
+  const router = useRouter();
   const { isAuthenticated } = useAuth();
   const { layout } = useTheme();
   const isListLayout = layout === 'list';
   const { showToast } = useToast();
-  const { mutate: globalMutate } = useSWRConfig();
+  const refreshCategoryCatalog = useRefreshCategoryCatalog();
+  const categoryCatalog = useCategoryCatalog();
+  const categoryRecents = useCategoryRecents(categoryCatalog.activeCategories);
   const { openArticle, highlightId, setMutateFn } = useArticleContext();
   const { unarchive, toggleFavorite } = useArticleOperations();
   const { getBookmark, clearBookmark } = useBookmark();
@@ -58,6 +65,7 @@ function ArchiveContentInner() {
   const [sourceSidebarCollapsed, setSourceSidebarCollapsed] = useState(false);
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkCategoryPickerOpen, setBulkCategoryPickerOpen] = useState(false);
+  const [quickCreateCategoryOpen, setQuickCreateCategoryOpen] = useState(false);
   const [bulkResult, setBulkResult] = useState<ArticleBulkActionResult | ArticleBulkAiResult | null>(null);
   const [bulkExportJob, setBulkExportJob] = useState<BulkExportJob | null>(null);
   const removingIdsRef = useRef<Set<number>>(new Set());
@@ -87,14 +95,13 @@ function ArchiveContentInner() {
   );
 
   const { data: sourceData } = useSWR(`sources:${currentSort}:${sortOrder}`, () => api.getSources(currentSort, sortOrder), { revalidateOnFocus: false });
-  const { data: categoryData } = useSWR('categories', () => api.getCategories(), { revalidateOnFocus: false });
   const { data: tagsData } = useSWR<ArchiveTag[]>(isAuthenticated ? 'archive-tags' : null, () => api.getTags(), { revalidateOnFocus: false });
 
   const totalPages = data?.totalPages ?? 1;
   const sources = sourceData ?? [];
-  const categories = useMemo(() => categoryData?.categories ?? [], [categoryData?.categories]);
-  const categoryCounts = Object.fromEntries(Object.entries(categoryData?.counts ?? {}).map(([id, count]) => [Number(id), count]));
-  const totalCount = Object.values(categoryData?.counts ?? {}).reduce((sum, count) => sum + count, 0);
+  const categories = categoryCatalog.activeCategories;
+  const categoryCounts = categoryCatalog.counts;
+  const totalCount = categoryCatalog.totalCount;
   const archiveTags = tagsData ?? [];
   const articleIds = useMemo(() => allArticles.map((article) => article.id), [allArticles]);
   const selection = useArticleSelection(articleIds);
@@ -292,43 +299,55 @@ function ArchiveContentInner() {
     setBulkResult(null);
   }, [selection]);
 
-  const handleBulkCategorySelect = useCallback(async (categoryId: number) => {
+  const handleBulkCategorySelect = useCallback(async (categoryId: number): Promise<CategoryAssignmentOutcome> => {
     const ids = [...selection.selectedIds];
-    if (ids.length === 0 || bulkActions.loadingAction !== null) return;
+    if (ids.length === 0 || bulkActions.loadingAction !== null) {
+      return { status: 'failure', message: '没有可分类的文章，请重新选择。' };
+    }
     try {
       const result = await api.bulkSetCategory(ids, categoryId);
       const category = categories.find((item) => item.id === categoryId);
-      showToast(`已将 ${result.succeededIds.length} 篇文章归入${category?.name || '所选分类'}`);
       setBulkResult(result);
-      await refreshList();
+      selection.remove(result.succeededIds);
+      await Promise.all([refreshList(), refreshCategoryCatalog()]);
+      return bulkCategoryOutcome(result, `已将 ${result.succeededIds.length} 篇文章归入${category?.name || '所选分类'}`);
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '批量修改分类失败');
+      return assignmentFailure(error, '批量修改分类失败');
     }
-  }, [bulkActions.loadingAction, categories, refreshList, selection, showToast]);
+  }, [bulkActions.loadingAction, categories, refreshCategoryCatalog, refreshList, selection]);
 
-  const handleBulkCategoryAi = useCallback(async () => {
+  const handleBulkCategoryAi = useCallback(async (): Promise<CategoryAssignmentOutcome> => {
     const ids = [...selection.selectedIds];
-    if (ids.length === 0 || bulkActions.loadingAction !== null) return;
-    setBulkCategoryPickerOpen(false);
-    try {
-      setBulkResult(await bulkActions.runAi(ids, true, true));
-      await refreshList();
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '批量 AI 分类失败');
+    if (ids.length === 0 || bulkActions.loadingAction !== null) {
+      return { status: 'failure', message: '没有可分类的文章，请重新选择。' };
     }
-  }, [bulkActions, refreshList, selection, showToast]);
+    try {
+      const result = await bulkActions.runAi(ids, true, true);
+      setBulkResult(result);
+      await Promise.all([refreshList(), refreshCategoryCatalog()]);
+      if (!result) return { status: 'failure', message: '批量 AI 分类未返回结果，请重试。' };
+      return {
+        status: 'success',
+        message: `已提交 ${result.queuedIds.length} 篇文章进行 AI 分类${result.alreadyQueuedIds.length ? `，${result.alreadyQueuedIds.length} 篇已在队列中` : ''}`,
+      };
+    } catch (error) {
+      return assignmentFailure(error, '批量 AI 分类失败');
+    }
+  }, [bulkActions, refreshCategoryCatalog, refreshList, selection]);
 
-  const handleCreateCategory = useCallback(async (name: string) => {
-    const created = await api.createCategory({
-      name,
-      description: null,
-      includeExamples: [],
-      excludeExamples: [],
-      color: null,
-    });
-    await globalMutate('categories');
+  const createCategory = useCallback(async (input: CategoryQuickCreateInput) => {
+    const created = await api.createCategory(input);
+    void refreshCategoryCatalog().catch((error) => console.error('刷新分类目录失败:', error));
     return created;
-  }, [globalMutate]);
+  }, [refreshCategoryCatalog]);
+
+  const handleCreateCategory = useCallback((name: string) => createCategory({
+    name,
+    description: null,
+    includeExamples: [],
+    excludeExamples: [],
+    color: null,
+  }), [createCategory]);
 
   const handleBulkAction = useCallback(async (action: BulkToolbarAction) => {
     const ids = [...selection.selectedIds];
@@ -446,7 +465,7 @@ function ArchiveContentInner() {
         标签筛选{activeTags.length ? ` (${activeTags.length})` : ''}
       </button>
       {sidebarMode === 'categories' ? (
-        <CategoryNavigation categories={categories} activeCategoryId={activeCategoryId} counts={categoryCounts} totalCount={totalCount} onSelect={handleCategorySelect} />
+        <CategoryNavigation categories={categories} activeCategoryId={activeCategoryId} counts={categoryCounts} totalCount={totalCount} onSelect={handleCategorySelect} onCreate={isAuthenticated ? () => setQuickCreateCategoryOpen(true) : undefined} onManage={isAuthenticated ? () => router.push('/settings/categories') : undefined} />
       ) : (
         <SourceSidebar
           sources={sources}
@@ -528,14 +547,35 @@ function ArchiveContentInner() {
       )}
 
       {bulkCategoryPickerOpen && (
-        <CategoryAssignmentDialog
+        <CategoryPicker
           categories={categories}
+          recentCategoryIds={categoryRecents.recentCategoryIds}
           currentCategoryId={null}
-          loading={bulkActions.loadingAction !== null}
+          loading={categoryCatalog.isLoading || bulkActions.loadingAction !== null}
+          catalogError={categoryCatalog.error instanceof Error ? categoryCatalog.error.message : null}
+          targetCount={selection.selectedIds.size}
+          title="批量设置分类"
           onClose={() => setBulkCategoryPickerOpen(false)}
           onSelect={handleBulkCategorySelect}
           onSelectAi={handleBulkCategoryAi}
           onCreateCategory={handleCreateCategory}
+          onRememberCategory={categoryRecents.remember}
+          onCatalogRefresh={refreshCategoryCatalog}
+          onNotify={showToast}
+        />
+      )}
+
+      {quickCreateCategoryOpen && (
+        <CategoryQuickCreateDialog
+          categories={categoryCatalog.categories}
+          onClose={() => setQuickCreateCategoryOpen(false)}
+          onCreate={createCategory}
+          onCreated={(category) => {
+            setQuickCreateCategoryOpen(false);
+            setActiveCategoryId(category.id);
+            setPage(1);
+            showToast(`已创建分类「${category.name}」`);
+          }}
         />
       )}
 
@@ -564,7 +604,7 @@ function ArchiveContentInner() {
 
       {isMobile && (
         <>
-          <CategoryNavigation categories={categories} activeCategoryId={activeCategoryId} counts={categoryCounts} totalCount={totalCount} onSelect={handleCategorySelect} compact />
+          <CategoryNavigation categories={categories} activeCategoryId={activeCategoryId} counts={categoryCounts} totalCount={totalCount} onSelect={handleCategorySelect} onCreate={isAuthenticated ? () => setQuickCreateCategoryOpen(true) : undefined} onManage={isAuthenticated ? () => router.push('/settings/categories') : undefined} compact />
           <SourcePills
             sources={sources}
             activeSource={activeSource}
