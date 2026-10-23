@@ -140,6 +140,86 @@ struct ReaderModelTests {
         #expect(回调时分类ID == 31)
     }
 
+    @Test func 阅读器旧AI分类在切换文章后完成不会发出目录刷新或覆盖新文章() async {
+        let client = 模拟阅读客户端(
+            classificationDetail: ArticleDetail(
+                id: 12,
+                category: ArticleCategory(id: 31, name: "旧文章分类"),
+                isArchived: true
+            )
+        )
+        await client.setArticleDetail(
+            ArticleDetail(
+                id: 13,
+                category: ArticleCategory(id: 44, name: "新文章分类"),
+                isArchived: true
+            ),
+            for: 13
+        )
+        let model = ReaderModel(client: client)
+        await model.open(articleID: 12)
+        var 刷新信号次数 = 0
+        model.onCategoryAffectingChange = {
+            刷新信号次数 += 1
+        }
+
+        await client.holdNextClassification()
+        let 分类任务 = Task { @MainActor in
+            await model.classifyArticle()
+        }
+        await client.waitForClassificationRequestCount(1)
+        await model.open(articleID: 13)
+
+        await client.resumeClassification()
+        let succeeded = await 分类任务.value
+
+        #expect(!succeeded)
+        #expect(model.article?.id == 13)
+        #expect(model.article?.category?.id == 44)
+        #expect(刷新信号次数 == 0)
+    }
+
+    @Test func 阅读器旧AI分类在切换用户后完成不会发出目录刷新或覆盖新文章() async {
+        let client = 模拟阅读客户端(
+            classificationDetail: ArticleDetail(
+                id: 12,
+                category: ArticleCategory(id: 31, name: "旧用户文章分类"),
+                isArchived: true
+            )
+        )
+        await client.setArticleDetail(
+            ArticleDetail(
+                id: 14,
+                category: ArticleCategory(id: 55, name: "新用户文章分类"),
+                isArchived: true
+            ),
+            for: 14
+        )
+        let model = ReaderModel(client: client, userID: 1)
+        await model.open(articleID: 12)
+        var 刷新信号次数 = 0
+        model.onCategoryAffectingChange = {
+            刷新信号次数 += 1
+        }
+
+        await client.holdNextClassification()
+        let 分类任务 = Task { @MainActor in
+            await model.classifyArticle()
+        }
+        await client.waitForClassificationRequestCount(1)
+        model.prepareUser(userID: 2)
+        await model.open(articleID: 14)
+
+        await client.resumeClassification()
+        let succeeded = await 分类任务.value
+
+        #expect(!succeeded)
+        #expect(model.userID == 2)
+        #expect(model.article?.id == 14)
+        #expect(model.article?.category?.id == 55)
+        #expect(刷新信号次数 == 0)
+    }
+
     @Test func 阅读器归档会携带手工分类并在完成后回调资料库() async {
         let client = 模拟阅读客户端()
         let model = ReaderModel(client: client)
@@ -524,6 +604,7 @@ struct ReaderModelTests {
 
 private actor 模拟阅读客户端: ReaderNetworkClient {
     private var detail: ArticleDetail
+    private var articleDetailsByID: [Int: ArticleDetail] = [:]
     private(set) var paths: [String] = []
     private(set) var categoryPaths: [String] = []
     private(set) var lastMovedCategoryID: Int?
@@ -541,6 +622,10 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
     private var moveRequestWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
     private var requestWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
     private var classificationDetail: ArticleDetail?
+    private var shouldHoldNextClassification = false
+    private var classificationContinuation: CheckedContinuation<ReaderAIResult, Error>?
+    private var classificationRequestCount = 0
+    private var classificationRequestWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
 
     init(
         detail: ArticleDetail = 文章详情(id: 12),
@@ -558,6 +643,9 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
         lastHTMLVariant = htmlVariant
         if htmlVariant == "desktop" {
             desktopRequestCount += 1
+        }
+        if let detail = articleDetailsByID[articleID] {
+            return detail
         }
         return articleID == detail.id ? detail : 文章详情(id: articleID)
     }
@@ -622,7 +710,19 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
     }
 
     func classifyArticle(articleID: Int) async throws -> ReaderAIResult {
+        classificationRequestCount += 1
+        notifyClassificationRequestWaiters()
         paths.append("articles/\(articleID)/classify")
+        if shouldHoldNextClassification {
+            shouldHoldNextClassification = false
+            let result = try await withCheckedThrowingContinuation { continuation in
+                classificationContinuation = continuation
+            }
+            if let classificationDetail {
+                detail = classificationDetail
+            }
+            return result
+        }
         if let classificationDetail {
             detail = classificationDetail
         }
@@ -677,6 +777,10 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
         self.detail = detail
     }
 
+    func setArticleDetail(_ detail: ArticleDetail, for articleID: Int) {
+        articleDetailsByID[articleID] = detail
+    }
+
     func holdFavorite() {
         shouldHoldFavorite = true
     }
@@ -692,6 +796,22 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
 
     func holdNextMove() {
         shouldHoldNextMove = true
+    }
+
+    func holdNextClassification() {
+        shouldHoldNextClassification = true
+    }
+
+    func waitForClassificationRequestCount(_ count: Int) async {
+        guard classificationRequestCount < count else { return }
+        await withCheckedContinuation { continuation in
+            classificationRequestWaiters[count, default: []].append(continuation)
+        }
+    }
+
+    func resumeClassification() {
+        classificationContinuation?.resume(returning: ReaderAIResult(ok: true))
+        classificationContinuation = nil
     }
 
     func waitForMoveRequestCount(_ count: Int) async {
@@ -734,6 +854,14 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
         let readyKeys = moveRequestWaiters.keys.filter { $0 <= moveRequestCount }
         for key in readyKeys {
             let waiters = moveRequestWaiters.removeValue(forKey: key) ?? []
+            waiters.forEach { $0.resume() }
+        }
+    }
+
+    private func notifyClassificationRequestWaiters() {
+        let readyKeys = classificationRequestWaiters.keys.filter { $0 <= classificationRequestCount }
+        for key in readyKeys {
+            let waiters = classificationRequestWaiters.removeValue(forKey: key) ?? []
             waiters.forEach { $0.resume() }
         }
     }
