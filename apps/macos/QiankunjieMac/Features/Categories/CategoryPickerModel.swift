@@ -17,13 +17,23 @@ final class CategoryPickerModel: Observable {
     private(set) var errorMessage: String?
 
     private let catalog: CategoryCatalogModel
+    private let openedUserID: Int?
+
+    var currentUserID: Int? {
+        catalog.userID
+    }
+
+    var isStaleForCurrentUser: Bool {
+        catalog.userID != openedUserID
+    }
 
     var recentCategories: [ArticleCategory] {
-        guard normalizedQuery.isEmpty else { return [] }
+        guard !isStaleForCurrentUser, normalizedQuery.isEmpty else { return [] }
         return catalog.recentCategories
     }
 
     var filteredCategories: [ArticleCategory] {
+        guard !isStaleForCurrentUser else { return [] }
         let activeCategories = catalog.activeCategories
         guard !normalizedQuery.isEmpty else {
             let recentIDs = Set(catalog.recentCategoryIDs)
@@ -35,14 +45,20 @@ final class CategoryPickerModel: Observable {
     }
 
     var exactMatch: ArticleCategory? {
-        guard !normalizedQuery.isEmpty else { return nil }
+        guard !isStaleForCurrentUser, !normalizedQuery.isEmpty else { return nil }
         return catalog.activeCategories.first {
             $0.name.localizedCaseInsensitiveCompare(normalizedQuery) == .orderedSame
         }
     }
 
     var canCreate: Bool {
-        !normalizedQuery.isEmpty && exactMatch == nil && !isSubmitting
+        !isStaleForCurrentUser
+            && catalog.hasLoadedCatalog
+            && !catalog.isLoading
+            && !catalog.isMutating
+            && !normalizedQuery.isEmpty
+            && exactMatch == nil
+            && !isSubmitting
     }
 
     var isLoadingCatalog: Bool {
@@ -58,11 +74,12 @@ final class CategoryPickerModel: Observable {
     }
 
     var hasActiveCategories: Bool {
-        !catalog.activeCategories.isEmpty
+        !isStaleForCurrentUser && !catalog.activeCategories.isEmpty
     }
 
     init(catalog: CategoryCatalogModel, selectedCategoryID: Int?, targetCount: Int) {
         self.catalog = catalog
+        self.openedUserID = catalog.userID
         self.selectedCategoryID = selectedCategoryID
         self.targetCount = targetCount
     }
@@ -71,6 +88,7 @@ final class CategoryPickerModel: Observable {
         _ category: ArticleCategory,
         assign: @MainActor (ArticleCategory) async -> CategoryAssignmentOutcome
     ) async -> Bool {
+        guard 确保用户上下文有效() else { return false }
         guard !isSubmitting else { return false }
 
         isSubmitting = true
@@ -83,12 +101,14 @@ final class CategoryPickerModel: Observable {
         }
 
         let outcome = await assign(category)
+        guard 确保用户上下文有效() else { return false }
         return await 处理已有分类结果(outcome, category: category)
     }
 
     func createAndAssign(
         assign: @MainActor (ArticleCategory) async -> CategoryAssignmentOutcome
     ) async -> Bool {
+        guard 确保用户上下文有效() else { return false }
         guard !isSubmitting else { return false }
 
         isSubmitting = true
@@ -97,8 +117,11 @@ final class CategoryPickerModel: Observable {
 
         if let existing = exactMatch {
             let outcome = await assign(existing)
+            guard 确保用户上下文有效() else { return false }
             return await 处理已有分类结果(outcome, category: existing)
         }
+
+        guard 确保目录允许创建() else { return false }
 
         let name = normalizedQuery
         guard !name.isEmpty else {
@@ -117,6 +140,7 @@ final class CategoryPickerModel: Observable {
         }
 
         let outcome = await assign(category)
+        guard 确保用户上下文有效() else { return false }
         switch outcome {
         case .success:
             catalog.recordRecent(categoryID: category.id)
@@ -125,6 +149,10 @@ final class CategoryPickerModel: Observable {
             errorMessage = message.isEmpty
                 ? "分类已创建，但部分文章未完成分类"
                 : "分类已创建，但部分文章未完成分类：\(message)"
+            return false
+        case .categoryUnavailable:
+            errorMessage = "分类已创建，但分类已失效"
+            await catalog.load()
             return false
         case let .failure(message):
             errorMessage = message.isEmpty
@@ -137,6 +165,7 @@ final class CategoryPickerModel: Observable {
     func assignWithAI(
         assign: @MainActor () async -> CategoryAssignmentOutcome
     ) async -> Bool {
+        guard 确保用户上下文有效() else { return false }
         guard !isSubmitting else { return false }
 
         isSubmitting = true
@@ -144,6 +173,7 @@ final class CategoryPickerModel: Observable {
         defer { isSubmitting = false }
 
         let outcome = await assign()
+        guard 确保用户上下文有效() else { return false }
         switch outcome {
         case .success:
             return true
@@ -151,6 +181,9 @@ final class CategoryPickerModel: Observable {
             errorMessage = message.isEmpty
                 ? "AI 分类未全部完成"
                 : "AI 分类未全部完成：\(message)"
+            return false
+        case .categoryUnavailable:
+            await 处理失效分类()
             return false
         case let .failure(message):
             errorMessage = message.isEmpty ? "AI 分类失败，请稍后重试" : message
@@ -184,12 +217,11 @@ final class CategoryPickerModel: Observable {
                 ? "部分文章未完成分类"
                 : "部分文章未完成分类：\(message)"
             return false
+        case .categoryUnavailable:
+            await 处理失效分类()
+            return false
         case let .failure(message):
-            if 是分类失效错误(message) {
-                await 处理失效分类()
-            } else {
-                errorMessage = message.isEmpty ? "分类失败，请稍后重试" : message
-            }
+            errorMessage = message.isEmpty ? "分类失败，请稍后重试" : message
             return false
         }
     }
@@ -199,11 +231,28 @@ final class CategoryPickerModel: Observable {
         await catalog.load()
     }
 
-    private func 是分类失效错误(_ message: String) -> Bool {
-        // 分配结果只携带用户文案，因此使用共享的 contentUnavailable 文案识别失效分类。
-        let contentUnavailableMessage = managementErrorMessage(for: AppError.contentUnavailable)
-        return message == contentUnavailableMessage
-            || message.localizedCaseInsensitiveContains("分类不存在")
-            || message.localizedCaseInsensitiveContains("分类已失效")
+    private func 确保用户上下文有效() -> Bool {
+        guard !isStaleForCurrentUser else {
+            errorMessage = "登录用户已切换，请重新打开分类选择器"
+            return false
+        }
+        return true
+    }
+
+    private func 确保目录允许创建() -> Bool {
+        guard 确保用户上下文有效() else { return false }
+        guard catalog.hasLoadedCatalog else {
+            errorMessage = "分类目录尚未加载完成，请稍后重试"
+            return false
+        }
+        guard !catalog.isLoading else {
+            errorMessage = "分类目录正在更新，请稍后再试"
+            return false
+        }
+        guard !catalog.isMutating else {
+            errorMessage = "分类目录正在处理其他操作，请稍后再试"
+            return false
+        }
+        return true
     }
 }

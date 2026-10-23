@@ -11,6 +11,7 @@ final class CategoryCatalogModel: Observable {
     private(set) var counts: [Int: Int] = [:]
     private(set) var recentCategoryIDs: [Int] = []
     private(set) var isLoading = false
+    private(set) var hasLoadedCatalog = false
     private(set) var isMutating = false
     private(set) var errorMessage: String?
     var userID: Int?
@@ -52,6 +53,7 @@ final class CategoryCatalogModel: Observable {
             userID.map(recentStore.load(userID:)) ?? []
         )
         isLoading = false
+        hasLoadedCatalog = false
         isMutating = false
         errorMessage = nil
         publishCatalogChangesIfNeeded(
@@ -103,6 +105,7 @@ final class CategoryCatalogModel: Observable {
         let previousCounts = counts
         categories = sortedCategories(response.categories)
         counts = normalizedCounts(response.counts)
+        hasLoadedCatalog = true
         pruneRecentCategories()
         publishCatalogChangesIfNeeded(
             previousCategories: previousCategories,

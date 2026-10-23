@@ -141,7 +141,48 @@ struct CategoryPickerModelTests {
         #expect(!model.isSubmitting)
     }
 
-    @Test func 选择器中的分类已被删除时显示错误并刷新目录() async {
+    @Test func 初始目录加载期间禁止创建并在加载完成后保留已有分类() async {
+        let service = 可暂停首次加载服务桩(
+            目录: 目录响应(分类(id: 1, name: "已有分类", sortOrder: 10)),
+            新分类: 分类(id: 2, name: "新产品设计", sortOrder: 20)
+        )
+        let catalog = CategoryCatalogModel(
+            service: service,
+            recentStore: 选择器最近分类存储桩()
+        )
+        catalog.prepareUser(userID: 7)
+        let 加载任务 = Task { @MainActor in
+            await catalog.load()
+        }
+        await service.等待列表请求开始()
+
+        let model = CategoryPickerModel(
+            catalog: catalog,
+            selectedCategoryID: nil,
+            targetCount: 1
+        )
+        model.query = "新产品设计"
+        var 分配次数 = 0
+
+        #expect(!model.canCreate)
+        let 成功 = await model.createAndAssign { _ in
+            分配次数 += 1
+            return .success(succeededCount: 1, skippedCount: 0)
+        }
+
+        #expect(!成功)
+        #expect(model.errorMessage == "分类目录尚未加载完成，请稍后重试")
+        #expect(分配次数 == 0)
+        #expect(await service.已创建分类名称() == [])
+
+        await service.放行列表响应()
+        await 加载任务.value
+
+        #expect(catalog.hasLoadedCatalog)
+        #expect(catalog.activeCategories.map(\.id) == [1])
+    }
+
+    @Test func 结构化分类失效结果会显示错误并刷新目录() async {
         let service = 选择器分类服务桩(列表响应: [
             目录响应(
                 分类(id: 1, name: "产品设计", sortOrder: 10),
@@ -161,7 +202,7 @@ struct CategoryPickerModelTests {
         let 已删除分类 = catalog.activeCategories[0]
 
         let 成功 = await model.selectExisting(已删除分类) { _ in
-            .failure(message: managementErrorMessage(for: AppError.contentUnavailable))
+            .categoryUnavailable(message: "请求的文章不可用")
         }
 
         #expect(!成功)
@@ -170,6 +211,42 @@ struct CategoryPickerModelTests {
         #expect(catalog.categories.map(\.id) == [2])
         #expect(catalog.recentCategoryIDs == [2])
         #expect(!model.isSubmitting)
+    }
+
+    @Test func 用户切换后标记失效并禁止继续创建或分配() async {
+        let history = 分类(id: 1, name: "历史", sortOrder: 10)
+        let service = 选择器分类服务桩(列表响应: [目录响应(history)])
+        let catalog = await 准备分类目录(service: service, userID: 7)
+        let model = CategoryPickerModel(
+            catalog: catalog,
+            selectedCategoryID: history.id,
+            targetCount: 1
+        )
+        model.query = "新分类"
+        var 分配次数 = 0
+
+        #expect(!model.isStaleForCurrentUser)
+        catalog.prepareUser(userID: 8)
+
+        #expect(model.isStaleForCurrentUser)
+        #expect(!model.canCreate)
+        #expect(model.recentCategories.isEmpty)
+        #expect(model.filteredCategories.isEmpty)
+
+        let 选择成功 = await model.selectExisting(history) { _ in
+            分配次数 += 1
+            return .success(succeededCount: 1, skippedCount: 0)
+        }
+        #expect(!选择成功)
+
+        let 创建成功 = await model.createAndAssign { _ in
+            分配次数 += 1
+            return .success(succeededCount: 1, skippedCount: 0)
+        }
+        #expect(!创建成功)
+        #expect(分配次数 == 0)
+        #expect(model.errorMessage == "登录用户已切换，请重新打开分类选择器")
+        #expect(await service.已创建分类名称() == [])
     }
 
     @Test func AI判断成功关闭选择器且不记录最近分类() async {
@@ -234,6 +311,71 @@ private func 目录响应(_ categories: ArticleCategory...) -> CategoriesRespons
             uniqueKeysWithValues: categories.map { (String($0.id), 0) }
         )
     )
+}
+
+private actor 可暂停首次加载服务桩: CategoryCatalogServicing {
+    private let 目录: CategoriesResponse
+    private let 新分类: ArticleCategory
+    private var 列表请求已开始 = false
+    private var 等待开始: CheckedContinuation<Void, Never>?
+    private var 等待放行: CheckedContinuation<Void, Never>?
+    private var 创建请求名称: [String] = []
+
+    init(目录: CategoriesResponse, 新分类: ArticleCategory) {
+        self.目录 = 目录
+        self.新分类 = 新分类
+    }
+
+    func list(includeInactive: Bool) async throws -> CategoriesResponse {
+        列表请求已开始 = true
+        等待开始?.resume()
+        等待开始 = nil
+        await withCheckedContinuation { continuation in
+            等待放行 = continuation
+        }
+        return 目录
+    }
+
+    func 等待列表请求开始() async {
+        if 列表请求已开始 { return }
+        await withCheckedContinuation { continuation in
+            等待开始 = continuation
+        }
+    }
+
+    func 放行列表响应() {
+        等待放行?.resume()
+        等待放行 = nil
+    }
+
+    func create(_ request: CategoryMutationRequest) async throws -> CategoryResponse {
+        创建请求名称.append(request.name ?? "")
+        return CategoryResponse(category: 新分类)
+    }
+
+    func update(categoryID: Int, request: CategoryMutationRequest) async throws -> CategoryResponse {
+        throw 选择器服务测试错误.缺少响应
+    }
+
+    func reorder(categoryIDs: [Int]) async throws -> CategoryReorderResponse {
+        throw 选择器服务测试错误.缺少响应
+    }
+
+    func delete(categoryID: Int, targetCategoryID: Int) async throws -> DeleteCategoryResponse {
+        throw 选择器服务测试错误.缺少响应
+    }
+
+    func merge(sourceCategoryID: Int, targetCategoryID: Int) async throws {
+        throw 选择器服务测试错误.缺少响应
+    }
+
+    func optimize(_ request: CategoryOptimizeRequest) async throws -> CategoryOptimizeResponse {
+        throw 选择器服务测试错误.缺少响应
+    }
+
+    func 已创建分类名称() -> [String] {
+        创建请求名称
+    }
 }
 
 private actor 选择器分类服务桩: CategoryCatalogServicing {

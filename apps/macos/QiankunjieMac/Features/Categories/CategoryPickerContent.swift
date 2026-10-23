@@ -36,7 +36,10 @@ struct CategoryPickerContent: View {
 
                         if model.canCreate {
                             createButton
-                        } else if !model.hasActiveCategories && normalizedQuery.isEmpty {
+                        } else if !model.hasActiveCategories
+                            && normalizedQuery.isEmpty
+                            && !model.isLoadingCatalog
+                            && model.catalogErrorMessage == nil {
                             firstCategoryButton
                         }
 
@@ -74,6 +77,11 @@ struct CategoryPickerContent: View {
         }
         .onChange(of: model.query) {
             focusedRow = nil
+        }
+        .onChange(of: model.currentUserID) {
+            if model.isStaleForCurrentUser {
+                onDismiss()
+            }
         }
         .onKeyPress(.upArrow) {
             移动键盘焦点(向前: true)
@@ -114,7 +122,7 @@ struct CategoryPickerContent: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(isBusy)
+            .disabled(!canDismiss)
             .accessibilityLabel("关闭分类选择")
             .help("关闭分类选择")
         }
@@ -541,7 +549,14 @@ struct CategoryPickerContent: View {
     }
 
     private var isBusy: Bool {
-        model.isSubmitting || model.isCatalogMutating
+        model.isSubmitting
+            || model.isCatalogMutating
+            || model.isLoadingCatalog
+            || model.isStaleForCurrentUser
+    }
+
+    private var canDismiss: Bool {
+        !model.isSubmitting && !model.isCatalogMutating
     }
 
     private var errorColor: Color {
@@ -612,7 +627,7 @@ struct CategoryPickerContent: View {
     }
 
     private func dismissIfPossible() {
-        guard !isBusy else { return }
+        guard canDismiss else { return }
         onDismiss()
     }
 }
