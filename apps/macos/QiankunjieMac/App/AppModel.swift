@@ -183,7 +183,6 @@ final class AppModel {
     var isLoginPresented = false
     var isSearchPresented = false
     private(set) var updateCheckRequestID = 0
-    @ObservationIgnored private var isCreatingCategory = false
 
     init(
         authModel: AuthModel = AuthModel(repository: AuthRepository()),
@@ -415,16 +414,18 @@ final class AppModel {
             categoryCatalog.presentError("分类目录正在加载，请稍后重试")
             return nil
         }
-        guard !categoryCatalog.isMutating, !isCreatingCategory else {
+        guard !categoryCatalog.isMutating else {
             categoryCatalog.presentError("分类目录正在处理其他操作，请稍后再试")
             return nil
         }
 
-        isCreatingCategory = true
-        defer { isCreatingCategory = false }
+        let 发起用户ID = categoryCatalog.userID
 
         do {
             let category = try await categoryCatalog.create(draft)
+            guard categoryCatalog.userID == 发起用户ID else {
+                return nil
+            }
             selectCategory(category.id)
             guard selectedCategoryID == category.id else {
                 categoryCatalog.presentError("分类已创建，但无法进入新分类，请稍后重试")
@@ -432,6 +433,9 @@ final class AppModel {
             }
             return category
         } catch {
+            guard categoryCatalog.userID == 发起用户ID else {
+                return nil
+            }
             if categoryCatalog.errorMessage == nil {
                 categoryCatalog.presentError(managementErrorMessage(for: error))
             }

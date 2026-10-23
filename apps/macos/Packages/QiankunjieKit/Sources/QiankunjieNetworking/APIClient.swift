@@ -143,7 +143,11 @@ public struct APIClient: @unchecked Sendable {
     }
 
     private func mapError(statusCode: Int, data: Data) -> AppError {
-        let errorCode = (try? JSONDecoder.qiankunjie.decode(ServerErrorEnvelope.self, from: data))?.error.code
+        let serverError = (try? JSONDecoder.qiankunjie.decode(
+            ServerErrorEnvelope.self,
+            from: data
+        ))?.error
+        let errorCode = serverError?.code
 
         switch errorCode {
         case "INVALID_CREDENTIALS", "INVALID_REFRESH_TOKEN", "UNAUTHORIZED", "TOKEN_EXPIRED":
@@ -156,6 +160,11 @@ public struct APIClient: @unchecked Sendable {
             return .invalidInput
         case "NOT_FOUND", "CONTENT_UNAVAILABLE", "CATEGORY_NOT_FOUND", "CATEGORY_INACTIVE":
             return .contentUnavailable
+        case "CATEGORY_NAME_CONFLICT":
+            if let message = serverError?.message, !message.isEmpty {
+                return .categoryConflict(message: message)
+            }
+            return .categoryConflict(message: "已存在同名启用分类，请换一个名称")
         default:
             break
         }
@@ -185,4 +194,5 @@ private struct ServerErrorEnvelope: Decodable {
 
 private struct ServerErrorBody: Decodable {
     let code: String?
+    let message: String?
 }

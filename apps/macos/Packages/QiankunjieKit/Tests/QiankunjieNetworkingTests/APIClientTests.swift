@@ -155,6 +155,27 @@ private actor 录制令牌提供者: TokenRefreshing {
     }
 }
 
+@Test func 分类名称冲突保留服务端消息() async throws {
+    let body = #"{"error":{"code":"CATEGORY_NAME_CONFLICT","message":"已存在同名启用分类，请换一个名称"}}"#
+        .data(using: .utf8)!
+    let session = 录制网络会话([
+        .init(statusCode: 400, data: body),
+    ])
+    let client = APIClient(
+        baseURL: URL(string: "https://storing.idickies.cc/api/v1")!,
+        session: session
+    )
+
+    await #expect(
+        throws: AppError.categoryConflict(message: "已存在同名启用分类，请换一个名称")
+    ) {
+        let _: 测试响应 = try await client.send(
+            .get("categories"),
+            authenticated: false
+        )
+    }
+}
+
 @Test func 成功响应解码蛇形命名字段() async throws {
     let session = 录制网络会话([
         .init(statusCode: 200, data: #"{"display_value":"乾坤戒"}"#.data(using: .utf8)!),

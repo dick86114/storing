@@ -212,6 +212,115 @@ struct CategoryNavigationTests {
         #expect(await 分类服务.已创建分类名称().isEmpty == true)
         #expect(model.destination == .favorites)
     }
+
+    @Test func 创建中切换用户后旧请求静默失效() async {
+        let 旧用户分类 = 分类(id: 11, name: "旧分类", sortOrder: 10)
+        let 新用户分类 = 分类(id: 21, name: "新用户分类", sortOrder: 10)
+        let 分类服务 = 用户切换分类服务(
+            列表响应: [
+                CategoriesResponse(categories: [], counts: [:]),
+                CategoriesResponse(categories: [新用户分类], counts: ["21": 2]),
+            ],
+            新用户创建结果: 分类(id: 22, name: "新用户新建", sortOrder: 20)
+        )
+        let 分类目录 = CategoryCatalogModel(
+            service: 分类服务,
+            recentStore: 导航最近分类存储()
+        )
+        分类目录.prepareUser(userID: 9)
+        await 分类目录.load()
+
+        let 资料库仓库 = 导航资料库仓库()
+        let model = 创建应用模型(
+            用户ID: 9,
+            目的地: .favorites,
+            资料库仓库: 资料库仓库,
+            分类目录: 分类目录
+        )
+        var 草稿 = CategoryDraft()
+        草稿.name = 旧用户分类.name
+
+        let 旧创建任务 = Task { @MainActor in
+            await model.createCategoryAndSelect(草稿)
+        }
+        await 分类服务.等待首次创建开始()
+        await 切换导航用户(
+            model,
+            用户ID: 10,
+            分类目录: 分类目录
+        )
+
+        await 分类服务.完成首次创建(
+            with: .failure(AppError.server)
+        )
+        let 旧创建结果 = await 旧创建任务.value
+
+        #expect(旧创建结果 == nil)
+        #expect(分类目录.userID == 10)
+        #expect(分类目录.categories == [新用户分类])
+        #expect(分类目录.errorMessage == nil)
+        #expect(model.selectedCategoryID == nil)
+        #expect(model.destination == .favorites)
+        #expect(await 分类服务.已创建分类名称() == [旧用户分类.name])
+    }
+
+    @Test func 创建中切换后新用户可以立即创建() async {
+        let 新用户已有分类 = 分类(id: 21, name: "新用户分类", sortOrder: 10)
+        let 新用户新建分类 = 分类(id: 22, name: "新用户新建", sortOrder: 20)
+        let 分类服务 = 用户切换分类服务(
+            列表响应: [
+                CategoriesResponse(categories: [], counts: [:]),
+                CategoriesResponse(categories: [新用户已有分类], counts: ["21": 2]),
+            ],
+            新用户创建结果: 新用户新建分类
+        )
+        let 分类目录 = CategoryCatalogModel(
+            service: 分类服务,
+            recentStore: 导航最近分类存储()
+        )
+        分类目录.prepareUser(userID: 9)
+        await 分类目录.load()
+
+        let 资料库仓库 = 导航资料库仓库()
+        let model = 创建应用模型(
+            用户ID: 9,
+            目的地: .favorites,
+            资料库仓库: 资料库仓库,
+            分类目录: 分类目录
+        )
+        var 旧草稿 = CategoryDraft()
+        旧草稿.name = "旧用户分类"
+
+        let 旧创建任务 = Task { @MainActor in
+            await model.createCategoryAndSelect(旧草稿)
+        }
+        await 分类服务.等待首次创建开始()
+        await 切换导航用户(
+            model,
+            用户ID: 10,
+            分类目录: 分类目录
+        )
+
+        var 新草稿 = CategoryDraft()
+        新草稿.name = 新用户新建分类.name
+        let 新创建结果 = await model.createCategoryAndSelect(新草稿)
+
+        #expect(新创建结果 == 新用户新建分类)
+        #expect(model.destination == .archive)
+        #expect(model.selectedCategoryID == 新用户新建分类.id)
+        #expect(分类目录.activeCategories.contains(新用户新建分类))
+
+        await 分类服务.完成首次创建(
+            with: .failure(AppError.server)
+        )
+        let 旧创建结果 = await 旧创建任务.value
+
+        #expect(旧创建结果 == nil)
+        #expect(分类目录.errorMessage == nil)
+        #expect(model.selectedCategoryID == 新用户新建分类.id)
+        #expect(分类目录.activeCategories.contains(新用户新建分类))
+        #expect(await 分类服务.已创建分类名称() == [旧草稿.name, 新草稿.name])
+    }
 }
 
 @MainActor
@@ -273,6 +382,27 @@ private func 创建应用模型(
     return model
 }
 
+@MainActor
+private func 切换导航用户(
+    _ model: AppModel,
+    用户ID: Int,
+    分类目录: CategoryCatalogModel
+) async {
+    model.user = AuthenticatedUser(
+        id: 用户ID,
+        username: "reader-\(用户ID)",
+        role: "reader",
+        status: "active"
+    )
+    model.destination = .favorites
+    model.libraryModel.prepareUser(
+        userID: 用户ID,
+        view: .favorites
+    )
+    分类目录.prepareUser(userID: 用户ID)
+    await 分类目录.load()
+}
+
 private actor 导航分类服务: CategoryCatalogServicing {
     private var 列表响应: [CategoriesResponse]
     private var 创建响应: [Result<CategoryResponse, 导航测试错误>]
@@ -295,6 +425,78 @@ private actor 导航分类服务: CategoryCatalogServicing {
         创建名称记录.append(request.name ?? "")
         guard !创建响应.isEmpty else { throw 导航测试错误.未实现分类操作 }
         return try 创建响应.removeFirst().get()
+    }
+
+    func 已创建分类名称() -> [String] {
+        创建名称记录
+    }
+
+    func update(categoryID: Int, request: CategoryMutationRequest) async throws -> CategoryResponse {
+        throw 导航测试错误.未实现分类操作
+    }
+
+    func reorder(categoryIDs: [Int]) async throws -> CategoryReorderResponse {
+        throw 导航测试错误.未实现分类操作
+    }
+
+    func delete(categoryID: Int, targetCategoryID: Int) async throws -> DeleteCategoryResponse {
+        throw 导航测试错误.未实现分类操作
+    }
+
+    func merge(sourceCategoryID: Int, targetCategoryID: Int) async throws {
+        throw 导航测试错误.未实现分类操作
+    }
+
+    func optimize(_ request: CategoryOptimizeRequest) async throws -> CategoryOptimizeResponse {
+        throw 导航测试错误.未实现分类操作
+    }
+}
+
+private actor 用户切换分类服务: CategoryCatalogServicing {
+    private var 列表响应: [CategoriesResponse]
+    private let 新用户创建结果: ArticleCategory
+    private var 创建名称记录: [String] = []
+    private var 首次创建已开始 = false
+    private var 首次创建开始等待者: CheckedContinuation<Void, Never>?
+    private var 首次创建结果等待者: CheckedContinuation<Result<CategoryResponse, AppError>, Never>?
+
+    init(
+        列表响应: [CategoriesResponse],
+        新用户创建结果: ArticleCategory
+    ) {
+        self.列表响应 = 列表响应
+        self.新用户创建结果 = 新用户创建结果
+    }
+
+    func list(includeInactive: Bool) async throws -> CategoriesResponse {
+        guard !列表响应.isEmpty else { throw 导航测试错误.缺少分类响应 }
+        return 列表响应.removeFirst()
+    }
+
+    func create(_ request: CategoryMutationRequest) async throws -> CategoryResponse {
+        创建名称记录.append(request.name ?? "")
+        if 创建名称记录.count == 1 {
+            首次创建已开始 = true
+            首次创建开始等待者?.resume()
+            首次创建开始等待者 = nil
+            let result = await withCheckedContinuation { continuation in
+                首次创建结果等待者 = continuation
+            }
+            return try result.get()
+        }
+        return CategoryResponse(category: 新用户创建结果)
+    }
+
+    func 等待首次创建开始() async {
+        if 首次创建已开始 { return }
+        await withCheckedContinuation { continuation in
+            首次创建开始等待者 = continuation
+        }
+    }
+
+    func 完成首次创建(with result: Result<CategoryResponse, AppError>) {
+        首次创建结果等待者?.resume(returning: result)
+        首次创建结果等待者 = nil
     }
 
     func 已创建分类名称() -> [String] {
