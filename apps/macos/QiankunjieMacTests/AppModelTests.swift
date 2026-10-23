@@ -421,6 +421,98 @@ struct AppModelTests {
         #expect(model.libraryModel.userID == nil)
         #expect(model.libraryModel.view == .published)
     }
+
+    @Test func 手动分类内容不可用映射为分类失效() {
+        let result = NativeBulkResult(
+            requestedCount: 1,
+            succeededCount: 0,
+            skippedCount: 0,
+            issues: [
+                ArticleBulkIssue(
+                    articleID: 7,
+                    code: "CONTENT_UNAVAILABLE",
+                    message: "请求的分类不可用"
+                )
+            ]
+        )
+
+        let outcome = BulkCategoryOutcomeMapper.outcome(
+            result: result,
+            error: .contentUnavailable,
+            operation: .manual
+        )
+
+        #expect(outcome == .categoryUnavailable(message: "请求的分类不可用"))
+    }
+
+    @Test func AI分类内容不可用映射为内容失效() {
+        let result = NativeBulkResult(
+            requestedCount: 1,
+            succeededCount: 0,
+            skippedCount: 0,
+            issues: [
+                ArticleBulkIssue(
+                    articleID: 7,
+                    code: "CONTENT_UNAVAILABLE",
+                    message: "请求的文章不可用"
+                )
+            ]
+        )
+
+        let outcome = BulkCategoryOutcomeMapper.outcome(
+            result: result,
+            error: .contentUnavailable,
+            operation: .ai
+        )
+
+        #expect(outcome == .contentUnavailable(message: "请求的文章不可用"))
+    }
+
+    @Test func 批量分类部分成功结果保留计数与失败原因() throws {
+        let result = NativeBulkResult(
+            requestedCount: 3,
+            succeededCount: 1,
+            skippedCount: 1,
+            issues: [
+                ArticleBulkIssue(
+                    articleID: 8,
+                    code: "ALREADY_CLASSIFIED",
+                    message: "已是目标分类"
+                ),
+                ArticleBulkIssue(
+                    articleID: 9,
+                    code: "NOT_FOUND",
+                    message: "文章不存在"
+                ),
+            ]
+        )
+
+        let outcome = BulkCategoryOutcomeMapper.outcome(
+            result: result,
+            error: nil,
+            operation: .manual
+        )
+        let partial: (
+            succeededCount: Int,
+            skippedCount: Int,
+            failedCount: Int,
+            message: String
+        )? = {
+            guard case let .partial(succeededCount, skippedCount, failedCount, message) = outcome else {
+                return nil
+            }
+            return (succeededCount, skippedCount, failedCount, message)
+        }()
+        let values = try #require(partial)
+
+        #expect(values.succeededCount == 1)
+        #expect(values.skippedCount == 1)
+        #expect(values.failedCount == 1)
+        #expect(values.message.contains("成功 1 篇"))
+        #expect(values.message.contains("跳过 1 篇"))
+        #expect(values.message.contains("失败 1 篇"))
+        #expect(values.message.contains("文章不存在"))
+    }
 }
 
 private extension AppModel {
@@ -489,10 +581,6 @@ private actor 模拟资料库仓库: LibraryLoading {
     }
 
     func loadSources(userID: Int?) async throws -> [LibrarySource] {
-        []
-    }
-
-    func loadCategoryFilters(userID: Int?) async throws -> [LibraryCategoryFilter] {
         []
     }
 

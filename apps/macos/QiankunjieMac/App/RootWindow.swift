@@ -205,6 +205,9 @@ struct RootWindow: View {
             } else if let libraryView = model.destination.libraryView {
                 CompactArticleListView(
                     model: model.libraryModel,
+                    categoryCatalog: model.categoryCatalog,
+                    selectedCategoryID: model.selectedCategoryID,
+                    onSelectCategory: model.selectCategory,
                     selection: articleSelection,
                     presentationMode: presentationModeBinding
                 )

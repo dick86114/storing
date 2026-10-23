@@ -32,7 +32,6 @@ public final class LibraryModel {
     public private(set) var perPage = 20
     public private(set) var counts: ArticleCounts?
     public private(set) var availableSources: [LibrarySource] = []
-    public private(set) var availableCategories: [LibraryCategoryFilter] = []
     public private(set) var isLoading = true
     public private(set) var isRefreshing = false
     public private(set) var isLoadingMore = false
@@ -41,11 +40,11 @@ public final class LibraryModel {
     public private(set) var loadMoreErrorMessage: String?
     public private(set) var refreshErrorMessage: String?
     public private(set) var sourceErrorMessage: String?
-    public private(set) var categoryErrorMessage: String?
     public private(set) var isBulkSelecting = false
     public private(set) var bulkSelection: Set<Int> = []
     public private(set) var bulkRunningAction: BulkToolbarAction?
     public private(set) var bulkResult: NativeBulkResult?
+    public private(set) var lastBulkActionError: AppError?
     public private(set) var bulkExportURL: URL?
 
     private let repository: any LibraryLoading
@@ -109,10 +108,6 @@ public final class LibraryModel {
         view == .archive && appliedSearchText.isEmpty
     }
 
-    public var selectedCategory: LibraryCategoryFilter? {
-        availableCategories.first { $0.id == categoryId }
-    }
-
     public func count(for view: LibraryView) -> Int? {
         guard let counts else {
             return nil
@@ -133,9 +128,7 @@ public final class LibraryModel {
         source = nil
         categoryId = nil
         availableSources = []
-        availableCategories = []
         sourceErrorMessage = nil
-        categoryErrorMessage = nil
         exitBulkMode()
         resetLoadedState()
     }
@@ -340,9 +333,7 @@ public final class LibraryModel {
         categoryId = nil
         counts = nil
         availableSources = []
-        availableCategories = []
         sourceErrorMessage = nil
-        categoryErrorMessage = nil
         selectedArticleID = nil
         exitBulkMode()
         resetLoadedState()
@@ -410,6 +401,7 @@ public final class LibraryModel {
         guard bulkRunningAction == nil, isBulkSelecting else {
             return
         }
+        lastBulkActionError = nil
 
         let articleIDs: [Int]
         do {
@@ -493,6 +485,7 @@ public final class LibraryModel {
                 bulkResult = NativeBulkResult(from: result)
             }
         } catch {
+            lastBulkActionError = error as? AppError
             bulkResult = failedResult(articleIDs: articleIDs, error: error)
         }
     }
@@ -507,6 +500,7 @@ public final class LibraryModel {
         guard bulkRunningAction == nil else {
             return
         }
+        lastBulkActionError = nil
 
         let articleIDs = [articleID]
         bulkRunningAction = action
@@ -586,6 +580,7 @@ public final class LibraryModel {
                 bulkResult = NativeBulkResult(from: result)
             }
         } catch {
+            lastBulkActionError = error as? AppError
             bulkResult = failedResult(articleIDs: articleIDs, error: error)
         }
     }
@@ -594,6 +589,7 @@ public final class LibraryModel {
         guard bulkRunningAction == nil else {
             return
         }
+        lastBulkActionError = nil
 
         let articleIDs = [articleID]
         bulkRunningAction = .setCategory
@@ -611,14 +607,16 @@ public final class LibraryModel {
             applyAIResult(result)
             bulkResult = NativeBulkResult(from: result)
         } catch {
+            lastBulkActionError = error as? AppError
             bulkResult = failedResult(articleIDs: articleIDs, error: error)
         }
     }
 
-    public func runArticleCategory(articleID: Int, categoryID: Int) async {
+    public func runArticleCategory(articleID: Int, category: ArticleCategory) async {
         guard bulkRunningAction == nil else {
             return
         }
+        lastBulkActionError = nil
 
         let articleIDs = [articleID]
         bulkRunningAction = .setCategory
@@ -627,38 +625,17 @@ public final class LibraryModel {
         }
 
         do {
-            let result = try await bulkRepository.runBulkCategory(articleIDs: articleIDs, categoryID: categoryID)
+            let result = try await bulkRepository.runBulkCategory(
+                articleIDs: articleIDs,
+                categoryID: category.id
+            )
             await load(reset: false)
-            let category = availableCategories.first { $0.id == categoryID }?.category
             updateArticles(withIDs: result.succeededIDs) { card in
-                guard let category else { return card }
-                return ArticleCard(
-                    id: card.id,
-                    title: card.title,
-                    author: card.author,
-                    source: card.source,
-                    originalURL: card.originalURL,
-                    publicID: card.publicID,
-                    coverImage: card.coverImage,
-                    publishTime: card.publishTime,
-                    createdAt: card.createdAt,
-                    aiSummary: card.aiSummary,
-                    aiCategory: card.aiCategory,
-                    aiTags: card.aiTags,
-                    category: category,
-                    categoryResult: card.categoryResult,
-                    isFavorited: card.isFavorited,
-                    isArchived: card.isArchived,
-                    isPublished: card.isPublished,
-                    aiStatus: card.aiStatus,
-                    aiErrorCode: card.aiErrorCode,
-                    aiErrorMessage: card.aiErrorMessage,
-                    aiModel: card.aiModel,
-                    aiTotalTokens: card.aiTotalTokens
-                )
+                replacing(card, category: category)
             }
             bulkResult = NativeBulkResult(from: result)
         } catch {
+            lastBulkActionError = error as? AppError
             bulkResult = failedResult(articleIDs: articleIDs, error: error)
         }
     }
@@ -667,6 +644,7 @@ public final class LibraryModel {
         guard bulkRunningAction == nil, isBulkSelecting else {
             return
         }
+        lastBulkActionError = nil
 
         let articleIDs: [Int]
         do {
@@ -693,14 +671,16 @@ public final class LibraryModel {
             applyAIResult(result)
             bulkResult = NativeBulkResult(from: result)
         } catch {
+            lastBulkActionError = error as? AppError
             bulkResult = failedResult(articleIDs: articleIDs, error: error)
         }
     }
 
-    public func runBulkCategory(_ categoryID: Int) async {
+    public func runBulkCategory(_ category: ArticleCategory) async {
         guard bulkRunningAction == nil, isBulkSelecting else {
             return
         }
+        lastBulkActionError = nil
 
         let articleIDs: [Int]
         do {
@@ -716,42 +696,18 @@ public final class LibraryModel {
         }
 
         do {
-            let result = try await bulkRepository.runBulkCategory(articleIDs: articleIDs, categoryID: categoryID)
+            let result = try await bulkRepository.runBulkCategory(
+                articleIDs: articleIDs,
+                categoryID: category.id
+            )
             await load(reset: false)
-            let category = availableCategories.first { $0.id == categoryID }?.category
             updateArticles(withIDs: result.succeededIDs) { card in
-                var updated = card
-                if let category {
-                    updated = ArticleCard(
-                        id: card.id,
-                        title: card.title,
-                        author: card.author,
-                        source: card.source,
-                        originalURL: card.originalURL,
-                        publicID: card.publicID,
-                        coverImage: card.coverImage,
-                        publishTime: card.publishTime,
-                        createdAt: card.createdAt,
-                        aiSummary: card.aiSummary,
-                        aiCategory: card.aiCategory,
-                        aiTags: card.aiTags,
-                        category: category,
-                        categoryResult: card.categoryResult,
-                        isFavorited: card.isFavorited,
-                        isArchived: card.isArchived,
-                        isPublished: card.isPublished,
-                        aiStatus: card.aiStatus,
-                        aiErrorCode: card.aiErrorCode,
-                        aiErrorMessage: card.aiErrorMessage,
-                        aiModel: card.aiModel,
-                        aiTotalTokens: card.aiTotalTokens
-                    )
-                }
-                return updated
+                replacing(card, category: category)
             }
             bulkSelection.subtract(result.succeededIDs)
             bulkResult = NativeBulkResult(from: result)
         } catch {
+            lastBulkActionError = error as? AppError
             bulkResult = failedResult(articleIDs: articleIDs, error: error)
         }
     }
@@ -760,6 +716,7 @@ public final class LibraryModel {
         isBulkSelecting = false
         bulkSelection = []
         bulkResult = nil
+        lastBulkActionError = nil
         bulkExportURL = nil
     }
 
@@ -835,6 +792,7 @@ public final class LibraryModel {
 
     private func replacing(
         _ card: ArticleCard,
+        category: ArticleCategory? = nil,
         isFavorited: Bool? = nil,
         isArchived: Bool? = nil,
         isPublished: Bool? = nil,
@@ -853,7 +811,7 @@ public final class LibraryModel {
             aiSummary: card.aiSummary,
             aiCategory: card.aiCategory,
             aiTags: card.aiTags,
-            category: card.category,
+            category: category ?? card.category,
             categoryResult: card.categoryResult,
             isFavorited: isFavorited ?? card.isFavorited,
             isArchived: isArchived ?? card.isArchived,
@@ -920,15 +878,6 @@ public final class LibraryModel {
         return try? await cache.load(scope: scope)
     }
 
-    /// 批量归档可能在收件箱/收藏页发起，这些视图没有分类筛选，也需要按需加载分类。
-    public func loadAvailableCategories() async {
-        do {
-            availableCategories = try await repository.loadCategoryFilters(userID: userID)
-        } catch {
-            categoryErrorMessage = Self.message(for: error)
-        }
-    }
-
     private func loadAuxiliaryData(generation: Int) async {
         do {
             async let loadedCounts = repository.loadCounts(userID: userID)
@@ -941,16 +890,6 @@ public final class LibraryModel {
                 }
             } else if requestGeneration == generation {
                 availableSources = []
-            }
-
-            if isSourceFilterAvailable {
-                async let loadedCategories = repository.loadCategoryFilters(userID: userID)
-                let categories = try await loadedCategories
-                if requestGeneration == generation {
-                    availableCategories = categories
-                }
-            } else if requestGeneration == generation {
-                availableCategories = []
             }
 
             if let counts = try? await loadedCounts, requestGeneration == generation {

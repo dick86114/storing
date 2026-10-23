@@ -36,6 +36,9 @@ private struct ContextBulkActionRequest: Identifiable {
 
 struct CompactArticleListView: View {
     @Bindable var model: LibraryModel
+    @Bindable var categoryCatalog: CategoryCatalogModel
+    let selectedCategoryID: Int?
+    let onSelectCategory: (Int?) -> Void
     @Binding var selection: Int?
     @Binding var presentationMode: ArticleListPresentationMode
     @Environment(\.colorScheme) private var colorScheme
@@ -52,6 +55,9 @@ struct CompactArticleListView: View {
         VStack(spacing: 0) {
             LibraryToolbar(
                 model: model,
+                categoryCatalog: categoryCatalog,
+                selectedCategoryID: selectedCategoryID,
+                onSelectCategory: onSelectCategory,
                 presentationMode: $presentationMode,
                 onCopyOriginalLinks: {
                     copyOriginalLinks(selectedArticles())
@@ -125,7 +131,11 @@ struct CompactArticleListView: View {
             ).message)
         }
         .sheet(item: $contextBulkCategoryRequest) { request in
-            BulkCategorySelectionSheet(model: model, request: request)
+            BulkCategorySelectionSheet(
+                model: model,
+                catalog: categoryCatalog,
+                request: request
+            )
         }
         .sheet(isPresented: $isContextObsidianSheetPresented) {
             ObsidianExportSheet(

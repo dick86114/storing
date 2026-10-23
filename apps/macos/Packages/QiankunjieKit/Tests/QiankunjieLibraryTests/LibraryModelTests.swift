@@ -99,7 +99,49 @@ struct LibraryModelTests {
         #expect(!model.isSourceFilterAvailable)
     }
 
-    @Test func 归档分类筛选加载并可切换栏目清理() async throws {
+    @Test func 单篇分类直接使用传入分类更新文章卡片() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [7], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            bulkRepository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+        await model.load(reset: true)
+        let category = ArticleCategory(id: 21, name: "产品设计")
+
+        await model.runArticleCategory(articleID: 7, category: category)
+
+        #expect(model.articles.first?.category?.id == 21)
+        #expect(await repository.lastBulkCategoryID == 21)
+    }
+
+    @Test func 批量分类直接使用传入分类更新文章卡片() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [7, 8], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            bulkRepository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+        await model.load(reset: true)
+        model.toggleBulkMode()
+        model.selectAllLoadedForBulk()
+        let category = ArticleCategory(id: 21, name: "产品设计")
+
+        await model.runBulkCategory(category)
+
+        #expect(model.articles.allSatisfy { $0.category?.id == 21 })
+        #expect(await repository.lastBulkCategoryID == 21)
+    }
+
+    @Test func 分类筛选继续作为归档列表查询条件() async {
         let repository = 模拟资料库仓库(
             pages: [1: .fixture(ids: [7], page: 1, totalPages: 1)]
         )
@@ -111,17 +153,37 @@ struct LibraryModelTests {
         )
 
         await model.load(reset: true)
+        #expect(await repository.lastQuery?.categoryId == nil)
 
-        #expect(model.availableCategories.map(\.name) == ["AI 工程"])
-        #expect(model.availableCategories.first?.count == 2)
-
-        model.selectCategory(3)
+        model.selectCategory(21)
         await model.load(reset: true)
-        #expect(await repository.lastQuery?.categoryId == 3)
+        #expect(await repository.lastQuery?.categoryId == 21)
 
         model.select(view: .inbox)
-        #expect(model.availableCategories.isEmpty)
         #expect(model.categoryId == nil)
+    }
+
+    @Test func 分类失败保留结构化错误() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [7], page: 1, totalPages: 1)],
+            bulkError: .contentUnavailable
+        )
+        let model = LibraryModel(
+            repository: repository,
+            bulkRepository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+        await model.load(reset: true)
+
+        await model.runArticleCategory(
+            articleID: 7,
+            category: ArticleCategory(id: 21, name: "产品设计")
+        )
+
+        #expect(model.lastBulkActionError == .contentUnavailable)
+        #expect(model.bulkResult?.issues.isEmpty == false)
     }
 
     @Test func 来源统计解码兼容PostgreSQL时间() throws {
@@ -370,24 +432,24 @@ struct LibraryModelTests {
     }
 }
 
-private actor 模拟资料库仓库: LibraryLoading {
+private actor 模拟资料库仓库: LibraryLoading, LibraryBulkOperating {
     private var pages: [Int: ArticleListPage]
     private var currentError: AppError?
+    private let bulkError: AppError?
     private var shouldHoldNextLoad = false
     private var heldContinuations: [Int: CheckedContinuation<ArticleListPage, Error>] = [:]
     private(set) var requestedPages: [Int] = []
     private(set) var lastQuery: LibraryQuery?
-    private let categoryFilters: [LibraryCategoryFilter]
+    private(set) var lastBulkCategoryID: Int?
 
-    init(pages: [Int: ArticleListPage] = [:], error: AppError? = nil) {
+    init(
+        pages: [Int: ArticleListPage] = [:],
+        error: AppError? = nil,
+        bulkError: AppError? = nil
+    ) {
         self.pages = pages
         self.currentError = error
-        self.categoryFilters = [
-            LibraryCategoryFilter(
-                category: ArticleCategory(id: 3, name: "AI 工程", color: nil),
-                count: 2
-            ),
-        ]
+        self.bulkError = bulkError
     }
 
     func load(_ query: LibraryQuery) async throws -> ArticleListPage {
@@ -426,8 +488,58 @@ private actor 模拟资料库仓库: LibraryLoading {
         [LibrarySource(source: "少数派", count: 2, latestCreatedAt: nil)]
     }
 
-    func loadCategoryFilters(userID: Int?) async throws -> [LibraryCategoryFilter] {
-        categoryFilters
+    func runBulkAction(
+        _ action: ArticleBulkAction,
+        articleIDs: [Int],
+        categoryID: Int?
+    ) async throws -> ArticleBulkActionResult {
+        try 执行批量操作(articleIDs: articleIDs)
+    }
+
+    func runBulkCategory(
+        articleIDs: [Int],
+        categoryID: Int
+    ) async throws -> ArticleBulkActionResult {
+        lastBulkCategoryID = categoryID
+        return try 执行批量操作(articleIDs: articleIDs)
+    }
+
+    func runBulkRegenerateAI(
+        articleIDs: [Int],
+        includeCategory: Bool,
+        resetUserCategory: Bool
+    ) async throws -> ArticleBulkAIResult {
+        if let bulkError {
+            throw bulkError
+        }
+        return ArticleBulkAIResult(
+            requestedCount: articleIDs.count,
+            queuedIDs: articleIDs,
+            alreadyQueuedIDs: [],
+            failed: []
+        )
+    }
+
+    func runCreateBulkExport(articleIDs: [Int]) async throws -> ArticleBulkExportJob {
+        if let bulkError {
+            throw bulkError
+        }
+        return ArticleBulkExportJob(
+            id: 1,
+            format: "zip",
+            status: .succeeded,
+            requestedCount: articleIDs.count,
+            succeededCount: articleIDs.count,
+            failedCount: 0,
+            downloadURL: nil,
+            createdAt: nil,
+            finishedAt: nil,
+            expiresAt: nil
+        )
+    }
+
+    func runBulkExportJob(jobID: Int) async throws -> ArticleBulkExportJob {
+        try await runCreateBulkExport(articleIDs: [])
     }
 
     func setResult(_ page: ArticleListPage) {
@@ -460,6 +572,18 @@ private actor 模拟资料库仓库: LibraryLoading {
         while requestedPages.count < count {
             await Task.yield()
         }
+    }
+
+    private func 执行批量操作(articleIDs: [Int]) throws -> ArticleBulkActionResult {
+        if let bulkError {
+            throw bulkError
+        }
+        return ArticleBulkActionResult(
+            requestedCount: articleIDs.count,
+            succeededIDs: articleIDs,
+            skipped: [],
+            failed: []
+        )
     }
 }
 

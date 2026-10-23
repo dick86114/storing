@@ -5,6 +5,9 @@ import SwiftUI
 
 struct LibraryToolbar: View {
     @Bindable var model: LibraryModel
+    @Bindable var categoryCatalog: CategoryCatalogModel
+    let selectedCategoryID: Int?
+    let onSelectCategory: (Int?) -> Void
     @Binding var presentationMode: ArticleListPresentationMode
     /// 复制当前批量选择里所有文章的原文链接。
     var onCopyOriginalLinks: () -> Void = {}
@@ -50,7 +53,11 @@ struct LibraryToolbar: View {
             Text(pendingBulkConfirmation?.message ?? "")
         }
         .sheet(item: $bulkCategoryRequest) { request in
-            BulkCategorySelectionSheet(model: model, request: request)
+            BulkCategorySelectionSheet(
+                model: model,
+                catalog: categoryCatalog,
+                request: request
+            )
         }
         .sheet(isPresented: $isBulkObsidianSheetPresented) {
             ObsidianExportSheet(
@@ -327,20 +334,18 @@ struct LibraryToolbar: View {
     private var categoryPicker: some View {
         Menu {
             Button("全部文章") {
-                model.selectCategory(nil)
-                reload()
+                onSelectCategory(nil)
             }
-            ForEach(model.availableCategories) { filter in
-                Button("\(filter.name)（\(filter.count)）") {
-                    model.selectCategory(filter.id)
-                    reload()
+            ForEach(categoryCatalog.activeCategories) { category in
+                Button("\(category.name)（\(categoryCatalog.count(for: category.id))）") {
+                    onSelectCategory(category.id)
                 }
             }
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "folder")
                     .font(.system(size: 11, weight: .medium))
-                Text(model.selectedCategory?.name ?? "全部文章")
+                Text(selectedCategoryName)
                     .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)
             }
@@ -350,10 +355,21 @@ struct LibraryToolbar: View {
             .contentShape(Rectangle())
         }
         .menuStyle(.button)
-        .menuIndicator(.hidden)
+        .menuIndicator(.visible)
         .buttonStyle(.plain)
         .background { controlSurface }
         .help("选择分类")
+    }
+
+    private var selectedCategoryName: String {
+        guard let selectedCategoryID,
+              let category = categoryCatalog.activeCategories.first(where: {
+                  $0.id == selectedCategoryID
+              })
+        else {
+            return "全部文章"
+        }
+        return category.name
     }
 
     private var refreshButton: some View {
