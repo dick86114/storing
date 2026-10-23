@@ -38,7 +38,7 @@ struct CategoryPickerContent: View {
                             createButton
                         } else if !model.hasActiveCategories
                             && normalizedQuery.isEmpty
-                            && !model.isLoadingCatalog
+                            && !model.isInitialCatalogLoading
                             && model.catalogErrorMessage == nil {
                             firstCategoryButton
                         }
@@ -211,7 +211,6 @@ struct CategoryPickerContent: View {
         .buttonStyle(.plain)
         .disabled(
             isBusy
-                || (model.isLoadingCatalog && !model.hasActiveCategories)
                 || (model.catalogErrorMessage != nil && !model.hasActiveCategories)
         )
         .accessibilityLabel("由 AI 判断 \(model.targetCount) 篇文章的分类")
@@ -222,7 +221,7 @@ struct CategoryPickerContent: View {
 
     @ViewBuilder
     private var categoryContent: some View {
-        if model.isLoadingCatalog && !model.hasActiveCategories {
+        if model.isInitialCatalogLoading {
             HStack(spacing: 9) {
                 ProgressView()
                     .controlSize(.small)
@@ -549,10 +548,7 @@ struct CategoryPickerContent: View {
     }
 
     private var isBusy: Bool {
-        model.isSubmitting
-            || model.isCatalogMutating
-            || model.isLoadingCatalog
-            || model.isStaleForCurrentUser
+        model.isInteractionDisabled
     }
 
     private var canDismiss: Bool {
