@@ -18402,3 +18402,28 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   border-radius: 5px;
   cursor: pointer;
 }
+
+.category-management-refresh-warning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 9px 12px;
+  color: var(--text-secondary);
+  background: color-mix(in oklch, var(--accent) 7%, var(--tag-bg));
+  border: 1px solid color-mix(in oklch, var(--accent) 22%, var(--border));
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.category-management-refresh-warning button {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid color-mix(in oklch, var(--accent) 38%, var(--border));
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+}

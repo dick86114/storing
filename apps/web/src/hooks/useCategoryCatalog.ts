@@ -52,9 +52,12 @@ export function useCategoryCatalog() {
 
 export function useRefreshCategoryCatalog() {
   const { mutate } = useSWRConfig();
-  return useCallback(() => mutate(
-    (key) => typeof key === 'string' && key.startsWith('categories:user:'),
-    undefined,
-    { revalidate: true },
-  ), [mutate]);
+  const { user, isAuthenticated } = useAuth();
+  const userId = isAuthenticated ? user?.id ?? null : null;
+  return useCallback(async () => {
+    if (userId === null) return undefined;
+    const data = await api.getCategories(true);
+    await mutate(categoryCatalogKey(userId), data, { revalidate: false });
+    return data;
+  }, [mutate, userId]);
 }

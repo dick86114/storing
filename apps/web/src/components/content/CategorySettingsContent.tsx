@@ -66,6 +66,7 @@ export function CategorySettingsContent() {
   const [actionKind, setActionKind] = useState<ActionKind | null>(null);
   const [actionSource, setActionSource] = useState<ArchiveCategory | null>(null);
   const [actionTargetId, setActionTargetId] = useState<number | null>(null);
+  const [catalogRefreshWarning, setCatalogRefreshWarning] = useState(false);
 
   const orderedCategories = useMemo(
     () => [...catalog.categories].sort((left, right) => (
@@ -109,7 +110,23 @@ export function CategorySettingsContent() {
 
   const warnRefresh = useCallback((error: unknown) => {
     console.warn('分类操作已提交，但刷新目录失败:', error);
-  }, []);
+    setCatalogRefreshWarning(true);
+    showToast('操作已提交，分类目录刷新失败，请稍后重试');
+  }, [showToast]);
+
+  const refreshCatalogAfterMutation = useCallback(async () => {
+    await refreshCategoryCatalog();
+    setCatalogRefreshWarning(false);
+  }, [refreshCategoryCatalog]);
+
+  const retryCatalogRefresh = useCallback(async () => {
+    try {
+      await refreshCategoryCatalog();
+      setCatalogRefreshWarning(false);
+    } catch (error) {
+      warnRefresh(error);
+    }
+  }, [refreshCategoryCatalog, warnRefresh]);
 
   const runLockedMutation = useCallback(async <T,>(
     kind: CategoryMutationKind,
@@ -136,7 +153,7 @@ export function CategorySettingsContent() {
         name: draft.name.trim(),
         description: draft.description?.trim() || null,
       }),
-      refresh: refreshCategoryCatalog,
+      refresh: refreshCatalogAfterMutation,
       onCommitted: () => showToast('分类已保存'),
       onFailure: (error) => showToast(error instanceof Error ? error.message : '保存分类失败'),
       onRefreshWarning: warnRefresh,
@@ -169,7 +186,7 @@ export function CategorySettingsContent() {
     if (nextCategories === orderedCategories) return;
     await runLockedMutation('reorder', () => runCommittedCategoryMutation({
       commit: () => api.reorderCategories(nextCategories.filter((category) => !category.isSystem).map((category) => category.id)),
-      refresh: refreshCategoryCatalog,
+      refresh: refreshCatalogAfterMutation,
       onCommitted: () => {},
       onFailure: (error) => {
         showToast(error instanceof Error ? error.message : '保存分类顺序失败');
@@ -177,7 +194,7 @@ export function CategorySettingsContent() {
       },
       onRefreshWarning: warnRefresh,
     }));
-  }, [orderedCategories, refreshCategoryCatalog, runLockedMutation, showToast, warnRefresh]);
+  }, [orderedCategories, refreshCatalogAfterMutation, refreshCategoryCatalog, runLockedMutation, showToast, warnRefresh]);
 
   const moveByKeyboard = (categoryId: number, offset: -1 | 1) => {
     const next = reorderUserCategoryByOffset(orderedCategories, categoryId, offset);
@@ -194,7 +211,7 @@ export function CategorySettingsContent() {
   const createCategory = async (input: CategoryQuickCreateInput) => {
     const lockedResult = await runLockedMutation('create', () => runCommittedCategoryMutation({
       commit: () => api.createCategory(input),
-      refresh: refreshCategoryCatalog,
+      refresh: refreshCatalogAfterMutation,
       onCommitted: () => {},
       onFailure: (error) => console.warn('创建分类失败:', error),
       onRefreshWarning: warnRefresh,
@@ -234,7 +251,7 @@ export function CategorySettingsContent() {
         if (kind === 'delete' && targetId) return api.deleteCategory(source.id, targetId);
         return api.updateCategory(source.id, { isActive: kind === 'activate' });
       },
-      refresh: refreshCategoryCatalog,
+      refresh: refreshCatalogAfterMutation,
       onCommitted: () => {
         if ((kind === 'merge' || kind === 'delete') && targetId) {
           pendingSelectedIdRef.current = null;
@@ -289,6 +306,13 @@ export function CategorySettingsContent() {
         <div className="category-management-error" role="alert">
           <span>{catalog.error instanceof Error ? catalog.error.message : '分类目录加载失败'}</span>
           <button type="button" onClick={() => void refreshCategoryCatalog()}>重试</button>
+        </div>
+      )}
+
+      {catalogRefreshWarning && (
+        <div className="category-management-refresh-warning" role="status">
+          <span>分类目录刷新失败，当前展示可能不是最新。</span>
+          <button type="button" disabled={mutationLocked} onClick={() => void retryCatalogRefresh()}>重试刷新</button>
         </div>
       )}
 
