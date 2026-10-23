@@ -93,6 +93,62 @@ enum CategoryQuickCreatePolicy {
     }
 }
 
+struct CategoryQuickCreateSubmissionState: Equatable {
+    struct Submission: Equatable {
+        let token: UUID
+        let userID: Int?
+    }
+
+    let openedUserID: Int?
+    private(set) var activeSubmission: Submission?
+
+    init(openedUserID: Int?) {
+        self.openedUserID = openedUserID
+        self.activeSubmission = nil
+    }
+
+    var isSubmitting: Bool {
+        activeSubmission != nil
+    }
+
+    @discardableResult
+    mutating func beginSubmission(currentUserID: Int?) -> UUID? {
+        guard activeSubmission == nil, currentUserID == openedUserID else {
+            return nil
+        }
+
+        let token = UUID()
+        activeSubmission = Submission(token: token, userID: currentUserID)
+        return token
+    }
+
+    mutating func cancelSubmission() {
+        activeSubmission = nil
+    }
+
+    @discardableResult
+    mutating func userChanged(to currentUserID: Int?) -> Bool {
+        guard currentUserID != openedUserID else { return false }
+        activeSubmission = nil
+        return true
+    }
+
+    @discardableResult
+    mutating func completeSubmission(token: UUID, currentUserID: Int?) -> Bool {
+        guard
+            currentUserID == openedUserID,
+            let activeSubmission,
+            activeSubmission.token == token,
+            activeSubmission.userID == currentUserID
+        else {
+            return false
+        }
+
+        self.activeSubmission = nil
+        return true
+    }
+}
+
 let categoryPresetColors = [
     "#2F6A4F", "#3E7C83", "#536CCB", "#8A5A9E", "#B36A45", "#A67C38",
     "#647B4D", "#2F7780", "#6675B7", "#A16078", "#9B7250", "#6B7088",
