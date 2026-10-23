@@ -26,6 +26,7 @@ struct StatusToastView: View {
         }
         .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
         .accessibilityElement(children: .combine)
+        .allowsHitTesting(false)
     }
 }
 
@@ -47,6 +48,7 @@ private struct StatusToastModifier: ViewModifier {
                                 self.message = nil
                             }
                         }
+                        .allowsHitTesting(false)
                 }
             }
             .animation(.easeOut(duration: 0.2), value: message)

@@ -145,6 +145,40 @@ struct CategoryManagementModelTests {
         #expect(model.weakNoticeMessage == "分类「新分类」已创建")
     }
 
+    @Test func 管理页采用现有分类只切换选中且不误报创建成功() {
+        let catalog = CategoryCatalogModel(
+            service: 分类管理服务桩(),
+            recentStore: 最近分类存储桩()
+        )
+        let model = CategoryManagementModel(catalog: catalog)
+        let 现有分类 = 分类(id: 12, name: "现有分类", sortOrder: 10)
+        model.isCreating = true
+        model.weakNoticeMessage = "旧提醒"
+
+        model.didCompleteQuickCreate(.reusedExisting(现有分类))
+
+        #expect(!model.isCreating)
+        #expect(model.selectedCategoryID == 现有分类.id)
+        #expect(model.noticeMessage == nil)
+        #expect(model.weakNoticeMessage == nil)
+    }
+
+    @Test func 管理页真正创建分类会显示创建成功弱提醒() {
+        let catalog = CategoryCatalogModel(
+            service: 分类管理服务桩(),
+            recentStore: 最近分类存储桩()
+        )
+        let model = CategoryManagementModel(catalog: catalog)
+        let 新分类 = 分类(id: 13, name: "新分类", sortOrder: 20)
+        model.isCreating = true
+
+        model.didCompleteQuickCreate(.created(新分类))
+
+        #expect(!model.isCreating)
+        #expect(model.selectedCategoryID == 新分类.id)
+        #expect(model.weakNoticeMessage == "分类「新分类」已创建")
+    }
+
     @Test func 删除分类会迁移文章并刷新目录() async {
         let service = 分类管理服务桩(
             列表响应: [
