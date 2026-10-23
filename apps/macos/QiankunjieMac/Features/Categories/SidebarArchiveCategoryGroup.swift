@@ -292,9 +292,14 @@ struct SidebarArchiveCategoryGroup: View {
             }
 
             Task { @MainActor in
-                try? await model.categoryCatalog.reorder(
-                    categoryIDs: commit.reorderedCategoryIDs
-                )
+                do {
+                    try await model.categoryCatalog.reorder(
+                        categoryIDs: commit.reorderedCategoryIDs
+                    )
+                    weakNoticeMessage = "分类顺序已更新"
+                } catch {
+                    // 目录模型已负责回滚顺序并保留错误信息。
+                }
             }
         }
     }

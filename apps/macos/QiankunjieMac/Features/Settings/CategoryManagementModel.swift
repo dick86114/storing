@@ -182,7 +182,8 @@ final class CategoryManagementModel: Observable {
         do {
             try await catalog.reorder(categoryIDs: categoryIDs)
             guard isCurrent(generation) else { return false }
-            noticeMessage = "分类顺序已更新"
+            noticeMessage = nil
+            weakNoticeMessage = "分类顺序已更新"
             return true
         } catch {
             guard isCurrent(generation) else { return false }
