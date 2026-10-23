@@ -9,6 +9,12 @@ public enum LibraryDisplayState: Equatable, Sendable {
     case error
 }
 
+private struct BulkOperationContext {
+    let userID: Int?
+    let generation: Int
+    let operationID: Int
+}
+
 @MainActor
 @Observable
 public final class LibraryModel {
@@ -51,6 +57,7 @@ public final class LibraryModel {
     private let bulkRepository: any LibraryBulkOperating
     private let cache: any LibraryCaching
     private var requestGeneration = 0
+    @ObservationIgnored private var bulkOperationID = 0
     private var aiPollTask: Task<Void, Never>?
     public var bulkExportHandler: (@MainActor (ArticleBulkExportJob) async throws -> URL)?
     public var bulkObsidianHandler: (@MainActor ([Int], URL) async throws -> NativeBulkResult)?
@@ -411,10 +418,8 @@ public final class LibraryModel {
             return
         }
 
-        bulkRunningAction = action
-        defer {
-            bulkRunningAction = nil
-        }
+        let context = beginBulkOperation(action)
+        defer { finishBulkOperation(context) }
 
         do {
             switch action {
@@ -427,17 +432,23 @@ public final class LibraryModel {
                 else {
                     return
                 }
-                bulkResult = try await bulkObsidianHandler(articleIDs, obsidianDestination)
+                let result = try await bulkObsidianHandler(articleIDs, obsidianDestination)
+                guard isCurrentBulkOperation(context) else { return }
+                bulkResult = result
             case .exportZIP:
                 let job = try await bulkRepository.runCreateBulkExport(articleIDs: articleIDs)
+                guard isCurrentBulkOperation(context) else { return }
                 if let bulkExportHandler {
                     let url = try await bulkExportHandler(job)
+                    guard isCurrentBulkOperation(context) else { return }
                     bulkExportURL = url
                 }
+                guard isCurrentBulkOperation(context) else { return }
                 bulkResult = NativeBulkResult(
                     requestedCount: job.requestedCount,
                     succeededCount: job.succeededCount,
                     skippedCount: 0,
+                    failedCount: job.failedCount,
                     issues: job.failedCount == 0 ? [] : [
                         ArticleBulkIssue(
                             articleID: 0,
@@ -448,16 +459,20 @@ public final class LibraryModel {
                 )
             case .reclassify:
                 let result = try await bulkRepository.runBulkRegenerateAI(articleIDs: articleIDs, includeCategory: true, resetUserCategory: false)
+                guard isCurrentBulkOperation(context) else { return }
                 bulkSelection.subtract(result.queuedIDs)
                 bulkSelection.subtract(result.alreadyQueuedIDs)
                 await load(reset: false)
+                guard isCurrentBulkOperation(context) else { return }
                 applyAIResult(result)
                 bulkResult = NativeBulkResult(from: result)
             case .generateAI:
                 let result = try await bulkRepository.runBulkRegenerateAI(articleIDs: articleIDs, includeCategory: false, resetUserCategory: false)
+                guard isCurrentBulkOperation(context) else { return }
                 bulkSelection.subtract(result.queuedIDs)
                 bulkSelection.subtract(result.alreadyQueuedIDs)
                 await load(reset: false)
+                guard isCurrentBulkOperation(context) else { return }
                 applyAIResult(result)
                 bulkResult = NativeBulkResult(from: result)
             default:
@@ -466,11 +481,13 @@ public final class LibraryModel {
                     articleIDs: articleIDs,
                     categoryID: action == .archive ? categoryID : nil
                 )
+                guard isCurrentBulkOperation(context) else { return }
                 let isDelete = action == .delete || action == .permanentDelete
                 if isDelete {
                     removeArticles(withIDs: result.succeededIDs)
                 }
                 await load(reset: false)
+                guard isCurrentBulkOperation(context) else { return }
                 if isDelete {
                     removeArticles(withIDs: result.succeededIDs)
                 } else if action == .archive {
@@ -485,6 +502,7 @@ public final class LibraryModel {
                 bulkResult = NativeBulkResult(from: result)
             }
         } catch {
+            guard isCurrentBulkOperation(context) else { return }
             lastBulkActionError = error as? AppError
             bulkResult = failedResult(articleIDs: articleIDs, error: error)
         }
@@ -503,10 +521,8 @@ public final class LibraryModel {
         lastBulkActionError = nil
 
         let articleIDs = [articleID]
-        bulkRunningAction = action
-        defer {
-            bulkRunningAction = nil
-        }
+        let context = beginBulkOperation(action)
+        defer { finishBulkOperation(context) }
 
         do {
             switch action {
@@ -519,17 +535,23 @@ public final class LibraryModel {
                 else {
                     return
                 }
-                bulkResult = try await bulkObsidianHandler(articleIDs, obsidianDestination)
+                let result = try await bulkObsidianHandler(articleIDs, obsidianDestination)
+                guard isCurrentBulkOperation(context) else { return }
+                bulkResult = result
             case .exportZIP:
                 let job = try await bulkRepository.runCreateBulkExport(articleIDs: articleIDs)
+                guard isCurrentBulkOperation(context) else { return }
                 if let bulkExportHandler {
                     let url = try await bulkExportHandler(job)
+                    guard isCurrentBulkOperation(context) else { return }
                     bulkExportURL = url
                 }
+                guard isCurrentBulkOperation(context) else { return }
                 bulkResult = NativeBulkResult(
                     requestedCount: job.requestedCount,
                     succeededCount: job.succeededCount,
                     skippedCount: 0,
+                    failedCount: job.failedCount,
                     issues: job.failedCount == 0 ? [] : [
                         ArticleBulkIssue(
                             articleID: 0,
@@ -544,7 +566,9 @@ public final class LibraryModel {
                     includeCategory: true,
                     resetUserCategory: false
                 )
+                guard isCurrentBulkOperation(context) else { return }
                 await load(reset: false)
+                guard isCurrentBulkOperation(context) else { return }
                 applyAIResult(result)
                 bulkResult = NativeBulkResult(from: result)
             case .generateAI:
@@ -553,7 +577,9 @@ public final class LibraryModel {
                     includeCategory: false,
                     resetUserCategory: false
                 )
+                guard isCurrentBulkOperation(context) else { return }
                 await load(reset: false)
+                guard isCurrentBulkOperation(context) else { return }
                 applyAIResult(result)
                 bulkResult = NativeBulkResult(from: result)
             default:
@@ -562,11 +588,13 @@ public final class LibraryModel {
                     articleIDs: articleIDs,
                     categoryID: action == .archive ? categoryID : nil
                 )
+                guard isCurrentBulkOperation(context) else { return }
                 let isDelete = action == .delete || action == .permanentDelete
                 if isDelete {
                     removeArticles(withIDs: result.succeededIDs)
                 }
                 await load(reset: false)
+                guard isCurrentBulkOperation(context) else { return }
                 if isDelete {
                     removeArticles(withIDs: result.succeededIDs)
                 } else if action == .archive {
@@ -580,6 +608,7 @@ public final class LibraryModel {
                 bulkResult = NativeBulkResult(from: result)
             }
         } catch {
+            guard isCurrentBulkOperation(context) else { return }
             lastBulkActionError = error as? AppError
             bulkResult = failedResult(articleIDs: articleIDs, error: error)
         }
@@ -592,10 +621,8 @@ public final class LibraryModel {
         lastBulkActionError = nil
 
         let articleIDs = [articleID]
-        bulkRunningAction = .setCategory
-        defer {
-            bulkRunningAction = nil
-        }
+        let context = beginBulkOperation(.setCategory)
+        defer { finishBulkOperation(context) }
 
         do {
             let result = try await bulkRepository.runBulkRegenerateAI(
@@ -603,10 +630,13 @@ public final class LibraryModel {
                 includeCategory: true,
                 resetUserCategory: true
             )
+            guard isCurrentBulkOperation(context) else { return }
             await load(reset: false)
+            guard isCurrentBulkOperation(context) else { return }
             applyAIResult(result)
             bulkResult = NativeBulkResult(from: result)
         } catch {
+            guard isCurrentBulkOperation(context) else { return }
             lastBulkActionError = error as? AppError
             bulkResult = failedResult(articleIDs: articleIDs, error: error)
         }
@@ -619,22 +649,23 @@ public final class LibraryModel {
         lastBulkActionError = nil
 
         let articleIDs = [articleID]
-        bulkRunningAction = .setCategory
-        defer {
-            bulkRunningAction = nil
-        }
+        let context = beginBulkOperation(.setCategory)
+        defer { finishBulkOperation(context) }
 
         do {
             let result = try await bulkRepository.runBulkCategory(
                 articleIDs: articleIDs,
                 categoryID: category.id
             )
+            guard isCurrentBulkOperation(context) else { return }
             await load(reset: false)
+            guard isCurrentBulkOperation(context) else { return }
             updateArticles(withIDs: result.succeededIDs) { card in
                 replacing(card, category: category)
             }
             bulkResult = NativeBulkResult(from: result)
         } catch {
+            guard isCurrentBulkOperation(context) else { return }
             lastBulkActionError = error as? AppError
             bulkResult = failedResult(articleIDs: articleIDs, error: error)
         }
@@ -654,10 +685,8 @@ public final class LibraryModel {
             return
         }
 
-        bulkRunningAction = .setCategory
-        defer {
-            bulkRunningAction = nil
-        }
+        let context = beginBulkOperation(.setCategory)
+        defer { finishBulkOperation(context) }
 
         do {
             let result = try await bulkRepository.runBulkRegenerateAI(
@@ -665,12 +694,15 @@ public final class LibraryModel {
                 includeCategory: true,
                 resetUserCategory: true
             )
+            guard isCurrentBulkOperation(context) else { return }
             bulkSelection.subtract(result.queuedIDs)
             bulkSelection.subtract(result.alreadyQueuedIDs)
             await load(reset: false)
+            guard isCurrentBulkOperation(context) else { return }
             applyAIResult(result)
             bulkResult = NativeBulkResult(from: result)
         } catch {
+            guard isCurrentBulkOperation(context) else { return }
             lastBulkActionError = error as? AppError
             bulkResult = failedResult(articleIDs: articleIDs, error: error)
         }
@@ -690,29 +722,52 @@ public final class LibraryModel {
             return
         }
 
-        bulkRunningAction = .setCategory
-        defer {
-            bulkRunningAction = nil
-        }
+        let context = beginBulkOperation(.setCategory)
+        defer { finishBulkOperation(context) }
 
         do {
             let result = try await bulkRepository.runBulkCategory(
                 articleIDs: articleIDs,
                 categoryID: category.id
             )
+            guard isCurrentBulkOperation(context) else { return }
             await load(reset: false)
+            guard isCurrentBulkOperation(context) else { return }
             updateArticles(withIDs: result.succeededIDs) { card in
                 replacing(card, category: category)
             }
             bulkSelection.subtract(result.succeededIDs)
             bulkResult = NativeBulkResult(from: result)
         } catch {
+            guard isCurrentBulkOperation(context) else { return }
             lastBulkActionError = error as? AppError
             bulkResult = failedResult(articleIDs: articleIDs, error: error)
         }
     }
 
+    private func beginBulkOperation(_ action: BulkToolbarAction) -> BulkOperationContext {
+        bulkOperationID += 1
+        bulkRunningAction = action
+        return BulkOperationContext(
+            userID: userID,
+            generation: requestGeneration,
+            operationID: bulkOperationID
+        )
+    }
+
+    private func isCurrentBulkOperation(_ context: BulkOperationContext) -> Bool {
+        userID == context.userID
+            && requestGeneration == context.generation
+            && bulkOperationID == context.operationID
+    }
+
+    private func finishBulkOperation(_ context: BulkOperationContext) {
+        guard bulkOperationID == context.operationID else { return }
+        bulkRunningAction = nil
+    }
+
     private func exitBulkMode() {
+        bulkOperationID += 1
         isBulkSelecting = false
         bulkSelection = []
         bulkResult = nil
@@ -740,6 +795,7 @@ public final class LibraryModel {
             requestedCount: articleIDs.count,
             succeededCount: 0,
             skippedCount: 0,
+            failedCount: articleIDs.count,
             issues: [
                 ArticleBulkIssue(articleID: 0, code: "REQUEST_FAILED", message: Self.message(for: error))
             ]

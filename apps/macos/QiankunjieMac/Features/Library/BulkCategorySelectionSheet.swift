@@ -77,22 +77,34 @@ enum BulkCategoryOutcomeMapper {
             return .failure(message: "分类失败，请稍后重试")
         }
 
-        let failedCount = max(0, result.issues.count - result.skippedCount)
-        guard failedCount > 0 else {
+        if let unavailableIssue = result.issues.first(where: {
+            ["CONTENT_UNAVAILABLE", "CATEGORY_NOT_FOUND", "CATEGORY_INACTIVE"].contains($0.code)
+        }) {
+            let unavailableMessage = normalized(
+                unavailableIssue.message,
+                fallback: "请求的分类或文章不可用"
+            )
+            if operation == .manual || unavailableIssue.code.hasPrefix("CATEGORY_") {
+                return .categoryUnavailable(message: unavailableMessage)
+            }
+            return .contentUnavailable(message: unavailableMessage)
+        }
+
+        guard result.failedCount > 0 else {
             return .success(
                 succeededCount: result.succeededCount,
                 skippedCount: result.skippedCount
             )
         }
 
-        let summary = summary(for: result, failedCount: failedCount)
+        let summary = summary(for: result, failedCount: result.failedCount)
         guard result.succeededCount > 0 else {
             return .failure(message: summary)
         }
         return .partial(
             succeededCount: result.succeededCount,
             skippedCount: result.skippedCount,
-            failedCount: failedCount,
+            failedCount: result.failedCount,
             message: summary
         )
     }
@@ -128,6 +140,35 @@ enum BulkCategoryOutcomeMapper {
     }
 }
 
+@MainActor
+enum BulkCategoryCatalogRefresh {
+    static func shouldRefresh(_ outcome: CategoryAssignmentOutcome) -> Bool {
+        switch outcome {
+        case .success:
+            return true
+        case let .partial(succeededCount, _, _, _):
+            return succeededCount > 0
+        case .categoryUnavailable, .contentUnavailable, .failure:
+            return false
+        }
+    }
+
+    @discardableResult
+    static func scheduleRefresh(
+        outcome: CategoryAssignmentOutcome,
+        catalog: CategoryCatalogModel,
+        expectedUserID: Int?
+    ) -> Task<Void, Never>? {
+        guard shouldRefresh(outcome), catalog.userID == expectedUserID else {
+            return nil
+        }
+        return Task { @MainActor in
+            guard catalog.userID == expectedUserID else { return }
+            await catalog.load()
+        }
+    }
+}
+
 /// 单篇与批量归档、分类共用同一选择器，保证 AI 与最近使用体验一致。
 struct BulkCategorySelectionSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -152,6 +193,7 @@ private struct BulkCategoryPickerContainer: View {
     let catalog: CategoryCatalogModel
     let request: BulkCategoryRequest
     let onDismiss: () -> Void
+    let expectedUserID: Int?
 
     @State private var pickerModel: CategoryPickerModel
 
@@ -165,6 +207,7 @@ private struct BulkCategoryPickerContainer: View {
         self.catalog = catalog
         self.request = request
         self.onDismiss = onDismiss
+        expectedUserID = catalog.userID
         _pickerModel = State(initialValue: CategoryPickerModel(
             catalog: catalog,
             selectedCategoryID: Self.selectedCategoryID(for: request, model: model),
@@ -221,6 +264,11 @@ private struct BulkCategoryPickerContainer: View {
         if case .success = outcome {
             catalog.recordRecent(categoryID: category.id)
         }
+        BulkCategoryCatalogRefresh.scheduleRefresh(
+            outcome: outcome,
+            catalog: catalog,
+            expectedUserID: expectedUserID
+        )
         return outcome
     }
 

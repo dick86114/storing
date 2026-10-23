@@ -131,6 +131,8 @@ private actor 录制令牌提供者: TokenRefreshing {
 @Test func 服务端错误按状态和错误码映射() async throws {
     let cases: [(Int, String, AppError)] = [
         (400, "BAD_REQUEST", .invalidInput),
+        (400, "CATEGORY_NOT_FOUND", .contentUnavailable),
+        (400, "CATEGORY_INACTIVE", .contentUnavailable),
         (403, "USER_DISABLED", .forbidden),
         (404, "NOT_FOUND", .contentUnavailable),
         (429, "LOGIN_RATE_LIMITED", .rateLimited),

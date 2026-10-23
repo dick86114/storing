@@ -1,5 +1,6 @@
 import Foundation
 import QiankunjieCore
+import QiankunjieLibrary
 import Testing
 @testable import QiankunjieMac
 
@@ -283,6 +284,55 @@ struct CategoryPickerModelTests {
         #expect(!model.isSubmitting)
     }
 
+    @Test func 选择器打开后分类失效会刷新共享目录() async {
+        let service = 选择器分类服务桩(列表响应: [
+            目录响应(
+                分类(id: 1, name: "产品设计", sortOrder: 10),
+                分类(id: 2, name: "工程实践", sortOrder: 20)
+            ),
+            目录响应(分类(id: 2, name: "工程实践", sortOrder: 20)),
+        ])
+        let catalog = CategoryCatalogModel(
+            service: service,
+            recentStore: 选择器最近分类存储桩()
+        )
+        catalog.prepareUser(userID: 7)
+        await catalog.load()
+        let model = CategoryPickerModel(
+            catalog: catalog,
+            selectedCategoryID: nil,
+            targetCount: 1
+        )
+        let 已失效分类 = catalog.activeCategories[0]
+        let 后端结果 = NativeBulkResult(
+            requestedCount: 1,
+            succeededCount: 0,
+            skippedCount: 0,
+            failedCount: 1,
+            issues: [
+                ArticleBulkIssue(
+                    articleID: 7,
+                    code: "CONTENT_UNAVAILABLE",
+                    message: "分类不存在或已停用"
+                )
+            ]
+        )
+        let 映射结果 = BulkCategoryOutcomeMapper.outcome(
+            result: 后端结果,
+            error: .contentUnavailable,
+            operation: .manual
+        )
+
+        let 成功 = await model.selectExisting(已失效分类) { _ in
+            映射结果
+        }
+
+        #expect(!成功)
+        #expect(model.errorMessage == "分类不存在或已停用")
+        #expect(await service.列表请求次数() == 2)
+        #expect(catalog.activeCategories.map(\.id) == [2])
+    }
+
     @Test func 结构化内容失效结果保留文案且不刷新分类目录() async {
         let service = 选择器分类服务桩(列表响应: [
             目录响应(分类(id: 1, name: "产品设计", sortOrder: 10)),
@@ -420,6 +470,50 @@ struct CategoryPickerModelTests {
         #expect(AI判断次数 == 1)
         #expect(catalog.recentCategoryIDs == [1])
         #expect(model.errorMessage == nil)
+    }
+
+    @Test func AI批量部分失败保持选择器并显示真实计数() async {
+        let service = 选择器分类服务桩(列表响应: [
+            目录响应(分类(id: 1, name: "产品设计", sortOrder: 10)),
+        ])
+        let catalog = CategoryCatalogModel(
+            service: service,
+            recentStore: 选择器最近分类存储桩()
+        )
+        catalog.prepareUser(userID: 7)
+        await catalog.load()
+        let model = CategoryPickerModel(
+            catalog: catalog,
+            selectedCategoryID: nil,
+            targetCount: 3
+        )
+        let result = NativeBulkResult(from: ArticleBulkAIResult(
+            requestedCount: 3,
+            queuedIDs: [7],
+            alreadyQueuedIDs: [8],
+            failed: [
+                ArticleBulkIssue(
+                    articleID: 9,
+                    code: "NOT_FOUND",
+                    message: "文章不存在"
+                ),
+            ]
+        ))
+        let outcome = BulkCategoryOutcomeMapper.outcome(
+            result: result,
+            error: nil,
+            operation: .ai
+        )
+
+        let 成功 = await model.assignWithAI {
+            outcome
+        }
+
+        #expect(!成功)
+        #expect(model.errorMessage?.contains("成功 1 篇") == true)
+        #expect(model.errorMessage?.contains("跳过 1 篇") == true)
+        #expect(model.errorMessage?.contains("失败 1 篇") == true)
+        #expect(!model.isSubmitting)
     }
 }
 

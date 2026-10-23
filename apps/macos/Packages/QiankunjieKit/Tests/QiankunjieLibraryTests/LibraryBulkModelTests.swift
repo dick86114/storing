@@ -58,6 +58,7 @@ struct LibraryBulkModelTests {
         #expect(model.articles.first { $0.id == 1 }?.isFavorited == true)
         #expect(model.bulkResult?.succeededCount == 1)
         #expect(model.bulkResult?.skippedCount == 1)
+        #expect(model.bulkResult?.failedCount == 1)
         #expect(model.bulkResult?.issues.count == 2)
     }
 

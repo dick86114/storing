@@ -252,6 +252,7 @@ final class AppModel {
                 requestedCount: articleIDs.count,
                 succeededCount: summary.succeededIDs.count,
                 skippedCount: 0,
+                failedCount: summary.failures.count,
                 issues: summary.failures.map {
                     ArticleBulkIssue(articleID: $0.articleID, code: "EXPORT_FAILED", message: $0.message)
                 }
