@@ -2,9 +2,11 @@ package com.idickies.storing.ui
 
 import com.idickies.storing.categories.MAX_CATEGORY_NAME_LENGTH
 import com.idickies.storing.categories.stableCategoryColor
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import kotlinx.serialization.encodeToString
 import org.junit.Test
 
 class CategoryQuickCreateTest {
@@ -22,6 +24,25 @@ class CategoryQuickCreateTest {
 
     val manual = automatic.copy(color = "#146C94", colorManuallyEdited = true).withName("设计")
     assertEquals("#146C94", manual.color)
+  }
+
+  @Test
+  fun `详细规则进入同一次创建请求的序列化字段`() {
+    val request = CategoryQuickCreateDraft(
+      name = "产品设计",
+      description = "设计系统与交互边界",
+      includeExamples = "设计系统\n交互设计",
+      excludeExamples = "纯开发",
+      color = "#146C94",
+      colorManuallyEdited = true,
+    ).toMutationRequest()
+    val json = Json.encodeToString(request)
+
+    assertTrue(json.contains("\"name\":\"产品设计\""))
+    assertTrue(json.contains("\"description\":\"设计系统与交互边界\""))
+    assertTrue(json.contains("\"includeExamples\":[\"设计系统\",\"交互设计\"]"))
+    assertTrue(json.contains("\"excludeExamples\":[\"纯开发\"]"))
+    assertTrue(json.contains("\"color\":\"#146C94\""))
   }
 
   @Test

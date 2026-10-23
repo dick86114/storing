@@ -1,6 +1,7 @@
 package com.idickies.storing.categories
 
 import com.idickies.storing.library.ArticleCategory
+import com.idickies.storing.library.CategoryMutationRequest
 
 internal const val MAX_CATEGORY_NAME_LENGTH = 40
 internal const val MAX_RECENT_CATEGORIES = 5
@@ -86,3 +87,15 @@ internal fun shouldApplyCategoryResponse(
   currentUserId: Int,
   currentGeneration: Long,
 ): Boolean = expectedUserId == currentUserId && expectedGeneration == currentGeneration
+
+/** 创建请求在客户端只规范化一次，随后原样进入同一次 POST。 */
+internal fun normalizeCategoryCreationRequest(request: CategoryMutationRequest): CategoryMutationRequest {
+  val name = request.name.orEmpty().trim()
+  return request.copy(
+    name = name,
+    description = request.description?.trim()?.ifBlank { null },
+    includeExamples = request.includeExamples?.map(String::trim)?.filter(String::isNotBlank),
+    excludeExamples = request.excludeExamples?.map(String::trim)?.filter(String::isNotBlank),
+    color = request.color?.trim()?.takeUnless(String::isBlank) ?: stableCategoryColor(name),
+  )
+}

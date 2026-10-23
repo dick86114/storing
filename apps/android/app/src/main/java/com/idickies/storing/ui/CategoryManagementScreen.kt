@@ -105,6 +105,8 @@ fun CategoryManagementScreen(
   )
 }
 
+internal fun categoryDragEnabled(saving: Boolean): Boolean = !saving
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CategoryManagementContent(
@@ -260,6 +262,7 @@ internal fun CategoryManagementContent(
       category = category,
       categories = state.categories,
       saving = state.saving,
+      error = state.error,
       onDismiss = { if (!state.saving) deleteCategory = null },
       onDelete = { targetId -> onDelete(category, targetId) { success -> if (success) deleteCategory = null } },
     )
@@ -269,6 +272,7 @@ internal fun CategoryManagementContent(
       source = source,
       categories = state.categories,
       saving = state.saving,
+      error = state.error,
       onDismiss = { if (!state.saving) mergeSource = null },
       onMerge = { targetId -> onMerge(source.id, targetId) { success -> if (success) mergeSource = null } },
     )
@@ -307,7 +311,11 @@ private fun CategoryListRow(
         Spacer(Modifier.width(24.dp))
       } else {
         Box(
-          modifier = Modifier.size(32.dp).draggable(dragState, Orientation.Vertical),
+          modifier = Modifier.size(32.dp).draggable(
+            state = dragState,
+            orientation = Orientation.Vertical,
+            enabled = categoryDragEnabled(saving),
+          ),
           contentAlignment = Alignment.Center,
         ) {
           Icon(Icons.Outlined.DragHandle, contentDescription = "拖动排序：${category.name}", tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -543,6 +551,7 @@ private fun CategoryDeleteSheet(
   category: ArticleCategory,
   categories: List<ArticleCategory>,
   saving: Boolean,
+  error: String?,
   onDismiss: () -> Unit,
   onDelete: (Int) -> Unit,
 ) {
@@ -561,6 +570,7 @@ private fun CategoryDeleteSheet(
         ) { Text(target.name, modifier = Modifier.padding(12.dp)) }
       }
       if (targets.isEmpty()) Text("至少需要保留一个其他启用分类才能删除。", color = MaterialTheme.colorScheme.error)
+      CategoryOperationError(error)
       Button(onClick = { targetId?.let(onDelete) }, enabled = targetId != null && !saving, modifier = Modifier.fillMaxWidth()) {
         Text(if (saving) "正在删除…" else "迁移并删除")
       }
@@ -574,6 +584,7 @@ private fun CategoryMergeSheet(
   source: ArticleCategory,
   categories: List<ArticleCategory>,
   saving: Boolean,
+  error: String?,
   onDismiss: () -> Unit,
   onMerge: (Int) -> Unit,
 ) {
@@ -591,9 +602,25 @@ private fun CategoryMergeSheet(
           border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
         ) { Text(target.name, modifier = Modifier.padding(12.dp)) }
       }
+      CategoryOperationError(error)
       Button(onClick = { targetId?.let(onMerge) }, enabled = targetId != null && !saving, modifier = Modifier.fillMaxWidth()) {
         Text(if (saving) "正在合并…" else "合并到所选分类")
       }
+    }
+  }
+}
+
+@Composable
+private fun CategoryOperationError(error: String?) {
+  error ?: return
+  Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.medium) {
+    Row(
+      modifier = Modifier.fillMaxWidth().padding(12.dp),
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+      Text(error, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
     }
   }
 }

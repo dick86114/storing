@@ -10,7 +10,7 @@ class CategoryAssignmentPolicyTest {
 
   @Test
   fun `完整成功明确报告分类名称`() {
-    val result = CategoryAssignmentResult.Success(category, succeededCount = 3)
+    val result = CategoryAssignmentResult.Success(category, succeededIds = setOf(1, 2, 3))
     assertEquals("已分类到「设计」", result.message)
     assertTrue(result.closesSheet)
   }
@@ -19,9 +19,9 @@ class CategoryAssignmentPolicyTest {
   fun `部分成功保留选择器并展示成功跳过失败数量`() {
     val result = CategoryAssignmentResult.Partial(
       category = category,
-      succeededCount = 2,
-      skippedCount = 1,
-      failedCount = 1,
+      succeededIds = setOf(1, 2),
+      skippedIds = setOf(3),
+      failedIds = setOf(4),
     )
     assertEquals("已成功 2 篇，跳过 1 篇，失败 1 篇；请检查后重试。", result.message)
     assertEquals(false, result.closesSheet)

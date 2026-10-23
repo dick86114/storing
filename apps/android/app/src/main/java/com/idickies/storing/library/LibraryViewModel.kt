@@ -38,6 +38,25 @@ internal fun <T> mergeRefreshedFirstPage(
     .take(current.size.coerceAtLeast(incoming.size))
 }
 
+/** 分类被删除或停用后，当前归档筛选必须立即失效并回到全部归档。 */
+internal fun reconcileArchiveCategorySelection(
+  state: LibraryUiState,
+  activeCategories: List<ArticleCategory>,
+): LibraryUiState {
+  val categoryId = state.archiveCategoryId ?: return state
+  if (state.view != LibraryView.Archive) return state
+  if (activeCategories.any { it.id == categoryId && it.isActive }) return state
+  return state.copy(
+    archiveCategoryId = null,
+    articles = emptyList(),
+    page = 1,
+    totalPages = 0,
+    fromCache = false,
+    searchPending = false,
+    loadMoreError = null,
+  )
+}
+
 private data class LibraryRequest(
   val view: LibraryView,
   val query: String,
@@ -122,14 +141,18 @@ class LibraryViewModel @Inject constructor(
   init {
     viewModelScope.launch {
       categoryCatalogRepository.state.collect { catalog ->
-        mutableState.update { state ->
-          state.copy(
-            archiveCategories = catalog.activeCategories,
-            recentArchiveCategories = catalog.recentCategories,
-            archiveCategoryCounts = catalog.counts,
-            archiveCategoriesLoading = catalog.loading && catalog.activeCategories.isEmpty(),
-            archiveCategoriesError = catalog.error,
-          )
+        val current = mutableState.value
+        val reconciled = reconcileArchiveCategorySelection(current, catalog.activeCategories)
+        val next = reconciled.copy(
+          archiveCategories = catalog.activeCategories,
+          recentArchiveCategories = catalog.recentCategories,
+          archiveCategoryCounts = catalog.counts,
+          archiveCategoriesLoading = catalog.loading && catalog.activeCategories.isEmpty(),
+          archiveCategoriesError = catalog.error,
+        )
+        mutableState.value = next
+        if (reconciled.archiveCategoryId != current.archiveCategoryId && next.view == LibraryView.Archive) {
+          loadInitial()
         }
       }
     }
@@ -252,10 +275,13 @@ class LibraryViewModel @Inject constructor(
     loadInitial()
   }
 
-  fun prepareArchiveCategories() = loadArchiveCategories(force = true)
+  fun prepareArchiveCategories() {
+    revalidateArchiveCategorySelection()
+    loadArchiveCategories(force = true)
+  }
 
-  suspend fun createCategoryForAssignment(rawName: String): CategoryCreationResult =
-    categoryCatalogRepository.createCategory(rawName)
+  suspend fun createCategoryForAssignment(request: CategoryMutationRequest): CategoryCreationResult =
+    categoryCatalogRepository.createCategory(request)
 
   fun createArchiveCategory(
     rawName: String,
@@ -451,7 +477,17 @@ class LibraryViewModel @Inject constructor(
     archiveTagFilter = if (ArchiveSourceFilter.isAvailableFor(view, searchQuery)) archiveTagFilter else ArchiveTagFilter.All,
   )
 
+  private fun revalidateArchiveCategorySelection() {
+    val current = mutableState.value
+    val next = reconcileArchiveCategorySelection(current, categoryCatalogRepository.state.value.activeCategories)
+    if (next != current) {
+      mutableState.value = next
+      if (next.view == LibraryView.Archive) loadInitial()
+    }
+  }
+
   private fun loadArchiveCategories(force: Boolean = false) {
+    revalidateArchiveCategorySelection()
     val snapshot = mutableState.value
     if (!force && !ArchiveSourceFilter.isAvailableFor(snapshot.view, snapshot.searchQuery)) return
     viewModelScope.launch {
@@ -762,7 +798,7 @@ class LibraryViewModel @Inject constructor(
           applyAssignedCategory(setOf(articleId), category, archiveIfNeeded = archiveIfNeeded)
           categoryCatalogRepository.recordRecentCategory(category.id)
           categoryCatalogRepository.refresh()
-          CategoryAssignmentResult.Success(category, succeededCount = 1)
+          CategoryAssignmentResult.Success(category, succeededIds = setOf(articleId))
         }
       },
       onFailure = { CategoryAssignmentResult.Failure(it.message ?: "分类失败") },
@@ -783,20 +819,23 @@ class LibraryViewModel @Inject constructor(
       }
     }.fold(
       onSuccess = { response ->
-        val succeededIds = response.succeededIds.toSet()
+        val succeededIds = response.succeededIds.filter(articleIds::contains).toSet()
+        val skippedIds = response.skipped.map { it.articleId }.filter(articleIds::contains).toSet()
+        val failedIds = (
+          response.failed.map { it.articleId }.filter(articleIds::contains).toSet() +
+            (articleIds - succeededIds - skippedIds)
+          ).filterNot { it in succeededIds || it in skippedIds }.toSet()
         if (succeededIds.isNotEmpty()) {
           applyAssignedCategory(succeededIds, category, archiveIfNeeded = archiveIfNeeded)
           categoryCatalogRepository.recordRecentCategory(category.id)
           categoryCatalogRepository.refresh()
         }
-        val skipped = response.skipped.size
-        val failed = response.failed.size
         when {
-          succeededIds.isEmpty() -> CategoryAssignmentResult.Failure(
-            (response.failed.firstOrNull()?.message ?: response.skipped.firstOrNull()?.message ?: "文章尚未分类，请重试"),
-          )
-          skipped == 0 && failed == 0 -> CategoryAssignmentResult.Success(category, succeededIds.size)
-          else -> CategoryAssignmentResult.Partial(category, succeededIds.size, skipped, failed)
+          skippedIds.isEmpty() && failedIds.isEmpty() ->
+            CategoryAssignmentResult.Success(category, succeededIds)
+          succeededIds.isNotEmpty() || skippedIds.isNotEmpty() || failedIds.isNotEmpty() ->
+            CategoryAssignmentResult.Partial(category, succeededIds, skippedIds, failedIds)
+          else -> CategoryAssignmentResult.Failure("文章尚未分类，请重试")
         }
       },
       onFailure = { CategoryAssignmentResult.Failure(it.message ?: "批量分类失败") },

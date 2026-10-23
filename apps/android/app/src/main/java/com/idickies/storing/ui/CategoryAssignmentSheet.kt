@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -69,6 +68,7 @@ import com.idickies.storing.categories.categorySearchAction
 import com.idickies.storing.categories.isValidCategoryName
 import com.idickies.storing.categories.searchCategories
 import com.idickies.storing.library.ArticleCategory
+import com.idickies.storing.library.CategoryMutationRequest
 import com.idickies.storing.library.CategoryAssignmentResult
 import kotlinx.coroutines.launch
 
@@ -87,7 +87,7 @@ internal fun CategoryAssignmentSheet(
   onDismissRequest: () -> Unit,
   onSelectAi: (() -> Unit)? = null,
   onAssign: suspend (categoryId: Int) -> CategoryAssignmentResult,
-  onCreateCategory: suspend (name: String) -> CategoryCreationResult,
+  onCreateCategory: suspend (request: CategoryMutationRequest) -> CategoryCreationResult,
   onAssigned: (message: String) -> Unit,
 ) {
   val available = activeCategories(categories)
@@ -132,7 +132,8 @@ internal fun CategoryAssignmentSheet(
     submitting = true
     resultMessage = null
     scope.launch {
-      when (val created = runCatching { onCreateCategory(name.trim()) }
+      val request = quickDraft.withName(name.trim()).toMutationRequest()
+      when (val created = runCatching { onCreateCategory(request) }
         .getOrElse { CategoryCreationResult.Failed(it.message ?: "新增分类失败") }) {
         is CategoryCreationResult.Created -> {
           when (val assigned = runCatching { onAssign(created.category.id) }
@@ -144,7 +145,7 @@ internal fun CategoryAssignmentSheet(
             }
             is CategoryAssignmentResult.Partial -> {
               submitting = false
-              resultMessage = assigned.message
+              resultMessage = "分类「${created.category.name}」已创建；${assigned.message}"
               resultIsError = true
             }
             else -> {

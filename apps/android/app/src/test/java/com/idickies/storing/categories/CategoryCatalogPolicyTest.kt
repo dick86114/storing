@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import com.idickies.storing.library.CategoryMutationRequest
 import org.junit.Test
 
 class CategoryCatalogPolicyTest {
@@ -88,6 +89,25 @@ class CategoryCatalogPolicyTest {
   fun `最近使用缓存能容忍损坏内容并裁剪到五项`() {
     assertEquals(listOf(8, 3, 5, 1, 2), decodeRecentCategoryIds("8,oops,3,8,5,1,2"))
     assertEquals(emptyList<Int>(), decodeRecentCategoryIds("broken"))
+  }
+
+  @Test
+  fun `详细规则创建请求一次保留名称说明示例和颜色`() {
+    val request = normalizeCategoryCreationRequest(
+      CategoryMutationRequest(
+        name = "  产品设计  ",
+        description = "  设计系统与交互边界  ",
+        includeExamples = listOf(" 设计系统 ", "", "交互设计"),
+        excludeExamples = listOf(" 纯开发 "),
+        color = "#146C94",
+      ),
+    )
+
+    assertEquals("产品设计", request.name)
+    assertEquals("设计系统与交互边界", request.description)
+    assertEquals(listOf("设计系统", "交互设计"), request.includeExamples)
+    assertEquals(listOf("纯开发"), request.excludeExamples)
+    assertEquals("#146C94", request.color)
   }
 
   @Test

@@ -10,6 +10,30 @@
 
 阶段二 Android 实施完成。改动范围仅限 `apps/android` 及本报告；未修改 Web、macOS、API 或数据库。
 
+## 复审修复记录
+
+复审发现的 Important/Minor 项已全部处理：
+
+1. 详细规则一次创建：
+   - `CategoryAssignmentSheet` 将完整 `CategoryMutationRequest` 直接传给目录仓库。
+   - 名称、说明、适合/不适合示例和颜色进入同一次 `POST /categories`。
+   - 管理页删除“先创建、再 PATCH 详细规则”的两阶段路径，避免创建成功但规则保存失败造成半成功。
+   - 新增请求字段序列化测试和“只调用完整创建入口”契约测试。
+2. 批量部分成功：
+   - `CategoryAssignmentResult.Success/Partial` 现在携带 `succeededIds`，部分结果额外携带 `skippedIds`、`failedIds`。
+   - 页面从本次请求的 `selectedArticleIds` 精确移除成功与跳过项，只保留失败项用于重试。
+   - 完整成功时退出批量模式；全部归档视图和当前分类等于目标分类时，成功文章同样不会残留在选择集中。
+   - 新增状态测试覆盖成功、跳过、失败及请求异常时的选择集变化。
+3. 归档筛选失效：
+   - 共享目录更新时校验 `archiveCategoryId` 是否存在且启用。
+   - 删除、停用或合并当前分类后，自动清空分类筛选和旧文章并重新加载全部归档。
+   - 从管理页返回时调用同一校验入口。
+   - 新增失效/停用分类状态测试。
+4. 管理与错误反馈：
+   - 保存中通过 `categoryDragEnabled(saving)` 禁用拖拽手柄。
+   - 删除与合并 Bottom Sheet 均显示当前 `state.error`。
+   - UI Lab 新增 `category-management-error` 固定错误态，AVD 实测合并弹层显示错误文案。
+
 ## 已实现
 
 ### 1. 用户级共享分类目录
@@ -79,7 +103,7 @@
 
 - `ANDROID_HOME=/opt/homebrew/share/android-commandlinetools pnpm android:test`
   - 通过。
-  - 249 个测试，0 failures，0 errors，0 skipped。
+  - 258 个测试，0 failures，0 errors，0 skipped。
 - `cd apps/android && ANDROID_HOME=/opt/homebrew/share/android-commandlinetools ./gradlew :app:compileDebugKotlin --no-daemon`
   - `BUILD SUCCESSFUL`。
 - `cd apps/android && ANDROID_HOME=/opt/homebrew/share/android-commandlinetools ./gradlew :app:lintDebug --no-daemon`
@@ -103,6 +127,8 @@
 - 输入 `Design` 后无结果时出现“创建‘Design’并分类”。
 - 点击创建后，UI Lab 固定失败态显示“UI Lab 固定失败态：Design”，输入 `Design` 和创建按钮仍保留。
 - 修复后重新运行上述场景，crash buffer 无新异常。
+- 复审后重新启动 Android 16 AVD：统一选择器自动聚焦仍通过（UI Automator `focused=true`）。
+- 复审后新增 `category-management-error` 场景；实测进入用户分类详情的合并分类弹层，错误文案“分类合并失败：网络连接已中断，请重试。”可见，crash buffer 无新异常。
 
 AVD 验证期间发现并修复了 `FocusRequester is not initialized` 启动崩溃：改为在输入框完成首帧布局后请求焦点，并重新安装 APK 回归通过。
 
@@ -117,6 +143,7 @@ AVD 验证期间发现并修复了 `FocusRequester is not initialized` 启动崩
 
 ## 剩余项
 
-- 未使用真实登录账号对分类创建、排序、合并和删除执行线上 API 端到端操作；这些路径已通过编译、接口契约代码和策略测试覆盖，AVD 使用固定 UI Lab 数据验证交互。
+- 未使用真实登录账号对分类创建、排序、合并和删除执行线上 API 端到端操作；这些路径已通过编译、请求字段测试、接口契约代码和策略测试覆盖，AVD 使用固定 UI Lab 数据验证交互。
+- 批量成功/跳过/失败的 ID 状态已用状态测试覆盖，但尚未用真实后端构造部分成功响应做设备级联调。
 - 未在 Xiaomi/HyperOS 等物理设备验证；本次真实渲染验证环境为 Android 16 AVD。
 - 未新增 Compose instrumentation 测试；现有回归由 JVM 行为测试、源码契约测试和 AVD 手工场景共同覆盖。

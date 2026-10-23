@@ -204,6 +204,7 @@ import com.idickies.storing.library.ArticleCategory
 import com.idickies.storing.library.CategoryAssignmentResult
 import com.idickies.storing.library.ArticleCategoryResult
 import com.idickies.storing.library.ArticleDetail
+import com.idickies.storing.library.CategoryMutationRequest
 import com.idickies.storing.library.ArticleListPresentationMode
 import com.idickies.storing.library.ArticleProcessingAction
 import com.idickies.storing.library.PublicationAction
@@ -220,6 +221,7 @@ import com.idickies.storing.library.LibraryUiState
 import com.idickies.storing.library.shouldLoadMore
 import com.idickies.storing.library.canManageArticle
 import com.idickies.storing.library.publicationAction
+import com.idickies.storing.library.remainingCategoryAssignmentIds
 import com.idickies.storing.library.archiveSourceFilters
 import com.idickies.storing.library.toggleArchiveBatchSelection
 import com.idickies.storing.reader.ReaderWebView
@@ -1660,7 +1662,7 @@ private fun ArchiveCategoryPickerSheet(
   onDismiss: () -> Unit,
   onArchiveWithAi: () -> Unit,
   onAssign: suspend (ArticleCategory) -> CategoryAssignmentResult,
-  onCreateCategory: suspend (String) -> CategoryCreationResult,
+  onCreateCategory: suspend (CategoryMutationRequest) -> CategoryCreationResult,
   onAssigned: (String) -> Unit,
 ) {
   CategoryAssignmentSheet(
@@ -1767,7 +1769,7 @@ private fun LibraryList(
   onBulkToolbarAction: (BulkToolbarAction, Set<Int>) -> Unit,
   onBulkCategoryAi: (Set<Int>) -> Unit,
   onAssignCategory: suspend (Set<Int>, ArticleCategory, Boolean) -> CategoryAssignmentResult,
-  onCreateCategory: suspend (String) -> CategoryCreationResult,
+  onCreateCategory: suspend (CategoryMutationRequest) -> CategoryCreationResult,
   onAssigned: (String) -> Unit,
   onOpenCategoryManagement: () -> Unit,
   onRetryCategories: () -> Unit,
@@ -1805,6 +1807,18 @@ private fun LibraryList(
       batchMode = true
       selectedArticleIds = setOf(article.id)
     }
+  }
+  suspend fun assignSelectedToCategory(categoryId: Int, archiveIfNeeded: Boolean): CategoryAssignmentResult {
+    val category = state.archiveCategories.firstOrNull { it.id == categoryId }
+      ?: return CategoryAssignmentResult.Failure("分类已失效，请刷新后重试")
+    val requestedIds = selectedArticleIds
+    val result = onAssignCategory(requestedIds, category, archiveIfNeeded)
+    selectedArticleIds = remainingCategoryAssignmentIds(requestedIds, result)
+    if (result is CategoryAssignmentResult.Success) {
+      batchMode = false
+      bulkMenuExpanded = false
+    }
+    return result
   }
   PullToRefreshBox(
     isRefreshing = state.refreshing,
@@ -2121,11 +2135,7 @@ private fun LibraryList(
       batchCategoryPickerOpen = false
       onBulkCategoryAi(selectedArticleIds)
     },
-    onAssign = { categoryId ->
-      state.archiveCategories.firstOrNull { it.id == categoryId }?.let { category ->
-        onAssignCategory(selectedArticleIds, category, false)
-      } ?: CategoryAssignmentResult.Failure("分类已失效，请刷新后重试")
-    },
+    onAssign = { categoryId -> assignSelectedToCategory(categoryId, archiveIfNeeded = false) },
     onCreateCategory = onCreateCategory,
     onAssigned = onAssigned,
   )
@@ -2144,11 +2154,7 @@ private fun LibraryList(
       batchArchivePickerOpen = false
       onBulkToolbarAction(BulkToolbarAction.Archive, selectedArticleIds)
     },
-    onAssign = { categoryId ->
-      state.archiveCategories.firstOrNull { it.id == categoryId }?.let { category ->
-        onAssignCategory(selectedArticleIds, category, true)
-      } ?: CategoryAssignmentResult.Failure("分类已失效，请刷新后重试")
-    },
+    onAssign = { categoryId -> assignSelectedToCategory(categoryId, archiveIfNeeded = true) },
     onCreateCategory = onCreateCategory,
     onAssigned = onAssigned,
   )
@@ -2240,7 +2246,7 @@ internal fun ArticleDetailSkeleton() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, archiveCategories: List<ArticleCategory>, recentArchiveCategories: List<ArticleCategory>, archiveCategoriesLoading: Boolean, archiveCategoriesError: String?, onRetryArchiveCategories: () -> Unit, onAssignCategory: suspend (ArticleCategory) -> CategoryAssignmentResult, onCreateCategory: suspend (String) -> CategoryCreationResult, onCategoryAssigned: (String) -> Unit, onReclassify: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onUpdateTitle: (String) -> Unit, onSaveReadingPosition: (Float) -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, archiveCategories: List<ArticleCategory>, recentArchiveCategories: List<ArticleCategory>, archiveCategoriesLoading: Boolean, archiveCategoriesError: String?, onRetryArchiveCategories: () -> Unit, onAssignCategory: suspend (ArticleCategory) -> CategoryAssignmentResult, onCreateCategory: suspend (CategoryMutationRequest) -> CategoryCreationResult, onCategoryAssigned: (String) -> Unit, onReclassify: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onUpdateTitle: (String) -> Unit, onSaveReadingPosition: (Float) -> Unit) {
   val context = LocalContext.current
   val isDarkAppearance = isQiankunjieDarkTheme()
   var confirmDelete by remember { mutableStateOf(false) }
