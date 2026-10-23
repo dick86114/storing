@@ -23,6 +23,12 @@ class CategoryManagementPresentationTest {
   }
 
   @Test
+  fun `分类管理保存时禁用拖拽排序`() {
+    assertTrue(categoryDragEnabled(saving = false))
+    assertTrue(!categoryDragEnabled(saving = true))
+  }
+
+  @Test
   fun `分类颜色支持预设之外的合法十六进制自定义色`() {
     assertTrue(isCategoryHexColor("#146C94"))
     assertTrue(!isCategoryHexColor("green"))

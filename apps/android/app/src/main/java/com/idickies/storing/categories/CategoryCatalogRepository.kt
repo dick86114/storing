@@ -63,8 +63,9 @@ class CategoryCatalogRepository @Inject constructor(
     if (mutableState.value.categories.isEmpty()) refresh()
   }
 
-  suspend fun createCategory(rawName: String): CategoryCreationResult = mutex.withLock {
-    val name = rawName.trim()
+  suspend fun createCategory(request: CategoryMutationRequest): CategoryCreationResult = mutex.withLock {
+    val normalized = normalizeCategoryCreationRequest(request)
+    val name = normalized.name.orEmpty()
     if (!isValidCategoryName(name)) {
       return@withLock CategoryCreationResult.Failed("分类名称需为 1 至 $MAX_CATEGORY_NAME_LENGTH 个字符")
     }
@@ -76,9 +77,7 @@ class CategoryCatalogRepository @Inject constructor(
     val userId = refreshForCurrentUser()
     val generation = mutableState.value.generation
     return@withLock runCatching {
-      articleRepository.createCategory(
-        CategoryMutationRequest(name = name, color = stableCategoryColor(name)),
-      ).category
+      articleRepository.createCategory(normalized).category
     }.fold(
       onSuccess = { category ->
         if (!shouldApplyCategoryResponse(userId, generation, currentUserId(), mutableState.value.generation)) {
@@ -108,6 +107,9 @@ class CategoryCatalogRepository @Inject constructor(
       },
     )
   }
+
+  suspend fun createCategory(rawName: String): CategoryCreationResult =
+    createCategory(CategoryMutationRequest(name = rawName))
 
   suspend fun recordRecentCategory(categoryId: Int) = mutex.withLock {
     val userId = currentUserId()

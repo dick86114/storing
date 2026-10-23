@@ -83,6 +83,7 @@ import com.idickies.storing.ui.CategoryManagementContent
 import com.idickies.storing.categories.CategoryCreationResult
 import com.idickies.storing.categories.CategoryManagementUiState
 import com.idickies.storing.library.CategoryAssignmentResult
+import com.idickies.storing.library.CategoryMutationRequest
 import com.idickies.storing.ui.LoginScreen
 import com.idickies.storing.ui.SharePosterScreen
 import com.idickies.storing.ui.ArticleDetailSkeleton
@@ -160,6 +161,27 @@ internal fun UiLabScreen(
     )
     return
   }
+  if (scenario == UiLabScenario.CategoryManagementError) {
+    CategoryManagementContent(
+      state = CategoryManagementUiState(
+        categories = UiLabFixtures.categories,
+        counts = UiLabFixtures.categoryCounts,
+        loading = false,
+        error = "分类合并失败：网络连接已中断，请重试。",
+      ),
+      onBack = { scenarioRoute = UiLabScenario.Library.route },
+      onRefresh = {},
+      onCreate = { _, done -> done(false) },
+      onUpdate = { _, _, done -> done(false) },
+      onToggleActive = {},
+      onDelete = { _, _, done -> done(false) },
+      onReorder = {},
+      onMerge = { _, _, done -> done(false) },
+      onOptimize = { _, done -> done(null) },
+      onNoticeShown = {},
+    )
+    return
+  }
   if (scenario == UiLabScenario.CategoryPicker) {
     CategoryAssignmentSheet(
       title = "批量归档到哪里？",
@@ -172,9 +194,11 @@ internal fun UiLabScreen(
       onSelectAi = {},
       onAssign = { categoryId ->
         val category = UiLabFixtures.categories.first { it.id == categoryId }
-        CategoryAssignmentResult.Partial(category, succeededCount = 2, skippedCount = 1, failedCount = 0)
+        CategoryAssignmentResult.Partial(category, succeededIds = setOf(1, 2), skippedIds = setOf(3), failedIds = emptySet())
       },
-      onCreateCategory = { name -> CategoryCreationResult.Failed("UI Lab 固定失败态：$name") },
+      onCreateCategory = { request: CategoryMutationRequest ->
+        CategoryCreationResult.Failed("UI Lab 固定失败态：${request.name}")
+      },
       onAssigned = {},
     )
     return
@@ -274,7 +298,8 @@ internal fun UiLabScreen(
         UiLabScenario.States -> UiLabStates()
         UiLabScenario.Settings -> UiLabSettings()
         UiLabScenario.Categories,
-        UiLabScenario.CategoryPicker -> Unit
+        UiLabScenario.CategoryPicker,
+        UiLabScenario.CategoryManagementError -> Unit
       }
     }
   }

@@ -49,18 +49,10 @@ class CategoryManagementViewModel @Inject constructor(
   }
 
   fun create(request: CategoryMutationRequest, onComplete: (Boolean) -> Unit) = mutate(onComplete) {
-    // 管理页允许只填名称；完整规则仍可一次提交。
-    catalog.createCategory(request.name.orEmpty()).let { result ->
-      when (result) {
-        is CategoryCreationResult.Created -> {
-          if (request.description != null || request.includeExamples != null || request.excludeExamples != null || request.color != null) {
-            catalog.updateCategory(result.category.id, request.copy(name = null))
-          }
-          Unit
-        }
-        is CategoryCreationResult.Existing -> throw IllegalArgumentException("已存在同名分类")
-        is CategoryCreationResult.Failed -> throw IllegalArgumentException(result.message)
-      }
+    when (val result = catalog.createCategory(request)) {
+      is CategoryCreationResult.Created -> Unit
+      is CategoryCreationResult.Existing -> throw IllegalArgumentException("已存在同名分类")
+      is CategoryCreationResult.Failed -> throw IllegalArgumentException(result.message)
     }
   }
 
