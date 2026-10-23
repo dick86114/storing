@@ -79,9 +79,10 @@ test('选择器打开后聚焦搜索框，关闭后焦点返回触发按钮', as
   dom.window.close();
 });
 
-test('搜索同名分类后按 Enter 使用现有分类，成功后关闭选择器', async () => {
+test('搜索同名分类后按 Enter 使用现有分类，成功回调后再关闭选择器', async () => {
   const dom = 安装浏览器环境();
   const selected = [];
+  const completed = [];
   let closed = 0;
   const root = 创建根容器();
   await act(async () => {
@@ -89,10 +90,10 @@ test('搜索同名分类后按 Enter 使用现有分类，成功后关闭选择�
       categories: [分类(1, '工作'), 分类(2, '阅读')],
       recentCategoryIds: [2],
       currentCategoryId: null,
-      onClose: () => { closed += 1; },
+      onClose: () => { closed += 1; completed.push('close'); },
       onSelect: async (id) => { selected.push(id); return { status: 'success', message: `已归入分类 ${id}` }; },
-      onNotify() {},
-      onRememberCategory() {},
+      onNotify() { completed.push('notify'); },
+      onRememberCategory() { completed.push('remember'); },
     }));
   });
 
@@ -104,6 +105,7 @@ test('搜索同名分类后按 Enter 使用现有分类，成功后关闭选择�
 
   assert.deepEqual(selected, [1]);
   assert.equal(closed, 1);
+  assert.deepEqual(completed, ['remember', 'notify', 'close']);
   await act(async () => root.unmount());
   dom.window.close();
 });

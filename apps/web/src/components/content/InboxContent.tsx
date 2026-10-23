@@ -12,7 +12,7 @@ import { ListToolbar } from '@/components/article/ListToolbar';
 import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type ArticleSortOption } from '@/components/article/ArticleSortControl';
 import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { api } from '@/lib/api';
-import { assignmentFailure, bulkCategoryOutcome, type CategoryAssignmentOutcome } from '@/lib/category-picker';
+import { assignmentFailure, bulkCategoryOutcome, commitSingleArchiveAssignment, type CategoryAssignmentOutcome } from '@/lib/category-picker';
 import { scrollListToTop, setListScrollTop } from '@/lib/listScroll';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useArticleSelection } from '@/hooks/useArticleSelection';
@@ -37,7 +37,7 @@ function InboxContentInner() {
   const { archive, toggleFavorite, removeArticleFromView } = useArticleOperations();
   const refreshCategoryCatalog = useRefreshCategoryCatalog();
   const categoryCatalog = useCategoryCatalog();
-  const categoryRecents = useCategoryRecents(categoryCatalog.activeCategories);
+  const categoryRecents = useCategoryRecents(categoryCatalog.activeCategories, categoryCatalog.isReady);
   const { getBookmark, clearBookmark } = useBookmark();
   const [bookmarkPrompt, setBookmarkPrompt] = useState<ReadingBookmark | null>(null);
   const [archiveTargetId, setArchiveTargetId] = useState<number | null>(null);
@@ -199,19 +199,23 @@ function InboxContentInner() {
     if (!archiveTargetId) return { status: 'failure', message: '文章已变化，请重新打开归档操作。' };
     const id = archiveTargetId;
     removingIdsRef.current.add(id);
-    const success = await archive(id, categoryId);
-    removingIdsRef.current.delete(id);
-    if (!success) {
-      await refreshList();
-      return { status: 'failure', message: '归档失败，请重试' };
-    }
-    setAllArticles((prev) => prev.filter((article) => article.id !== id));
-    setArchiveTargetId(null);
-    await refreshCategoryCatalog();
-    return {
-      status: 'success',
-      message: categoryId ? '已归档到所选分类' : '已归档，正在生成分类建议',
-    };
+    return commitSingleArchiveAssignment({
+      commit: async () => {
+        try {
+          const success = await archive(id, categoryId);
+          if (!success) throw new Error('归档失败，请重试');
+        } finally {
+          removingIdsRef.current.delete(id);
+        }
+      },
+      onCommitted: () => {
+        setAllArticles((prev) => prev.filter((article) => article.id !== id));
+      },
+      refreshAuxiliary: () => Promise.all([refreshCategoryCatalog(), refreshList()]),
+      onRefreshWarning: (error) => console.warn('文章已归档，但刷新分类或列表失败:', error),
+      successMessage: categoryId ? '已归档到所选分类' : '已归档，正在生成分类建议',
+      failureMessage: '归档失败，请重试',
+    });
   }, [archive, archiveTargetId, refreshCategoryCatalog, refreshList]);
 
   const confirmBulkArchive = useCallback(async (categoryId?: number): Promise<CategoryAssignmentOutcome> => {

@@ -93,3 +93,25 @@ export function assignmentFailure(error: unknown, fallback = '分类失败，请
     message: error instanceof Error && error.message ? error.message : fallback,
   };
 }
+
+export async function commitSingleArchiveAssignment(options: {
+  commit: () => Promise<void>;
+  onCommitted: () => void;
+  refreshAuxiliary: () => Promise<unknown>;
+  onRefreshWarning?: (error: unknown) => void;
+  successMessage: string;
+  failureMessage: string;
+}): Promise<CategoryAssignmentOutcome> {
+  try {
+    await options.commit();
+  } catch (error) {
+    return assignmentFailure(error, options.failureMessage);
+  }
+
+  options.onCommitted();
+  void Promise.resolve()
+    .then(options.refreshAuxiliary)
+    .catch((error) => options.onRefreshWarning?.(error));
+
+  return { status: 'success', message: options.successMessage };
+}

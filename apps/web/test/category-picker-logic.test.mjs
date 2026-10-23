@@ -6,6 +6,7 @@ import categoryPickerModule from '../src/lib/category-picker.ts';
 const {
   buildCategoryPickerSections,
   bulkCategoryOutcome,
+  commitSingleArchiveAssignment,
   filterPickerCategories,
   nextPickerIndex,
 } = categoryPickerModule;
@@ -68,4 +69,40 @@ test('批量分类将部分成功和全部失败区分为不同结果', () => {
   assert.equal(failed.status, 'failure');
   assert.equal(failed.skippedCount, 1);
   assert.equal(failed.failedCount, 1);
+});
+
+test('单篇归档核心成功后，辅助 catalog/list 刷新失败不影响成功结果', async () => {
+  const events = [];
+  const result = await commitSingleArchiveAssignment({
+    commit: async () => events.push(['commit']),
+    onCommitted: () => events.push(['committed']),
+    refreshAuxiliary: async () => {
+      events.push(['refresh']);
+      throw new Error('list refresh failed');
+    },
+    onRefreshWarning: (error) => events.push(['warning', error.message]),
+    successMessage: '已归档',
+    failureMessage: '归档失败',
+  });
+
+  assert.equal(result.status, 'success');
+  assert.equal(result.message, '已归档');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(events, [['commit'], ['committed'], ['refresh'], ['warning', 'list refresh failed']]);
+});
+
+test('单篇归档核心失败时不提示成功，也不触发辅助刷新', async () => {
+  const events = [];
+  const result = await commitSingleArchiveAssignment({
+    commit: async () => { throw new Error('archive failed'); },
+    onCommitted: () => events.push(['committed']),
+    refreshAuxiliary: async () => events.push(['refresh']),
+    onRefreshWarning: () => events.push(['warning']),
+    successMessage: '已归档',
+    failureMessage: '归档失败',
+  });
+
+  assert.equal(result.status, 'failure');
+  assert.equal(result.message, 'archive failed');
+  assert.deepEqual(events, []);
 });

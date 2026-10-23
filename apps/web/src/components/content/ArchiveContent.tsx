@@ -43,7 +43,7 @@ function ArchiveContentInner() {
   const { showToast } = useToast();
   const refreshCategoryCatalog = useRefreshCategoryCatalog();
   const categoryCatalog = useCategoryCatalog();
-  const categoryRecents = useCategoryRecents(categoryCatalog.activeCategories);
+  const categoryRecents = useCategoryRecents(categoryCatalog.activeCategories, categoryCatalog.isReady);
   const { openArticle, highlightId, setMutateFn } = useArticleContext();
   const { unarchive, toggleFavorite } = useArticleOperations();
   const { getBookmark, clearBookmark } = useBookmark();
@@ -570,11 +570,11 @@ function ArchiveContentInner() {
           categories={categoryCatalog.categories}
           onClose={() => setQuickCreateCategoryOpen(false)}
           onCreate={createCategory}
-          onCreated={(category) => {
+          onCreated={(category, meta) => {
             setQuickCreateCategoryOpen(false);
             setActiveCategoryId(category.id);
             setPage(1);
-            showToast(`已创建分类「${category.name}」`);
+            showToast(meta.reusedExisting ? `已选择现有分类「${category.name}」` : `已创建分类「${category.name}」`);
           }}
         />
       )}
