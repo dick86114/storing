@@ -19,6 +19,8 @@ import com.idickies.storing.library.ArticleBulkExportRequest
 import com.idickies.storing.library.CategoryDeleteResponse
 import com.idickies.storing.library.CategoryMutationRequest
 import com.idickies.storing.library.CategoryMutationResponse
+import com.idickies.storing.library.CategoryMergeRequest
+import com.idickies.storing.library.CategoryMergeResponse
 import com.idickies.storing.library.CategoryReorderRequest
 import com.idickies.storing.library.CategoryReorderResponse
 import com.idickies.storing.library.CategoryOptimizeRequest
@@ -71,6 +73,9 @@ interface ArticleApi {
 
   @POST("categories/reorder")
   suspend fun reorderCategories(@Body request: CategoryReorderRequest): CategoryReorderResponse
+
+  @POST("categories/merge")
+  suspend fun mergeCategories(@Body request: CategoryMergeRequest): CategoryMergeResponse
 
   @POST("categories/optimize-description")
   suspend fun optimizeCategoryDescription(@Body request: CategoryOptimizeRequest): CategoryOptimizeResponse

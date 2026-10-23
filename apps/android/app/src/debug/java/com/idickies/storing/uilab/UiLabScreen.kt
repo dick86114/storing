@@ -78,7 +78,11 @@ import com.idickies.storing.ui.components.ActiveCollectJobsCard
 import com.idickies.storing.ui.components.ReaderActionBar
 import com.idickies.storing.reader.ReaderWebView
 import com.idickies.storing.ui.QiankunjieSettingsScreen
-import com.idickies.storing.ui.CategoryManagementScreen
+import com.idickies.storing.ui.CategoryAssignmentSheet
+import com.idickies.storing.ui.CategoryManagementContent
+import com.idickies.storing.categories.CategoryCreationResult
+import com.idickies.storing.categories.CategoryManagementUiState
+import com.idickies.storing.library.CategoryAssignmentResult
 import com.idickies.storing.ui.LoginScreen
 import com.idickies.storing.ui.SharePosterScreen
 import com.idickies.storing.ui.ArticleDetailSkeleton
@@ -137,7 +141,42 @@ internal fun UiLabScreen(
     return
   }
   if (scenario == UiLabScenario.Categories) {
-    CategoryManagementScreen(onBack = onClose)
+    CategoryManagementContent(
+      state = CategoryManagementUiState(
+        categories = UiLabFixtures.categories,
+        counts = UiLabFixtures.categoryCounts,
+        loading = false,
+      ),
+      onBack = { scenarioRoute = UiLabScenario.Library.route },
+      onRefresh = {},
+      onCreate = { _, done -> done(true) },
+      onUpdate = { _, _, done -> done(true) },
+      onToggleActive = {},
+      onDelete = { _, _, done -> done(true) },
+      onReorder = {},
+      onMerge = { _, _, done -> done(true) },
+      onOptimize = { _, done -> done(null) },
+      onNoticeShown = {},
+    )
+    return
+  }
+  if (scenario == UiLabScenario.CategoryPicker) {
+    CategoryAssignmentSheet(
+      title = "批量归档到哪里？",
+      subtitle = "选择现有分类，或输入名称创建并分类；也可以让 AI 判断。",
+      categories = UiLabFixtures.categories,
+      recentCategories = listOf(UiLabFixtures.categories[2], UiLabFixtures.categories[1]),
+      currentCategoryId = null,
+      targetCount = 3,
+      onDismissRequest = { scenarioRoute = UiLabScenario.Library.route },
+      onSelectAi = {},
+      onAssign = { categoryId ->
+        val category = UiLabFixtures.categories.first { it.id == categoryId }
+        CategoryAssignmentResult.Partial(category, succeededCount = 2, skippedCount = 1, failedCount = 0)
+      },
+      onCreateCategory = { name -> CategoryCreationResult.Failed("UI Lab 固定失败态：$name") },
+      onAssigned = {},
+    )
     return
   }
   val isDarkAppearance = isQiankunjieDarkTheme()
@@ -234,7 +273,8 @@ internal fun UiLabScreen(
         UiLabScenario.Tasks -> UiLabTasks()
         UiLabScenario.States -> UiLabStates()
         UiLabScenario.Settings -> UiLabSettings()
-        UiLabScenario.Categories -> Unit
+        UiLabScenario.Categories,
+        UiLabScenario.CategoryPicker -> Unit
       }
     }
   }
@@ -274,6 +314,7 @@ private fun UiLabLibrary(
             ),
           )
         }
+        TextButton(onClick = {}) { Text("管理") }
       }
     }
     item {

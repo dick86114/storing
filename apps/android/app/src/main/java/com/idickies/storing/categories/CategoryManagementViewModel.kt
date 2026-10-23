@@ -2,60 +2,88 @@ package com.idickies.storing.categories
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.idickies.storing.library.ArticleCategory
-import com.idickies.storing.library.ArticleRepository
 import com.idickies.storing.library.CategoryMutationRequest
 import com.idickies.storing.library.CategoryOptimizeDraft
 import com.idickies.storing.library.CategoryOptimizeRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class CategoryManagementUiState(
-  val categories: List<ArticleCategory> = emptyList(),
+  val categories: List<com.idickies.storing.library.ArticleCategory> = emptyList(),
   val counts: Map<String, Int> = emptyMap(),
   val loading: Boolean = true,
   val saving: Boolean = false,
   val error: String? = null,
+  val notice: String? = null,
 )
 
 @HiltViewModel
 class CategoryManagementViewModel @Inject constructor(
-  private val repository: ArticleRepository,
+  private val catalog: CategoryCatalogRepository,
 ) : ViewModel() {
   private val mutableState = MutableStateFlow(CategoryManagementUiState())
   val state = mutableState.asStateFlow()
 
-  init { refresh() }
+  init {
+    viewModelScope.launch {
+      catalog.state.collect { catalogState ->
+        mutableState.update {
+          it.copy(
+            categories = catalogState.categories,
+            counts = catalogState.counts,
+            loading = catalogState.loading && catalogState.categories.isEmpty(),
+            error = catalogState.error,
+          )
+        }
+      }
+    }
+    refresh()
+  }
 
   fun refresh() = viewModelScope.launch {
-    mutableState.update { it.copy(loading = true, error = null) }
-    runCatching { repository.categories(includeInactive = true) }
-      .onSuccess { response -> mutableState.update { it.copy(categories = response.categories, counts = response.counts, loading = false) } }
-      .onFailure { error -> mutableState.update { it.copy(loading = false, error = error.message ?: "加载分类失败") } }
+    catalog.refresh()
   }
 
   fun create(request: CategoryMutationRequest, onComplete: (Boolean) -> Unit) = mutate(onComplete) {
-    repository.createCategory(request)
+    // 管理页允许只填名称；完整规则仍可一次提交。
+    catalog.createCategory(request.name.orEmpty()).let { result ->
+      when (result) {
+        is CategoryCreationResult.Created -> {
+          if (request.description != null || request.includeExamples != null || request.excludeExamples != null || request.color != null) {
+            catalog.updateCategory(result.category.id, request.copy(name = null))
+          }
+          Unit
+        }
+        is CategoryCreationResult.Existing -> throw IllegalArgumentException("已存在同名分类")
+        is CategoryCreationResult.Failed -> throw IllegalArgumentException(result.message)
+      }
+    }
   }
 
   fun update(id: Int, request: CategoryMutationRequest, onComplete: (Boolean) -> Unit) = mutate(onComplete) {
-    repository.updateCategory(id, request)
+    catalog.updateCategory(id, request)
   }
 
   fun delete(id: Int, targetCategoryId: Int, onComplete: (Boolean) -> Unit) = mutate(onComplete) {
-    repository.deleteCategory(id, targetCategoryId)
+    catalog.deleteCategory(id, targetCategoryId)
   }
 
-  fun reorder(categoryIds: List<Int>) = mutate({}) { repository.reorderCategories(categoryIds) }
+  fun reorder(categoryIds: List<Int>) = mutate({}) {
+    catalog.reorderCategories(categoryIds)
+  }
+
+  fun merge(sourceId: Int, targetId: Int, onComplete: (Boolean) -> Unit) = mutate(onComplete) {
+    catalog.mergeCategories(sourceId, targetId)
+  }
 
   fun optimize(request: CategoryOptimizeRequest, onComplete: (CategoryOptimizeDraft?) -> Unit) = viewModelScope.launch {
     if (mutableState.value.saving) return@launch
     mutableState.update { it.copy(saving = true, error = null) }
-    runCatching { repository.optimizeCategoryDescription(request).draft }
+    runCatching { catalog.optimizeCategoryDescription(request).draft }
       .onSuccess { onComplete(it) }
       .onFailure { error ->
         mutableState.update { it.copy(error = error.message ?: "AI 优化分类说明失败") }
@@ -64,17 +92,19 @@ class CategoryManagementViewModel @Inject constructor(
     mutableState.update { it.copy(saving = false) }
   }
 
-  private fun mutate(onComplete: (Boolean) -> Unit, operation: suspend () -> Any) = viewModelScope.launch {
+  fun dismissNotice() = mutableState.update { it.copy(notice = null) }
+
+  private fun mutate(onComplete: (Boolean) -> Unit, operation: suspend () -> Unit) = viewModelScope.launch {
     if (mutableState.value.saving) return@launch
-    mutableState.update { it.copy(saving = true, error = null) }
+    mutableState.update { it.copy(saving = true, error = null, notice = null) }
     runCatching { operation() }
       .onSuccess {
-        refresh()
+        mutableState.update { it.copy(notice = "分类已更新") }
         onComplete(true)
       }
       .onFailure { error ->
-        onComplete(false)
         mutableState.update { it.copy(error = error.message ?: "分类操作失败") }
+        onComplete(false)
       }
     mutableState.update { it.copy(saving = false) }
   }

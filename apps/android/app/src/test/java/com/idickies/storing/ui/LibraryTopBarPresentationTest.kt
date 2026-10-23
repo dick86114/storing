@@ -1,5 +1,6 @@
 package com.idickies.storing.ui
 
+import com.idickies.storing.library.ArticleCategory
 import com.idickies.storing.library.LibraryView
 import com.idickies.storing.network.ArticleCounts
 import com.idickies.storing.ui.theme.ThemeMode
@@ -38,6 +39,21 @@ class LibraryTopBarPresentationTest {
     assertEquals(
       LibraryTopBarSubtitle("归档", null),
       libraryTopBarSubtitle(LibraryView.Archive, searchQuery = "", counts = ArticleCounts(archive = 0)),
+    )
+  }
+
+  @Test
+  fun `归档选中分类后标题显示分类名称和文章数`() {
+    val category = ArticleCategory(id = 8, name = "产品设计")
+    assertEquals(
+      LibraryTopBarSubtitle("产品设计", 0),
+      libraryTopBarSubtitle(
+        view = LibraryView.Archive,
+        searchQuery = "",
+        counts = ArticleCounts(archive = 34),
+        archiveCategory = category,
+        archiveCategoryCount = 0,
+      ),
     )
   }
 
