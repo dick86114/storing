@@ -171,7 +171,7 @@ struct ReaderPaneView: View {
                 model: model,
                 categoryCatalog: categoryCatalog,
                 userID: userID,
-                selectedCategoryID: article.category?.id,
+                currentCategoryID: article.category?.id,
                 mode: mode,
                 onDismiss: { categorySheetMode = nil },
                 onDidComplete: onLibraryDidChange
@@ -467,7 +467,7 @@ struct ReaderPaneView: View {
                         model: model,
                         categoryCatalog: categoryCatalog,
                         userID: userID,
-                        selectedCategoryID: article.category?.id,
+                        currentCategoryID: article.category?.id,
                         mode: .move,
                         onDismiss: { isCategoryPickerPresented = false },
                         onDidComplete: onLibraryDidChange
@@ -595,7 +595,7 @@ struct ReaderPaneView: View {
     }
 }
 
-private enum ReaderCategorySheetMode: String, Identifiable {
+enum ReaderCategorySheetMode: String, Identifiable {
     case archive
     case move
 
@@ -614,13 +614,27 @@ private enum ReaderCategorySheetMode: String, Identifiable {
         case .move: "选择分类，或让 AI 判断"
         }
     }
+
+    func selectedCategoryID(currentCategoryID: Int?) -> Int? {
+        switch self {
+        case .archive: nil
+        case .move: currentCategoryID
+        }
+    }
+}
+
+enum ReaderCategoryOperation {
+    case archive
+    case move
+    case classify
 }
 
 enum ReaderCategoryOutcomeMapper {
     static func outcome(
         succeeded: Bool,
         error: AppError?,
-        message: String?
+        message: String?,
+        operation: ReaderCategoryOperation
     ) -> CategoryAssignmentOutcome {
         if succeeded {
             return .success(succeededCount: 1, skippedCount: 0)
@@ -629,7 +643,12 @@ enum ReaderCategoryOutcomeMapper {
         let fallbackMessage = error == .contentUnavailable ? "请求的文章不可用" : "分类失败"
         let displayMessage = message ?? fallbackMessage
         if error == .contentUnavailable {
-            return .categoryUnavailable(message: displayMessage)
+            switch operation {
+            case .move:
+                return .categoryUnavailable(message: displayMessage)
+            case .archive, .classify:
+                return .contentUnavailable(message: displayMessage)
+            }
         }
         return .failure(message: displayMessage)
     }
@@ -640,7 +659,7 @@ private struct ReaderCategoryPickerContainer: View {
     let model: ReaderModel
     let categoryCatalog: CategoryCatalogModel
     let userID: Int?
-    let selectedCategoryID: Int?
+    let currentCategoryID: Int?
     let mode: ReaderCategorySheetMode
     let onDismiss: () -> Void
     let onDidComplete: () -> Void
@@ -651,7 +670,7 @@ private struct ReaderCategoryPickerContainer: View {
         model: ReaderModel,
         categoryCatalog: CategoryCatalogModel,
         userID: Int?,
-        selectedCategoryID: Int?,
+        currentCategoryID: Int?,
         mode: ReaderCategorySheetMode,
         onDismiss: @escaping () -> Void,
         onDidComplete: @escaping () -> Void
@@ -659,13 +678,15 @@ private struct ReaderCategoryPickerContainer: View {
         self.model = model
         self.categoryCatalog = categoryCatalog
         self.userID = userID
-        self.selectedCategoryID = selectedCategoryID
+        self.currentCategoryID = currentCategoryID
         self.mode = mode
         self.onDismiss = onDismiss
         self.onDidComplete = onDidComplete
         _pickerModel = State(initialValue: CategoryPickerModel(
             catalog: categoryCatalog,
-            selectedCategoryID: selectedCategoryID,
+            selectedCategoryID: mode.selectedCategoryID(
+                currentCategoryID: currentCategoryID
+            ),
             targetCount: 1
         ))
     }
@@ -687,34 +708,44 @@ private struct ReaderCategoryPickerContainer: View {
 
     private func 分配(_ category: ArticleCategory) async -> CategoryAssignmentOutcome {
         let succeeded: Bool
+        let operation: ReaderCategoryOperation
         switch mode {
         case .archive:
+            operation = .archive
             succeeded = await model.archive(categoryID: category.id)
         case .move:
+            operation = .move
             succeeded = await model.moveToCategory(category.id)
         }
         if succeeded, categoryCatalog.userID == userID {
             categoryCatalog.recordRecent(categoryID: category.id)
         }
-        return 完成结果(succeeded: succeeded)
+        return 完成结果(succeeded: succeeded, operation: operation)
     }
 
     private func 交给AI判断() async -> CategoryAssignmentOutcome {
         let succeeded: Bool
+        let operation: ReaderCategoryOperation
         switch mode {
         case .archive:
+            operation = .archive
             succeeded = await model.archive()
         case .move:
+            operation = .classify
             succeeded = await model.classifyArticle()
         }
-        return 完成结果(succeeded: succeeded)
+        return 完成结果(succeeded: succeeded, operation: operation)
     }
 
-    private func 完成结果(succeeded: Bool) -> CategoryAssignmentOutcome {
+    private func 完成结果(
+        succeeded: Bool,
+        operation: ReaderCategoryOperation
+    ) -> CategoryAssignmentOutcome {
         let outcome = ReaderCategoryOutcomeMapper.outcome(
             succeeded: succeeded,
             error: model.actionError,
-            message: model.actionErrorMessage
+            message: model.actionErrorMessage,
+            operation: operation
         )
         if succeeded, categoryCatalog.userID == userID {
             onDidComplete()

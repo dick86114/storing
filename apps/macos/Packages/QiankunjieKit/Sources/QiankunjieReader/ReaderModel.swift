@@ -97,9 +97,22 @@ public struct ReaderFavoriteResult: Decodable, Sendable {
 
 public struct ReaderArchiveResult: Decodable, Sendable {
     public let isArchived: Bool
+    public let category: ArticleCategory?
 
-    public init(isArchived: Bool) {
+    public init(isArchived: Bool, category: ArticleCategory? = nil) {
         self.isArchived = isArchived
+        self.category = category
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        isArchived = try container.decode(Bool.self, forKey: .isArchived)
+        category = try container.decodeIfPresent(ArticleCategory.self, forKey: .category)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case isArchived
+        case category
     }
 }
 
@@ -241,12 +254,14 @@ public struct ReaderArticle: Sendable {
     public var isFavorited: Bool
     public var isArchived: Bool
     public var isPublished: Bool
+    public var category: ArticleCategory?
 
     public init(detail: ArticleDetail) {
         self.detail = detail
         isFavorited = detail.isFavorited
         isArchived = detail.isArchived
         isPublished = detail.isPublished
+        category = detail.category
     }
 
     public var id: Int { detail.id }
@@ -260,7 +275,6 @@ public struct ReaderArticle: Sendable {
     public var aiSummary: String? { detail.aiSummary }
     public var aiCategory: String? { detail.aiCategory }
     public var aiTags: [String] { detail.aiTags }
-    public var category: ArticleCategory? { detail.category }
     public var categoryResult: ArticleCategoryResult? { detail.categoryResult }
     public var contentHTML: String? { detail.contentHTML }
     public var contentMarkdown: String? { detail.contentMarkdown }
@@ -425,6 +439,9 @@ public final class ReaderModel {
                 return
             }
             self.article?.isArchived = result.isArchived
+            if let category = result.category {
+                self.article?.category = category
+            }
             self.startAIPolling()
         }
     }

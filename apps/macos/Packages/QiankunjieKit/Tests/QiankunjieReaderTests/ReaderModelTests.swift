@@ -31,6 +31,21 @@ struct ReaderModelTests {
         #expect(result.publicURL == "/p/token")
     }
 
+    @Test func 服务端归档响应解码分类() throws {
+        let data = Data(
+            #"{"isArchived":true,"category":{"id":31,"name":"工程实践"}}"#.utf8
+        )
+
+        let result = try JSONDecoder.qiankunjie.decode(
+            ReaderArchiveResult.self,
+            from: data
+        )
+
+        #expect(result.isArchived)
+        #expect(result.category?.id == 31)
+        #expect(result.category?.name == "工程实践")
+    }
+
     @Test func 阅读器加载桌面版HTML() async {
         let client = 模拟阅读客户端()
         let model = ReaderModel(client: client)
@@ -67,6 +82,18 @@ struct ReaderModelTests {
 
         #expect(await client.lastArchiveCategoryID == 31)
         #expect(model.article?.isArchived == true)
+    }
+
+    @Test func 阅读器归档成功后立即应用所选分类() async {
+        let detail = ArticleDetail(id: 12, aiCategory: "AI 分类")
+        let client = 模拟阅读客户端(detail: detail)
+        let model = ReaderModel(client: client)
+        await model.open(articleID: 12)
+
+        await model.archive(categoryID: 31)
+
+        #expect(model.article?.category?.id == 31)
+        #expect(model.article?.category?.name == "工程实践")
     }
 
     @Test func 阅读器详情暴露封面图() async {
@@ -134,13 +161,14 @@ struct ReaderModelTests {
 
         await model.open(articleID: 12)
         let moved = await model.moveToCategory(31)
+        #expect(model.article?.category?.id == 31)
         await model.archive(categoryID: 41)
 
         #expect(moved)
         #expect(await client.categoryPaths == ["articles/12/category"])
         #expect(await client.lastMovedCategoryID == 31)
         #expect(await client.lastArchiveCategoryID == 41)
-        #expect(model.article?.category?.id == 31)
+        #expect(model.article?.category?.id == 41)
         #expect(model.actionErrorMessage == nil)
 
         let sourceURL = URL(fileURLWithPath: #filePath)
@@ -455,7 +483,10 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
     func archive(articleID: Int, categoryID: Int?) async throws -> ReaderArchiveResult {
         paths.append("articles/\(articleID)/archive")
         lastArchiveCategoryID = categoryID
-        return ReaderArchiveResult(isArchived: true)
+        let category = categoryID.map {
+            ArticleCategory(id: $0, name: "工程实践")
+        }
+        return ReaderArchiveResult(isArchived: true, category: category)
     }
 
     func unarchive(articleID: Int) async throws -> ReaderArchiveResult {

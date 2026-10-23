@@ -5,6 +5,7 @@ enum CategoryAssignmentOutcome: Equatable, Sendable {
     case success(succeededCount: Int, skippedCount: Int)
     case partial(succeededCount: Int, skippedCount: Int, failedCount: Int, message: String)
     case categoryUnavailable(message: String)
+    case contentUnavailable(message: String)
     case failure(message: String)
 }
 

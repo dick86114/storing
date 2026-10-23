@@ -387,7 +387,7 @@ actor UILabReaderClient: ReaderNetworkClient {
 
     func archive(articleID: Int, categoryID: Int?) async throws -> ReaderArchiveResult {
         detail = 更新详情(isArchived: true, categoryID: categoryID)
-        return ReaderArchiveResult(isArchived: true)
+        return ReaderArchiveResult(isArchived: true, category: detail.category)
     }
 
     func unarchive(articleID: Int) async throws -> ReaderArchiveResult {
