@@ -148,7 +148,7 @@ struct SidebarArchiveCategoryGroup: View {
                 .onDrag {
                     guard canDrag(category), dragState.begin(
                         categoryID: category.id,
-                        categoryIDs: model.categoryCatalog.activeCategories.map(\.id)
+                        categoryIDs: model.categoryCatalog.categories.map(\.id)
                     ) else {
                         dragState.cancel()
                         return NSItemProvider()
@@ -208,15 +208,26 @@ struct SidebarArchiveCategoryGroup: View {
             targetCategoryID: category.id,
             targetIsSystem: category.isSystem,
             draggedCategoryID: dragState.draggedCategoryID,
+            categoryIDs: { model.categoryCatalog.categories.map(\.id) },
+            protectedCategoryIDs: {
+                Set(model.categoryCatalog.categories.filter(\.isSystem).map(\.id))
+            },
             canDrop: canAcceptCategoryDrop,
             onDrop: { movingCategoryID, targetCategoryID in
-                dragState.cancel()
-                Task {
-                    try? await model.categoryCatalog.reorder(
-                        moving: movingCategoryID,
-                        to: targetCategoryID
-                    )
+                let protectedIDs = Set(
+                    model.categoryCatalog.categories.filter(\.isSystem).map(\.id)
+                )
+                guard let categoryIDs = dragState.commit(
+                    moving: movingCategoryID,
+                    to: targetCategoryID,
+                    protecting: protectedIDs
+                ) else {
+                    return false
                 }
+                Task {
+                    try? await model.categoryCatalog.reorder(categoryIDs: categoryIDs)
+                }
+                return true
             },
             onCancel: {
                 dragState.cancel()
@@ -358,8 +369,10 @@ private struct SidebarCategoryReorderDropDelegate: DropDelegate {
     let targetCategoryID: Int
     let targetIsSystem: Bool
     let draggedCategoryID: Int?
+    let categoryIDs: () -> [Int]
+    let protectedCategoryIDs: () -> Set<Int>
     let canDrop: () -> Bool
-    let onDrop: (Int, Int) -> Void
+    let onDrop: (Int, Int) -> Bool
     let onCancel: () -> Void
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
@@ -370,12 +383,15 @@ private struct SidebarCategoryReorderDropDelegate: DropDelegate {
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        guard case let .move(movingCategoryID, targetCategoryID) = resolution else {
+        guard case let .move(movingCategoryID, targetCategoryID, _) = resolution else {
             onCancel()
             return false
         }
-        onDrop(movingCategoryID, targetCategoryID)
-        return true
+        let accepted = onDrop(movingCategoryID, targetCategoryID)
+        if !accepted {
+            onCancel()
+        }
+        return accepted
     }
 
     private var resolution: CategoryDropResolution {
@@ -383,6 +399,8 @@ private struct SidebarCategoryReorderDropDelegate: DropDelegate {
             draggedCategoryID: draggedCategoryID,
             targetCategoryID: targetCategoryID,
             targetIsSystem: targetIsSystem,
+            categoryIDs: categoryIDs(),
+            protectedCategoryIDs: protectedCategoryIDs(),
             canDrop: canDrop()
         )
     }
