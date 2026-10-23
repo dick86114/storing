@@ -7,6 +7,7 @@ struct SidebarArchiveCategoryGroup: View {
     @Bindable var model: AppModel
     @Binding var isExpanded: Bool
     @Environment(\.colorScheme) private var colorScheme
+    @State private var isQuickCreatePresented = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -15,6 +16,18 @@ struct SidebarArchiveCategoryGroup: View {
             if model.isAuthenticated, isExpanded {
                 categoryContent
             }
+        }
+        .sheet(isPresented: $isQuickCreatePresented) {
+            CategoryQuickCreateView(
+                catalog: model.categoryCatalog,
+                onSubmit: model.createCategoryAndSelect,
+                onCancel: {
+                    isQuickCreatePresented = false
+                },
+                onCreated: { _ in
+                    isQuickCreatePresented = false
+                }
+            )
         }
     }
 
@@ -108,6 +121,7 @@ struct SidebarArchiveCategoryGroup: View {
             }
         }
 
+        quickCreateRow
         managementRow
     }
 
@@ -174,6 +188,31 @@ struct SidebarArchiveCategoryGroup: View {
         .buttonStyle(.plain)
         .help("管理分类")
         .accessibilityLabel("管理分类")
+    }
+
+    private var quickCreateRow: some View {
+        Button {
+            isQuickCreatePresented = true
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "plus.circle")
+                    .frame(width: 18)
+
+                Text("新建分类…")
+                    .lineLimit(1)
+
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+            .padding(.leading, 18)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("新建分类")
+        .accessibilityLabel("新建分类")
     }
 
     private func failureRow(_ message: String) -> some View {

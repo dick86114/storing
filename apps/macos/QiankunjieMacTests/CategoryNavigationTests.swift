@@ -99,14 +99,145 @@ struct CategoryNavigationTests {
         #expect(查询?.view == .archive)
         #expect(查询?.categoryId == nil)
     }
+
+    @Test func 侧栏创建分类后自动进入新分类归档() async {
+        let 新分类 = 分类(id: 22, name: "产品设计", sortOrder: 20)
+        let (分类目录, 分类服务) = 创建分类目录与导航服务(
+            列表响应: [
+                CategoriesResponse(
+                    categories: [分类(id: 21, sortOrder: 10)],
+                    counts: ["21": 4]
+                ),
+            ],
+            创建响应: [.success(CategoryResponse(category: 新分类))]
+        )
+        分类目录.prepareUser(userID: 9)
+        await 分类目录.load()
+
+        let 资料库仓库 = 导航资料库仓库()
+        let model = 创建应用模型(
+            用户ID: 9,
+            目的地: .favorites,
+            资料库仓库: 资料库仓库,
+            分类目录: 分类目录
+        )
+        var 草稿 = CategoryDraft()
+        草稿.name = " 产品设计 "
+
+        let 创建结果 = await model.createCategoryAndSelect(草稿)
+
+        #expect(创建结果 == 新分类)
+        #expect(model.destination == .archive)
+        #expect(model.selectedCategoryID == 新分类.id)
+        #expect(model.libraryModel.categoryId == 新分类.id)
+        #expect(model.libraryModel.view == .archive)
+        #expect(分类目录.categories.contains(新分类))
+        #expect(await 分类服务.已创建分类名称() == ["产品设计"])
+
+        await 资料库仓库.等待请求数(1)
+        let 查询 = await 资料库仓库.最近查询()
+        #expect(查询?.view == .archive)
+        #expect(查询?.categoryId == 新分类.id)
+    }
+
+    @Test func 创建成功但选择失败时保留分类并返回错误() async {
+        let 不可用分类 = 分类(
+            id: 22,
+            name: "产品设计",
+            sortOrder: 20,
+            isActive: false
+        )
+        let (分类目录, _) = 创建分类目录与导航服务(
+            列表响应: [
+                CategoriesResponse(
+                    categories: [分类(id: 21, sortOrder: 10)],
+                    counts: ["21": 4]
+                ),
+            ],
+            创建响应: [.success(CategoryResponse(category: 不可用分类))]
+        )
+        分类目录.prepareUser(userID: 9)
+        await 分类目录.load()
+
+        let 资料库仓库 = 导航资料库仓库()
+        let model = 创建应用模型(
+            用户ID: 9,
+            目的地: .favorites,
+            资料库仓库: 资料库仓库,
+            分类目录: 分类目录
+        )
+        var 草稿 = CategoryDraft()
+        草稿.name = "产品设计"
+
+        let 创建结果 = await model.createCategoryAndSelect(草稿)
+
+        #expect(创建结果 == nil)
+        #expect(分类目录.categories.contains(不可用分类))
+        #expect(分类目录.errorMessage == "分类已创建，但无法进入新分类，请稍后重试")
+        #expect(model.destination == .favorites)
+        #expect(model.selectedCategoryID == nil)
+        #expect(model.libraryModel.categoryId == nil)
+        #expect(await 资料库仓库.请求次数() == 0)
+    }
+
+    @Test func 同名分类不会重复提交并显示可恢复错误() async {
+        let 已有分类 = 分类(id: 21, name: "产品设计", sortOrder: 10)
+        let (分类目录, 分类服务) = 创建分类目录与导航服务(
+            列表响应: [
+                CategoriesResponse(
+                    categories: [已有分类],
+                    counts: ["21": 4]
+                ),
+            ],
+            创建响应: []
+        )
+        分类目录.prepareUser(userID: 9)
+        await 分类目录.load()
+
+        let 资料库仓库 = 导航资料库仓库()
+        let model = 创建应用模型(
+            用户ID: 9,
+            目的地: .favorites,
+            资料库仓库: 资料库仓库,
+            分类目录: 分类目录
+        )
+        var 草稿 = CategoryDraft()
+        草稿.name = " 产品设计 "
+
+        let 创建结果 = await model.createCategoryAndSelect(草稿)
+
+        #expect(创建结果 == nil)
+        #expect(分类目录.categories == [已有分类])
+        #expect(分类目录.errorMessage == "已存在同名启用分类，请换一个名称")
+        #expect(await 分类服务.已创建分类名称().isEmpty == true)
+        #expect(model.destination == .favorites)
+    }
 }
 
 @MainActor
-private func 创建分类目录(列表响应: [CategoriesResponse]) -> CategoryCatalogModel {
+private func 创建分类目录(
+    列表响应: [CategoriesResponse]
+) -> CategoryCatalogModel {
     CategoryCatalogModel(
         service: 导航分类服务(列表响应: 列表响应),
         recentStore: 导航最近分类存储()
     )
+}
+
+@MainActor
+private func 创建分类目录与导航服务(
+    列表响应: [CategoriesResponse],
+    创建响应: [Result<CategoryResponse, 导航测试错误>]
+) -> (CategoryCatalogModel, 导航分类服务) {
+    let 分类服务 = 导航分类服务(
+        列表响应: 列表响应,
+        创建响应: 创建响应
+    )
+    let 分类目录 = CategoryCatalogModel(
+        service: 分类服务,
+        recentStore: 导航最近分类存储()
+    )
+    return (分类目录, 分类服务)
 }
 
 @MainActor
@@ -144,9 +275,15 @@ private func 创建应用模型(
 
 private actor 导航分类服务: CategoryCatalogServicing {
     private var 列表响应: [CategoriesResponse]
+    private var 创建响应: [Result<CategoryResponse, 导航测试错误>]
+    private var 创建名称记录: [String] = []
 
-    init(列表响应: [CategoriesResponse]) {
+    init(
+        列表响应: [CategoriesResponse],
+        创建响应: [Result<CategoryResponse, 导航测试错误>] = []
+    ) {
         self.列表响应 = 列表响应
+        self.创建响应 = 创建响应
     }
 
     func list(includeInactive: Bool) async throws -> CategoriesResponse {
@@ -155,7 +292,13 @@ private actor 导航分类服务: CategoryCatalogServicing {
     }
 
     func create(_ request: CategoryMutationRequest) async throws -> CategoryResponse {
-        throw 导航测试错误.未实现分类操作
+        创建名称记录.append(request.name ?? "")
+        guard !创建响应.isEmpty else { throw 导航测试错误.未实现分类操作 }
+        return try 创建响应.removeFirst().get()
+    }
+
+    func 已创建分类名称() -> [String] {
+        创建名称记录
     }
 
     func update(categoryID: Int, request: CategoryMutationRequest) async throws -> CategoryResponse {
@@ -223,6 +366,10 @@ private actor 导航资料库仓库: LibraryLoading {
     func 最近查询() -> LibraryQuery? {
         查询记录.last
     }
+
+    func 请求次数() -> Int {
+        查询记录.count
+    }
 }
 
 private struct 导航认证客户端: AuthClient, Sendable {
@@ -261,12 +408,13 @@ private enum 导航测试错误: Error {
 
 private func 分类(
     id: Int,
+    name: String? = nil,
     sortOrder: Int,
     isActive: Bool = true
 ) -> ArticleCategory {
     ArticleCategory(
         id: id,
-        name: "分类 \(id)",
+        name: name ?? "分类 \(id)",
         color: "#2F6A4F",
         sortOrder: sortOrder,
         isActive: isActive
