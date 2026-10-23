@@ -194,7 +194,7 @@ internal fun UiLabScreen(
       onSelectAi = {},
       onAssign = { categoryId ->
         val category = UiLabFixtures.categories.first { it.id == categoryId }
-        CategoryAssignmentResult.Partial(category, succeededIds = setOf(1, 2), skippedIds = setOf(3), failedIds = emptySet())
+        CategoryAssignmentResult.CompletedWithSkipped(category, succeededIds = setOf(1, 2), skippedIds = setOf(3))
       },
       onCreateCategory = { request: CategoryMutationRequest ->
         CategoryCreationResult.Failed("UI Lab 固定失败态：${request.name}")

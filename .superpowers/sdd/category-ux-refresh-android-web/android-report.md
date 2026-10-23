@@ -23,7 +23,8 @@
    - `CategoryAssignmentResult.Success/Partial` 现在携带 `succeededIds`，部分结果额外携带 `skippedIds`、`failedIds`。
    - 页面从本次请求的 `selectedArticleIds` 精确移除成功与跳过项，只保留失败项用于重试。
    - 完整成功时退出批量模式；全部归档视图和当前分类等于目标分类时，成功文章同样不会残留在选择集中。
-   - 新增状态测试覆盖成功、跳过、失败及请求异常时的选择集变化。
+   - 仅有成功与跳过、`failedIds` 为空时返回可关闭的 `CompletedWithSkipped` 终态，文案为“分类已完成，部分文章被跳过”，不提示重试；只有存在失败项时才返回 `Partial` 并提示重试失败项。
+   - 新增状态测试覆盖成功、跳过、失败、无失败跳过终态及请求异常时的选择集变化。
 3. 归档筛选失效：
    - 共享目录更新时校验 `archiveCategoryId` 是否存在且启用。
    - 删除、停用或合并当前分类后，自动清空分类筛选和旧文章并重新加载全部归档。
@@ -103,7 +104,7 @@
 
 - `ANDROID_HOME=/opt/homebrew/share/android-commandlinetools pnpm android:test`
   - 通过。
-  - 258 个测试，0 failures，0 errors，0 skipped。
+  - 261 个测试，0 failures，0 errors，0 skipped。
 - `cd apps/android && ANDROID_HOME=/opt/homebrew/share/android-commandlinetools ./gradlew :app:compileDebugKotlin --no-daemon`
   - `BUILD SUCCESSFUL`。
 - `cd apps/android && ANDROID_HOME=/opt/homebrew/share/android-commandlinetools ./gradlew :app:lintDebug --no-daemon`
@@ -144,6 +145,6 @@ AVD 验证期间发现并修复了 `FocusRequester is not initialized` 启动崩
 ## 剩余项
 
 - 未使用真实登录账号对分类创建、排序、合并和删除执行线上 API 端到端操作；这些路径已通过编译、请求字段测试、接口契约代码和策略测试覆盖，AVD 使用固定 UI Lab 数据验证交互。
-- 批量成功/跳过/失败的 ID 状态已用状态测试覆盖，但尚未用真实后端构造部分成功响应做设备级联调。
+- 批量成功/跳过/失败的 ID 状态及“无失败跳过终态”已用状态测试覆盖，但尚未用真实后端构造部分成功响应做设备级联调。
 - 未在 Xiaomi/HyperOS 等物理设备验证；本次真实渲染验证环境为 Android 16 AVD。
 - 未新增 Compose instrumentation 测试；现有回归由 JVM 行为测试、源码契约测试和 AVD 手工场景共同覆盖。

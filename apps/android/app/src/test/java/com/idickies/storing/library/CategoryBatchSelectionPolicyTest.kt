@@ -24,6 +24,41 @@ class CategoryBatchSelectionPolicyTest {
   }
 
   @Test
+  fun `成功加跳过且无失败时选择集为空并进入终态`() {
+    val result = categoryAssignmentBatchResult(
+      category = category,
+      requestedIds = setOf(1, 2, 3),
+      response = ArticleBulkActionResult(
+        requestedCount = 3,
+        succeededIds = listOf(1, 2),
+        skipped = listOf(ArticleBulkIssue(articleId = 3, code = "ALREADY_ARCHIVED")),
+      ),
+    )
+
+    assertEquals(CategoryAssignmentResult.CompletedWithSkipped(category, setOf(1, 2), setOf(3)), result)
+    assertEquals(emptySet<Int>(), remainingCategoryAssignmentIds(setOf(1, 2, 3), result))
+    assertEquals(true, result.closesSheet)
+  }
+
+  @Test
+  fun `存在失败项时才保留选择集并提示重试`() {
+    val result = categoryAssignmentBatchResult(
+      category = category,
+      requestedIds = setOf(1, 2, 3),
+      response = ArticleBulkActionResult(
+        requestedCount = 3,
+        succeededIds = listOf(1),
+        skipped = listOf(ArticleBulkIssue(articleId = 2, code = "SKIPPED")),
+        failed = listOf(ArticleBulkIssue(articleId = 3, code = "FAILED")),
+      ),
+    )
+
+    assertEquals(setOf(3), remainingCategoryAssignmentIds(setOf(1, 2, 3), result))
+    assertEquals(false, result.closesSheet)
+    assertEquals("已成功 1 篇，跳过 1 篇，失败 1 篇；请重试失败项。", result.message)
+  }
+
+  @Test
   fun `全部分类和当前目标分类场景下成功项都会从选择集中移除`() {
     val allViewSelection = setOf(1, 2, 3)
     val currentCategorySelection = setOf(1, 2, 3)

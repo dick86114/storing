@@ -25,6 +25,7 @@ class CategoryRefreshExperienceTest {
     assertTrue(source.contains("resultMessage = result.message"))
     val library = File("src/main/java/com/idickies/storing/ui/LibraryScreen.kt").readText()
     assertTrue(library.contains("remainingCategoryAssignmentIds(requestedIds, result)"))
+    assertTrue(library.contains("if (result.closesSheet)"))
   }
 
   @Test

@@ -1814,7 +1814,7 @@ private fun LibraryList(
     val requestedIds = selectedArticleIds
     val result = onAssignCategory(requestedIds, category, archiveIfNeeded)
     selectedArticleIds = remainingCategoryAssignmentIds(requestedIds, result)
-    if (result is CategoryAssignmentResult.Success) {
+    if (result.closesSheet) {
       batchMode = false
       bulkMenuExpanded = false
     }

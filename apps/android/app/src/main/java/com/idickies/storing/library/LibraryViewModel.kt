@@ -819,24 +819,19 @@ class LibraryViewModel @Inject constructor(
       }
     }.fold(
       onSuccess = { response ->
-        val succeededIds = response.succeededIds.filter(articleIds::contains).toSet()
-        val skippedIds = response.skipped.map { it.articleId }.filter(articleIds::contains).toSet()
-        val failedIds = (
-          response.failed.map { it.articleId }.filter(articleIds::contains).toSet() +
-            (articleIds - succeededIds - skippedIds)
-          ).filterNot { it in succeededIds || it in skippedIds }.toSet()
+        val result = categoryAssignmentBatchResult(category, articleIds, response)
+        val succeededIds = when (result) {
+          is CategoryAssignmentResult.Success -> result.succeededIds
+          is CategoryAssignmentResult.Partial -> result.succeededIds
+          is CategoryAssignmentResult.CompletedWithSkipped -> result.succeededIds
+          else -> emptySet()
+        }
         if (succeededIds.isNotEmpty()) {
           applyAssignedCategory(succeededIds, category, archiveIfNeeded = archiveIfNeeded)
           categoryCatalogRepository.recordRecentCategory(category.id)
           categoryCatalogRepository.refresh()
         }
-        when {
-          skippedIds.isEmpty() && failedIds.isEmpty() ->
-            CategoryAssignmentResult.Success(category, succeededIds)
-          succeededIds.isNotEmpty() || skippedIds.isNotEmpty() || failedIds.isNotEmpty() ->
-            CategoryAssignmentResult.Partial(category, succeededIds, skippedIds, failedIds)
-          else -> CategoryAssignmentResult.Failure("文章尚未分类，请重试")
-        }
+        result
       },
       onFailure = { CategoryAssignmentResult.Failure(it.message ?: "批量分类失败") },
     )
