@@ -14,6 +14,10 @@ struct ManagementAPIClient: Sendable {
         client = APIClient(tokenProvider: repository)
     }
 
+    init(client: APIClient) {
+        self.client = client
+    }
+
     func get<Response: Decodable & Sendable>(_ path: String) async throws -> Response {
         try await get(path, queryItems: [])
     }
