@@ -9,6 +9,11 @@ enum CategoryAssignmentOutcome: Equatable, Sendable {
     case failure(message: String)
 }
 
+/// 分类变更已提交、但本地目录无法继续刷新时使用的结构化结果。
+enum CategoryCatalogMutationError: Error, Equatable, Sendable {
+    case mergeCommittedButRefreshFailed
+}
+
 protocol CategoryCatalogServicing: Sendable {
     func list(includeInactive: Bool) async throws -> CategoriesResponse
     func create(_ request: CategoryMutationRequest) async throws -> CategoryResponse

@@ -98,7 +98,7 @@ struct CategoryManagementModelTests {
         #expect(model.noticeMessage == "分类已删除，已迁移 4 篇文章")
     }
 
-    @Test func 合并分类后源分类从共享目录移除() async {
+    @Test func 合并分类后源分类保留为停用并清除选中详情() async {
         let service = 分类管理服务桩(
             列表响应: [
                 .success(CategoriesResponse(
@@ -109,8 +109,11 @@ struct CategoryManagementModelTests {
                     counts: ["1": 3, "2": 5]
                 )),
                 .success(CategoriesResponse(
-                    categories: [分类(id: 2, name: "保留分类", sortOrder: 20)],
-                    counts: ["2": 8]
+                    categories: [
+                        分类(id: 1, name: "重复分类", sortOrder: 10, isActive: false),
+                        分类(id: 2, name: "保留分类", sortOrder: 20),
+                    ],
+                    counts: ["1": 0, "2": 8]
                 )),
             ],
             合并响应: [.success(())]
@@ -128,10 +131,90 @@ struct CategoryManagementModelTests {
 
         await model.merge(source, into: target)
 
-        #expect(catalog.categories.map(\.id) == [2])
+        #expect(catalog.categories.map(\.id) == [1, 2])
+        #expect(catalog.categories.first { $0.id == 1 }?.isActive == false)
+        #expect(catalog.activeCategories.map(\.id) == [2])
+        #expect(model.filteredCategories.map(\.id) == [1, 2])
         #expect(catalog.count(for: 2) == 8)
         #expect(model.selectedCategoryID == nil)
         #expect(model.noticeMessage == "分类已合并到“保留分类”")
+    }
+
+    @Test func 合并已提交但刷新失败会提示刷新并保留软停用行() async {
+        let source = 分类(id: 1, name: "重复分类", sortOrder: 10)
+        let target = 分类(id: 2, name: "保留分类", sortOrder: 20)
+        let service = 分类管理服务桩(
+            列表响应: [
+                .success(CategoriesResponse(
+                    categories: [source, target],
+                    counts: ["1": 3, "2": 5]
+                )),
+                .failure(.network),
+            ],
+            合并响应: [.success(())]
+        )
+        let catalog = CategoryCatalogModel(
+            service: service,
+            recentStore: 最近分类存储桩()
+        )
+        catalog.prepareUser(userID: 7)
+        await catalog.load()
+        let model = CategoryManagementModel(catalog: catalog)
+        model.select(categoryID: source.id)
+
+        await model.merge(source, into: target)
+
+        #expect(catalog.categories.map(\.id) == [1, 2])
+        #expect(catalog.categories.first { $0.id == source.id }?.isActive == false)
+        #expect(catalog.activeCategories.map(\.id) == [target.id])
+        #expect(catalog.count(for: source.id) == 0)
+        #expect(catalog.count(for: target.id) == 8)
+        #expect(model.selectedCategoryID == nil)
+        #expect(model.noticeMessage == "合并已提交，但分类目录刷新失败，请重试刷新")
+        #expect(model.errorMessage == nil)
+        #expect(model.isSaving == false)
+    }
+
+    @Test func 优化进行中禁止保存且结束后全部忙碌状态清理() async {
+        let category = 分类(id: 1, name: "产品设计", sortOrder: 10)
+        let gate = 分类管理操作闸门()
+        let service = 分类管理服务桩(
+            列表响应: [
+                .success(CategoriesResponse(categories: [category], counts: ["1": 4])),
+            ],
+            更新响应: [.success(CategoryResponse(category: category))],
+            优化响应: [
+                .success(CategoryOptimizeResponse(
+                    draft: CategoryOptimizeDraft(
+                        description: "优化后的分类说明",
+                        includeExamples: ["设计方法"],
+                        excludeExamples: ["技术教程"]
+                    )
+                )),
+            ],
+            优化闸门: gate
+        )
+        let catalog = CategoryCatalogModel(
+            service: service,
+            recentStore: 最近分类存储桩()
+        )
+        catalog.prepareUser(userID: 7)
+        await catalog.load()
+        let model = CategoryManagementModel(catalog: catalog)
+        var draft = CategoryDraft(category: category)
+        draft.description = "原始说明"
+
+        let optimizeTask = Task { await model.optimize(draft) }
+        await gate.等待开始()
+        await model.save(draft, editing: category)
+        await gate.释放()
+        let optimized = await optimizeTask.value
+
+        #expect(optimized?.description == "优化后的分类说明")
+        #expect(model.errorMessage == "分类操作正在进行，请稍后再试")
+        #expect(model.isSaving == false)
+        #expect(model.isOptimizing == false)
+        #expect(await service.最近更新请求次数() == 0)
     }
 
     @Test func 详细编辑仍保留完整规则字段() async {
@@ -326,7 +409,10 @@ private actor 分类管理服务桩: CategoryCatalogServicing {
     private var 排序响应: [Result<CategoryReorderResponse, AppError>]
     private var 删除响应: [Result<DeleteCategoryResponse, AppError>]
     private var 合并响应: [Result<Void, AppError>]
+    private var 优化响应: [Result<CategoryOptimizeResponse, AppError>]
+    private let 优化闸门: 分类管理操作闸门?
     private(set) var 更新请求: CategoryMutationRequest?
+    private(set) var 更新请求次数 = 0
     private(set) var 排序请求: [Int]?
 
     init(
@@ -335,7 +421,9 @@ private actor 分类管理服务桩: CategoryCatalogServicing {
         更新响应: [Result<CategoryResponse, AppError>] = [],
         排序响应: [Result<CategoryReorderResponse, AppError>] = [],
         删除响应: [Result<DeleteCategoryResponse, AppError>] = [],
-        合并响应: [Result<Void, AppError>] = []
+        合并响应: [Result<Void, AppError>] = [],
+        优化响应: [Result<CategoryOptimizeResponse, AppError>] = [],
+        优化闸门: 分类管理操作闸门? = nil
     ) {
         self.列表响应 = 列表响应
         self.创建响应 = 创建响应
@@ -343,6 +431,8 @@ private actor 分类管理服务桩: CategoryCatalogServicing {
         self.排序响应 = 排序响应
         self.删除响应 = 删除响应
         self.合并响应 = 合并响应
+        self.优化响应 = 优化响应
+        self.优化闸门 = 优化闸门
     }
 
     func list(includeInactive: Bool) async throws -> CategoriesResponse {
@@ -357,6 +447,7 @@ private actor 分类管理服务桩: CategoryCatalogServicing {
 
     func update(categoryID: Int, request: CategoryMutationRequest) async throws -> CategoryResponse {
         更新请求 = request
+        更新请求次数 += 1
         guard !更新响应.isEmpty else { throw AppError.network }
         return try 更新响应.removeFirst().get()
     }
@@ -378,15 +469,59 @@ private actor 分类管理服务桩: CategoryCatalogServicing {
     }
 
     func optimize(_ request: CategoryOptimizeRequest) async throws -> CategoryOptimizeResponse {
-        throw AppError.network
+        if let 优化闸门 {
+            await 优化闸门.标记开始()
+            await 优化闸门.等待释放()
+        }
+        guard !优化响应.isEmpty else { throw AppError.network }
+        return try 优化响应.removeFirst().get()
     }
 
     func 最近更新请求() -> CategoryMutationRequest? {
         更新请求
     }
 
+    func 最近更新请求次数() -> Int {
+        更新请求次数
+    }
+
     func 最近排序请求() -> [Int]? {
         排序请求
+    }
+}
+
+private actor 分类管理操作闸门 {
+    private var 已开始 = false
+    private var 开始等待者: [CheckedContinuation<Void, Never>] = []
+    private var 已释放 = false
+    private var 释放等待者: CheckedContinuation<Void, Never>?
+
+    func 标记开始() {
+        已开始 = true
+        for waiter in 开始等待者 {
+            waiter.resume()
+        }
+        开始等待者.removeAll()
+    }
+
+    func 等待开始() async {
+        guard !已开始 else { return }
+        await withCheckedContinuation { continuation in
+            开始等待者.append(continuation)
+        }
+    }
+
+    func 等待释放() async {
+        guard !已释放 else { return }
+        await withCheckedContinuation { continuation in
+            释放等待者 = continuation
+        }
+    }
+
+    func 释放() {
+        已释放 = true
+        释放等待者?.resume()
+        释放等待者 = nil
     }
 }
 

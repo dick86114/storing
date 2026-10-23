@@ -295,7 +295,7 @@ struct CategoryCatalogModelTests {
         #expect(model.errorMessage == 服务端冲突消息)
     }
 
-    @Test func 合并成功但刷新失败会向调用方抛错并保留旧目录() async throws {
+    @Test func 合并成功但刷新失败会标记已提交并保留软停用目录() async throws {
         let service = 分类服务桩(
             列表响应: [
                 .success(CategoriesResponse(
@@ -313,13 +313,15 @@ struct CategoryCatalogModelTests {
 
         do {
             try await model.merge(sourceCategoryID: 1, targetCategoryID: 2)
-            Issue.record("服务端合并成功但刷新失败时，调用方必须感知错误")
+            Issue.record("服务端合并成功但刷新失败时，调用方必须感知部分成功")
         } catch {
-            #expect(error is 分类服务测试错误)
+            #expect(error as? CategoryCatalogMutationError == .mergeCommittedButRefreshFailed)
         }
 
         #expect(model.categories.map(\.id) == [1, 2])
-        #expect(model.counts == [1: 3, 2: 4])
+        #expect(model.categories.first { $0.id == 1 }?.isActive == false)
+        #expect(model.activeCategories.map(\.id) == [2])
+        #expect(model.counts == [1: 0, 2: 7])
         #expect(model.errorMessage != nil)
     }
 }

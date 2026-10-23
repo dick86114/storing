@@ -169,12 +169,18 @@ struct CategoryManagementView: View {
     private var workspace: some View {
         VStack(spacing: 0) {
             if let notice = model.noticeMessage {
-                messageBanner(
-                    notice,
-                    systemImage: "checkmark.circle.fill",
-                    tint: .green,
-                    onClose: model.clearNotice
-                )
+                Group {
+                    if model.shouldOfferRefreshAfterMerge {
+                        refreshableNotice(notice)
+                    } else {
+                        messageBanner(
+                            notice,
+                            systemImage: "checkmark.circle.fill",
+                            tint: .green,
+                            onClose: model.clearNotice
+                        )
+                    }
+                }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
             }
@@ -658,6 +664,32 @@ struct CategoryManagementView: View {
         .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
 
+    private func refreshableNotice(_ message: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 9) {
+            Image(systemName: "arrow.clockwise.circle.fill")
+                .foregroundStyle(.green)
+            Text(message)
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            Button("刷新分类目录") {
+                Task { await model.load() }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
+            .disabled(model.catalog.isLoading)
+            Button("关闭") {
+                model.clearNotice()
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("关闭提示")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+
     private func statusBadge(_ text: String, color: Color) -> some View {
         Text(text)
             .font(.caption2.weight(.medium))
@@ -841,7 +873,7 @@ private struct CategoryMergeSheet: View {
                 .accessibilityLabel("关闭合并分类")
             }
 
-            Text("合并前必须选择目标分类。源分类中的 \(model.catalog.count(for: source.id)) 篇文章会迁移到目标分类，源分类随后停用并从管理中移除。")
+            Text("合并前必须选择目标分类。源分类中的 \(model.catalog.count(for: source.id)) 篇文章会迁移到目标分类，源分类随后停用，并保留在已停用分类中。")
                 .font(.callout)
                 .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                 .fixedSize(horizontal: false, vertical: true)

@@ -27,6 +27,28 @@ struct CategoryEditorSheetTests {
         #expect(!source.contains("CategoryEditorOverlay(model: model, category: nil)"))
     }
 
+    @Test func 高级编辑器在任一操作进行中禁用输入和操作() throws {
+        let source = try 读取源码("QiankunjieMac/Features/Settings/CategoryEditorOverlay.swift")
+        let busyReferenceCount = source.components(separatedBy: "isBusy").count - 1
+
+        #expect(source.contains("private var isBusy: Bool {\n        model.isBusy"))
+        #expect(source.contains(".disabled(isBusy)"))
+        #expect(source.contains("|| isBusy"))
+        #expect(source.contains("model.isBusy ? \"处理中…\""))
+        #expect(busyReferenceCount >= 10)
+    }
+
+    @Test func 合并部分成功会提供刷新并说明源分类保留停用() throws {
+        let view = try 读取源码("QiankunjieMac/Features/Settings/CategoryManagementView.swift")
+        let model = try 读取源码("QiankunjieMac/Features/Settings/CategoryManagementModel.swift")
+
+        #expect(view.contains("源分类随后停用，并保留在已停用分类中"))
+        #expect(view.contains("model.shouldOfferRefreshAfterMerge"))
+        #expect(view.contains("刷新分类目录"))
+        #expect(view.contains("if model.errorMessage == nil"))
+        #expect(model.contains("合并已提交，但分类目录刷新失败，请重试刷新"))
+    }
+
     @Test func 分类管理页使用应用共享目录() throws {
         let source = try 读取源码("QiankunjieMac/App/RootWindow.swift")
 
