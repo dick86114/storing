@@ -125,6 +125,66 @@ struct CollectModelTests {
         #expect(await repository.submitCount == 2)
     }
 
+    @Test func 提交等待期间刷新后超时仍恢复输入() async {
+        let repository = 模拟采集仓库()
+        await repository.holdNextSubmit()
+        let model = CollectModel(
+            repository: repository,
+            userID: 9,
+            pollInterval: .zero,
+            submissionTimeout: .milliseconds(30)
+        )
+        let url = "https://example.com/slow-with-refresh"
+        model.urlDraft = url
+
+        let submission = Task {
+            await model.submit(url)
+        }
+        await repository.waitForSubmitRequest()
+        await model.refreshJobs()
+        await submission.value
+
+        #expect(!model.isSubmitting)
+        #expect(model.submitErrorMessage == "提交超时，请检查网络后重试；如任务已创建，可先到历史任务确认")
+        #expect(model.urlDraft == url)
+    }
+
+    @Test func 提交成功不会被更晚返回的刷新响应覆盖() async {
+        let repository = 模拟采集仓库(statuses: ["completed"])
+        await repository.holdNextSubmit()
+        await repository.holdNextJobs()
+        let model = CollectModel(repository: repository, userID: 9, pollInterval: .zero)
+        let url = "https://example.com/submit-during-refresh"
+        model.urlDraft = url
+
+        let submission = Task {
+            await model.submit(url)
+        }
+        await repository.waitForSubmitRequest()
+        let refresh = Task {
+            await model.refreshJobs()
+        }
+        await repository.waitForJobsRequest(1)
+
+        await repository.resumeSubmit(with: .success(
+            CollectJob.fixture(id: 11, status: "completed", articleID: 7)
+        ))
+        await submission.value
+
+        #expect(model.currentJob?.id == 11)
+        #expect(model.jobs.map(\.id) == [11])
+        #expect(model.total == 1)
+
+        await repository.resumeJobsRequest(at: 0, with: .success(
+            CollectJobPage(jobs: [], total: 0, hasMore: false)
+        ))
+        await refresh.value
+
+        #expect(model.currentJob?.id == 11)
+        #expect(model.jobs.map(\.id) == [11])
+        #expect(model.total == 1)
+    }
+
     @Test func 取消提交立即解锁且迟到响应不会覆盖后续任务() async {
         let repository = 模拟采集仓库()
         await repository.holdNextSubmit()
