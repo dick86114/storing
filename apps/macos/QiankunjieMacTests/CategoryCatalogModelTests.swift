@@ -167,6 +167,97 @@ struct CategoryCatalogModelTests {
         #expect(model.count(for: 2) == 0)
         #expect(目录变化次数 == 2)
     }
+
+    @Test func 创建发出后的旧读取响应晚到不会覆盖新目录() async throws {
+        let service = 旧读取与创建交错服务桩(
+            初始目录: CategoriesResponse(
+                categories: [分类(id: 1, sortOrder: 10)],
+                counts: ["1": 2]
+            ),
+            旧目录结果: .success(CategoriesResponse(
+                categories: [分类(id: 1, sortOrder: 10)],
+                counts: ["1": 2]
+            )),
+            新分类: 分类(id: 2, name: "设计", sortOrder: 20)
+        )
+        let model = CategoryCatalogModel(service: service, recentStore: 最近分类存储桩())
+
+        model.prepareUser(userID: 5)
+        await model.load()
+        let 旧读取 = Task { @MainActor in
+            await model.load()
+        }
+        await service.等待第二次列表请求开始()
+
+        var draft = CategoryDraft()
+        draft.name = "设计"
+        let created = try await model.create(draft)
+        #expect(created.id == 2)
+        #expect(model.categories.map(\.id) == [1, 2])
+
+        await service.放行旧目录响应()
+        await 旧读取.value
+
+        #expect(model.categories.map(\.id) == [1, 2])
+        #expect(model.counts == [1: 2, 2: 0])
+    }
+
+    @Test func 创建后的旧读取失败不会覆盖成功状态() async throws {
+        let service = 旧读取与创建交错服务桩(
+            初始目录: CategoriesResponse(
+                categories: [分类(id: 1, sortOrder: 10)],
+                counts: ["1": 2]
+            ),
+            旧目录结果: .failure(.缺少响应),
+            新分类: 分类(id: 2, name: "设计", sortOrder: 20)
+        )
+        let model = CategoryCatalogModel(service: service, recentStore: 最近分类存储桩())
+
+        model.prepareUser(userID: 5)
+        await model.load()
+        let 旧读取 = Task { @MainActor in
+            await model.load()
+        }
+        await service.等待第二次列表请求开始()
+
+        var draft = CategoryDraft()
+        draft.name = "设计"
+        _ = try await model.create(draft)
+
+        await service.放行旧目录响应()
+        await 旧读取.value
+
+        #expect(model.categories.map(\.id) == [1, 2])
+        #expect(model.errorMessage == nil)
+    }
+
+    @Test func 合并成功但刷新失败会向调用方抛错并保留旧目录() async throws {
+        let service = 分类服务桩(
+            列表响应: [
+                .success(CategoriesResponse(
+                    categories: [分类(id: 1, sortOrder: 10), 分类(id: 2, sortOrder: 20)],
+                    counts: ["1": 3, "2": 4]
+                )),
+                .failure(.缺少响应),
+            ],
+            合并响应: [.success(())]
+        )
+        let model = CategoryCatalogModel(service: service, recentStore: 最近分类存储桩())
+
+        model.prepareUser(userID: 7)
+        await model.load()
+
+        do {
+            try await model.merge(sourceCategoryID: 1, targetCategoryID: 2)
+            Issue.record("服务端合并成功但刷新失败时，调用方必须感知错误")
+        } catch {
+            #expect(error is 分类服务测试错误)
+        }
+
+        #expect(model.categories.map(\.id) == [1, 2])
+        #expect(model.counts == [1: 3, 2: 4])
+        #expect(model.errorMessage != nil)
+    }
 }
 
 private func 分类(
@@ -289,6 +380,75 @@ private actor 延迟分类服务桩: CategoryCatalogServicing {
 
     func create(_ request: CategoryMutationRequest) async throws -> CategoryResponse {
         throw 分类服务测试错误.缺少响应
+    }
+
+    func update(categoryID: Int, request: CategoryMutationRequest) async throws -> CategoryResponse {
+        throw 分类服务测试错误.缺少响应
+    }
+
+    func reorder(categoryIDs: [Int]) async throws -> CategoryReorderResponse {
+        throw 分类服务测试错误.缺少响应
+    }
+
+    func delete(categoryID: Int, targetCategoryID: Int) async throws -> DeleteCategoryResponse {
+        throw 分类服务测试错误.缺少响应
+    }
+
+    func merge(sourceCategoryID: Int, targetCategoryID: Int) async throws {
+        throw 分类服务测试错误.缺少响应
+    }
+
+    func optimize(_ request: CategoryOptimizeRequest) async throws -> CategoryOptimizeResponse {
+        throw 分类服务测试错误.缺少响应
+    }
+}
+
+private actor 旧读取与创建交错服务桩: CategoryCatalogServicing {
+    private let 初始目录: CategoriesResponse
+    private let 旧目录结果: Result<CategoriesResponse, 分类服务测试错误>
+    private let 新分类: ArticleCategory
+    private var 列表请求次数 = 0
+    private var 第二次请求已开始: CheckedContinuation<Void, Never>?
+    private var 旧目录响应放行: CheckedContinuation<Void, Never>?
+
+    init(
+        初始目录: CategoriesResponse,
+        旧目录结果: Result<CategoriesResponse, 分类服务测试错误>,
+        新分类: ArticleCategory
+    ) {
+        self.初始目录 = 初始目录
+        self.旧目录结果 = 旧目录结果
+        self.新分类 = 新分类
+    }
+
+    func list(includeInactive: Bool) async throws -> CategoriesResponse {
+        列表请求次数 += 1
+        if 列表请求次数 == 1 {
+            return 初始目录
+        }
+
+        第二次请求已开始?.resume()
+        第二次请求已开始 = nil
+        await withCheckedContinuation { continuation in
+            旧目录响应放行 = continuation
+        }
+        return try 旧目录结果.get()
+    }
+
+    func 等待第二次列表请求开始() async {
+        if 列表请求次数 >= 2 { return }
+        await withCheckedContinuation { continuation in
+            第二次请求已开始 = continuation
+        }
+    }
+
+    func 放行旧目录响应() {
+        旧目录响应放行?.resume()
+        旧目录响应放行 = nil
+    }
+
+    func create(_ request: CategoryMutationRequest) async throws -> CategoryResponse {
+        CategoryResponse(category: 新分类)
     }
 
     func update(categoryID: Int, request: CategoryMutationRequest) async throws -> CategoryResponse {

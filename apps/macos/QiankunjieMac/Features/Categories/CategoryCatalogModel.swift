@@ -18,6 +18,7 @@ final class CategoryCatalogModel: Observable {
 
     @ObservationIgnored private var requestGeneration = 0
     @ObservationIgnored private var loadSequence = 0
+    @ObservationIgnored private var catalogRevision = 0
     @ObservationIgnored private var activeMutationCount = 0
 
     var activeCategories: [ArticleCategory] {
@@ -42,6 +43,7 @@ final class CategoryCatalogModel: Observable {
 
         requestGeneration += 1
         loadSequence += 1
+        catalogRevision += 1
         activeMutationCount = 0
         self.userID = userID
         categories = []
@@ -59,9 +61,20 @@ final class CategoryCatalogModel: Observable {
     }
 
     func load() async {
+        do {
+            try await refreshCatalog()
+        } catch CategoryCatalogInternalError.请求已过期 {
+            return
+        } catch {
+            errorMessage = managementErrorMessage(for: error)
+        }
+    }
+
+    private func refreshCatalog() async throws {
         guard userID != nil else { return }
 
         let generation = requestGeneration
+        let revision = catalogRevision
         loadSequence += 1
         let sequence = loadSequence
         isLoading = true
@@ -73,23 +86,28 @@ final class CategoryCatalogModel: Observable {
             }
         }
 
+        let response: CategoriesResponse
         do {
-            let response = try await service.list(includeInactive: true)
-            guard generation == requestGeneration, sequence == loadSequence else { return }
-
-            let previousCategories = categories
-            let previousCounts = counts
-            categories = sortedCategories(response.categories)
-            counts = normalizedCounts(response.counts)
-            pruneRecentCategories()
-            publishCatalogChangesIfNeeded(
-                previousCategories: previousCategories,
-                previousCounts: previousCounts
-            )
+            response = try await service.list(includeInactive: true)
         } catch {
-            guard generation == requestGeneration, sequence == loadSequence else { return }
-            errorMessage = managementErrorMessage(for: error)
+            guard generation == requestGeneration, sequence == loadSequence, revision == catalogRevision else {
+                throw CategoryCatalogInternalError.请求已过期
+            }
+            throw error
         }
+        guard generation == requestGeneration, sequence == loadSequence, revision == catalogRevision else {
+            throw CategoryCatalogInternalError.请求已过期
+        }
+
+        let previousCategories = categories
+        let previousCounts = counts
+        categories = sortedCategories(response.categories)
+        counts = normalizedCounts(response.counts)
+        pruneRecentCategories()
+        publishCatalogChangesIfNeeded(
+            previousCategories: previousCategories,
+            previousCounts: previousCounts
+        )
     }
 
     func create(_ draft: CategoryDraft) async throws -> ArticleCategory {
@@ -207,7 +225,7 @@ final class CategoryCatalogModel: Observable {
                 targetCategoryID: targetCategoryID
             )
             try ensureCurrentGeneration(generation)
-            await load()
+            try await refreshCatalog()
         } catch {
             handleMutationError(error, generation: generation)
             throw error
@@ -266,6 +284,7 @@ final class CategoryCatalogModel: Observable {
 
     private func beginMutation() throws -> Int {
         guard userID != nil else { throw CategoryCatalogInternalError.未登录 }
+        catalogRevision += 1
         activeMutationCount += 1
         isMutating = true
         errorMessage = nil

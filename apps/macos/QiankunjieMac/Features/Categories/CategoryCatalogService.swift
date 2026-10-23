@@ -69,6 +69,11 @@ private struct CategoryOrderRequest: Encodable, Sendable {
 private struct CategoryMergeRequest: Encodable, Sendable {
     let sourceCategoryID: Int
     let targetCategoryID: Int
+
+    enum CodingKeys: String, CodingKey {
+        case sourceCategoryID = "sourceCategoryId"
+        case targetCategoryID = "targetCategoryId"
+    }
 }
 
 private struct CategoryMergeResponse: Decodable, Sendable {
