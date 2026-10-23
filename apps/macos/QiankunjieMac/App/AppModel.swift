@@ -163,6 +163,7 @@ final class AppModel {
     let settingsModel: SettingsModel
     let shortcutSettings: GlobalShortcutSettings
     let readerPositionStore: any ReaderPositionStoring
+    let categoryCatalog: CategoryCatalogModel
     private(set) var libraryModel: LibraryModel
     private(set) var collectModel: CollectModel
     let searchModel: LibraryModel
@@ -171,6 +172,7 @@ final class AppModel {
 
     var user: AuthenticatedUser?
     var destination: AppDestination = .published
+    private(set) var selectedCategoryID: Int?
 
     /// 用户是否在当前会话里主动指定过要打开的页面。
     /// 启动阶段会异步恢复登录状态，如果不区分这一点，菜单栏打开设置后
@@ -187,9 +189,16 @@ final class AppModel {
         libraryModel: LibraryModel? = nil,
         collectRepository: (any CollectServicing)? = nil,
         shortcutDefaults: UserDefaults = .standard,
-        readerPositionStore: any ReaderPositionStoring = ReaderPositionStore()
+        readerPositionStore: any ReaderPositionStoring = ReaderPositionStore(),
+        categoryCatalog: CategoryCatalogModel? = nil
     ) {
         self.authModel = authModel
+        self.categoryCatalog = categoryCatalog ?? CategoryCatalogModel(
+            service: CategoryCatalogService(
+                client: ManagementAPIClient(repository: authModel.repository)
+            ),
+            recentStore: CategoryRecentStore()
+        )
         if let libraryModel {
             self.libraryModel = libraryModel
         } else {
@@ -251,6 +260,9 @@ final class AppModel {
 
         settingsModel.onUserStateCleared = { [weak self] in
             await self?.synchronizeWithAuthentication()
+        }
+        self.categoryCatalog.onCategoriesChanged = { [weak self] in
+            self?.validateSelectedCategory()
         }
     }
 
@@ -336,8 +348,17 @@ final class AppModel {
         if destination.isAdminOnly, user?.role != "admin" {
             return
         }
+
+        // 侧栏主栏目始终代表全部内容；从分类筛选进入归档主行时也要立即回到全部归档。
+        let hadSelectedCategory = selectedCategoryID != nil
+        selectedCategoryID = nil
         guard destination != self.destination else {
-            if
+            if destination == .archive, hadSelectedCategory {
+                libraryModel.selectCategory(nil)
+                Task {
+                    await libraryModel.load(reset: true)
+                }
+            } else if
                 let view = destination.libraryView,
                 libraryModel.isSearching
             {
@@ -363,6 +384,35 @@ final class AppModel {
                     await libraryModel.load(reset: true)
                 }
             }
+        }
+    }
+
+    func selectCategory(_ categoryID: Int?) {
+        destination = .archive
+        selectedCategoryID = categoryID
+        hasExplicitDestinationSelection = true
+        selectArticle(nil)
+        libraryModel.select(view: .archive)
+        libraryModel.selectCategory(categoryID)
+        Task {
+            await libraryModel.load(reset: true)
+        }
+    }
+
+    func validateSelectedCategory() {
+        guard let selectedCategoryID else { return }
+        guard !categoryCatalog.activeCategories.contains(where: { $0.id == selectedCategoryID }) else {
+            return
+        }
+
+        self.selectedCategoryID = nil
+        guard destination == .archive else { return }
+        if libraryModel.view != .archive {
+            libraryModel.select(view: .archive)
+        }
+        libraryModel.selectCategory(nil)
+        Task {
+            await libraryModel.load(reset: true)
         }
     }
 
@@ -417,10 +467,14 @@ final class AppModel {
             userID: user?.id,
             view: destination.libraryView ?? .published
         )
+        categoryCatalog.prepareUser(userID: user?.id)
         collectModel.prepareUser(userID: user?.id)
         weChatImportCoordinator?.processPendingBatches()
         if previousLibraryUserID != user?.id {
             await libraryModel.clearUserScope(userID: previousLibraryUserID)
+        }
+        if isAuthenticated {
+            await categoryCatalog.load()
         }
         await libraryModel.load(reset: true)
     }

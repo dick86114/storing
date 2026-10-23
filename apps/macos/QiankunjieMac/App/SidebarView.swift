@@ -16,12 +16,20 @@ struct SidebarView: View {
     @State private var collectPulseTask: Task<Void, Never>?
     @State private var collectIconRotation: Double = 0
     @State private var showsCollectPopover = false
+    @State private var isArchiveCategoriesExpanded = true
 
     var body: some View {
         List(selection: destinationSelection) {
             Section("资料库") {
                 ForEach(AppDestination.sidebarDestinations, id: \.self) { destination in
-                    sidebarRow(destination)
+                    if destination == .archive {
+                        SidebarArchiveCategoryGroup(
+                            model: model,
+                            isExpanded: $isArchiveCategoriesExpanded
+                        )
+                    } else {
+                        sidebarRow(destination)
+                    }
                 }
             }
 
@@ -49,6 +57,7 @@ struct SidebarView: View {
     @ViewBuilder
     private func sidebarRow(_ destination: AppDestination) -> some View {
         let isSelected = destinationSelection.wrappedValue == destination
+            && !(destination == .archive && model.selectedCategoryID != nil)
 
         return HStack(spacing: 8) {
             sidebarIcon(destination, isSelected: isSelected)
