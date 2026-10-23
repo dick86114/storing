@@ -48,7 +48,7 @@ struct CategoryDropIndicator: View {
     var body: some View {
         Capsule()
             .fill(color)
-            .frame(height: 2)
+            .frame(height: 3)
             .padding(.horizontal, 5)
             .offset(y: placement == .before ? -3 : 3)
             .allowsHitTesting(false)
