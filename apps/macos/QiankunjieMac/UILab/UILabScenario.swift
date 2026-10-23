@@ -49,6 +49,8 @@ enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
     case update
     case updateNotice = "update-notice"
     case currentVersion = "current-version"
+    case categoryPicker = "category-picker"
+    case categoryManagement = "category-management"
 
     var id: String { rawValue }
 
@@ -66,6 +68,8 @@ enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
         case .update: "更新"
         case .updateNotice: "更新完成"
         case .currentVersion: "当前版本更新"
+        case .categoryPicker: "分类选择器"
+        case .categoryManagement: "分类管理"
         }
     }
 
@@ -161,6 +165,10 @@ struct UILabRootView: View {
                     onOpenFullNotes: {},
                     onDismiss: {}
                 )
+            case .categoryPicker:
+                UILabCategoryPickerScene()
+            case .categoryManagement:
+                CategoryManagementView(catalog: UILabFixtures.categoryCatalog)
             }
         }
         .frame(minWidth: 960, minHeight: 620)
@@ -194,6 +202,9 @@ struct UILabRootView: View {
             reader
         }
         .navigationSplitViewStyle(.balanced)
+        .task {
+            await UILabFixtures.categoryCatalog.load()
+        }
     }
 
     private var reader: some View {
@@ -244,6 +255,50 @@ struct UILabRootView: View {
             }
             await stateLibraryModel?.load(reset: true)
         }
+    }
+}
+
+@MainActor
+private struct UILabCategoryPickerScene: View {
+    @State private var model: CategoryPickerModel
+    @Environment(\.colorScheme) private var colorScheme
+
+    init() {
+        _model = State(initialValue: CategoryPickerModel(
+            catalog: UILabFixtures.categoryCatalog,
+            selectedCategoryID: 3,
+            targetCount: 3
+        ))
+    }
+
+    var body: some View {
+        CategoryPickerContent(
+            model: model,
+            title: "归档到哪里？",
+            subtitle: "分类只用于归档文章。选择分类后，文章会移入「归档」；也可以让 AI 判断。",
+            onSelectCategory: { category in
+                分类结果(for: category)
+            },
+            onSelectAI: {
+                .failure(message: "网络连接失败，请检查网络后重试")
+            },
+            onDismiss: {}
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(QiankunjieColors.surfaceVariant(for: colorScheme))
+    }
+
+    /// 固定场景用不同分类触发成功与部分成功，便于人工检查完整文案和布局。
+    private func 分类结果(for category: ArticleCategory) -> CategoryAssignmentOutcome {
+        if category.name == "生活" || category.name == "项目复盘" {
+            return .partial(
+                succeededCount: 2,
+                skippedCount: 0,
+                failedCount: 1,
+                message: "1 篇文章已被其他操作锁定，请稍后重试"
+            )
+        }
+        return .success(succeededCount: 3, skippedCount: 0)
     }
 }
 #endif

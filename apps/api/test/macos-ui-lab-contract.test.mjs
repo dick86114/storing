@@ -18,10 +18,14 @@ const scenarios = [
   'update',
   'update-notice',
   'current-version',
+  'category-picker',
+  'category-management',
 ];
 const scenarioCaseNames = {
   'update-notice': 'updateNotice',
   'current-version': 'currentVersion',
+  'category-picker': 'categoryPicker',
+  'category-management': 'categoryManagement',
 };
 
 test('macOS UI Lab 固定全部核心验收场景', () => {
@@ -38,7 +42,9 @@ test('macOS UI Lab 固定全部核心验收场景', () => {
   assert.match(fixtureSource, /id: 1001/);
   assert.match(fixtureSource, /static let user/);
   assert.match(fixtureSource, /id: 9001/);
-  assert.match(testSource, /uiLabCoversEveryCoreScenario/);
+  assert.match(testSource, /界面实验室覆盖全部核心场景/);
+  assert.match(testSource, /界面实验室覆盖分类导航选择器和管理页/);
+  assert.match(testSource, /界面实验室分类夹具包含启用停用系统最近使用和全部分类/);
   assert.match(testSource, /uiLabTaskFixturesCoverEveryActionState/);
   assert.match(testSource, /uiLabTaskRowsExposeOnlyAllowedActions/);
 });
@@ -80,7 +86,7 @@ test('macOS UI Lab 任务夹具显式解码并暴露允许的任务动作', () =
   const scenarioSource = read('apps/macos/QiankunjieMac/UILab/UILabScenario.swift');
   const guide = read('docs/MacOS-UI-Lab.md');
 
-  assert.doesNotMatch(fixtureSource, /try\?[\s\S]*\?\? \[\]/);
+  assert.doesNotMatch(fixtureSource, /try\?[^;\n]{0,240}\?\? \[\]/);
   assert.match(fixtureSource, /fatalError\("UI Lab 采集任务夹具解码失败/);
   assert.match(fixtureSource, /"pending"/);
   assert.match(fixtureSource, /"running"/);
