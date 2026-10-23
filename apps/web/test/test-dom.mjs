@@ -42,4 +42,15 @@ export async function 等待异步更新() {
   });
 }
 
+export async function 等待条件(predicate, timeoutMs = 1200) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+  }
+  if (!predicate()) throw new Error('等待条件超时');
+}
+
 export { React, act };
