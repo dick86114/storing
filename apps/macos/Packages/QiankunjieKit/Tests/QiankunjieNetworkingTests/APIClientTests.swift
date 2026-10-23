@@ -131,8 +131,9 @@ private actor 录制令牌提供者: TokenRefreshing {
 @Test func 服务端错误按状态和错误码映射() async throws {
     let cases: [(Int, String, AppError)] = [
         (400, "BAD_REQUEST", .invalidInput),
-        (400, "CATEGORY_NOT_FOUND", .contentUnavailable),
-        (400, "CATEGORY_INACTIVE", .contentUnavailable),
+        (400, "CATEGORY_NOT_FOUND", .categoryUnavailable(message: "测试")),
+        (400, "CATEGORY_INACTIVE", .categoryUnavailable(message: "测试")),
+        (404, "CATEGORY_UNAVAILABLE", .categoryUnavailable(message: "测试")),
         (403, "USER_DISABLED", .forbidden),
         (404, "NOT_FOUND", .contentUnavailable),
         (429, "LOGIN_RATE_LIMITED", .rateLimited),
@@ -152,6 +153,27 @@ private actor 录制令牌提供者: TokenRefreshing {
         await #expect(throws: expected) {
             let _: 测试响应 = try await client.send(.get("articles"), authenticated: false)
         }
+    }
+}
+
+@Test func 分类失效错误保留服务端消息() async throws {
+    let body = #"{"error":{"code":"CATEGORY_UNAVAILABLE","message":"分类已停用，不能用于归类"}}"#
+        .data(using: .utf8)!
+    let session = 录制网络会话([
+        .init(statusCode: 404, data: body),
+    ])
+    let client = APIClient(
+        baseURL: URL(string: "https://storing.idickies.cc/api/v1")!,
+        session: session
+    )
+
+    await #expect(
+        throws: AppError.categoryUnavailable(message: "分类已停用，不能用于归类")
+    ) {
+        let _: 测试响应 = try await client.send(
+            .patch("articles/12/category"),
+            authenticated: false
+        )
     }
 }
 

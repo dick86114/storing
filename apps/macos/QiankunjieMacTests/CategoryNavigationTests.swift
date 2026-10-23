@@ -66,6 +66,73 @@ struct CategoryNavigationTests {
         #expect(model.libraryModel.view == .favorites)
     }
 
+    @Test func 分类中提交和清除搜索会同步清空分类筛选() async {
+        let 分类目录 = 创建分类目录(列表响应: [
+            CategoriesResponse(
+                categories: [分类(id: 21, sortOrder: 10)],
+                counts: ["21": 4]
+            ),
+        ])
+        分类目录.prepareUser(userID: 9)
+        await 分类目录.load()
+
+        let model = 创建应用模型(
+            用户ID: 9,
+            目的地: .archive,
+            资料库仓库: 导航资料库仓库(),
+            分类目录: 分类目录
+        )
+        model.selectCategory(21)
+        model.libraryModel.searchDraft = "产品设计"
+
+        model.submitLibrarySearch()
+
+        #expect(model.selectedCategoryID == nil)
+        #expect(model.libraryModel.categoryId == nil)
+        #expect(model.libraryModel.appliedSearchText == "产品设计")
+
+        model.clearLibrarySearch()
+
+        #expect(model.selectedCategoryID == nil)
+        #expect(model.libraryModel.categoryId == nil)
+        #expect(model.libraryModel.appliedSearchText.isEmpty)
+    }
+
+    @Test func 多个资料库变更信号会去抖为一次分类目录刷新() async {
+        let service = 导航分类服务(
+            列表响应: [
+                CategoriesResponse(
+                    categories: [分类(id: 21, sortOrder: 10)],
+                    counts: ["21": 1]
+                ),
+                CategoriesResponse(
+                    categories: [分类(id: 21, sortOrder: 10)],
+                    counts: ["21": 3]
+                ),
+            ]
+        )
+        let 分类目录 = CategoryCatalogModel(
+            service: service,
+            recentStore: 导航最近分类存储()
+        )
+        分类目录.prepareUser(userID: 9)
+        await 分类目录.load()
+        let model = 创建应用模型(
+            用户ID: 9,
+            目的地: .archive,
+            资料库仓库: 导航资料库仓库(),
+            分类目录: 分类目录
+        )
+
+        model.libraryModel.onCatalogAffectingChange?()
+        model.libraryModel.onCatalogAffectingChange?()
+        await service.等待列表请求次数(2)
+        try? await Task.sleep(for: .milliseconds(350))
+
+        #expect(await service.列表请求次数() == 2)
+        #expect(分类目录.count(for: 21) == 3)
+    }
+
     @Test func 分类被删除后当前筛选自动回到全部归档() async {
         let 分类目录 = 创建分类目录(列表响应: [
             CategoriesResponse(
@@ -407,6 +474,8 @@ private actor 导航分类服务: CategoryCatalogServicing {
     private var 列表响应: [CategoriesResponse]
     private var 创建响应: [Result<CategoryResponse, 导航测试错误>]
     private var 创建名称记录: [String] = []
+    private var 列表请求计数 = 0
+    private var 列表请求等待者: [Int: [CheckedContinuation<Void, Never>]] = [:]
 
     init(
         列表响应: [CategoriesResponse],
@@ -417,8 +486,24 @@ private actor 导航分类服务: CategoryCatalogServicing {
     }
 
     func list(includeInactive: Bool) async throws -> CategoriesResponse {
+        列表请求计数 += 1
+        let 已达成的等待者 = 列表请求等待者.keys.filter { $0 <= 列表请求计数 }
+        for 数量 in 已达成的等待者 {
+            列表请求等待者.removeValue(forKey: 数量)?.forEach { $0.resume() }
+        }
         guard !列表响应.isEmpty else { throw 导航测试错误.缺少分类响应 }
         return 列表响应.removeFirst()
+    }
+
+    func 等待列表请求次数(_ 数量: Int) async {
+        if 列表请求计数 >= 数量 { return }
+        await withCheckedContinuation { continuation in
+            列表请求等待者[数量, default: []].append(continuation)
+        }
+    }
+
+    func 列表请求次数() -> Int {
+        列表请求计数
     }
 
     func create(_ request: CategoryMutationRequest) async throws -> CategoryResponse {

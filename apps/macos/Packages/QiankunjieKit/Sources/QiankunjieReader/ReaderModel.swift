@@ -298,6 +298,7 @@ public final class ReaderModel {
     public private(set) var contentToken = ""
     public private(set) var savedReadingState: Data?
     public var onDeleted: (() -> Void)?
+    @ObservationIgnored public var onCategoryAffectingChange: (() -> Void)?
 
     private let client: any ReaderNetworkClient
     private let positionStore: any ReaderPositionStoring
@@ -443,6 +444,7 @@ public final class ReaderModel {
                 self.article?.category = category
             }
             self.startAIPolling()
+            self.onCategoryAffectingChange?()
         }
     }
 
@@ -453,6 +455,7 @@ public final class ReaderModel {
                 return
             }
             self.article?.isArchived = result.isArchived
+            self.onCategoryAffectingChange?()
         }
     }
 
@@ -512,6 +515,7 @@ public final class ReaderModel {
                 self.isDeleted = true
                 self.positionStore.remove(articleID: articleID)
                 self.onDeleted?()
+                self.onCategoryAffectingChange?()
             }
         }
     }
@@ -527,14 +531,17 @@ public final class ReaderModel {
                 self.isDeleted = true
                 self.positionStore.remove(articleID: articleID)
                 self.onDeleted?()
+                self.onCategoryAffectingChange?()
             }
         }
     }
 
     public func moveToCategory(_ categoryID: Int) async -> Bool {
-        await performAction { articleID, _ in
+        await performAction { articleID, actionGeneration in
             try await self.client.moveArticleToCategory(articleID: articleID, categoryID: categoryID)
+            guard self.isCurrentAction(actionGeneration) else { return }
             await self.reloadCurrentArticle()
+            self.onCategoryAffectingChange?()
         }
     }
 
@@ -568,6 +575,8 @@ public final class ReaderModel {
     @discardableResult
     public func refreshAIStatusOnce() async -> Bool {
         guard let selection, let currentArticle = article else { return false }
+        let previousStatus = currentArticle.detail.aiStatus
+        let previousCategoryID = currentArticle.category?.id
 
         do {
             let detail = try await client.articleDetail(selection)
@@ -575,6 +584,11 @@ public final class ReaderModel {
             article = ReaderArticle(detail: detail)
             errorMessage = nil
             let status = detail.aiStatus
+            let wasPending = previousStatus == "queued" || previousStatus == "running"
+            let isPending = status == "queued" || status == "running"
+            if (wasPending && !isPending) || previousCategoryID != article?.category?.id {
+                onCategoryAffectingChange?()
+            }
             return status == "queued" || status == "running"
         } catch {
             // 轮询失败不打断阅读，下一轮或手动刷新再尝试。
@@ -604,7 +618,9 @@ public final class ReaderModel {
         actionErrorMessage = nil
         actionError = nil
         defer {
-            isPerformingAction = false
+            if isCurrentAction(generation) {
+                isPerformingAction = false
+            }
         }
 
         do {
@@ -649,6 +665,8 @@ public final class ReaderModel {
             "操作过于频繁，请稍后再试"
         case .contentUnavailable:
             "请求的文章不可用"
+        case let .categoryUnavailable(message):
+            message
         case let .categoryConflict(message):
             message
         case .invalidInput:

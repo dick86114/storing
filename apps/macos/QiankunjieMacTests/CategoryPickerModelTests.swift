@@ -312,14 +312,14 @@ struct CategoryPickerModelTests {
             issues: [
                 ArticleBulkIssue(
                     articleID: 7,
-                    code: "CONTENT_UNAVAILABLE",
+                    code: "CATEGORY_UNAVAILABLE",
                     message: "分类不存在或已停用"
                 )
             ]
         )
         let 映射结果 = BulkCategoryOutcomeMapper.outcome(
             result: 后端结果,
-            error: .contentUnavailable,
+            error: .categoryUnavailable(message: "分类不存在或已停用"),
             operation: .manual
         )
 
@@ -515,6 +515,66 @@ struct CategoryPickerModelTests {
         #expect(model.errorMessage?.contains("失败 1 篇") == true)
         #expect(!model.isSubmitting)
     }
+
+    @Test func 批量目标数量始终读取当前选择数量() async {
+        let service = 选择器分类服务桩(列表响应: [
+            目录响应(分类(id: 1, name: "产品设计", sortOrder: 10)),
+        ])
+        let catalog = await 准备分类目录(service: service, userID: 7)
+        var 当前选择数量 = 3
+        let model = CategoryPickerModel(
+            catalog: catalog,
+            selectedCategoryID: nil,
+            targetCountProvider: { 当前选择数量 }
+        )
+
+        #expect(model.targetCount == 3)
+
+        当前选择数量 = 1
+
+        #expect(model.targetCount == 1)
+    }
+
+    @Test func 内联创建遇到服务端同名冲突会刷新目录并允许使用现有分类() async {
+        let 现有分类 = 分类(id: 2, name: "产品设计", sortOrder: 20)
+        let 冲突消息 = "已存在同名启用分类，请换一个名称"
+        let service = 选择器分类服务桩(
+            列表响应: [
+                目录响应(分类(id: 1, name: "工程实践", sortOrder: 10)),
+                目录响应(分类(id: 1, name: "工程实践", sortOrder: 10), 现有分类),
+            ],
+            创建错误: .categoryConflict(message: 冲突消息)
+        )
+        let catalog = await 准备分类目录(service: service, userID: 7)
+        let model = CategoryPickerModel(
+            catalog: catalog,
+            selectedCategoryID: nil,
+            targetCount: 2
+        )
+        model.query = "产品设计"
+        var 已分配分类: ArticleCategory?
+
+        let 创建成功 = await model.createAndAssign { category in
+            已分配分类 = category
+            return .success(succeededCount: 2, skippedCount: 0)
+        }
+
+        #expect(!创建成功)
+        #expect(model.conflictSuggestion == 现有分类)
+        #expect(model.query == "产品设计")
+        #expect(已分配分类 == nil)
+        #expect(await service.列表请求次数() == 2)
+        #expect(await service.已创建分类名称() == ["产品设计"])
+
+        let 使用成功 = await model.useExistingCategory { category in
+            已分配分类 = category
+            return .success(succeededCount: 2, skippedCount: 0)
+        }
+
+        #expect(使用成功)
+        #expect(已分配分类 == 现有分类)
+        #expect(model.conflictSuggestion == nil)
+    }
 }
 
 @MainActor
@@ -701,13 +761,16 @@ private actor 选择器分类服务桩: CategoryCatalogServicing {
     private var 创建响应: [Result<CategoryResponse, 选择器服务测试错误>]
     private var 列表请求计数 = 0
     private var 创建请求名称: [String] = []
+    private let 创建错误: AppError?
 
     init(
         列表响应: [CategoriesResponse],
-        创建响应: [Result<CategoryResponse, 选择器服务测试错误>] = []
+        创建响应: [Result<CategoryResponse, 选择器服务测试错误>] = [],
+        创建错误: AppError? = nil
     ) {
         self.列表响应 = 列表响应.map(Result.success)
         self.创建响应 = 创建响应
+        self.创建错误 = 创建错误
     }
 
     func list(includeInactive: Bool) async throws -> CategoriesResponse {
@@ -718,6 +781,7 @@ private actor 选择器分类服务桩: CategoryCatalogServicing {
 
     func create(_ request: CategoryMutationRequest) async throws -> CategoryResponse {
         创建请求名称.append(request.name ?? "")
+        if let 创建错误 { throw 创建错误 }
         guard !创建响应.isEmpty else { throw 选择器服务测试错误.缺少响应 }
         return try 创建响应.removeFirst().get()
     }

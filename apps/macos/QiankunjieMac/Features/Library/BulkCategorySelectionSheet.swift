@@ -56,16 +56,16 @@ enum BulkCategoryOutcomeMapper {
         if let error {
             switch error {
             case .contentUnavailable:
-                switch operation {
-                case .manual:
-                    return .categoryUnavailable(
-                        message: normalized(message, fallback: "分类已失效，请刷新后重试")
+                return .contentUnavailable(
+                    message: normalized(message, fallback: "请求的文章不可用")
+                )
+            case let .categoryUnavailable(errorMessage):
+                return .categoryUnavailable(
+                    message: normalized(
+                        message,
+                        fallback: normalized(errorMessage, fallback: "分类已失效，请刷新后重试")
                     )
-                case .ai:
-                    return .contentUnavailable(
-                        message: normalized(message, fallback: "请求的文章不可用")
-                    )
-                }
+                )
             default:
                 return .failure(
                     message: normalized(message, fallback: "分类失败，请稍后重试")
@@ -77,27 +77,17 @@ enum BulkCategoryOutcomeMapper {
             return .failure(message: "分类失败，请稍后重试")
         }
 
-        if let unavailableIssue = result.issues.first(where: {
-            ["CONTENT_UNAVAILABLE", "CATEGORY_NOT_FOUND", "CATEGORY_INACTIVE"].contains($0.code)
-        }) {
-            let unavailableMessage = normalized(
-                unavailableIssue.message,
-                fallback: "请求的分类或文章不可用"
-            )
-            if operation == .manual || unavailableIssue.code.hasPrefix("CATEGORY_") {
-                return .categoryUnavailable(message: unavailableMessage)
+        guard result.failedCount > 0 || result.skippedCount > 0 else {
+            guard result.succeededCount == result.requestedCount else {
+                return .failure(message: summary(for: result))
             }
-            return .contentUnavailable(message: unavailableMessage)
-        }
-
-        guard result.failedCount > 0 else {
             return .success(
                 succeededCount: result.succeededCount,
                 skippedCount: result.skippedCount
             )
         }
 
-        let summary = summary(for: result, failedCount: result.failedCount)
+        let summary = summary(for: result)
         guard result.succeededCount > 0 else {
             return .failure(message: summary)
         }
@@ -118,15 +108,12 @@ enum BulkCategoryOutcomeMapper {
         return message
     }
 
-    private static func summary(
-        for result: NativeBulkResult,
-        failedCount: Int
-    ) -> String {
-        var counts = ["成功 \(result.succeededCount) 篇"]
-        if result.skippedCount > 0 {
-            counts.append("跳过 \(result.skippedCount) 篇")
-        }
-        counts.append("失败 \(failedCount) 篇")
+    private static func summary(for result: NativeBulkResult) -> String {
+        let counts = [
+            "成功 \(result.succeededCount) 篇",
+            "跳过 \(result.skippedCount) 篇",
+            "失败 \(result.failedCount) 篇",
+        ]
 
         let reasons = result.issues
             .compactMap(\.message)
@@ -137,35 +124,6 @@ enum BulkCategoryOutcomeMapper {
             return counts.joined(separator: "，")
         }
         return "\(counts.joined(separator: "，"))；\(reasons.joined(separator: "；"))"
-    }
-}
-
-@MainActor
-enum BulkCategoryCatalogRefresh {
-    static func shouldRefresh(_ outcome: CategoryAssignmentOutcome) -> Bool {
-        switch outcome {
-        case .success:
-            return true
-        case let .partial(succeededCount, _, _, _):
-            return succeededCount > 0
-        case .categoryUnavailable, .contentUnavailable, .failure:
-            return false
-        }
-    }
-
-    @discardableResult
-    static func scheduleRefresh(
-        outcome: CategoryAssignmentOutcome,
-        catalog: CategoryCatalogModel,
-        expectedUserID: Int?
-    ) -> Task<Void, Never>? {
-        guard shouldRefresh(outcome), catalog.userID == expectedUserID else {
-            return nil
-        }
-        return Task { @MainActor in
-            guard catalog.userID == expectedUserID else { return }
-            await catalog.load()
-        }
     }
 }
 
@@ -193,7 +151,6 @@ private struct BulkCategoryPickerContainer: View {
     let catalog: CategoryCatalogModel
     let request: BulkCategoryRequest
     let onDismiss: () -> Void
-    let expectedUserID: Int?
 
     @State private var pickerModel: CategoryPickerModel
 
@@ -207,11 +164,12 @@ private struct BulkCategoryPickerContainer: View {
         self.catalog = catalog
         self.request = request
         self.onDismiss = onDismiss
-        expectedUserID = catalog.userID
         _pickerModel = State(initialValue: CategoryPickerModel(
             catalog: catalog,
             selectedCategoryID: Self.selectedCategoryID(for: request, model: model),
-            targetCount: request.targetArticleID == nil ? model.bulkSelection.count : 1
+            targetCountProvider: {
+                request.targetArticleID == nil ? model.bulkSelection.count : 1
+            }
         ))
     }
 
@@ -260,14 +218,6 @@ private struct BulkCategoryPickerContainer: View {
             result: model.bulkResult,
             error: model.lastBulkActionError,
             operation: .manual
-        )
-        if case .success = outcome {
-            catalog.recordRecent(categoryID: category.id)
-        }
-        BulkCategoryCatalogRefresh.scheduleRefresh(
-            outcome: outcome,
-            catalog: catalog,
-            expectedUserID: expectedUserID
         )
         return outcome
     }

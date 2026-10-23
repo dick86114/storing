@@ -78,7 +78,7 @@ struct CategoryManagementView: View {
             }
 
             Button {
-                Task { await model.load() }
+                Task { await model.refresh() }
             } label: {
                 Label("刷新", systemImage: "arrow.clockwise")
             }

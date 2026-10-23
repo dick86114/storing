@@ -31,10 +31,10 @@ struct ReaderCategoryEditorTests {
         #expect(
             ReaderCategoryOutcomeMapper.outcome(
                 succeeded: false,
-                error: .contentUnavailable,
-                message: "请求的文章不可用",
+                error: .categoryUnavailable(message: "分类已停用，不能用于归类"),
+                message: "分类已停用，不能用于归类",
                 operation: .move
-            ) == .categoryUnavailable(message: "请求的文章不可用")
+            ) == .categoryUnavailable(message: "分类已停用，不能用于归类")
         )
         #expect(
             ReaderCategoryOutcomeMapper.outcome(
@@ -51,6 +51,14 @@ struct ReaderCategoryEditorTests {
                 message: "请求的文章不可用",
                 operation: .classify
             ) == .contentUnavailable(message: "请求的文章不可用")
+        )
+        #expect(
+            ReaderCategoryOutcomeMapper.outcome(
+                succeeded: false,
+                error: .categoryUnavailable(message: "分类不存在或无权访问"),
+                message: "分类不存在或无权访问",
+                operation: .archive
+            ) == .categoryUnavailable(message: "分类不存在或无权访问")
         )
         #expect(
             ReaderCategoryOutcomeMapper.outcome(

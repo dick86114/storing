@@ -324,6 +324,58 @@ struct CategoryCatalogModelTests {
         #expect(model.counts == [1: 0, 2: 7])
         #expect(model.errorMessage != nil)
     }
+
+    @Test func 可信缓存下刷新如果需要不会重复请求目录() async {
+        let service = 分类服务桩(列表响应: [
+            .success(CategoriesResponse(
+                categories: [分类(id: 1, sortOrder: 10)],
+                counts: ["1": 3]
+            )),
+        ])
+        let model = CategoryCatalogModel(
+            service: service,
+            recentStore: 最近分类存储桩()
+        )
+
+        model.prepareUser(userID: 7)
+        await model.load()
+        await model.refreshIfNeeded()
+
+        #expect(await service.列表请求次数() == 1)
+        #expect(model.count(for: 1) == 3)
+    }
+
+    @Test func 并发目录刷新会等待同一个请求() async {
+        let service = 并发目录服务桩(
+            响应: CategoriesResponse(
+                categories: [分类(id: 1, sortOrder: 10)],
+                counts: ["1": 3]
+            )
+        )
+        let model = CategoryCatalogModel(
+            service: service,
+            recentStore: 最近分类存储桩()
+        )
+        model.prepareUser(userID: 7)
+
+        let 第一次刷新 = Task { @MainActor in
+            await model.load()
+        }
+        await service.等待列表请求开始()
+        let 第二次刷新 = Task { @MainActor in
+            await model.load()
+        }
+        await Task.yield()
+
+        #expect(await service.列表请求次数() == 1)
+
+        await service.放行列表响应()
+        await 第一次刷新.value
+        await 第二次刷新.value
+
+        #expect(await service.列表请求次数() == 1)
+        #expect(model.count(for: 1) == 3)
+    }
 }
 
 private func 分类(
@@ -353,6 +405,7 @@ private actor 分类服务桩: CategoryCatalogServicing {
     private var 合并响应: [Result<Void, 分类服务测试错误>]
     private var 优化响应: [Result<CategoryOptimizeResponse, 分类服务测试错误>]
     private let 创建错误: AppError?
+    private var 列表请求计数 = 0
 
     init(
         列表响应: [Result<CategoriesResponse, 分类服务测试错误>] = [],
@@ -375,8 +428,13 @@ private actor 分类服务桩: CategoryCatalogServicing {
     }
 
     func list(includeInactive: Bool) async throws -> CategoriesResponse {
+        列表请求计数 += 1
         guard !列表响应.isEmpty else { throw 分类服务测试错误.缺少响应 }
         return try 列表响应.removeFirst().get()
+    }
+
+    func 列表请求次数() -> Int {
+        列表请求计数
     }
 
     func create(_ request: CategoryMutationRequest) async throws -> CategoryResponse {
@@ -408,6 +466,69 @@ private actor 分类服务桩: CategoryCatalogServicing {
     func optimize(_ request: CategoryOptimizeRequest) async throws -> CategoryOptimizeResponse {
         guard !优化响应.isEmpty else { throw 分类服务测试错误.缺少响应 }
         return try 优化响应.removeFirst().get()
+    }
+}
+
+private actor 并发目录服务桩: CategoryCatalogServicing {
+    private let 响应: CategoriesResponse
+    private var 列表请求计数 = 0
+    private var 列表请求已开始 = false
+    private var 等待请求开始: CheckedContinuation<Void, Never>?
+    private var 等待响应放行: CheckedContinuation<Void, Never>?
+
+    init(响应: CategoriesResponse) {
+        self.响应 = 响应
+    }
+
+    func list(includeInactive: Bool) async throws -> CategoriesResponse {
+        列表请求计数 += 1
+        列表请求已开始 = true
+        等待请求开始?.resume()
+        等待请求开始 = nil
+        await withCheckedContinuation { continuation in
+            等待响应放行 = continuation
+        }
+        return 响应
+    }
+
+    func 等待列表请求开始() async {
+        if 列表请求已开始 { return }
+        await withCheckedContinuation { continuation in
+            等待请求开始 = continuation
+        }
+    }
+
+    func 放行列表响应() {
+        等待响应放行?.resume()
+        等待响应放行 = nil
+    }
+
+    func 列表请求次数() -> Int {
+        列表请求计数
+    }
+
+    func create(_ request: CategoryMutationRequest) async throws -> CategoryResponse {
+        throw 分类服务测试错误.缺少响应
+    }
+
+    func update(categoryID: Int, request: CategoryMutationRequest) async throws -> CategoryResponse {
+        throw 分类服务测试错误.缺少响应
+    }
+
+    func reorder(categoryIDs: [Int]) async throws -> CategoryReorderResponse {
+        throw 分类服务测试错误.缺少响应
+    }
+
+    func delete(categoryID: Int, targetCategoryID: Int) async throws -> DeleteCategoryResponse {
+        throw 分类服务测试错误.缺少响应
+    }
+
+    func merge(sourceCategoryID: Int, targetCategoryID: Int) async throws {
+        throw 分类服务测试错误.缺少响应
+    }
+
+    func optimize(_ request: CategoryOptimizeRequest) async throws -> CategoryOptimizeResponse {
+        throw 分类服务测试错误.缺少响应
     }
 }
 

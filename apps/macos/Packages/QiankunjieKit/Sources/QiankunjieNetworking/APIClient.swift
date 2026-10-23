@@ -158,7 +158,12 @@ public struct APIClient: @unchecked Sendable {
             return .rateLimited
         case "BAD_REQUEST", "INVALID_INPUT", "VALIDATION_ERROR":
             return .invalidInput
-        case "NOT_FOUND", "CONTENT_UNAVAILABLE", "CATEGORY_NOT_FOUND", "CATEGORY_INACTIVE":
+        case "CATEGORY_UNAVAILABLE", "CATEGORY_NOT_FOUND", "CATEGORY_INACTIVE":
+            if let message = serverError?.message, !message.isEmpty {
+                return .categoryUnavailable(message: message)
+            }
+            return .categoryUnavailable(message: "分类不存在、已停用或无权访问")
+        case "NOT_FOUND", "CONTENT_UNAVAILABLE":
             return .contentUnavailable
         case "CATEGORY_NAME_CONFLICT":
             if let message = serverError?.message, !message.isEmpty {

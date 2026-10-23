@@ -31,6 +31,7 @@ struct CategoryPickerContent: View {
                         searchField
                         aiButton
                         operationErrors
+                        sameNameSuggestionBanner
 
                         categoryContent
 
@@ -72,7 +73,7 @@ struct CategoryPickerContent: View {
         .background(QiankunjieColors.surface(for: colorScheme))
         .task {
             isSearchFocused = true
-            await model.reloadCatalog()
+            await model.loadCatalogIfNeeded()
             isSearchFocused = true
         }
         .onChange(of: model.query) {
@@ -431,6 +432,39 @@ struct CategoryPickerContent: View {
         }
     }
 
+    @ViewBuilder
+    private var sameNameSuggestionBanner: some View {
+        if let suggestion = model.existingCategorySuggestion,
+           suggestion.id != model.selectedCategoryID {
+            Button {
+                使用现有分类建议()
+            } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: "arrow.turn.down.right")
+                        .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("已存在同名分类")
+                            .qiankunjieFont(.labelMedium)
+                            .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+                        Text("使用现有分类「\(suggestion.name)」")
+                            .qiankunjieFont(.bodyMedium)
+                            .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(11)
+                .background(
+                    QiankunjieColors.accent(for: colorScheme).opacity(0.09),
+                    in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(isBusy)
+            .accessibilityLabel("使用现有分类 \(suggestion.name)")
+            .help("使用现有分类「\(suggestion.name)」")
+        }
+    }
+
     private func operationError(_ message: String) -> some View {
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: "exclamationmark.triangle.fill")
@@ -608,6 +642,15 @@ struct CategoryPickerContent: View {
         guard model.canCreate, !isBusy else { return }
         Task { @MainActor in
             if await model.createAndAssign(assign: onSelectCategory) {
+                onDismiss()
+            }
+        }
+    }
+
+    private func 使用现有分类建议() {
+        guard !isBusy else { return }
+        Task { @MainActor in
+            if await model.useExistingCategory(assign: onSelectCategory) {
                 onDismiss()
             }
         }

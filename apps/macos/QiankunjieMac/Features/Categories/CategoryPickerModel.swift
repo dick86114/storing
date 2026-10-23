@@ -5,19 +5,25 @@ import QiankunjieCore
 @Observable
 final class CategoryPickerModel: Observable {
     let selectedCategoryID: Int?
-    let targetCount: Int
+    private let targetCountProvider: @MainActor () -> Int
     var query = "" {
         didSet {
             if query != oldValue {
                 errorMessage = nil
+                conflictSuggestion = nil
             }
         }
     }
     private(set) var isSubmitting = false
     private(set) var errorMessage: String?
+    private(set) var conflictSuggestion: ArticleCategory?
 
     private let catalog: CategoryCatalogModel
     private let openedUserID: Int?
+
+    var targetCount: Int {
+        max(0, targetCountProvider())
+    }
 
     var currentUserID: Int? {
         catalog.userID
@@ -49,6 +55,10 @@ final class CategoryPickerModel: Observable {
         return catalog.activeCategories.first {
             $0.name.localizedCaseInsensitiveCompare(normalizedQuery) == .orderedSame
         }
+    }
+
+    var existingCategorySuggestion: ArticleCategory? {
+        conflictSuggestion ?? exactMatch
     }
 
     var canCreate: Bool {
@@ -88,7 +98,18 @@ final class CategoryPickerModel: Observable {
         self.catalog = catalog
         self.openedUserID = catalog.userID
         self.selectedCategoryID = selectedCategoryID
-        self.targetCount = targetCount
+        self.targetCountProvider = { targetCount }
+    }
+
+    init(
+        catalog: CategoryCatalogModel,
+        selectedCategoryID: Int?,
+        targetCountProvider: @escaping @MainActor () -> Int
+    ) {
+        self.catalog = catalog
+        self.openedUserID = catalog.userID
+        self.selectedCategoryID = selectedCategoryID
+        self.targetCountProvider = targetCountProvider
     }
 
     func selectExisting(
@@ -100,6 +121,7 @@ final class CategoryPickerModel: Observable {
 
         isSubmitting = true
         errorMessage = nil
+        conflictSuggestion = nil
         defer { isSubmitting = false }
 
         guard catalog.activeCategories.contains(where: { $0.id == category.id }) else {
@@ -142,7 +164,13 @@ final class CategoryPickerModel: Observable {
             draft.name = name
             category = try await catalog.create(draft)
         } catch {
-            errorMessage = managementErrorMessage(for: error)
+            if case let AppError.categoryConflict(message) = error,
+               let existing = 按名称查找启用分类(name) {
+                conflictSuggestion = existing
+                errorMessage = "已存在同名启用分类，请使用现有分类"
+            } else {
+                errorMessage = managementErrorMessage(for: error)
+            }
             return false
         }
 
@@ -206,6 +234,20 @@ final class CategoryPickerModel: Observable {
     func reloadCatalog() async {
         errorMessage = nil
         await catalog.load()
+    }
+
+    func useExistingCategory(
+        assign: @MainActor (ArticleCategory) async -> CategoryAssignmentOutcome
+    ) async -> Bool {
+        guard let existingCategorySuggestion else { return false }
+        query = existingCategorySuggestion.name
+        conflictSuggestion = nil
+        return await selectExisting(existingCategorySuggestion, assign: assign)
+    }
+
+    func loadCatalogIfNeeded() async {
+        errorMessage = nil
+        await catalog.refreshIfNeeded()
     }
 
     func clearError() {
@@ -273,5 +315,11 @@ final class CategoryPickerModel: Observable {
             return false
         }
         return true
+    }
+
+    private func 按名称查找启用分类(_ name: String) -> ArticleCategory? {
+        catalog.activeCategories.first {
+            $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame
+        }
     }
 }

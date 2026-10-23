@@ -99,6 +99,8 @@ public final class AuthModel {
             return "登录尝试过于频繁，请稍后再试"
         case .contentUnavailable:
             return "请求的内容暂时不可用"
+        case let .categoryUnavailable(message):
+            return message
         case let .categoryConflict(message):
             return message
         case .invalidInput:

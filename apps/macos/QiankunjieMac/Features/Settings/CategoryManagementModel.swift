@@ -42,6 +42,14 @@ final class CategoryManagementModel: Observable {
     }
 
     func load() async {
+        await loadCatalog(force: false)
+    }
+
+    func refresh() async {
+        await loadCatalog(force: true)
+    }
+
+    private func loadCatalog(force: Bool) async {
         guard !isBusy else { return }
 
         let generation = beginStateCycle()
@@ -49,7 +57,11 @@ final class CategoryManagementModel: Observable {
         noticeMessage = nil
         shouldOfferRefreshAfterMerge = false
 
-        await catalog.load()
+        if force {
+            await catalog.load()
+        } else {
+            await catalog.refreshIfNeeded()
+        }
 
         guard isCurrent(generation) else { return }
         errorMessage = catalog.errorMessage
@@ -248,12 +260,14 @@ final class CategoryManagementModel: Observable {
         isCreating = false
         errorMessage = nil
         selectedCategoryID = category.id
-        noticeMessage = "分类已创建"
+        noticeMessage = "已选中分类「\(category.name)」"
     }
 
     func cancelCreation() {
         isCreating = false
-        errorMessage = nil
+        errorMessage = catalog.errorMessage?.hasPrefix("已取消创建") == true
+            ? catalog.errorMessage
+            : nil
         catalog.clearError()
     }
 
