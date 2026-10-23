@@ -20,6 +20,10 @@ private struct CollectListOperationToken: Equatable {
     let id = UUID()
 }
 
+private enum CollectSubmissionFailure: Error, Equatable {
+    case timedOut
+}
+
 @MainActor
 @Observable
 public final class CollectModel {
@@ -46,13 +50,21 @@ public final class CollectModel {
 
     private let repository: any CollectServicing
     private let pollInterval: Duration
+    private let submissionTimeout: Duration
     private var requestGeneration = 0
+    private var submissionEpoch = 0
+    private var sessionGeneration = 0
     private var pollGeneration = 0
     private var clearOperationGeneration = 0
+    private var activeSubmissionID: UUID?
+    private var submissionContinuation: CheckedContinuation<CollectJob, Error>?
+    private var activeSubmissionTask: Task<Void, Never>?
+    private var submissionTimeoutTask: Task<Void, Never>?
     private let pageSize = 30
     private var nextPageOffset = 0
     private var activeListOperation: CollectListOperationToken?
     private var invalidatedListOperationIDs: Set<UUID> = []
+    private var retryOperationIDs: [Int: UUID] = [:]
     private var importedArticleJobIDs: Set<Int> = []
 
     public init(
@@ -60,7 +72,8 @@ public final class CollectModel {
         userID: Int? = nil,
         initialJobs: [CollectJob] = [],
         initialCurrentJob: CollectJob? = nil,
-        pollInterval: Duration = .milliseconds(2000)
+        pollInterval: Duration = .milliseconds(2000),
+        submissionTimeout: Duration = .seconds(20)
     ) {
         self.repository = repository
         self.userID = userID
@@ -68,6 +81,7 @@ public final class CollectModel {
         self.currentJob = initialCurrentJob
         self.total = initialJobs.count
         self.pollInterval = pollInterval
+        self.submissionTimeout = submissionTimeout
     }
 
     public var displayState: CollectDisplayState {
@@ -104,27 +118,50 @@ public final class CollectModel {
         }
 
         requestGeneration += 1
-        let generation = requestGeneration
+        submissionEpoch += 1
+        let epoch = submissionEpoch
         isSubmitting = true
+        defer {
+            if submissionEpoch == epoch {
+                isSubmitting = false
+            }
+        }
 
         do {
-            let job = try await repository.submit(url: url)
-            guard requestGeneration == generation else { return }
+            let job = try await awaitSubmission(url: url)
+            guard submissionEpoch == epoch else { return }
 
+            // 提交已经改变任务集合，使提交期间启动的列表请求失效，避免较晚返回的空列表覆盖新任务。
+            requestGeneration += 1
+            let isNewJob = !jobs.contains { $0.id == job.id }
             currentJob = job
-            jobs.insert(job, at: 0)
-            total += 1
+            replace(job)
+            if isNewJob {
+                total += 1
+            }
             urlDraft = ""
             isSubmitting = false
             await poll(jobID: job.id, generation: pollGeneration)
+        } catch let error as CollectSubmissionFailure where error == .timedOut {
+            guard submissionEpoch == epoch else { return }
+            submitErrorMessage = "提交超时，请检查网络后重试；如任务已创建，可先到历史任务确认"
+        } catch is CancellationError {
+            guard submissionEpoch == epoch else { return }
+            submitErrorMessage = "已取消提交，可修改链接后重试"
         } catch {
-            guard requestGeneration == generation else { return }
+            guard submissionEpoch == epoch else { return }
             submitErrorMessage = Self.message(for: error)
         }
+    }
 
-        if requestGeneration == generation {
-            isSubmitting = false
-        }
+    /// 用户主动取消后立即恢复输入；迟到的网络响应会因提交标识不匹配而丢弃。
+    public func cancelSubmission() {
+        guard isSubmitting, let submissionID = activeSubmissionID else { return }
+
+        submissionEpoch += 1
+        isSubmitting = false
+        submitErrorMessage = "已取消提交，可修改链接后重试"
+        finishSubmission(submissionID, with: .failure(CancellationError()))
     }
 
     public func refreshJobs() async {
@@ -191,17 +228,30 @@ public final class CollectModel {
         guard
             userID != nil,
             !mutatingJobIDs.contains(jobID),
+            retryOperationIDs[jobID] == nil,
             let failedJob = jobs.first(where: { $0.id == jobID && $0.status == "failed" })
         else { return }
 
-        let generation = requestGeneration
+        let operationID = UUID()
+        let operationSessionGeneration = sessionGeneration
+        let operationUserID = userID
         let pollGenerationAtStart = pollGeneration
+        retryOperationIDs[jobID] = operationID
         mutatingJobIDs.insert(jobID)
+        defer {
+            if retryOperationIDs[jobID] == operationID {
+                retryOperationIDs.removeValue(forKey: jobID)
+                mutatingJobIDs.remove(jobID)
+            }
+        }
         actionErrorMessage = nil
 
         do {
             let job = try await repository.retry(id: failedJob.id)
-            guard requestGeneration == generation else { return }
+            guard
+                sessionGeneration == operationSessionGeneration,
+                self.userID == operationUserID
+            else { return }
 
             replace(job)
             if currentJob?.id == job.id {
@@ -210,14 +260,19 @@ public final class CollectModel {
             await poll(jobID: job.id, generation: pollGenerationAtStart)
 
             if pollGeneration != pollGenerationAtStart {
+                guard
+                    sessionGeneration == operationSessionGeneration,
+                    self.userID == operationUserID
+                else { return }
                 await poll(jobID: job.id, generation: pollGeneration)
             }
         } catch {
-            guard requestGeneration == generation else { return }
+            guard
+                sessionGeneration == operationSessionGeneration,
+                self.userID == operationUserID
+            else { return }
             actionErrorMessage = Self.message(for: error)
         }
-
-        mutatingJobIDs.remove(jobID)
     }
 
     public func delete(jobID: Int) async {
@@ -353,6 +408,11 @@ public final class CollectModel {
     }
 
     public func prepareUser(userID: Int?) {
+        submissionEpoch += 1
+        sessionGeneration += 1
+        if let submissionID = activeSubmissionID {
+            finishSubmission(submissionID, with: .failure(CancellationError()))
+        }
         requestGeneration += 1
         clearOperationGeneration += 1
         pollGeneration += 1
@@ -369,6 +429,7 @@ public final class CollectModel {
         isRefreshingJobs = false
         isLoadingMoreJobs = false
         mutatingJobIDs = []
+        retryOperationIDs = [:]
         importedArticleJobIDs = []
         if let activeListOperation {
             invalidatedListOperationIDs.insert(activeListOperation.id)
@@ -399,6 +460,76 @@ public final class CollectModel {
                 }
             }
         }
+    }
+
+    private func awaitSubmission(url: URL) async throws -> CollectJob {
+        let submissionID = UUID()
+        let timeout = submissionTimeout
+        let repository = repository
+
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                activeSubmissionID = submissionID
+                submissionContinuation = continuation
+                activeSubmissionTask = Task { @MainActor [weak self] in
+                    guard let self else { return }
+
+                    do {
+                        let job = try await repository.submit(url: url)
+                        finishSubmission(submissionID, with: .success(job))
+                    } catch {
+                        finishSubmission(submissionID, with: .failure(error))
+                    }
+                }
+                submissionTimeoutTask = Task { @MainActor [weak self] in
+                    do {
+                        try await Task.sleep(for: timeout)
+                    } catch {
+                        return
+                    }
+
+                    self?.finishSubmission(
+                        submissionID,
+                        with: .failure(CollectSubmissionFailure.timedOut)
+                    )
+                }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.abortCancelledSubmission(submissionID)
+            }
+        }
+    }
+
+    private func abortCancelledSubmission(_ submissionID: UUID) {
+        guard activeSubmissionID == submissionID else { return }
+
+        submissionEpoch += 1
+        isSubmitting = false
+        submitErrorMessage = "已取消提交，可修改链接后重试"
+        finishSubmission(submissionID, with: .failure(CancellationError()))
+    }
+
+    private func finishSubmission(
+        _ submissionID: UUID,
+        with result: Result<CollectJob, Error>
+    ) {
+        guard
+            activeSubmissionID == submissionID,
+            let continuation = submissionContinuation
+        else {
+            return
+        }
+
+        activeSubmissionID = nil
+        submissionContinuation = nil
+        let activeTask = activeSubmissionTask
+        activeSubmissionTask = nil
+        let timeoutTask = submissionTimeoutTask
+        submissionTimeoutTask = nil
+        activeTask?.cancel()
+        timeoutTask?.cancel()
+        continuation.resume(with: result)
     }
 
     private func poll(jobID: Int, generation: Int) async {

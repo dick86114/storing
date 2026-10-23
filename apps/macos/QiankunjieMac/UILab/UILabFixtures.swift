@@ -258,7 +258,9 @@ private struct FixtureCollectRepository: CollectServicing {
     }
 
     func submit(url: URL) async throws -> CollectJob {
-        jobs.first { $0.status == "running" } ?? jobs.first!
+        // UI Lab 保持提交中状态，便于人工验收取消入口；Release 构建不包含该夹具。
+        try await Task.sleep(for: .seconds(30))
+        return jobs.first { $0.status == "running" } ?? jobs.first!
     }
 
     func jobs(limit: Int, offset: Int) async throws -> CollectJobPage {

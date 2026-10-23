@@ -98,6 +98,238 @@ struct CollectModelTests {
         #expect(!model.isSubmitting)
     }
 
+    @Test func 提交永久挂起时超时解锁并保留输入供重试() async {
+        let repository = 模拟采集仓库()
+        await repository.holdNextSubmit()
+        let model = CollectModel(
+            repository: repository,
+            userID: 9,
+            pollInterval: .zero,
+            submissionTimeout: .milliseconds(30)
+        )
+        let url = "https://example.com/slow"
+        model.urlDraft = url
+
+        await model.submit(url)
+
+        #expect(!model.isSubmitting)
+        #expect(model.submitErrorMessage == "提交超时，请检查网络后重试；如任务已创建，可先到历史任务确认")
+        #expect(model.urlDraft == url)
+        #expect(await repository.submitCount == 1)
+
+        await model.submit(url)
+
+        #expect(model.currentJob?.id == 11)
+        #expect(model.submitErrorMessage == nil)
+        #expect(model.urlDraft.isEmpty)
+        #expect(await repository.submitCount == 2)
+    }
+
+    @Test func 提交等待期间刷新后超时仍恢复输入() async {
+        let repository = 模拟采集仓库()
+        await repository.holdNextSubmit()
+        let model = CollectModel(
+            repository: repository,
+            userID: 9,
+            pollInterval: .zero,
+            submissionTimeout: .milliseconds(30)
+        )
+        let url = "https://example.com/slow-with-refresh"
+        model.urlDraft = url
+
+        let submission = Task {
+            await model.submit(url)
+        }
+        await repository.waitForSubmitRequest()
+        await model.refreshJobs()
+        await submission.value
+
+        #expect(!model.isSubmitting)
+        #expect(model.submitErrorMessage == "提交超时，请检查网络后重试；如任务已创建，可先到历史任务确认")
+        #expect(model.urlDraft == url)
+    }
+
+    @Test func 提交成功不会被更晚返回的刷新响应覆盖() async {
+        let repository = 模拟采集仓库(statuses: ["completed"])
+        await repository.holdNextSubmit()
+        await repository.holdNextJobs()
+        let model = CollectModel(repository: repository, userID: 9, pollInterval: .zero)
+        let url = "https://example.com/submit-during-refresh"
+        model.urlDraft = url
+
+        let submission = Task {
+            await model.submit(url)
+        }
+        await repository.waitForSubmitRequest()
+        let refresh = Task {
+            await model.refreshJobs()
+        }
+        await repository.waitForJobsRequest(1)
+
+        await repository.resumeSubmit(with: .success(
+            CollectJob.fixture(id: 11, status: "completed", articleID: 7)
+        ))
+        await submission.value
+
+        #expect(model.currentJob?.id == 11)
+        #expect(model.jobs.map(\.id) == [11])
+        #expect(model.total == 1)
+
+        await repository.resumeJobsRequest(at: 0, with: .success(
+            CollectJobPage(jobs: [], total: 0, hasMore: false)
+        ))
+        await refresh.value
+
+        #expect(model.currentJob?.id == 11)
+        #expect(model.jobs.map(\.id) == [11])
+        #expect(model.total == 1)
+    }
+
+    @Test func 提交成功不会遗弃提交期间启动的重试() async {
+        let failedJob = CollectJob.fixture(id: 21, status: "failed")
+        let repository = 模拟采集仓库(
+            statuses: ["completed"],
+            retryResult: .fixture(id: 21, status: "pending")
+        )
+        await repository.holdNextSubmit()
+        await repository.holdNextRetry()
+        let model = CollectModel(
+            repository: repository,
+            userID: 9,
+            initialJobs: [failedJob],
+            pollInterval: .zero
+        )
+
+        let submission = Task {
+            await model.submit("https://example.com/submit-while-retry")
+        }
+        await repository.waitForSubmitRequest()
+        let retry = Task {
+            await model.retry(jobID: 21)
+        }
+        await repository.waitForRetryRequest()
+
+        await repository.resumeSubmit(with: .success(
+            CollectJob.fixture(id: 11, status: "completed", articleID: 7)
+        ))
+        await submission.value
+
+        await repository.resumeRetry(with: .success(
+            CollectJob.fixture(id: 21, status: "pending")
+        ))
+        await retry.value
+
+        #expect(!model.mutatingJobIDs.contains(21))
+        #expect(model.jobs.first { $0.id == 21 }?.status == "completed")
+        #expect(model.jobs.contains { $0.id == 11 })
+    }
+
+    @Test func 账号在重试轮询中切换后不会继续访问旧任务() async {
+        let failedJob = CollectJob.fixture(id: 21, status: "failed")
+        let repository = 模拟采集仓库(
+            statuses: ["running", "completed"],
+            retryResult: .fixture(id: 21, status: "pending")
+        )
+        await repository.holdNextJob()
+        let model = CollectModel(
+            repository: repository,
+            userID: 9,
+            initialJobs: [failedJob],
+            pollInterval: .zero
+        )
+
+        let retry = Task {
+            await model.retry(jobID: 21)
+        }
+        await repository.waitForJobRequest()
+        model.prepareUser(userID: 10)
+        await repository.resumeHeldJob(with: .success(
+            CollectJob.fixture(id: 21, status: "running")
+        ))
+        await retry.value
+
+        #expect(model.jobs.isEmpty)
+        #expect(model.currentJob == nil)
+        #expect(await repository.jobRequestCount == 1)
+    }
+
+    @Test func 同账号重置后旧重试不会清除新重试状态() async {
+        let failedJob = CollectJob.fixture(id: 21, status: "failed")
+        let repository = 模拟采集仓库(
+            page: CollectJobPage(jobs: [failedJob], total: 1, hasMore: false),
+            statuses: ["completed"],
+            retryResult: .fixture(id: 21, status: "pending")
+        )
+        let model = CollectModel(
+            repository: repository,
+            userID: 9,
+            initialJobs: [failedJob],
+            pollInterval: .zero
+        )
+        await repository.holdNextRetry()
+        let oldRetry = Task {
+            await model.retry(jobID: 21)
+        }
+        await repository.waitForRetryRequest(1)
+
+        model.prepareUser(userID: 9)
+        await model.refreshJobs()
+        await repository.holdNextRetry()
+        let newRetry = Task {
+            await model.retry(jobID: 21)
+        }
+        await repository.waitForRetryRequest(2)
+        #expect(model.mutatingJobIDs.contains(21))
+
+        await repository.resumeRetry(at: 0, with: .success(
+            CollectJob.fixture(id: 21, status: "pending")
+        ))
+        await oldRetry.value
+
+        #expect(model.mutatingJobIDs.contains(21))
+
+        await repository.resumeRetry(at: 0, with: .success(
+            CollectJob.fixture(id: 21, status: "pending")
+        ))
+        await newRetry.value
+
+        #expect(!model.mutatingJobIDs.contains(21))
+        #expect(model.jobs.first { $0.id == 21 }?.status == "completed")
+    }
+
+    @Test func 取消提交立即解锁且迟到响应不会覆盖后续任务() async {
+        let repository = 模拟采集仓库()
+        await repository.holdNextSubmit()
+        let model = CollectModel(repository: repository, userID: 9, pollInterval: .zero)
+        let firstURL = "https://example.com/first"
+        model.urlDraft = firstURL
+
+        let firstSubmission = Task {
+            await model.submit(firstURL)
+        }
+        await repository.waitForSubmitRequest()
+        #expect(model.isSubmitting)
+
+        model.cancelSubmission()
+
+        #expect(!model.isSubmitting)
+        #expect(model.submitErrorMessage == "已取消提交，可修改链接后重试")
+        await firstSubmission.value
+
+        let secondURL = "https://example.com/second"
+        model.urlDraft = secondURL
+        await model.submit(secondURL)
+        #expect(model.currentJob?.id == 11)
+
+        await repository.resumeSubmit(with: .success(
+            CollectJob.fixture(id: 99, status: "pending")
+        ))
+        try? await Task.sleep(for: .milliseconds(20))
+
+        #expect(model.currentJob?.id == 11)
+        #expect(model.jobs.map(\.id) == [11])
+    }
+
     @Test func 提交失败时保留当前任务并继续轮询其他活跃任务() async throws {
         let repository = 模拟采集仓库(
             page: CollectJobPage(
@@ -746,6 +978,9 @@ private actor 模拟采集仓库: CollectServicing {
     private var shouldHoldNextSubmit = false
     private var heldSubmitContinuation: CheckedContinuation<CollectJob, Error>?
     private var submitRequestContinuation: CheckedContinuation<Void, Never>?
+    private var retryHoldCount = 0
+    private var heldRetryContinuations: [CheckedContinuation<CollectJob, Error>] = []
+    private var retryRequestContinuation: CheckedContinuation<Void, Never>?
     private var jobRequestContinuation: CheckedContinuation<Void, Never>?
 
     private(set) var submitCount = 0
@@ -848,6 +1083,14 @@ private actor 模拟采集仓库: CollectServicing {
 
     func retry(id: Int) async throws -> CollectJob {
         retryIDs.append(id)
+        if retryHoldCount > 0 {
+            retryHoldCount -= 1
+            return try await withCheckedThrowingContinuation { continuation in
+                heldRetryContinuations.append(continuation)
+                retryRequestContinuation?.resume()
+                retryRequestContinuation = nil
+            }
+        }
         return retryResult
     }
 
@@ -939,6 +1182,10 @@ private actor 模拟采集仓库: CollectServicing {
         shouldHoldNextSubmit = true
     }
 
+    func holdNextRetry() {
+        retryHoldCount += 1
+    }
+
     func waitForSubmitRequest() async {
         if heldSubmitContinuation != nil {
             return
@@ -952,6 +1199,26 @@ private actor 模拟采集仓库: CollectServicing {
     func resumeSubmit(with result: Result<CollectJob, Error>) {
         guard let continuation = heldSubmitContinuation else { return }
         heldSubmitContinuation = nil
+        continuation.resume(with: result)
+    }
+
+    func waitForRetryRequest(_ count: Int = 1) async {
+        if heldRetryContinuations.count >= count {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            retryRequestContinuation = continuation
+        }
+    }
+
+    func resumeRetry(with result: Result<CollectJob, Error>) {
+        resumeRetry(at: 0, with: result)
+    }
+
+    func resumeRetry(at index: Int, with result: Result<CollectJob, Error>) {
+        guard heldRetryContinuations.indices.contains(index) else { return }
+        let continuation = heldRetryContinuations.remove(at: index)
         continuation.resume(with: result)
     }
 
