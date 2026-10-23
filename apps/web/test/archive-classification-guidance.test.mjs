@@ -33,8 +33,9 @@ test('分类空状态和分类管理说明归档依赖', () => {
   const categoryNavigation = read('src/components/archive/CategoryNavigation.tsx');
   const categorySettings = read('src/components/content/CategorySettingsContent.tsx');
 
-  assert.match(categoryNavigation, /分类只展示已归档文章/);
-  assert.match(categoryNavigation, /把收件箱里的文章归档后，就会出现在这里/);
-  assert.match(categorySettings, /分类只用于组织已归档文章/);
-  assert.match(categorySettings, /文章归档时即可选择分类/);
+  assert.match(categoryNavigation, /全部归档/);
+  assert.match(categoryNavigation, /新建分类/);
+  assert.match(categoryNavigation, /管理分类/);
+  assert.match(categorySettings, /管理分类/);
+  assert.match(categorySettings, /系统分类保持固定/);
 });

@@ -25,7 +25,11 @@ export function useBulkArticleActions() {
       { revalidate: true },
     );
     await globalMutate('counts');
-    await globalMutate('categories');
+    await globalMutate(
+      (key) => typeof key === 'string' && key.startsWith('categories:user:'),
+      undefined,
+      { revalidate: true },
+    );
   }, [globalMutate]);
 
   const runAction = useCallback(async function runAction(

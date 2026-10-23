@@ -3,19 +3,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useSWRConfig } from 'swr';
-import useSWR from 'swr';
 import QRCode from 'qrcode';
-import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, GlobalOutlined, DeleteOutlined, UpOutlined, DownOutlined, ClockCircleOutlined, LoadingOutlined, ExclamationCircleOutlined, InfoCircleOutlined, CloseOutlined, PlusOutlined } from '@ant-design/icons';
+import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, GlobalOutlined, DeleteOutlined, UpOutlined, DownOutlined, ClockCircleOutlined, LoadingOutlined, ExclamationCircleOutlined, InfoCircleOutlined, CloseOutlined } from '@ant-design/icons';
 import { useArticle, useArticleMeta } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/providers/AuthContext';
 import { DateText } from '@/lib/formatDate';
-import { api, type ArchiveCategory, type ArticleHtmlVariant } from '@/lib/api';
+import { api, type ArticleHtmlVariant } from '@/lib/api';
+import { assignmentFailure, type CategoryAssignmentOutcome } from '@/lib/category-picker';
 import { useBookmark } from '@/hooks/useBookmark';
 import { BookmarkButton } from '@/components/ui/BookmarkButton';
 import { useTheme, type ColorScheme } from '@/components/providers/ThemeProvider';
 import { getArticleSourceIcon, getArticleSourceText } from '@/components/article/articleSourceIcon';
 import type { ArticleListMutation } from '@/components/providers/ArticleContext';
+import { CategoryPicker } from '@/components/category/CategoryPicker';
+import { useCategoryCatalog, useRefreshCategoryCatalog } from '@/hooks/useCategoryCatalog';
+import { useCategoryRecents } from '@/hooks/useCategoryRecents';
 
 const DETAIL_PANEL_DEFAULT_WIDTH = 750;
 const DETAIL_PANEL_MIN_WIDTH = 560;
@@ -2329,118 +2332,6 @@ function SharePosterDialog({
   );
 }
 
-export function CategoryAssignmentDialog({
-  categories,
-  currentCategoryId,
-  loading,
-  onClose,
-  onSelect,
-  title = '修改分类',
-  subtitle = '选择一个预设分类。',
-  onSelectAi,
-  onCreateCategory,
-}: {
-  categories: ArchiveCategory[];
-  currentCategoryId: number | null;
-  loading: boolean;
-  onClose: () => void;
-  onSelect: (categoryId: number) => void;
-  title?: string;
-  subtitle?: string;
-  onSelectAi?: () => void;
-  onCreateCategory?: (name: string) => Promise<{ category: ArchiveCategory }>;
-}) {
-  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
-  const [quickCreateName, setQuickCreateName] = useState('');
-  const [quickCreateError, setQuickCreateError] = useState<string | null>(null);
-  const [quickCreating, setQuickCreating] = useState(false);
-
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !loading && !quickCreating) onClose();
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [loading, onClose, quickCreating]);
-
-  return createPortal(
-    <div
-      className="category-assignment-overlay"
-      role="presentation"
-      onClick={(event) => {
-        if (event.target === event.currentTarget && !loading && !quickCreating) onClose();
-      }}
-    >
-      <section className="category-assignment-panel" role="dialog" aria-modal="true" aria-labelledby="category-assignment-title">
-        <div className="category-assignment-header">
-          <div>
-            <h2 id="category-assignment-title">{title}</h2>
-            <p>{subtitle}</p>
-          </div>
-          <button className="category-assignment-close" type="button" onClick={onClose} disabled={loading || quickCreating} aria-label="关闭分类选择">
-            <CloseOutlined />
-          </button>
-        </div>
-        <div className="category-assignment-list" role="list">
-          {onSelectAi && <button className="category-assignment-item category-assignment-item--ai" type="button" onClick={onSelectAi} disabled={loading || quickCreating} role="listitem">
-            <RobotOutlined aria-hidden="true" />
-            <span>由 AI 判断</span>
-            <small>低置信度进入待整理</small>
-          </button>}
-          {categories.map((category) => {
-            const selected = category.id === currentCategoryId;
-            return (
-              <button
-                key={category.id}
-                className={`category-assignment-item${selected ? ' is-selected' : ''}`}
-                type="button"
-                onClick={() => onSelect(category.id)}
-                disabled={loading || quickCreating || selected}
-                role="listitem"
-              >
-                <span className="category-assignment-dot" style={{ background: category.color || 'var(--accent)' }} aria-hidden="true" />
-                <span>{category.name}</span>
-                {selected && <span className="category-assignment-current">当前</span>}
-              </button>
-            );
-          })}
-          {onCreateCategory && <button className="category-assignment-create" type="button" onClick={() => { setQuickCreateOpen(true); setQuickCreateError(null); }} disabled={loading || quickCreating}>
-            <PlusOutlined aria-hidden="true" />
-            新增分类
-          </button>}
-        </div>
-        {quickCreateOpen && <form className="category-assignment-create-form" onSubmit={async (event) => {
-          event.preventDefault();
-          if (!onCreateCategory || !quickCreateName.trim() || quickCreating) return;
-          setQuickCreating(true);
-          setQuickCreateError(null);
-          try {
-            const created = await onCreateCategory(quickCreateName.trim());
-            setQuickCreateOpen(false);
-            setQuickCreateName('');
-            onSelect(created.category.id);
-          } catch (error) {
-            setQuickCreateError(error instanceof Error ? error.message : '新增分类失败');
-          } finally {
-            setQuickCreating(false);
-          }
-        }}>
-          <label>
-            <span>分类名称</span>
-            <input value={quickCreateName} onChange={(event) => { setQuickCreateName(event.target.value); setQuickCreateError(null); }} placeholder="例如：编程开发" maxLength={40} autoFocus disabled={quickCreating} />
-          </label>
-          {quickCreateError && <p className="category-assignment-create-error">{quickCreateError}</p>}
-          <div>
-            <button type="button" onClick={() => setQuickCreateOpen(false)} disabled={quickCreating}>取消</button>
-            <button type="submit" disabled={!quickCreateName.trim() || quickCreating}>{quickCreating ? '创建中…' : '创建并选择'}</button>
-          </div>
-        </form>}
-      </section>
-    </div>,
-    document.body
-  );
-}
-
 // 详情内容组件
 function DetailContent({
   article,
@@ -2481,6 +2372,9 @@ function DetailContent({
 }) {
  const { resolved, colorScheme } = useTheme();
  const { mutate: detailMutate } = useSWRConfig();
+ const refreshCategoryCatalog = useRefreshCategoryCatalog();
+ const categoryCatalog = useCategoryCatalog();
+ const categoryRecents = useCategoryRecents(categoryCatalog.activeCategories);
   const isManualCapturedArticle = isSingleFileCaptureHtml(article?.contentHtml);
   const [moreOpen, setMoreOpen] = useState(false);
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
@@ -2491,11 +2385,6 @@ function DetailContent({
   const [archiveCategoryAssignmentOpen, setArchiveCategoryAssignmentOpen] = useState(false);
   const [categoryReasonOpen, setCategoryReasonOpen] = useState(false);
   const [currentView, setCurrentView] = useState<ArticleView>('archive');
-  const { data: categoryData, isLoading: categoriesLoading } = useSWR(
-    isAuthenticated ? 'categories:detail-assignment' : null,
-    () => api.getCategories(),
-    { revalidateOnFocus: false }
-  );
   const originalUrl = article?.originalUrl || fallbackArticle?.originalUrl || '';
   const canOpenOriginal = /^https?:\/\//i.test(originalUrl);
   const originalLinkStatus = articleError ? '原文链接暂时不可用' : '原文链接加载中';
@@ -2674,20 +2563,27 @@ function DetailContent({
     }, '重新生成摘要失败');
   }
 
-  async function handleMoveToCategory(categoryId: number) {
-    if (!article || !article.isArchived) return;
-    const category = categoryData?.categories.find((item) => item.id === categoryId);
-    await runArticleAction('category', async () => {
+  async function handleMoveToCategory(categoryId: number): Promise<CategoryAssignmentOutcome> {
+    if (!article || !article.isArchived) return { status: 'failure', message: '文章当前不在归档中，无法修改分类。' };
+    if (pendingAction) return { status: 'failure', message: '正在处理其他操作，请稍后再试。' };
+    const category = categoryCatalog.categories.find((item) => item.id === categoryId);
+    setMoreOpen(false);
+    setPendingAction('category');
+    try {
       await api.moveArticleToCategory(article.id, categoryId);
-      setMoveCategoryPickerOpen(false);
       await mutateArticle();
       onMutate();
-      detailMutate('categories');
-      detailMutate('categories:archive-action');
-      detailMutate('categories:detail-assignment');
-      detailMutate((key) => typeof key === 'string' && key.startsWith('articles:archive:'), undefined, { revalidate: true });
-      showToast(`已归入${category?.name || '所选分类'}`);
-    }, '修改分类失败');
+      await Promise.all([
+        refreshCategoryCatalog(),
+        detailMutate((key) => typeof key === 'string' && key.startsWith('articles:archive:'), undefined, { revalidate: true }),
+      ]);
+      setMoveCategoryPickerOpen(false);
+      return { status: 'success', message: `已归入${category?.name || '所选分类'}` };
+    } catch (error) {
+      return assignmentFailure(error, '修改分类失败');
+    } finally {
+      setPendingAction(null);
+    }
   }
 
   async function handleCreateCategory(name: string) {
@@ -2698,40 +2594,56 @@ function DetailContent({
       excludeExamples: [],
       color: null,
     });
-    detailMutate('categories');
-    detailMutate('categories:archive-action');
-    detailMutate('categories:detail-assignment');
+    void refreshCategoryCatalog().catch((error) => console.error('刷新分类目录失败:', error));
     return created;
   }
 
-  async function handleArchiveToCategory(categoryId?: number) {
-    if (!article) return;
-    await runArticleAction('archive', async () => {
+  async function handleArchiveToCategory(categoryId?: number): Promise<CategoryAssignmentOutcome> {
+    if (!article) return { status: 'failure', message: '文章已关闭，请重新打开归档操作。' };
+    if (pendingAction) return { status: 'failure', message: '正在处理其他操作，请稍后再试。' };
+    setPendingAction('archive');
+    try {
       await api.archive(article.id, categoryId);
-      setArchiveCategoryAssignmentOpen(false);
       onMutate();
       refreshCounts();
-      detailMutate('categories');
-      detailMutate('categories:archive-action');
-      detailMutate('categories:detail-assignment');
-      detailMutate((key) => typeof key === 'string' && key.startsWith('articles:archive:'), undefined, { revalidate: true });
-      showToast(categoryId ? '已归档到所选分类' : '已归档，正在生成分类建议');
+      await Promise.all([
+        refreshCategoryCatalog(),
+        detailMutate((key) => typeof key === 'string' && key.startsWith('articles:archive:'), undefined, { revalidate: true }),
+      ]);
+      setArchiveCategoryAssignmentOpen(false);
       onClose();
-    }, '归档失败');
+      return {
+        status: 'success',
+        message: categoryId ? '已归档到所选分类' : '已归档，正在生成分类建议',
+      };
+    } catch (error) {
+      return assignmentFailure(error, '归档失败');
+    } finally {
+      setPendingAction(null);
+    }
   }
 
-  async function handleReclassifyCategory() {
-    if (!article) return;
-    setMoveCategoryPickerOpen(false);
-    await runArticleAction('classify', async () => {
+  async function handleReclassifyCategory(fromPicker = false): Promise<CategoryAssignmentOutcome> {
+    if (!article) return { status: 'failure', message: '文章已关闭，请重新打开分类操作。' };
+    if (pendingAction) return { status: 'failure', message: '正在处理其他操作，请稍后再试。' };
+    setMoreOpen(false);
+    if (!fromPicker) setMoveCategoryPickerOpen(false);
+    setPendingAction('classify');
+    try {
       await api.classifyArticle(article.id, true);
       await mutateArticle();
       onMutate();
-      detailMutate('categories');
-      detailMutate('categories:detail-assignment');
-      detailMutate((key) => typeof key === 'string' && key.startsWith('articles:archive:'), undefined, { revalidate: true });
-      showToast('已重新判断分类');
-    }, '重新判断分类失败');
+      await Promise.all([
+        refreshCategoryCatalog(),
+        detailMutate((key) => typeof key === 'string' && key.startsWith('articles:archive:'), undefined, { revalidate: true }),
+      ]);
+      if (!fromPicker) showToast('已重新判断分类');
+      return { status: 'success', message: '已重新判断分类' };
+    } catch (error) {
+      return assignmentFailure(error, '重新判断分类失败');
+    } finally {
+      setPendingAction(null);
+    }
   }
 
   const showArticleSkeleton = isLoading || pendingAction === 'refetch';
@@ -2905,7 +2817,7 @@ function DetailContent({
                       </button>
                     )}
                     {article?.categoryResult?.reviewStatus === 'needs_review' && (
-                      <button className="app-menu-item detail-more-menu-item" type="button" onClick={handleReclassifyCategory} disabled={!!pendingAction}>
+                      <button className="app-menu-item detail-more-menu-item" type="button" onClick={() => { void handleReclassifyCategory(); }} disabled={!!pendingAction}>
                         <RobotOutlined />
                         <span>{pendingAction === 'classify' ? '正在判断…' : '重新判断分类'}</span>
                       </button>
@@ -2964,28 +2876,40 @@ function DetailContent({
       )}
 
       {moveCategoryPickerOpen && article && (
-        <CategoryAssignmentDialog
-          categories={categoryData?.categories ?? []}
+        <CategoryPicker
+          categories={categoryCatalog.activeCategories}
+          recentCategoryIds={categoryRecents.recentCategoryIds}
           currentCategoryId={article.category?.id ?? null}
-          loading={categoriesLoading || pendingAction === 'category'}
+          loading={categoryCatalog.isLoading || pendingAction === 'category'}
+          catalogError={categoryCatalog.error instanceof Error ? categoryCatalog.error.message : null}
+          title="修改分类"
+          subtitle="分类只用于归档文章；当前分类会保留标记。"
           onClose={() => setMoveCategoryPickerOpen(false)}
           onSelect={handleMoveToCategory}
-          onSelectAi={handleReclassifyCategory}
+          onSelectAi={() => handleReclassifyCategory(true)}
           onCreateCategory={handleCreateCategory}
+          onRememberCategory={categoryRecents.remember}
+          onCatalogRefresh={refreshCategoryCatalog}
+          onNotify={showToast}
         />
       )}
 
       {archiveCategoryAssignmentOpen && article && (
-        <CategoryAssignmentDialog
-          categories={categoryData?.categories ?? []}
+        <CategoryPicker
+          categories={categoryCatalog.activeCategories}
+          recentCategoryIds={categoryRecents.recentCategoryIds}
           currentCategoryId={null}
-          loading={categoriesLoading || pendingAction === 'archive'}
+          loading={categoryCatalog.isLoading || pendingAction === 'archive'}
+          catalogError={categoryCatalog.error instanceof Error ? categoryCatalog.error.message : null}
           title="归档到哪里？"
           subtitle="分类只用于归档文章。选择分类后，文章会移入「归档」；也可以让 AI 判断。"
           onClose={() => setArchiveCategoryAssignmentOpen(false)}
           onSelect={(categoryId) => handleArchiveToCategory(categoryId)}
           onSelectAi={() => handleArchiveToCategory()}
           onCreateCategory={handleCreateCategory}
+          onRememberCategory={categoryRecents.remember}
+          onCatalogRefresh={refreshCategoryCatalog}
+          onNotify={showToast}
         />
       )}
 

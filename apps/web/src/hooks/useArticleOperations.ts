@@ -46,7 +46,11 @@ export function useArticleOperations() {
 
   const refreshCounts = useCallback(function refreshCounts() {
     globalMutate('counts');
-    globalMutate('categories');
+    globalMutate(
+      (key) => typeof key === 'string' && key.startsWith('categories:user:'),
+      undefined,
+      { revalidate: true },
+    );
   }, [globalMutate]);
 
   const archive = useCallback(async function archive(articleId: number, categoryId?: number): Promise<boolean> {
