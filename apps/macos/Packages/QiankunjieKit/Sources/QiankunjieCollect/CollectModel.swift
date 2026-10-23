@@ -52,6 +52,7 @@ public final class CollectModel {
     private let pollInterval: Duration
     private let submissionTimeout: Duration
     private var requestGeneration = 0
+    private var submissionEpoch = 0
     private var pollGeneration = 0
     private var clearOperationGeneration = 0
     private var activeSubmissionID: UUID?
@@ -115,32 +116,38 @@ public final class CollectModel {
         }
 
         requestGeneration += 1
-        let generation = requestGeneration
+        submissionEpoch += 1
+        let epoch = submissionEpoch
         isSubmitting = true
         defer {
-            if requestGeneration == generation {
+            if submissionEpoch == epoch {
                 isSubmitting = false
             }
         }
 
         do {
             let job = try await awaitSubmission(url: url)
-            guard requestGeneration == generation else { return }
+            guard submissionEpoch == epoch else { return }
 
+            // 提交已经改变任务集合，使提交期间启动的列表请求失效，避免较晚返回的空列表覆盖新任务。
+            requestGeneration += 1
+            let isNewJob = !jobs.contains { $0.id == job.id }
             currentJob = job
-            jobs.insert(job, at: 0)
-            total += 1
+            replace(job)
+            if isNewJob {
+                total += 1
+            }
             urlDraft = ""
             isSubmitting = false
             await poll(jobID: job.id, generation: pollGeneration)
         } catch let error as CollectSubmissionFailure where error == .timedOut {
-            guard requestGeneration == generation else { return }
+            guard submissionEpoch == epoch else { return }
             submitErrorMessage = "提交超时，请检查网络后重试；如任务已创建，可先到历史任务确认"
         } catch is CancellationError {
-            guard requestGeneration == generation else { return }
+            guard submissionEpoch == epoch else { return }
             submitErrorMessage = "已取消提交，可修改链接后重试"
         } catch {
-            guard requestGeneration == generation else { return }
+            guard submissionEpoch == epoch else { return }
             submitErrorMessage = Self.message(for: error)
         }
     }
@@ -149,7 +156,7 @@ public final class CollectModel {
     public func cancelSubmission() {
         guard isSubmitting, let submissionID = activeSubmissionID else { return }
 
-        requestGeneration += 1
+        submissionEpoch += 1
         isSubmitting = false
         submitErrorMessage = "已取消提交，可修改链接后重试"
         finishSubmission(submissionID, with: .failure(CancellationError()))
@@ -381,6 +388,7 @@ public final class CollectModel {
     }
 
     public func prepareUser(userID: Int?) {
+        submissionEpoch += 1
         if let submissionID = activeSubmissionID {
             finishSubmission(submissionID, with: .failure(CancellationError()))
         }
@@ -474,7 +482,7 @@ public final class CollectModel {
     private func abortCancelledSubmission(_ submissionID: UUID) {
         guard activeSubmissionID == submissionID else { return }
 
-        requestGeneration += 1
+        submissionEpoch += 1
         isSubmitting = false
         submitErrorMessage = "已取消提交，可修改链接后重试"
         finishSubmission(submissionID, with: .failure(CancellationError()))
