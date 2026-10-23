@@ -25,6 +25,9 @@ struct CategoryDragCommit: Equatable {
 
 /// 只根据原始行布局和指针位置计算落点，不改变 ForEach 的数据身份。
 enum CategoryDragGeometry {
+    /// 指针略离开列表时仍可命中，避免边缘落点因 1–2pt 偏差消失。
+    static let hitTolerance: CGFloat = 18
+
     static func target(
         pointerY: CGFloat,
         pointerX: CGFloat? = nil,
@@ -44,9 +47,12 @@ enum CategoryDragGeometry {
             let listMaxX = rows.map(\.frame.maxX).max(),
             let listMinY = rows.map(\.frame.minY).min(),
             let listMaxY = rows.map(\.frame.maxY).max(),
-            pointerX.map({ $0 >= listMinX && $0 <= listMaxX }) ?? true,
-            pointerY >= listMinY,
-            pointerY <= listMaxY
+            (pointerX.map {
+                $0 >= listMinX - Self.hitTolerance
+                    && $0 <= listMaxX + Self.hitTolerance
+            } ?? true),
+            pointerY >= listMinY - Self.hitTolerance,
+            pointerY <= listMaxY + Self.hitTolerance
         else {
             return nil
         }
@@ -56,6 +62,7 @@ enum CategoryDragGeometry {
             .count
         let legalRows = rows.filter { row in
             guard
+                row.categoryID != movingCategoryID,
                 !protectedIDs.contains(row.categoryID),
                 let index = categoryIDs.firstIndex(of: row.categoryID)
             else {
@@ -72,7 +79,6 @@ enum CategoryDragGeometry {
             return nil
         }
         guard
-            nearestRow.categoryID != movingCategoryID,
             let targetIndex = categoryIDs.firstIndex(of: nearestRow.categoryID),
             let reorderedIDs = CategoryOrdering.reorderedIDs(
                 categoryIDs,
@@ -95,6 +101,8 @@ enum CategoryDragGeometry {
 /// 分类拖拽的单一状态源；拖动过程只更新指针和目标，不提交目录。
 struct CategoryDragState {
     static let activationDistance: CGFloat = 4
+    /// 只有明确纵向拖动后才显示重排落点，避免点击附近时横线闪烁。
+    static let reorderActivationDistance: CGFloat = 10
 
     private(set) var draggedCategoryID: Int?
     private(set) var originalCategoryIDs: [Int]?
@@ -142,6 +150,10 @@ struct CategoryDragState {
         }
 
         self.translation = translation
+        guard abs(translation.height) >= Self.reorderActivationDistance else {
+            dropTarget = nil
+            return false
+        }
         dropTarget = CategoryDragGeometry.target(
             pointerY: pointerY,
             pointerX: pointerX,

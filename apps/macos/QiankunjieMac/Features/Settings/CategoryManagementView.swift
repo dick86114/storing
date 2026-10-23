@@ -9,6 +9,7 @@ struct CategoryManagementView: View {
     @State private var mergingCategory: ArticleCategory?
     @State private var dragState = CategoryDragState()
     @State private var rowFrames: [Int: CGRect] = [:]
+    @FocusState private var focusedReorderHandle: Int?
     @Environment(\.colorScheme) private var colorScheme
 
     init(catalog: CategoryCatalogModel) {
@@ -355,12 +356,6 @@ struct CategoryManagementView: View {
                     }
 
                     Spacer(minLength: 4)
-
-                    if isSelected {
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
-                    }
                 }
                 .contentShape(Rectangle())
             }
@@ -428,6 +423,9 @@ struct CategoryManagementView: View {
     ) -> some View {
         switch presentation.trailingControl {
         case let .reorderHandle(systemImage):
+            let isFocused = focusedReorderHandle == category.id
+            let accent = QiankunjieColors.accent(for: colorScheme)
+
             Image(systemName: systemImage)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(
@@ -436,9 +434,22 @@ struct CategoryManagementView: View {
                         : Color.secondary.opacity(0.35)
                 )
                 .frame(width: 26, height: 34)
+                .background {
+                    Capsule()
+                        .fill(isFocused ? accent.opacity(0.12) : Color.clear)
+                }
+                .overlay {
+                    Capsule()
+                        .strokeBorder(
+                            isFocused ? accent.opacity(0.42) : Color.clear,
+                            lineWidth: 1
+                        )
+                }
                 .contentShape(Rectangle())
                 .help(presentation.handleAccessibilityLabel)
                 .focusable(canDrag(category))
+                .focused($focusedReorderHandle, equals: category.id)
+                .focusEffectDisabled()
                 .onKeyPress(.upArrow) {
                     moveByKeyboard(category, offset: -1, presentation: presentation)
                 }

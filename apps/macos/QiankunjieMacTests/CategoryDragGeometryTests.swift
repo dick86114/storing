@@ -102,6 +102,69 @@ struct CategoryDragGeometryTests {
         )
     }
 
+    @Test func 当前拖动行仍最接近指针时也会选择相邻合法行() {
+        let 行 = [
+            CategoryDragRowFrame(categoryID: 1, frame: CGRect(x: 0, y: 0, width: 300, height: 30)),
+            CategoryDragRowFrame(categoryID: 2, frame: CGRect(x: 0, y: 30, width: 300, height: 30)),
+            CategoryDragRowFrame(categoryID: 3, frame: CGRect(x: 0, y: 60, width: 300, height: 30)),
+        ]
+        var 状态 = CategoryDragState()
+        let 已开始 = 状态.begin(categoryID: 2, categoryIDs: [1, 2, 3])
+
+        let 已更新落点 = 状态.update(
+            translation: CGSize(width: 0, height: 11),
+            pointerY: 54,
+            rows: 行,
+            protecting: [],
+            canDrop: true
+        )
+
+        #expect(已开始)
+        #expect(已更新落点)
+        #expect(状态.dropTarget == CategoryDragDropTarget(categoryID: 3, placement: .after))
+    }
+
+    @Test func 纵向位移低于重排阈值时不产生落点() {
+        let 行 = [
+            CategoryDragRowFrame(categoryID: 1, frame: CGRect(x: 0, y: 0, width: 300, height: 30)),
+            CategoryDragRowFrame(categoryID: 2, frame: CGRect(x: 0, y: 30, width: 300, height: 30)),
+            CategoryDragRowFrame(categoryID: 3, frame: CGRect(x: 0, y: 60, width: 300, height: 30)),
+        ]
+        var 状态 = CategoryDragState()
+        let 已开始 = 状态.begin(categoryID: 2, categoryIDs: [1, 2, 3])
+
+        let 已更新落点 = 状态.update(
+            translation: CGSize(width: 0, height: 9),
+            pointerY: 54,
+            rows: 行,
+            protecting: [],
+            canDrop: true
+        )
+
+        #expect(已开始)
+        #expect(!已更新落点)
+        #expect(状态.dropTarget == nil)
+    }
+
+    @Test func 指针略微离开列表时仍能命中附近合法行() {
+        let 行 = [
+            CategoryDragRowFrame(categoryID: 1, frame: CGRect(x: 0, y: 0, width: 300, height: 30)),
+            CategoryDragRowFrame(categoryID: 2, frame: CGRect(x: 0, y: 30, width: 300, height: 30)),
+            CategoryDragRowFrame(categoryID: 3, frame: CGRect(x: 0, y: 60, width: 300, height: 30)),
+        ]
+
+        let 落点 = CategoryDragGeometry.target(
+            pointerY: -16,
+            pointerX: 315,
+            rows: 行,
+            categoryIDs: [1, 2, 3],
+            movingCategoryID: 1,
+            protecting: []
+        )
+
+        #expect(落点 == CategoryDragDropTarget(categoryID: 2, placement: .after))
+    }
+
     @Test func 指针水平离开列表时没有落点() {
         let 行 = [
             CategoryDragRowFrame(categoryID: 1, frame: CGRect(x: 0, y: 0, width: 300, height: 30)),
@@ -147,32 +210,32 @@ struct CategoryDragGeometryTests {
         let 列表外提交 = 状态.finish(protecting: [], canDrop: true, minimumDistance: 4)
 
         #expect(首次开始)
-        #expect(短距离更新)
+        #expect(!短距离更新)
         #expect(短距离提交 == nil)
         #expect(第二次开始)
         #expect(!列表外更新)
         #expect(列表外提交 == nil)
     }
 
-    @Test func 落点与原始顺序相同时不提交() {
+    @Test func 纵向位移不足时更新与提交都不会产生落点() {
         let 行 = [
             CategoryDragRowFrame(categoryID: 1, frame: CGRect(x: 0, y: 0, width: 300, height: 30)),
             CategoryDragRowFrame(categoryID: 2, frame: CGRect(x: 0, y: 30, width: 300, height: 30)),
         ]
         var 状态 = CategoryDragState()
         let 已开始 = 状态.begin(categoryID: 2, categoryIDs: [1, 2])
-        let 原位置更新 = 状态.update(
-            translation: CGSize(width: 0, height: 12),
+        let 阈值内更新 = 状态.update(
+            translation: CGSize(width: 0, height: 9),
             pointerY: 44,
             rows: 行,
             protecting: [],
             canDrop: true
         )
-        let 原位置提交 = 状态.finish(protecting: [], canDrop: true, minimumDistance: 4)
+        let 阈值内提交 = 状态.finish(protecting: [], canDrop: true, minimumDistance: 4)
 
         #expect(已开始)
-        #expect(!原位置更新)
-        #expect(原位置提交 == nil)
+        #expect(!阈值内更新)
+        #expect(阈值内提交 == nil)
     }
 
     @Test func 松手只生成一次完整排序提交() {
@@ -203,6 +266,20 @@ struct CategoryDragGeometryTests {
             )
         )
         #expect(重复提交 == nil)
+    }
+
+    @Test func 管理页使用柔和手柄焦点且不显示选中右箭头() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .appending(path: "../QiankunjieMac/Features/Settings/CategoryManagementView.swift"),
+            encoding: .utf8
+        )
+
+        #expect(!source.contains("Image(systemName: \"chevron.right\")"))
+        #expect(source.contains(".focusEffectDisabled()"))
+        #expect(source.contains(".focused($focusedReorderHandle, equals: category.id)"))
+        #expect(source.contains("focusedReorderHandle == category.id"))
     }
 
     @Test func 管理页用户行只呈现可访问拖拽手柄而不呈现上下移动箭头() {
