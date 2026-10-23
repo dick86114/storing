@@ -390,12 +390,19 @@ struct QuickCollectView: View {
             }
 
             HStack {
-                Button {
-                    form.readSystemPasteboard(NSPasteboard.general)
-                } label: {
-                    Label("读取剪贴板", systemImage: "doc.on.clipboard")
+                if model.isSubmitting {
+                    Button {
+                        model.cancelSubmission()
+                    } label: {
+                        Label("取消提交", systemImage: "xmark.circle")
+                    }
+                } else {
+                    Button {
+                        form.readSystemPasteboard(NSPasteboard.general)
+                    } label: {
+                        Label("读取剪贴板", systemImage: "doc.on.clipboard")
+                    }
                 }
-                .disabled(model.isSubmitting)
 
                 Spacer()
 
