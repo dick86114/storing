@@ -30,6 +30,37 @@ struct CategoryCatalogModelTests {
         #expect(model.recentCategoryIDs == [31, 21])
     }
 
+    @Test func 只有加载成功后才标记可信目录且切换用户会清除标记() async {
+        let service = 分类服务桩(列表响应: [
+            .success(CategoriesResponse(
+                categories: [分类(id: 21, sortOrder: 10)],
+                counts: ["21": 3]
+            )),
+            .failure(.缺少响应),
+            .failure(.缺少响应),
+        ])
+        let model = CategoryCatalogModel(
+            service: service,
+            recentStore: 最近分类存储桩()
+        )
+
+        #expect(!model.hasLoadedCatalog)
+        model.prepareUser(userID: 7)
+        #expect(!model.hasLoadedCatalog)
+
+        await model.load()
+        #expect(model.hasLoadedCatalog)
+
+        await model.load()
+        #expect(model.hasLoadedCatalog)
+
+        model.prepareUser(userID: 8)
+        #expect(!model.hasLoadedCatalog)
+
+        await model.load()
+        #expect(!model.hasLoadedCatalog)
+    }
+
     @Test func 切换用户会清空分类和最近使用并读取新用户记录() async {
         let service = 分类服务桩(列表响应: [
             .success(CategoriesResponse(
