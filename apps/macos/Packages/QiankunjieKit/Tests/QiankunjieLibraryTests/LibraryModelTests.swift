@@ -222,6 +222,7 @@ struct LibraryModelTests {
         #expect(model.articles.first?.category == nil)
         #expect(model.bulkResult == nil)
         #expect(model.lastBulkActionError == nil)
+        #expect(model.bulkRunningAction == nil)
     }
 
     @Test func 分类结果刷新列表时切换用户不会写回旧分类() async {
@@ -257,6 +258,7 @@ struct LibraryModelTests {
         #expect(model.userID == 8)
         #expect(model.articles.first?.category == nil)
         #expect(model.bulkResult == nil)
+        #expect(model.bulkRunningAction == nil)
     }
 
     @Test func 批量AI分类请求在途时切换用户不会写回新用户状态() async {
@@ -295,6 +297,55 @@ struct LibraryModelTests {
         #expect(model.bulkSelection.isEmpty)
         #expect(model.bulkResult == nil)
         #expect(model.lastBulkActionError == nil)
+        #expect(model.bulkRunningAction == nil)
+    }
+
+    @Test func 切换用户后可以立即执行新的分类操作() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [7], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            bulkRepository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+        await model.load(reset: true)
+        await repository.holdNextBulkCategory()
+
+        let oldRequest = Task {
+            await model.runArticleCategory(
+                articleID: 7,
+                category: ArticleCategory(id: 21, name: "产品设计")
+            )
+        }
+        await repository.waitForBulkCategoryRequests(1)
+
+        model.prepareUser(userID: 8, view: .archive)
+        await model.load(reset: true)
+        #expect(model.bulkRunningAction == nil)
+
+        await model.runArticleCategory(
+            articleID: 7,
+            category: ArticleCategory(id: 22, name: "工程实践")
+        )
+
+        #expect(model.articles.first?.category?.id == 22)
+        #expect(model.bulkResult?.succeededCount == 1)
+        #expect(await repository.bulkCategoryRequestCount == 2)
+        #expect(await repository.lastBulkCategoryID == 22)
+
+        await repository.resumeBulkCategory(with: .success(ArticleBulkActionResult(
+            requestedCount: 1,
+            succeededIDs: [7],
+            skipped: [],
+            failed: []
+        )))
+        await oldRequest.value
+
+        #expect(model.articles.first?.category?.id == 22)
+        #expect(model.bulkRunningAction == nil)
     }
 
     @Test func 来源统计解码兼容PostgreSQL时间() throws {
