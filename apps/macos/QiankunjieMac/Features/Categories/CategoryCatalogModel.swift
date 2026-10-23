@@ -286,11 +286,18 @@ final class CategoryCatalogModel: Observable {
         let generation = try beginMutation()
         defer { endMutation(generation) }
 
+        let previousCategories = categories
+        let previousCounts = counts
+        let categoriesByID = Dictionary(uniqueKeysWithValues: categories.map { ($0.id, $0) })
+        categories = categoryIDs.compactMap { categoriesByID[$0] }
+        publishCatalogChangesIfNeeded(
+            previousCategories: previousCategories,
+            previousCounts: previousCounts
+        )
+
         do {
             let response = try await service.reorder(categoryIDs: categoryIDs)
             try ensureCurrentGeneration(generation)
-            let previousCategories = categories
-            let previousCounts = counts
             categories = sortedCategories(response.categories)
             pruneRecentCategories()
             publishCatalogChangesIfNeeded(
@@ -298,6 +305,14 @@ final class CategoryCatalogModel: Observable {
                 previousCounts: previousCounts
             )
         } catch {
+            if generation == requestGeneration {
+                categories = previousCategories
+                counts = previousCounts
+                publishCatalogChangesIfNeeded(
+                    previousCategories: previousCategories,
+                    previousCounts: previousCounts
+                )
+            }
             handleMutationError(error, generation: generation)
             throw error
         }

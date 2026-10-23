@@ -1,7 +1,6 @@
 import QiankunjieCore
 import QiankunjieDesignSystem
 import SwiftUI
-import UniformTypeIdentifiers
 
 extension ArticleCategory: @retroactive Identifiable {}
 
@@ -9,6 +8,7 @@ struct CategoryManagementView: View {
     @State private var model: CategoryManagementModel
     @State private var mergingCategory: ArticleCategory?
     @State private var dragState = CategoryDragState()
+    @State private var rowFrames: [Int: CGRect] = [:]
     @Environment(\.colorScheme) private var colorScheme
 
     init(catalog: CategoryCatalogModel) {
@@ -249,6 +249,10 @@ struct CategoryManagementView: View {
                     .padding(.bottom, 14)
                     .animation(.snappy(duration: 0.2), value: displayedCategoryIDs)
                 }
+                .coordinateSpace(name: CategoryManagementDragLayout.coordinateSpaceName)
+                .onPreferenceChange(CategoryRowFramePreferenceKey.self) { frames in
+                    rowFrames = frames
+                }
             }
         }
         .background(QiankunjieColors.surfaceVariant(for: colorScheme).opacity(0.42))
@@ -304,9 +308,15 @@ struct CategoryManagementView: View {
 
     private func categoryRow(_ category: ArticleCategory) -> some View {
         let isSelected = model.selectedCategoryID == category.id
-        let currentIndex = model.catalog.categories.firstIndex { $0.id == category.id }
-        let canMoveUp = canMove(category, to: currentIndex.map { $0 - 1 })
-        let canMoveDown = canMove(category, to: currentIndex.map { $0 + 1 })
+        let presentation = CategoryManagementRowPresentation.make(
+            category: category,
+            categories: model.catalog.categories,
+            canReorder: canDrag(category)
+        )
+        let isDragging = dragState.draggedCategoryID == category.id
+        let dropPlacement = dragState.dropTarget?.categoryID == category.id
+            ? dragState.dropTarget?.placement
+            : nil
 
         return HStack(spacing: 8) {
             Button {
@@ -358,23 +368,10 @@ struct CategoryManagementView: View {
             .accessibilityLabel(categoryAccessibilityLabel(category))
             .accessibilityHint("打开分类详情")
 
-            VStack(spacing: 2) {
-                moveButton(
-                    systemImage: "chevron.up",
-                    label: "上移 \(category.name)",
-                    enabled: canMoveUp
-                ) {
-                    Task { await model.reorder(moving: category.id, offset: -1) }
-                }
-
-                moveButton(
-                    systemImage: "chevron.down",
-                    label: "下移 \(category.name)",
-                    enabled: canMoveDown
-                ) {
-                    Task { await model.reorder(moving: category.id, offset: 1) }
-                }
-            }
+            trailingReorderControl(
+                for: category,
+                presentation: presentation
+            )
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 8)
@@ -393,59 +390,84 @@ struct CategoryManagementView: View {
                 )
         }
         .contentShape(RoundedRectangle(cornerRadius: 9))
-        .opacity(dragState.draggedCategoryID == category.id ? 0.58 : 1)
-        .scaleEffect(dragState.draggedCategoryID == category.id ? 0.985 : 1)
-        .onDrag {
-            guard canDrag(category) else {
-                dragState.cancel()
-                return NSItemProvider()
-            }
-            guard dragState.begin(
-                categoryID: category.id,
-                categoryIDs: model.catalog.categories.map(\.id)
-            ) else {
-                return NSItemProvider()
-            }
-            return NSItemProvider(object: String(category.id) as NSString)
-        }
-        .onDragSessionUpdated { session in
-            guard CategoryDragState.shouldCancel(for: session.phase) else { return }
-            cancelCategoryDrag()
-        }
-        .onDrop(
-            of: [UTType.text],
-            delegate: CategoryReorderDropDelegate(
-                targetCategoryID: category.id,
-                targetIsSystem: category.isSystem,
-                draggedCategoryID: dragState.draggedCategoryID,
-                categoryIDs: { dragState.originalCategoryIDs ?? [] },
-                protectedCategoryIDs: {
-                    Set(model.catalog.categories.filter(\.isSystem).map(\.id))
-                },
-                canDrop: canAcceptCategoryDrop,
-                onEnter: previewCategoryMove,
-                onDrop: commitCategoryMove,
-                onCancel: cancelCategoryDrag
-            )
+        .recordCategoryRowFrame(
+            categoryID: category.id,
+            in: CategoryManagementDragLayout.coordinateSpaceName
         )
+        .offset(y: isDragging ? dragState.translation.height : 0)
+        .scaleEffect(isDragging ? 1.015 : 1)
+        .shadow(
+            color: isDragging ? Color.black.opacity(0.16) : .clear,
+            radius: isDragging ? 8 : 0,
+            y: isDragging ? 4 : 0
+        )
+        .zIndex(isDragging ? 1 : 0)
+        .overlay(alignment: .top) {
+            if dropPlacement == .before {
+                CategoryDropIndicator(
+                    placement: .before,
+                    color: QiankunjieColors.accent(for: colorScheme)
+                )
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if dropPlacement == .after {
+                CategoryDropIndicator(
+                    placement: .after,
+                    color: QiankunjieColors.accent(for: colorScheme)
+                )
+            }
+        }
+        .animation(.snappy(duration: 0.18), value: isDragging)
     }
 
-    private func moveButton(
-        systemImage: String,
-        label: String,
-        enabled: Bool,
-        action: @escaping () -> Void
+    @ViewBuilder
+    private func trailingReorderControl(
+        for category: ArticleCategory,
+        presentation: CategoryManagementRowPresentation
     ) -> some View {
-        Button(action: action) {
+        switch presentation.trailingControl {
+        case let .reorderHandle(systemImage):
             Image(systemName: systemImage)
-                .font(.system(size: 8, weight: .bold))
-                .frame(width: 18, height: 13)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(
+                    canDrag(category)
+                        ? QiankunjieColors.onSurfaceVariant(for: colorScheme)
+                        : Color.secondary.opacity(0.35)
+                )
+                .frame(width: 26, height: 34)
                 .contentShape(Rectangle())
+                .help(presentation.handleAccessibilityLabel)
+                .focusable(canDrag(category))
+                .onKeyPress(.upArrow) {
+                    moveByKeyboard(category, offset: -1, presentation: presentation)
+                }
+                .onKeyPress(.downArrow) {
+                    moveByKeyboard(category, offset: 1, presentation: presentation)
+                }
+                .gesture(categoryDragGesture(for: category))
+                .accessibilityElement()
+                .accessibilityAddTraits(.isButton)
+                .accessibilityLabel(presentation.handleAccessibilityLabel)
+                .accessibilityHint(presentation.handleAccessibilityHint)
+                .accessibilityAdjustableAction { direction in
+                    switch direction {
+                    case .increment:
+                        moveByAccessibility(category, offset: 1, presentation: presentation)
+                    case .decrement:
+                        moveByAccessibility(category, offset: -1, presentation: presentation)
+                    @unknown default:
+                        break
+                    }
+                }
+        case let .systemLock(systemImage):
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.secondary.opacity(0.6))
+                .frame(width: 26, height: 34)
+                .accessibilityLabel(presentation.handleAccessibilityLabel)
+                .accessibilityHint(presentation.handleAccessibilityHint)
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(enabled ? QiankunjieColors.onSurfaceVariant(for: colorScheme) : Color.secondary.opacity(0.3))
-        .disabled(!enabled)
-        .accessibilityLabel(label)
     }
 
     private var categoryDetail: some View {
@@ -716,15 +738,7 @@ struct CategoryManagementView: View {
     }
 
     private var displayedCategories: [ArticleCategory] {
-        guard let dragPreviewCategoryIDs = dragState.previewCategoryIDs else {
-            return model.filteredCategories
-        }
-        let order = Dictionary(uniqueKeysWithValues: dragPreviewCategoryIDs.enumerated().map {
-            ($0.element, $0.offset)
-        })
-        return model.filteredCategories.sorted {
-            (order[$0.id] ?? .max) < (order[$1.id] ?? .max)
-        }
+        model.filteredCategories
     }
 
     private var displayedCategoryIDs: [Int] {
@@ -746,8 +760,17 @@ struct CategoryManagementView: View {
             && model.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private func canMove(_ category: ArticleCategory, to targetIndex: Int?) -> Bool {
-        guard !category.isSystem, canAcceptCategoryDrop(), let targetIndex else { return false }
+    private func canMove(_ category: ArticleCategory, offset: Int) -> Bool {
+        guard
+            !category.isSystem,
+            canAcceptCategoryDrop(),
+            let currentIndex = model.catalog.categories.firstIndex(where: {
+                $0.id == category.id
+            })
+        else {
+            return false
+        }
+        let targetIndex = currentIndex + offset
         guard model.catalog.categories.indices.contains(targetIndex) else { return false }
         return !model.catalog.categories[targetIndex].isSystem
     }
@@ -759,92 +782,103 @@ struct CategoryManagementView: View {
         return "\(category.name)，\(count) 篇文章，\(state)，\(kind)"
     }
 
-    private func previewCategoryMove(_ movingCategoryID: Int, _ targetCategoryID: Int) {
-        let protectedIDs = Set(model.catalog.categories.filter(\.isSystem).map(\.id))
-        var nextState = dragState
-        guard nextState.preview(
-            moving: movingCategoryID,
-            to: targetCategoryID,
-            protecting: protectedIDs
-        ) else {
-            return
+    private func categoryDragGesture(for category: ArticleCategory) -> some Gesture {
+        DragGesture(
+            minimumDistance: CategoryDragState.activationDistance,
+            coordinateSpace: .named(CategoryManagementDragLayout.coordinateSpaceName)
+        )
+        .onChanged { value in
+            guard canDrag(category) else {
+                cancelCategoryDrag()
+                return
+            }
+            if dragState.draggedCategoryID == nil {
+                guard dragState.begin(
+                    categoryID: category.id,
+                    categoryIDs: model.catalog.categories.map(\.id)
+                ) else {
+                    return
+                }
+            }
+            guard dragState.draggedCategoryID == category.id else { return }
+            dragState.update(
+                translation: value.translation,
+                pointerY: value.location.y,
+                pointerX: value.location.x,
+                rows: categoryDragRows,
+                protecting: protectedCategoryIDs,
+                canDrop: canAcceptCategoryDrop()
+            )
         }
-        withAnimation(.snappy(duration: 0.18)) {
-            dragState = nextState
+        .onEnded { value in
+            guard dragState.draggedCategoryID == category.id else { return }
+            dragState.update(
+                translation: value.translation,
+                pointerY: value.location.y,
+                pointerX: value.location.x,
+                rows: categoryDragRows,
+                protecting: protectedCategoryIDs,
+                canDrop: canAcceptCategoryDrop()
+            )
+            guard let commit = dragState.finish(
+                protecting: protectedCategoryIDs,
+                canDrop: canAcceptCategoryDrop()
+            ) else {
+                cancelCategoryDrag()
+                return
+            }
+
+            Task { @MainActor in
+                _ = await model.reorder(categoryIDs: commit.reorderedCategoryIDs)
+            }
         }
     }
 
-    private func commitCategoryMove(_ movingCategoryID: Int, _ targetCategoryID: Int) -> Bool {
-        let protectedIDs = Set(model.catalog.categories.filter(\.isSystem).map(\.id))
-        guard let categoryIDs = dragState.commit(
-            moving: movingCategoryID,
-            to: targetCategoryID,
-            protecting: protectedIDs
-        ) else {
-            cancelCategoryDrag()
-            return false
+    private var protectedCategoryIDs: Set<Int> {
+        Set(model.catalog.categories.filter(\.isSystem).map(\.id))
+    }
+
+    private var categoryDragRows: [CategoryDragRowFrame] {
+        displayedCategories.compactMap { category in
+            rowFrames[category.id].map {
+                CategoryDragRowFrame(categoryID: category.id, frame: $0)
+            }
         }
+    }
+
+    private func moveByKeyboard(
+        _ category: ArticleCategory,
+        offset: Int,
+        presentation: CategoryManagementRowPresentation
+    ) -> KeyPress.Result {
+        let allowed = offset < 0 ? presentation.canMoveUp : presentation.canMoveDown
+        guard allowed else { return .ignored }
+        moveByAccessibility(category, offset: offset, presentation: presentation)
+        return .handled
+    }
+
+    private func moveByAccessibility(
+        _ category: ArticleCategory,
+        offset: Int,
+        presentation: CategoryManagementRowPresentation
+    ) {
+        let allowed = offset < 0 ? presentation.canMoveUp : presentation.canMoveDown
+        guard allowed, canMove(category, offset: offset) else { return }
         Task { @MainActor in
-            _ = await model.reorder(categoryIDs: categoryIDs)
+            await model.reorder(moving: category.id, offset: offset)
         }
-        return true
     }
 
     private func cancelCategoryDrag() {
-        guard dragState.draggedCategoryID != nil || dragState.previewCategoryIDs != nil else {
-            return
-        }
+        guard dragState.isDragging else { return }
         withAnimation(.snappy(duration: 0.18)) {
             dragState.cancel()
         }
     }
 }
 
-private struct CategoryReorderDropDelegate: DropDelegate {
-    let targetCategoryID: Int
-    let targetIsSystem: Bool
-    let draggedCategoryID: Int?
-    let categoryIDs: () -> [Int]
-    let protectedCategoryIDs: () -> Set<Int>
-    let canDrop: () -> Bool
-    let onEnter: (Int, Int) -> Void
-    let onDrop: (Int, Int) -> Bool
-    let onCancel: () -> Void
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        guard case .move = resolution else {
-            return DropProposal(operation: .forbidden)
-        }
-        return DropProposal(operation: .move)
-    }
-
-    func dropEntered(info: DropInfo) {
-        guard case let .move(movingCategoryID, targetCategoryID, _) = resolution else { return }
-        onEnter(movingCategoryID, targetCategoryID)
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        guard case let .move(movingCategoryID, targetCategoryID, _) = resolution else {
-            onCancel()
-            return false
-        }
-        let accepted = onDrop(movingCategoryID, targetCategoryID)
-        if !accepted {
-            onCancel()
-        }
-        return accepted
-    }
-
-    private var resolution: CategoryDropResolution {
-        CategoryDragState.dropResolution(
-            draggedCategoryID: draggedCategoryID,
-            targetCategoryID: targetCategoryID,
-            targetIsSystem: targetIsSystem,
-            categoryIDs: categoryIDs(),
-            protectedCategoryIDs: protectedCategoryIDs(),
-            canDrop: canDrop()
-        )
-    }
+private enum CategoryManagementDragLayout {
+    static let coordinateSpaceName = "category-management-drag"
 }
 
 private struct CategoryDeleteSheet: View {

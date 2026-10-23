@@ -656,6 +656,75 @@ struct CategoryCatalogModelTests {
             // 预期在本地并发校验阶段失败。
         }
     }
+
+    @Test func 排序请求等待响应时立即采用乐观顺序() async throws {
+        let service = 排序闸门分类服务桩(
+            目录: CategoriesResponse(
+                categories: [
+                    分类(id: 1, sortOrder: 10),
+                    分类(id: 2, sortOrder: 20),
+                    分类(id: 3, sortOrder: 30),
+                ],
+                counts: [:]
+            ),
+            排序结果: CategoryReorderResponse(categories: [
+                分类(id: 2, sortOrder: 10),
+                分类(id: 1, sortOrder: 20),
+                分类(id: 3, sortOrder: 30),
+            ])
+        )
+        let model = CategoryCatalogModel(service: service, recentStore: 最近分类存储桩())
+        model.prepareUser(userID: 7)
+        await model.load()
+
+        let 排序任务 = Task { @MainActor in
+            try await model.reorder(categoryIDs: [2, 1, 3])
+        }
+        await service.等待第一次排序开始()
+
+        #expect(model.categories.map(\.id) == [2, 1, 3])
+        #expect(model.isMutating)
+
+        await service.放行排序响应()
+        try await 排序任务.value
+
+        #expect(model.categories.map(\.id) == [2, 1, 3])
+    }
+
+    @Test func 排序失败会恢复等待期间的原始顺序() async {
+        let service = 排序闸门分类服务桩(
+            目录: CategoriesResponse(
+                categories: [
+                    分类(id: 1, sortOrder: 10),
+                    分类(id: 2, sortOrder: 20),
+                    分类(id: 3, sortOrder: 30),
+                ],
+                counts: [:]
+            ),
+            排序失败: .network
+        )
+        let model = CategoryCatalogModel(service: service, recentStore: 最近分类存储桩())
+        model.prepareUser(userID: 7)
+        await model.load()
+
+        let 排序任务 = Task { @MainActor in
+            do {
+                try await model.reorder(categoryIDs: [2, 1, 3])
+                Issue.record("排序服务失败时不应报告成功")
+            } catch {
+                // 预期由目录模型回报服务错误。
+            }
+        }
+        await service.等待第一次排序开始()
+
+        #expect(model.categories.map(\.id) == [2, 1, 3])
+
+        await service.放行排序响应()
+        await 排序任务.value
+
+        #expect(model.categories.map(\.id) == [1, 2, 3])
+        #expect(model.errorMessage != nil)
+    }
 }
 
 private func 分类(
@@ -820,14 +889,19 @@ private actor 并发目录服务桩: CategoryCatalogServicing {
 
 private actor 排序闸门分类服务桩: CategoryCatalogServicing {
     private let 目录: CategoriesResponse
-    private let 排序结果: CategoryReorderResponse
+    private let 排序结果: Result<CategoryReorderResponse, AppError>
     private var 排序请求: [[Int]] = []
     private var 第一次排序开始: CheckedContinuation<Void, Never>?
     private var 待放行排序: [CheckedContinuation<Void, Never>] = []
 
     init(目录: CategoriesResponse, 排序结果: CategoryReorderResponse) {
         self.目录 = 目录
-        self.排序结果 = 排序结果
+        self.排序结果 = .success(排序结果)
+    }
+
+    init(目录: CategoriesResponse, 排序失败: AppError) {
+        self.目录 = 目录
+        self.排序结果 = .failure(排序失败)
     }
 
     func list(includeInactive: Bool) async throws -> CategoriesResponse {
@@ -843,7 +917,7 @@ private actor 排序闸门分类服务桩: CategoryCatalogServicing {
         await withCheckedContinuation { continuation in
             待放行排序.append(continuation)
         }
-        return 排序结果
+        return try 排序结果.get()
     }
 
     func 等待第一次排序开始() async {

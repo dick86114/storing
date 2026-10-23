@@ -51,6 +51,15 @@ struct UILabTests {
         #expect(UILabFixtures.appModel.categoryCatalog === UILabFixtures.categoryCatalog)
     }
 
+    @Test func 界面实验室分类排序响应同步更新可观察顺序() async throws {
+        let service = FixtureCategoryCatalogService(categories: UILabFixtures.categoryFixtures)
+
+        let response = try await service.reorder(categoryIDs: [1, 3, 2, 4, 5, 6])
+
+        #expect(response.categories.map(\.id) == [1, 3, 2, 4, 5, 6])
+        #expect(response.categories.map(\.sortOrder) == [0, 10, 20, 30, 40, 50])
+    }
+
     @Test func uiLabTaskFixturesCoverEveryActionState() {
         let statuses = UILabFixtures.collectJobs.map(\.status)
 
