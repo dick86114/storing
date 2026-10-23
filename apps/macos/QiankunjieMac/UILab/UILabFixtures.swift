@@ -68,6 +68,36 @@ enum UILabFixtures {
         isFavorited: true
     )
 
+    static let readerCategories = [
+        ArticleCategory(
+            id: 1,
+            name: "待整理",
+            sortOrder: 0,
+            isSystem: true
+        ),
+        ArticleCategory(
+            id: 2,
+            name: "产品设计",
+            color: "#536CCB",
+            sortOrder: 10
+        ),
+        ArticleCategory(
+            id: 3,
+            name: "工程实践",
+            color: "#2F6A4F",
+            sortOrder: 20
+        ),
+    ]
+
+    static let categoryCatalog: CategoryCatalogModel = {
+        let catalog = CategoryCatalogModel(
+            service: UILabCategoryCatalogService(categories: readerCategories),
+            recentStore: CategoryRecentStore(defaults: preferences)
+        )
+        catalog.prepareUser(userID: user.id)
+        return catalog
+    }()
+
     static let articles = [
         article,
         ArticleCard(
@@ -124,6 +154,7 @@ enum UILabFixtures {
         collectRepository: FixtureCollectRepository(jobs: collectJobs),
         shortcutDefaults: preferences,
         readerPositionStore: MemoryReaderPositionStore(),
+        categoryCatalog: categoryCatalog
     )
 
     static func libraryModel(for state: FixtureLibraryState) -> LibraryModel {
@@ -336,11 +367,13 @@ private final class MemoryReaderPositionStore: ReaderPositionStoring, @unchecked
     }
 }
 
-struct UILabReaderClient: ReaderNetworkClient {
-    private let detail: ArticleDetail
+actor UILabReaderClient: ReaderNetworkClient {
+    private var detail: ArticleDetail
+    private let categories: [ArticleCategory]
 
-    init(detail: ArticleDetail) {
+    init(detail: ArticleDetail, categories: [ArticleCategory]) {
         self.detail = detail
+        self.categories = categories
     }
 
     func articleDetail(_ selection: ReaderSelection) async throws -> ArticleDetail {
@@ -348,23 +381,28 @@ struct UILabReaderClient: ReaderNetworkClient {
     }
 
     func toggleFavorite(articleID: Int) async throws -> ReaderFavoriteResult {
-        ReaderFavoriteResult(isFavorited: true)
+        detail = 更新详情(isFavorited: true)
+        return ReaderFavoriteResult(isFavorited: true)
     }
 
     func archive(articleID: Int, categoryID: Int?) async throws -> ReaderArchiveResult {
-        ReaderArchiveResult(isArchived: false)
+        detail = 更新详情(isArchived: true, categoryID: categoryID)
+        return ReaderArchiveResult(isArchived: true)
     }
 
     func unarchive(articleID: Int) async throws -> ReaderArchiveResult {
-        ReaderArchiveResult(isArchived: false)
+        detail = 更新详情(isArchived: false)
+        return ReaderArchiveResult(isArchived: false)
     }
 
     func publish(articleID: Int) async throws -> ReaderPublicationResult {
-        ReaderPublicationResult(article: detail, publicURL: nil)
+        detail = 更新详情(isPublished: true)
+        return ReaderPublicationResult(article: detail, publicURL: nil)
     }
 
     func unpublish(articleID: Int) async throws -> ReaderPublicationResult {
-        ReaderPublicationResult(article: detail, publicURL: nil)
+        detail = 更新详情(isPublished: false)
+        return ReaderPublicationResult(article: detail, publicURL: nil)
     }
 
     func refetch(articleID: Int) async throws -> ReaderRefetchResult {
@@ -385,16 +423,150 @@ struct UILabReaderClient: ReaderNetworkClient {
 
     func permanentDelete(articleID: Int) async throws {}
 
-    func renameArticle(articleID: Int, title: String) async throws {}
-    func categories() async throws -> [QiankunjieCore.ArticleCategory] { [] }
-    func createCategory(name: String) async throws -> QiankunjieCore.ArticleCategory {
-        ArticleCategory(id: -1, name: name)
+    func renameArticle(articleID: Int, title: String) async throws {
+        detail = 更新详情(title: title)
     }
-    func moveArticleToCategory(articleID: Int, categoryID: Int) async throws {}
+
+    func moveArticleToCategory(articleID: Int, categoryID: Int) async throws {
+        detail = 更新详情(isArchived: true, categoryID: categoryID)
+    }
+
+    private func 更新详情(
+        title: String? = nil,
+        isFavorited: Bool? = nil,
+        isArchived: Bool? = nil,
+        isPublished: Bool? = nil,
+        categoryID: Int? = nil
+    ) -> ArticleDetail {
+        let category = categoryID.flatMap { categoryID in
+            categories.first { $0.id == categoryID }
+        } ?? detail.category
+
+        return ArticleDetail(
+            id: detail.id,
+            title: title ?? detail.title,
+            author: detail.author,
+            source: detail.source,
+            originalURL: detail.originalURL,
+            publicID: detail.publicID,
+            coverImage: detail.coverImage,
+            publishTime: detail.publishTime,
+            createdAt: detail.createdAt,
+            aiSummary: detail.aiSummary,
+            aiCategory: detail.aiCategory,
+            aiTags: detail.aiTags,
+            category: category,
+            categoryResult: detail.categoryResult,
+            isFavorited: isFavorited ?? detail.isFavorited,
+            isArchived: isArchived ?? detail.isArchived,
+            isPublished: isPublished ?? detail.isPublished,
+            contentHTML: detail.contentHTML,
+            contentMarkdown: detail.contentMarkdown,
+            aiStatus: detail.aiStatus,
+            aiErrorCode: detail.aiErrorCode,
+            aiErrorMessage: detail.aiErrorMessage,
+            aiModel: detail.aiModel,
+            aiTotalTokens: detail.aiTotalTokens
+        )
+    }
 }
 
 extension UILabFixtures {
-    static let readerClient = UILabReaderClient(detail: articleDetail)
+    static let readerClient = UILabReaderClient(
+        detail: articleDetail,
+        categories: readerCategories
+    )
+}
+
+private actor UILabCategoryCatalogService: CategoryCatalogServicing {
+    private var categories: [ArticleCategory]
+
+    init(categories: [ArticleCategory]) {
+        self.categories = categories
+    }
+
+    func list(includeInactive: Bool) async throws -> CategoriesResponse {
+        目录响应()
+    }
+
+    func create(_ request: CategoryMutationRequest) async throws -> CategoryResponse {
+        let nextID = (categories.map(\.id).max() ?? 0) + 1
+        let category = ArticleCategory(
+            id: nextID,
+            name: request.name ?? "未命名分类",
+            articleDescription: request.description,
+            includeExamples: request.includeExamples ?? [],
+            excludeExamples: request.excludeExamples ?? [],
+            color: request.color,
+            sortOrder: (categories.map(\.sortOrder).max() ?? 0) + 10
+        )
+        categories.append(category)
+        return CategoryResponse(category: category)
+    }
+
+    func update(
+        categoryID: Int,
+        request: CategoryMutationRequest
+    ) async throws -> CategoryResponse {
+        guard let index = categories.firstIndex(where: { $0.id == categoryID }) else {
+            throw AppError.contentUnavailable
+        }
+        let current = categories[index]
+        let category = ArticleCategory(
+            id: current.id,
+            name: request.name ?? current.name,
+            articleDescription: request.description ?? current.articleDescription,
+            includeExamples: request.includeExamples ?? current.includeExamples,
+            excludeExamples: request.excludeExamples ?? current.excludeExamples,
+            color: request.color ?? current.color,
+            sortOrder: current.sortOrder,
+            isActive: request.isActive ?? current.isActive,
+            isSystem: current.isSystem
+        )
+        categories[index] = category
+        return CategoryResponse(category: category)
+    }
+
+    func reorder(categoryIDs: [Int]) async throws -> CategoryReorderResponse {
+        let order = Dictionary(
+            uniqueKeysWithValues: categoryIDs.enumerated().map { ($1, $0) }
+        )
+        categories.sort {
+            order[$0.id, default: Int.max] < order[$1.id, default: Int.max]
+        }
+        return CategoryReorderResponse(categories: categories)
+    }
+
+    func delete(
+        categoryID: Int,
+        targetCategoryID: Int
+    ) async throws -> DeleteCategoryResponse {
+        categories.removeAll { $0.id == categoryID }
+        return DeleteCategoryResponse(movedArticleCount: 0)
+    }
+
+    func merge(sourceCategoryID: Int, targetCategoryID: Int) async throws {
+        categories.removeAll { $0.id == sourceCategoryID }
+    }
+
+    func optimize(_ request: CategoryOptimizeRequest) async throws -> CategoryOptimizeResponse {
+        CategoryOptimizeResponse(
+            draft: CategoryOptimizeDraft(
+                description: request.description,
+                includeExamples: request.includeExamples,
+                excludeExamples: request.excludeExamples
+            )
+        )
+    }
+
+    private func 目录响应() -> CategoriesResponse {
+        CategoriesResponse(
+            categories: categories,
+            counts: Dictionary(
+                uniqueKeysWithValues: categories.map { (String($0.id), 0) }
+            )
+        )
+    }
 }
 
 struct UILabFixtureUpdateService: UpdateServicing {

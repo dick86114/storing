@@ -262,6 +262,7 @@ struct RootWindow: View {
         ReaderPaneView(
             selection: model.selectedReaderSelection,
             userID: model.user?.id,
+            categoryCatalog: model.categoryCatalog,
             appFont: model.settingsModel.appFont,
             readerContentWidth: model.settingsModel.readerContentWidth,
             onReaderContentWidthChange: {
