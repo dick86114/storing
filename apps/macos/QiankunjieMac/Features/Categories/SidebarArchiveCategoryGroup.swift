@@ -20,12 +20,19 @@ struct SidebarArchiveCategoryGroup: View {
         .sheet(isPresented: $isQuickCreatePresented) {
             CategoryQuickCreateView(
                 catalog: model.categoryCatalog,
-                onSubmit: model.createCategoryAndSelect,
+                onSubmit: model.createCategory,
                 onCancel: {
                     isQuickCreatePresented = false
                 },
-                onCreated: { _ in
-                    isQuickCreatePresented = false
+                onCreated: { category in
+                    model.selectCategory(category.id)
+                    if model.selectedCategoryID == category.id {
+                        isQuickCreatePresented = false
+                    } else {
+                        model.categoryCatalog.presentError(
+                            "分类已创建，但无法进入该分类，请稍后重试"
+                        )
+                    }
                 }
             )
         }

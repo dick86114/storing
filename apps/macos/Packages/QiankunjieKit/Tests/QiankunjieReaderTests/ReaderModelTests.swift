@@ -73,6 +73,47 @@ struct ReaderModelTests {
         #expect(model.article?.detail.aiStatus == "succeeded")
     }
 
+    @Test func 阅读器AI后台完成会发出目录刷新信号() async {
+        let client = 模拟阅读客户端(
+            detail: ArticleDetail(id: 12, isArchived: true, aiStatus: "queued")
+        )
+        let model = ReaderModel(client: client)
+        await model.open(articleID: 12)
+        var 刷新信号次数 = 0
+        model.onCategoryAffectingChange = {
+            刷新信号次数 += 1
+        }
+        await client.updateDetail(ArticleDetail(
+            id: 12,
+            category: ArticleCategory(id: 31, name: "工程实践"),
+            isArchived: true,
+            aiStatus: "succeeded"
+        ))
+
+        await model.refreshAIStatusOnce()
+        await model.refreshAIStatusOnce()
+
+        #expect(刷新信号次数 == 1)
+    }
+
+    @Test func 阅读器手动分类归档取消归档删除都会发出目录刷新信号() async {
+        let client = 模拟阅读客户端()
+        let model = ReaderModel(client: client)
+        await model.open(articleID: 12)
+        var 刷新信号次数 = 0
+        model.onCategoryAffectingChange = {
+            刷新信号次数 += 1
+        }
+
+        await model.archive(categoryID: 31)
+        _ = await model.moveToCategory(32)
+        await model.moveToInbox()
+        await model.delete()
+        await model.deletePermanent()
+
+        #expect(刷新信号次数 == 5)
+    }
+
     @Test func 阅读器归档会携带手工分类并在完成后回调资料库() async {
         let client = 模拟阅读客户端()
         let model = ReaderModel(client: client)
@@ -184,15 +225,17 @@ struct ReaderModelTests {
     }
 
     @Test func 阅读器保留分类失效的结构化错误() async {
-        let client = 模拟阅读客户端(moveError: .contentUnavailable)
+        let client = 模拟阅读客户端(
+            moveError: .categoryUnavailable(message: "分类已停用，不能用于归类")
+        )
         let model = ReaderModel(client: client)
 
         await model.open(articleID: 12)
         let moved = await model.moveToCategory(31)
 
         #expect(!moved)
-        #expect(model.actionError == .contentUnavailable)
-        #expect(model.actionErrorMessage == "请求的文章不可用")
+        #expect(model.actionError == .categoryUnavailable(message: "分类已停用，不能用于归类"))
+        #expect(model.actionErrorMessage == "分类已停用，不能用于归类")
     }
 
     @Test func API客户端游客公开路由不带认证头() async throws {
@@ -238,6 +281,37 @@ struct ReaderModelTests {
         #expect(model.article?.id == 92)
         #expect(model.article?.isFavorited == false)
         #expect(model.actionErrorMessage == nil)
+    }
+
+    @Test func 用户切换后旧动作不会清掉新动作忙碌锁() async throws {
+        let client = 模拟阅读客户端()
+        let model = ReaderModel(client: client, userID: 1)
+        await model.open(articleID: 91)
+        await client.holdFavorite()
+
+        let 旧用户动作 = Task {
+            await model.toggleFavorite()
+        }
+        await client.waitForRequestCount(2)
+
+        model.prepareUser(userID: 2)
+        await model.open(articleID: 92)
+        await client.holdNextMove()
+        let 新用户动作 = Task {
+            await model.moveToCategory(31)
+        }
+        await client.waitForMoveRequestCount(1)
+
+        await client.resumeFavorite()
+        await 旧用户动作.value
+
+        #expect(model.isPerformingAction)
+
+        await client.resumeMove()
+        _ = await 新用户动作.value
+
+        #expect(!model.isPerformingAction)
+        #expect(model.article?.category?.id == 31)
     }
 
     @Test func 旧删除响应不会关闭切换后的文章() async throws {
@@ -435,6 +509,10 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
     private var shouldHoldDelete = false
     private var favoriteContinuation: CheckedContinuation<ReaderFavoriteResult, Error>?
     private var deleteContinuation: CheckedContinuation<ReaderDeleteResult, Error>?
+    private var shouldHoldNextMove = false
+    private var moveContinuations: [CheckedContinuation<Void, Error>] = []
+    private var moveRequestCount = 0
+    private var moveRequestWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
     private var requestWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
 
     init(
@@ -537,8 +615,16 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
     }
 
     func moveArticleToCategory(articleID: Int, categoryID: Int) async throws {
+        moveRequestCount += 1
+        notifyMoveRequestWaiters()
         if let moveError {
             throw moveError
+        }
+        if shouldHoldNextMove {
+            shouldHoldNextMove = false
+            try await withCheckedThrowingContinuation { continuation in
+                moveContinuations.append(continuation)
+            }
         }
         categoryPaths.append("articles/\(articleID)/category")
         lastMovedCategoryID = categoryID
@@ -572,6 +658,23 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
         shouldHoldDelete = true
     }
 
+    func holdNextMove() {
+        shouldHoldNextMove = true
+    }
+
+    func waitForMoveRequestCount(_ count: Int) async {
+        guard moveRequestCount < count else { return }
+        await withCheckedContinuation { continuation in
+            moveRequestWaiters[count, default: []].append(continuation)
+        }
+    }
+
+    func resumeMove(with result: Result<Void, Error> = .success(())) {
+        guard !moveContinuations.isEmpty else { return }
+        let continuation = moveContinuations.removeFirst()
+        continuation.resume(with: result)
+    }
+
     func resumeDelete() {
         deleteContinuation?.resume(returning: ReaderDeleteResult(deleted: true))
         deleteContinuation = nil
@@ -591,6 +694,14 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
         let readyKeys = requestWaiters.keys.filter { $0 <= paths.count }
         for key in readyKeys {
             let waiters = requestWaiters.removeValue(forKey: key) ?? []
+            waiters.forEach { $0.resume() }
+        }
+    }
+
+    private func notifyMoveRequestWaiters() {
+        let readyKeys = moveRequestWaiters.keys.filter { $0 <= moveRequestCount }
+        for key in readyKeys {
+            let waiters = moveRequestWaiters.removeValue(forKey: key) ?? []
             waiters.forEach { $0.resume() }
         }
     }

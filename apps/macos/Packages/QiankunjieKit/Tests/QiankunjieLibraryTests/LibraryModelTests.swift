@@ -163,10 +163,10 @@ struct LibraryModelTests {
         #expect(model.categoryId == nil)
     }
 
-    @Test func 分类失败保留结构化错误() async {
+    @Test func 分类失败保留结构化错误和服务端消息() async {
         let repository = 模拟资料库仓库(
             pages: [1: .fixture(ids: [7], page: 1, totalPages: 1)],
-            bulkError: .contentUnavailable
+            bulkError: .categoryUnavailable(message: "分类已停用，不能用于归类")
         )
         let model = LibraryModel(
             repository: repository,
@@ -182,8 +182,8 @@ struct LibraryModelTests {
             category: ArticleCategory(id: 21, name: "产品设计")
         )
 
-        #expect(model.lastBulkActionError == .contentUnavailable)
-        #expect(model.bulkResult?.issues.isEmpty == false)
+        #expect(model.lastBulkActionError == .categoryUnavailable(message: "分类已停用，不能用于归类"))
+        #expect(model.bulkResult?.issues.first?.message == "分类已停用，不能用于归类")
     }
 
     @Test func 手动分类请求在途时切换用户不会更新新用户文章() async {
@@ -591,6 +591,106 @@ struct LibraryModelTests {
 
         #expect(model.selectedArticleID == 41)
         #expect(model.articles.map(\.id) == [41])
+    }
+
+    @Test func 资料库手动归档取消归档删除和分类都会通知目录刷新() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [7], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            bulkRepository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+        await model.load(reset: true)
+        var 刷新信号次数 = 0
+        model.onCatalogAffectingChange = {
+            刷新信号次数 += 1
+        }
+
+        await model.runArticleCategory(
+            articleID: 7,
+            category: ArticleCategory(id: 21, name: "产品设计")
+        )
+        await model.runArticleToolbarAction(.archive, articleID: 7, categoryID: 21)
+        await model.runArticleToolbarAction(.unarchive, articleID: 7)
+        await model.runArticleToolbarAction(.delete, articleID: 7)
+
+        #expect(刷新信号次数 == 4)
+    }
+
+    @Test func 资料库批量分类和AI后台完成都会通知目录刷新() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: ArticleListPage(
+                articles: [ArticleCard(id: 7, isArchived: true)],
+                total: 1,
+                page: 1,
+                perPage: 20,
+                totalPages: 1
+            )]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            bulkRepository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+        await model.load(reset: true)
+        var 刷新信号次数 = 0
+        model.onCatalogAffectingChange = {
+            刷新信号次数 += 1
+        }
+
+        model.toggleBulkMode()
+        model.selectAllLoadedForBulk()
+        await model.runBulkCategory(ArticleCategory(id: 21, name: "产品设计"))
+        #expect(刷新信号次数 == 1)
+
+        model.clearBulkResult()
+        model.selectAllLoadedForBulk()
+        await model.runBulkCategoryByAI()
+        #expect(刷新信号次数 == 1)
+
+        await repository.setArticleCard(ArticleCard(
+            id: 7,
+            category: ArticleCategory(id: 22, name: "工程实践"),
+            isArchived: true,
+            aiStatus: "succeeded"
+        ))
+        await model.refreshAIStatusesOnce()
+
+        #expect(刷新信号次数 == 2)
+    }
+
+    @Test func 资料库批量取消归档归档和删除都会通知目录刷新() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [7, 8], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            bulkRepository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+        await model.load(reset: true)
+        var 刷新信号次数 = 0
+        model.onCatalogAffectingChange = {
+            刷新信号次数 += 1
+        }
+        model.toggleBulkMode()
+
+        model.selectAllLoadedForBulk()
+        await model.runBulkToolbarAction(.unarchive)
+        model.selectAllLoadedForBulk()
+        await model.runBulkToolbarAction(.archive, categoryID: 21)
+        model.selectAllLoadedForBulk()
+        await model.runBulkToolbarAction(.delete)
+
+        #expect(刷新信号次数 == 3)
     }
 }
 

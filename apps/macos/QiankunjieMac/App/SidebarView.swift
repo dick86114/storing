@@ -328,12 +328,12 @@ struct SidebarView: View {
     }
 
     private func submitSearch() {
-        model.libraryModel.submitSearch()
+        model.submitLibrarySearch()
         reloadLibrary()
     }
 
     private func clearSearch() {
-        model.libraryModel.clearSearch()
+        model.clearLibrarySearch()
         reloadLibrary()
     }
 

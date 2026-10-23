@@ -169,6 +169,7 @@ final class AppModel {
     let searchModel: LibraryModel
     let bulkExportService: BulkArticleExportService
     private var weChatImportCoordinator: WeChatImportCoordinator?
+    private var categoryCatalogRefreshTask: Task<Void, Never>?
 
     var user: AuthenticatedUser?
     var destination: AppDestination = .published
@@ -258,6 +259,9 @@ final class AppModel {
                 }
             )
         }
+        self.libraryModel.onCatalogAffectingChange = { [weak self] in
+            self?.scheduleCategoryCatalogRefresh()
+        }
 
         settingsModel.onUserStateCleared = { [weak self] in
             await self?.synchronizeWithAuthentication()
@@ -336,6 +340,26 @@ final class AppModel {
         selectArticle(nil)
     }
 
+    /// 侧栏搜索会取消分类筛选，必须与共享导航状态一起清空分类 ID。
+    func submitLibrarySearch() {
+        selectedCategoryID = nil
+        libraryModel.submitSearch()
+    }
+
+    /// 清除搜索时保持侧栏、工具栏和列表的分类状态一致。
+    func clearLibrarySearch() {
+        selectedCategoryID = nil
+        libraryModel.clearSearch()
+    }
+
+    /// 阅读器等非资料库模型通过同一入口刷新列表和分类计数。
+    func handleLibraryDidChange() {
+        scheduleCategoryCatalogRefresh()
+        Task {
+            await libraryModel.load(reset: true)
+        }
+    }
+
     func selectSearchArticle(_ article: ArticleCard) {
         selectedArticleID = article.id
         selectedReaderSelection = ReaderSelection(
@@ -403,6 +427,11 @@ final class AppModel {
         Task {
             await libraryModel.load(reset: true)
         }
+    }
+
+    /// 轻量创建只负责产生分类，导航由表单成功回调完成，避免取消后仍被跳转。
+    func createCategory(_ draft: CategoryDraft) async throws -> ArticleCategory {
+        try await categoryCatalog.create(draft)
     }
 
     func createCategoryAndSelect(_ draft: CategoryDraft) async -> ArticleCategory? {
@@ -511,6 +540,8 @@ final class AppModel {
             userID: user?.id,
             view: destination.libraryView ?? .published
         )
+        categoryCatalogRefreshTask?.cancel()
+        categoryCatalogRefreshTask = nil
         categoryCatalog.prepareUser(userID: user?.id)
         collectModel.prepareUser(userID: user?.id)
         weChatImportCoordinator?.processPendingBatches()
@@ -528,6 +559,23 @@ final class AppModel {
 
         Task {
             await libraryModel.load(reset: true)
+        }
+    }
+
+    private func scheduleCategoryCatalogRefresh() {
+        let expectedUserID = categoryCatalog.userID
+        categoryCatalogRefreshTask?.cancel()
+        categoryCatalogRefreshTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(200))
+            guard
+                !Task.isCancelled,
+                let self,
+                self.categoryCatalog.userID == expectedUserID
+            else {
+                return
+            }
+            await self.categoryCatalog.load()
+            self.categoryCatalogRefreshTask = nil
         }
     }
 }

@@ -10,18 +10,13 @@ struct CategoryQuickCreateView: View {
     }
 
     @Bindable var catalog: CategoryCatalogModel
-    let initialName: String
     let primaryActionTitle: String
     let onCancel: () -> Void
     let onCreated: @MainActor (ArticleCategory) async -> Void
 
-    private let submitAction: @MainActor (CategoryDraft) async -> ArticleCategory?
-
     @Environment(\.colorScheme) private var colorScheme
-    @State private var draft: CategoryDraft
+    @State private var model: CategoryQuickCreateModel
     @State private var showsDetails = false
-    @State private var submissionState: CategoryQuickCreateSubmissionState
-    @State private var localErrorMessage: String?
     @State private var hasChosenColor = false
     @FocusState private var focusedField: 焦点字段?
 
@@ -33,55 +28,31 @@ struct CategoryQuickCreateView: View {
         onCreated: @escaping @MainActor (ArticleCategory) async -> Void
     ) {
         self.catalog = catalog
-        self.initialName = initialName
         self.primaryActionTitle = primaryActionTitle
         self.onCancel = onCancel
         self.onCreated = onCreated
-        self.submitAction = { draft in
-            do {
-                return try await catalog.create(draft)
-            } catch {
-                return nil
-            }
-        }
-
-        var initialDraft = CategoryDraft()
-        initialDraft.name = initialName
-        initialDraft.color = CategoryQuickCreatePolicy.suggestedColor(
-            for: initialName,
-            existingColors: catalog.activeCategories.compactMap(\.color)
-        )
-        _draft = State(initialValue: initialDraft)
-        _submissionState = State(
-            initialValue: CategoryQuickCreateSubmissionState(openedUserID: catalog.userID)
-        )
+        _model = State(initialValue: CategoryQuickCreateModel(
+            catalog: catalog,
+            initialName: initialName
+        ))
     }
 
     init(
         catalog: CategoryCatalogModel,
         initialName: String = "",
         primaryActionTitle: String = "创建分类",
-        onSubmit: @escaping @MainActor (CategoryDraft) async -> ArticleCategory?,
+        onSubmit: @escaping @MainActor (CategoryDraft) async throws -> ArticleCategory,
         onCancel: @escaping () -> Void,
         onCreated: @escaping @MainActor (ArticleCategory) async -> Void
     ) {
         self.catalog = catalog
-        self.initialName = initialName
         self.primaryActionTitle = primaryActionTitle
         self.onCancel = onCancel
         self.onCreated = onCreated
-        self.submitAction = onSubmit
-
-        var initialDraft = CategoryDraft()
-        initialDraft.name = initialName
-        initialDraft.color = CategoryQuickCreatePolicy.suggestedColor(
-            for: initialName,
-            existingColors: catalog.activeCategories.compactMap(\.color)
-        )
-        _draft = State(initialValue: initialDraft)
-        _submissionState = State(
-            initialValue: CategoryQuickCreateSubmissionState(openedUserID: catalog.userID)
-        )
+        _model = State(initialValue: CategoryQuickCreateModel(
+            catalog: catalog,
+            initialName: initialName
+        ))
     }
 
     var body: some View {
@@ -89,6 +60,7 @@ struct CategoryQuickCreateView: View {
             VStack(alignment: .leading, spacing: 18) {
                 header
                 nameField
+                sameNameSuggestion
                 detailsToggle
 
                 if showsDetails {
@@ -120,20 +92,21 @@ struct CategoryQuickCreateView: View {
                 focusedField = .description
             }
         }
-        .onChange(of: draft.name) {
-            localErrorMessage = nil
+        .onChange(of: model.draft.name) {
+            model.clearLocalError()
             guard !hasChosenColor else { return }
-            draft.color = CategoryQuickCreatePolicy.suggestedColor(
-                for: draft.name,
+            model.draft.color = CategoryQuickCreatePolicy.suggestedColor(
+                for: model.draft.name,
                 existingColors: catalog.activeCategories.compactMap(\.color)
             )
         }
         .onChange(of: catalog.userID) {
-            guard submissionState.userChanged(to: catalog.userID) else { return }
-            cancel()
+            guard model.isStaleForCurrentUser else { return }
+            model.handleUserChanged()
+            onCancel()
         }
         .onKeyPress(.escape) {
-            cancel()
+            取消()
             return .handled
         }
     }
@@ -152,15 +125,47 @@ struct CategoryQuickCreateView: View {
         VStack(alignment: .leading, spacing: 7) {
             Text("分类名称")
                 .font(.headline)
-            TextField("例如：产品设计", text: $draft.name)
+            TextField("例如：产品设计", text: $model.draft.name)
                 .textFieldStyle(.roundedBorder)
                 .focused($focusedField, equals: .name)
                 .disabled(isInteractionDisabled)
                 .accessibilityLabel("分类名称")
                 .onSubmit {
                     guard canSubmit else { return }
-                    Task { await submit() }
+                    开始提交()
                 }
+        }
+    }
+
+    @ViewBuilder
+    private var sameNameSuggestion: some View {
+        if let suggestion = model.conflictSuggestion ?? model.sameNameSuggestion {
+            Button {
+                Task { @MainActor in
+                    await 使用现有分类()
+                }
+            } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: "arrow.turn.down.right")
+                        .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("已存在同名分类")
+                            .font(.callout.weight(.medium))
+                        Text("使用现有分类「\(suggestion.name)」")
+                            .font(.callout)
+                            .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(11)
+                .background(
+                    QiankunjieColors.accent(for: colorScheme).opacity(0.09),
+                    in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(isInteractionDisabled)
+            .accessibilityLabel("使用现有分类 \(suggestion.name)")
         }
     }
 
@@ -195,12 +200,12 @@ struct CategoryQuickCreateView: View {
                 ruleEditor(
                     title: "适合收录",
                     placeholder: "例如：产品设计方法\n例如：用户体验案例",
-                    examples: $draft.includeExamples
+                    examples: $model.draft.includeExamples
                 )
                 ruleEditor(
                     title: "不适合收录",
                     placeholder: "例如：纯新闻快讯\n例如：临时活动通知",
-                    examples: $draft.excludeExamples
+                    examples: $model.draft.excludeExamples
                 )
             }
 
@@ -233,7 +238,7 @@ struct CategoryQuickCreateView: View {
 
             TextField(
                 "说明这个分类的长期归属边界。",
-                text: $draft.description,
+                text: $model.draft.description,
                 axis: .vertical
             )
             .lineLimit(3...5)
@@ -309,9 +314,9 @@ struct CategoryQuickCreateView: View {
                 ForEach(categoryPresetColors, id: \.self) { color in
                     Button {
                         hasChosenColor = true
-                        draft.color = color
+                        model.draft.color = color
                     } label: {
-                        colorSwatch(color, isSelected: draft.color == color)
+                        colorSwatch(color, isSelected: model.draft.color == color)
                     }
                     .buttonStyle(.plain)
                     .disabled(isInteractionDisabled)
@@ -322,12 +327,12 @@ struct CategoryQuickCreateView: View {
             ColorPicker(
                 selection: Binding(
                     get: {
-                        color(fromHex: draft.color)
+                        color(fromHex: model.draft.color)
                             ?? QiankunjieColors.accent(for: colorScheme)
                     },
                     set: {
                         hasChosenColor = true
-                        draft.color = hexString(from: $0) ?? categoryPresetColors[0]
+                        model.draft.color = hexString(from: $0) ?? categoryPresetColors[0]
                     }
                 )
             ) {
@@ -348,7 +353,7 @@ struct CategoryQuickCreateView: View {
             }
             .font(.callout)
             .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-        } else if let message = displayedErrorMessage {
+        } else if let message = model.displayedErrorMessage {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Image(systemName: "exclamationmark.triangle")
                     .foregroundStyle(.red)
@@ -381,7 +386,7 @@ struct CategoryQuickCreateView: View {
     private var actionBar: some View {
         HStack(spacing: 10) {
             Button("取消") {
-                cancel()
+                取消()
             }
             .keyboardShortcut(.cancelAction)
             .accessibilityLabel("取消新建分类")
@@ -389,9 +394,9 @@ struct CategoryQuickCreateView: View {
             Spacer(minLength: 0)
 
             Button {
-                Task { await submit() }
+                开始提交()
             } label: {
-                if isSubmitting {
+                if model.isSubmitting {
                     HStack(spacing: 6) {
                         ProgressView()
                             .controlSize(.mini)
@@ -409,94 +414,54 @@ struct CategoryQuickCreateView: View {
     }
 
     private var normalizedName: String {
-        CategoryQuickCreatePolicy.normalizedName(draft.name)
+        model.normalizedName
     }
 
     private var canSubmit: Bool {
-        CategoryQuickCreatePolicy.canSubmit(
-            name: draft.name,
-            isSubmitting: isBusy
-        )
-        && catalog.hasLoadedCatalog
-        && !catalog.isLoading
-        && !catalog.isMutating
-        && !isStaleForCurrentUser
-    }
-
-    private var isSubmitting: Bool {
-        submissionState.isSubmitting
-    }
-
-    private var isBusy: Bool {
-        isSubmitting || catalog.isMutating || catalog.isLoading
+        model.canSubmit
     }
 
     private var isInteractionDisabled: Bool {
-        isBusy || isStaleForCurrentUser
+        model.isInteractionDisabled
     }
 
     private var isInitialLoading: Bool {
-        catalog.isLoading && !catalog.hasLoadedCatalog
+        model.isInitialLoading
     }
 
-    private var isStaleForCurrentUser: Bool {
-        catalog.userID != submissionState.openedUserID
-    }
-
-    private var displayedErrorMessage: String? {
-        return catalog.errorMessage ?? localErrorMessage
-    }
-
-    private func submit() async {
-        guard canSubmit else { return }
-
-        localErrorMessage = nil
-        catalog.clearError()
-        var submittedDraft = draft
-        submittedDraft.name = normalizedName
-        draft = submittedDraft
-        guard let token = submissionState.beginSubmission(currentUserID: catalog.userID) else {
-            return
+    private func 开始提交() {
+        guard let task = model.startSubmission() else { return }
+        Task { @MainActor in
+            guard let category = await task.value else { return }
+            await onCreated(category)
         }
-
-        let category = await submitAction(submittedDraft)
-        guard submissionState.completeSubmission(
-            token: token,
-            currentUserID: catalog.userID
-        ) else {
-            return
-        }
-        guard let category else {
-            if catalog.errorMessage == nil {
-                localErrorMessage = "创建分类失败，请稍后重试"
-            }
-            focusedField = .name
-            return
-        }
-
-        await onCreated(category)
     }
 
-    private func cancel() {
-        submissionState.cancelSubmission()
+    private func 取消() {
+        model.cancel()
         onCancel()
+    }
+
+    private func 使用现有分类() async {
+        guard let category = model.useExistingCategory() else { return }
+        await onCreated(category)
     }
 
     private func optimizeDraft() async {
         guard !isInteractionDisabled, !normalizedName.isEmpty else { return }
 
-        localErrorMessage = nil
+        model.clearLocalError()
         catalog.clearError()
-        var optimizedDraft = draft
+        var optimizedDraft = model.draft
         optimizedDraft.name = normalizedName
 
         do {
-            draft = try await catalog.optimize(optimizedDraft)
+            model.draft = try await catalog.optimize(optimizedDraft)
             hasChosenColor = true
             focusedField = .description
         } catch {
             if catalog.errorMessage == nil {
-                localErrorMessage = managementErrorMessage(for: error)
+                model.presentLocalError(managementErrorMessage(for: error))
             }
         }
     }

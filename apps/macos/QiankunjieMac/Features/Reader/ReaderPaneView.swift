@@ -53,11 +53,13 @@ struct ReaderPaneView: View {
         self.networkClient = networkClient
         self.onClose = onClose
         self.onLibraryDidChange = onLibraryDidChange
-        _model = State(initialValue: ReaderModel(
+        let readerModel = ReaderModel(
             client: networkClient,
             positionStore: positionStore,
             userID: userID
-        ))
+        )
+        readerModel.onCategoryAffectingChange = onLibraryDidChange
+        _model = State(initialValue: readerModel)
     }
 
     var body: some View {
@@ -173,8 +175,7 @@ struct ReaderPaneView: View {
                 userID: userID,
                 currentCategoryID: article.category?.id,
                 mode: mode,
-                onDismiss: { categorySheetMode = nil },
-                onDidComplete: onLibraryDidChange
+                onDismiss: { categorySheetMode = nil }
             )
         }
         .confirmationDialog(
@@ -469,8 +470,7 @@ struct ReaderPaneView: View {
                         userID: userID,
                         currentCategoryID: article.category?.id,
                         mode: .move,
-                        onDismiss: { isCategoryPickerPresented = false },
-                        onDidComplete: onLibraryDidChange
+                        onDismiss: { isCategoryPickerPresented = false }
                     )
                 }
             } else {
@@ -575,11 +575,9 @@ struct ReaderPaneView: View {
                 await model.regenerateAI()
             case .delete:
                 await model.delete()
-                onLibraryDidChange()
                 return
             case .deletePermanent:
                 await model.deletePermanent()
-                onLibraryDidChange()
                 return
             case .openOriginal(let url):
                 if ReaderNavigationPolicy.decision(for: url) == .openExternally {
@@ -588,7 +586,7 @@ struct ReaderPaneView: View {
                 return
             }
 
-            if model.actionErrorMessage == nil {
+            if action != .inbox, model.actionErrorMessage == nil {
                 onLibraryDidChange()
             }
         }
@@ -640,15 +638,15 @@ enum ReaderCategoryOutcomeMapper {
             return .success(succeededCount: 1, skippedCount: 0)
         }
 
+        if case let .categoryUnavailable(errorMessage) = error {
+            let displayMessage = message ?? errorMessage
+            return .categoryUnavailable(message: displayMessage)
+        }
+
         let fallbackMessage = error == .contentUnavailable ? "请求的文章不可用" : "分类失败"
         let displayMessage = message ?? fallbackMessage
         if error == .contentUnavailable {
-            switch operation {
-            case .move:
-                return .categoryUnavailable(message: displayMessage)
-            case .archive, .classify:
-                return .contentUnavailable(message: displayMessage)
-            }
+            return .contentUnavailable(message: displayMessage)
         }
         return .failure(message: displayMessage)
     }
@@ -662,7 +660,6 @@ private struct ReaderCategoryPickerContainer: View {
     let currentCategoryID: Int?
     let mode: ReaderCategorySheetMode
     let onDismiss: () -> Void
-    let onDidComplete: () -> Void
 
     @State private var pickerModel: CategoryPickerModel
 
@@ -672,8 +669,7 @@ private struct ReaderCategoryPickerContainer: View {
         userID: Int?,
         currentCategoryID: Int?,
         mode: ReaderCategorySheetMode,
-        onDismiss: @escaping () -> Void,
-        onDidComplete: @escaping () -> Void
+        onDismiss: @escaping () -> Void
     ) {
         self.model = model
         self.categoryCatalog = categoryCatalog
@@ -681,7 +677,6 @@ private struct ReaderCategoryPickerContainer: View {
         self.currentCategoryID = currentCategoryID
         self.mode = mode
         self.onDismiss = onDismiss
-        self.onDidComplete = onDidComplete
         _pickerModel = State(initialValue: CategoryPickerModel(
             catalog: categoryCatalog,
             selectedCategoryID: mode.selectedCategoryID(
@@ -747,9 +742,6 @@ private struct ReaderCategoryPickerContainer: View {
             message: model.actionErrorMessage,
             operation: operation
         )
-        if succeeded, categoryCatalog.userID == userID {
-            onDidComplete()
-        }
         return outcome
     }
 }

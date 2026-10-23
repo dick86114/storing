@@ -76,6 +76,8 @@ func managementErrorMessage(for error: any Error) -> String {
         return "操作过于频繁，请稍后再试"
     case .contentUnavailable:
         return "请求的内容不存在或已失效"
+    case let .categoryUnavailable(message):
+        return message
     case let .categoryConflict(message):
         return message
     case .invalidInput:

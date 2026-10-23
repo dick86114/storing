@@ -275,9 +275,7 @@ struct RootWindow: View {
                 model.closeArticle()
             },
             onLibraryDidChange: {
-                Task {
-                    await model.libraryModel.load(reset: true)
-                }
+                model.handleLibraryDidChange()
             }
         )
     }

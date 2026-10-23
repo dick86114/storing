@@ -182,15 +182,18 @@ struct UILabRootView: View {
         NavigationSplitView {
             SidebarView(
                 model: UILabFixtures.appModel,
-                destinationSelection: .constant(.inbox)
+                destinationSelection: Binding(
+                    get: { UILabFixtures.appModel.destination },
+                    set: { UILabFixtures.appModel.selectDestination($0) }
+                )
             )
             .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
         } content: {
             CompactArticleListView(
-                model: UILabFixtures.libraryModel,
+                model: UILabFixtures.appModel.libraryModel,
                 categoryCatalog: UILabFixtures.categoryCatalog,
-                selectedCategoryID: nil,
-                onSelectCategory: { _ in },
+                selectedCategoryID: UILabFixtures.appModel.selectedCategoryID,
+                onSelectCategory: { UILabFixtures.appModel.selectCategory($0) },
                 selection: .constant(UILabFixtures.article.id),
                 presentationMode: $presentationMode
             )
@@ -292,10 +295,10 @@ private struct UILabCategoryPickerScene: View {
     private func 分类结果(for category: ArticleCategory) -> CategoryAssignmentOutcome {
         if category.name == "生活" || category.name == "项目复盘" {
             return .partial(
-                succeededCount: 2,
-                skippedCount: 0,
+                succeededCount: 1,
+                skippedCount: 1,
                 failedCount: 1,
-                message: "1 篇文章已被其他操作锁定，请稍后重试"
+                message: "成功 1 篇，跳过 1 篇，失败 1 篇；1 篇文章已被其他操作锁定，请稍后重试"
             )
         }
         return .success(succeededCount: 3, skippedCount: 0)

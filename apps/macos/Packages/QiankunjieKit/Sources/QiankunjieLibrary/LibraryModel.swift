@@ -52,6 +52,7 @@ public final class LibraryModel {
     public private(set) var bulkResult: NativeBulkResult?
     public private(set) var lastBulkActionError: AppError?
     public private(set) var bulkExportURL: URL?
+    @ObservationIgnored public var onCatalogAffectingChange: (@MainActor () -> Void)?
 
     private let repository: any LibraryLoading
     private let bulkRepository: any LibraryBulkOperating
@@ -500,6 +501,10 @@ public final class LibraryModel {
                 }
                 bulkSelection.subtract(result.succeededIDs)
                 bulkResult = NativeBulkResult(from: result)
+                notifyCatalogAffectingChange(
+                    succeededIDs: result.succeededIDs,
+                    action: action
+                )
             }
         } catch {
             guard isCurrentBulkOperation(context) else { return }
@@ -606,6 +611,10 @@ public final class LibraryModel {
                     updateArticles(withIDs: result.succeededIDs, action: action)
                 }
                 bulkResult = NativeBulkResult(from: result)
+                notifyCatalogAffectingChange(
+                    succeededIDs: result.succeededIDs,
+                    action: action
+                )
             }
         } catch {
             guard isCurrentBulkOperation(context) else { return }
@@ -664,6 +673,7 @@ public final class LibraryModel {
                 replacing(card, category: category)
             }
             bulkResult = NativeBulkResult(from: result)
+            notifyCatalogAffectingChange(succeededIDs: result.succeededIDs)
         } catch {
             guard isCurrentBulkOperation(context) else { return }
             lastBulkActionError = error as? AppError
@@ -738,6 +748,7 @@ public final class LibraryModel {
             }
             bulkSelection.subtract(result.succeededIDs)
             bulkResult = NativeBulkResult(from: result)
+            notifyCatalogAffectingChange(succeededIDs: result.succeededIDs)
         } catch {
             guard isCurrentBulkOperation(context) else { return }
             lastBulkActionError = error as? AppError
@@ -838,6 +849,19 @@ public final class LibraryModel {
         articles = articles.map { card in
             changedIDs.contains(card.id) ? transform(card) : card
         }
+    }
+
+    private func notifyCatalogAffectingChange(
+        succeededIDs: [Int],
+        action: BulkToolbarAction
+    ) {
+        guard !succeededIDs.isEmpty, action.changesCategoryCounts else { return }
+        onCatalogAffectingChange?()
+    }
+
+    private func notifyCatalogAffectingChange(succeededIDs: [Int]) {
+        guard !succeededIDs.isEmpty else { return }
+        onCatalogAffectingChange?()
     }
 
     private func applyAIResult(_ result: ArticleBulkAIResult) {
@@ -993,6 +1017,14 @@ public final class LibraryModel {
             return false
         }
 
+        let pendingIDsBeforeRefresh = Set(
+            articles
+                .filter { $0.aiStatus == "queued" || $0.aiStatus == "running" }
+                .map(\.id)
+        )
+        let categoryIDsBeforeRefresh = Dictionary(
+            uniqueKeysWithValues: articles.map { ($0.id, $0.category?.id) }
+        )
         var refreshedArticles: [ArticleCard] = []
         var refreshedPage = page
         var refreshedTotal = total
@@ -1011,6 +1043,18 @@ public final class LibraryModel {
             total = refreshedTotal
             totalPages = refreshedTotalPages
             bulkSelection = bulkSelection.intersection(Set(articles.map(\.id)))
+            let pendingIDsAfterRefresh = Set(
+                articles
+                    .filter { $0.aiStatus == "queued" || $0.aiStatus == "running" }
+                    .map(\.id)
+            )
+            let completedAIIDs = pendingIDsBeforeRefresh.subtracting(pendingIDsAfterRefresh)
+            let categoryChanged = articles.contains { article in
+                categoryIDsBeforeRefresh[article.id] != article.category?.id
+            }
+            if !completedAIIDs.isEmpty || categoryChanged {
+                onCatalogAffectingChange?()
+            }
             scheduleAIPollingIfPending()
             return articles.contains(where: { $0.aiStatus == "queued" || $0.aiStatus == "running" })
         } catch {
@@ -1035,6 +1079,8 @@ public final class LibraryModel {
             "请求过于频繁，请稍后再试"
         case .contentUnavailable:
             "请求的资料不可用"
+        case let .categoryUnavailable(message):
+            message
         case let .categoryConflict(message):
             message
         case .invalidInput:
@@ -1059,6 +1105,17 @@ public extension ArticleSort {
         case .favorites: .favorited
         case .archive: .archived
         case .published: .published
+        }
+    }
+}
+
+private extension BulkToolbarAction {
+    var changesCategoryCounts: Bool {
+        switch self {
+        case .archive, .unarchive, .delete, .permanentDelete:
+            true
+        default:
+            false
         }
     }
 }

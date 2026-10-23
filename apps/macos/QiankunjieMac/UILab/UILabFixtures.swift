@@ -127,12 +127,13 @@ enum UILabFixtures {
 
     static let categoryRecentIDs = [2, 3]
     static let readerCategories = categoryFixtures
+    static let categoryService = FixtureCategoryCatalogService(categories: readerCategories)
 
     static let categoryCatalog: CategoryCatalogModel = {
         let recentStore = CategoryRecentStore(defaults: preferences)
         recentStore.save(categoryRecentIDs, userID: user.id)
         let catalog = CategoryCatalogModel(
-            service: FixtureCategoryCatalogService(categories: readerCategories),
+            service: categoryService,
             recentStore: recentStore
         )
         catalog.prepareUser(userID: user.id)
@@ -199,6 +200,7 @@ enum UILabFixtures {
             categoryCatalog: categoryCatalog
         )
         model.user = user
+        model.destination = .inbox
         return model
     }()
 
@@ -407,10 +409,16 @@ private final class MemoryReaderPositionStore: ReaderPositionStoring, @unchecked
 actor UILabReaderClient: ReaderNetworkClient {
     private var detail: ArticleDetail
     private let categories: [ArticleCategory]
+    private let categoryService: FixtureCategoryCatalogService?
 
-    init(detail: ArticleDetail, categories: [ArticleCategory]) {
+    init(
+        detail: ArticleDetail,
+        categories: [ArticleCategory],
+        categoryService: FixtureCategoryCatalogService? = nil
+    ) {
         self.detail = detail
         self.categories = categories
+        self.categoryService = categoryService
     }
 
     func articleDetail(_ selection: ReaderSelection) async throws -> ArticleDetail {
@@ -465,6 +473,10 @@ actor UILabReaderClient: ReaderNetworkClient {
     }
 
     func moveArticleToCategory(articleID: Int, categoryID: Int) async throws {
+        if categoryID == 4 {
+            await categoryService?.禁用下次刷新分类(categoryID)
+            throw AppError.categoryUnavailable(message: "分类已停用，请重新选择")
+        }
         detail = 更新详情(isArchived: true, categoryID: categoryID)
     }
 
@@ -511,14 +523,16 @@ actor UILabReaderClient: ReaderNetworkClient {
 extension UILabFixtures {
     static let readerClient = UILabReaderClient(
         detail: articleDetail,
-        categories: readerCategories
+        categories: readerCategories,
+        categoryService: categoryService
     )
 }
 
-private actor FixtureCategoryCatalogService: CategoryCatalogServicing {
+actor FixtureCategoryCatalogService: CategoryCatalogServicing {
     private var categories: [ArticleCategory]
     private var counts: [String: Int]
     private var shouldFailNextListAfterMerge = false
+    private var categoryToDisableOnNextList: Int?
 
     init(categories: [ArticleCategory]) {
         self.categories = categories
@@ -531,6 +545,11 @@ private actor FixtureCategoryCatalogService: CategoryCatalogServicing {
     }
 
     func list(includeInactive: Bool) async throws -> CategoriesResponse {
+        if let categoryID = categoryToDisableOnNextList {
+            categoryToDisableOnNextList = nil
+            categories.removeAll { $0.id == categoryID }
+            counts[String(categoryID)] = 0
+        }
         if shouldFailNextListAfterMerge {
             shouldFailNextListAfterMerge = false
             throw AppError.network
@@ -538,7 +557,13 @@ private actor FixtureCategoryCatalogService: CategoryCatalogServicing {
         return 目录响应()
     }
 
+    func 禁用下次刷新分类(_ categoryID: Int) {
+        categoryToDisableOnNextList = categoryID
+    }
+
     func create(_ request: CategoryMutationRequest) async throws -> CategoryResponse {
+        // 保留可观察的提交窗口，便于人工验证提交中取消不会静默跳转。
+        try await Task.sleep(for: .seconds(2))
         let nextID = (categories.map(\.id).max() ?? 0) + 1
         let category = ArticleCategory(
             id: nextID,

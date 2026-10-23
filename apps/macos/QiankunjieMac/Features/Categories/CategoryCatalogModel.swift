@@ -21,6 +21,8 @@ final class CategoryCatalogModel: Observable {
     @ObservationIgnored private var loadSequence = 0
     @ObservationIgnored private var catalogRevision = 0
     @ObservationIgnored private var activeMutationCount = 0
+    @ObservationIgnored private var refreshFlight: 目录刷新任务?
+    @ObservationIgnored private var refreshFlightID = 0
 
     var activeCategories: [ArticleCategory] {
         categories.filter(\.isActive)
@@ -46,6 +48,8 @@ final class CategoryCatalogModel: Observable {
         loadSequence += 1
         catalogRevision += 1
         activeMutationCount = 0
+        refreshFlight?.task.cancel()
+        refreshFlight = nil
         self.userID = userID
         categories = []
         counts = [:]
@@ -63,44 +67,83 @@ final class CategoryCatalogModel: Observable {
     }
 
     func load() async {
-        do {
-            try await refreshCatalog()
-        } catch CategoryCatalogInternalError.请求已过期 {
-            return
-        } catch {
-            errorMessage = managementErrorMessage(for: error)
-        }
+        await loadCatalog(force: true)
     }
 
-    private func refreshCatalog() async throws {
+    /// 优先使用已成功加载的可信缓存，仅在首次加载或目录失效时请求服务端。
+    func refreshIfNeeded() async {
+        await loadCatalog(force: false)
+    }
+
+    private func loadCatalog(force: Bool) async {
         guard userID != nil else { return }
+        if !force, hasLoadedCatalog { return }
+
+        if let refreshFlight {
+            await refreshFlight.task.value
+            return
+        }
 
         let generation = requestGeneration
         let revision = catalogRevision
         loadSequence += 1
         let sequence = loadSequence
+        refreshFlightID += 1
+        let flightID = refreshFlightID
         isLoading = true
         errorMessage = nil
 
-        defer {
-            if generation == requestGeneration && sequence == loadSequence {
-                isLoading = false
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if generation == requestGeneration, sequence == loadSequence {
+                    isLoading = false
+                }
+            }
+
+            do {
+                let response = try await service.list(includeInactive: true)
+                guard
+                    generation == requestGeneration,
+                    sequence == loadSequence,
+                    revision == catalogRevision
+                else {
+                    return
+                }
+                applyLoadedCatalog(response)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard
+                    generation == requestGeneration,
+                    sequence == loadSequence,
+                    revision == catalogRevision
+                else {
+                    return
+                }
+                errorMessage = managementErrorMessage(for: error)
             }
         }
 
-        let response: CategoriesResponse
-        do {
-            response = try await service.list(includeInactive: true)
-        } catch {
-            guard generation == requestGeneration, sequence == loadSequence, revision == catalogRevision else {
-                throw CategoryCatalogInternalError.请求已过期
-            }
-            throw error
+        refreshFlight = 目录刷新任务(id: flightID, task: task)
+        await task.value
+
+        if refreshFlight?.id == flightID {
+            refreshFlight = nil
         }
-        guard generation == requestGeneration, sequence == loadSequence, revision == catalogRevision else {
+    }
+
+    private func refreshCatalogDirect() async throws {
+        let generation = requestGeneration
+        let revision = catalogRevision
+        let response = try await service.list(includeInactive: true)
+        guard generation == requestGeneration, revision == catalogRevision else {
             throw CategoryCatalogInternalError.请求已过期
         }
+        applyLoadedCatalog(response)
+    }
 
+    private func applyLoadedCatalog(_ response: CategoriesResponse) {
         let previousCategories = categories
         let previousCounts = counts
         categories = sortedCategories(response.categories)
@@ -136,7 +179,7 @@ final class CategoryCatalogModel: Observable {
             $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame
         }) else {
             errorMessage = "已存在同名启用分类，请换一个名称"
-            throw CategoryCatalogInternalError.同名分类
+            throw AppError.categoryConflict(message: "已存在同名启用分类，请换一个名称")
         }
 
         let generation = try beginMutation()
@@ -148,6 +191,9 @@ final class CategoryCatalogModel: Observable {
             applyCreatedCategory(response.category)
             return response.category
         } catch {
+            if case AppError.categoryConflict = error, generation == requestGeneration {
+                try? await refreshCatalogDirect()
+            }
             handleMutationError(error, generation: generation)
             throw error
         }
@@ -264,7 +310,7 @@ final class CategoryCatalogModel: Observable {
         )
 
         do {
-            try await refreshCatalog()
+            try await refreshCatalogDirect()
         } catch CategoryCatalogInternalError.请求已过期 {
             throw CategoryCatalogInternalError.请求已过期
         } catch {
@@ -508,5 +554,9 @@ private enum CategoryCatalogInternalError: Error {
     case 操作进行中
     case 名称为空
     case 名称过长
-    case 同名分类
+}
+
+private struct 目录刷新任务 {
+    let id: Int
+    let task: Task<Void, Never>
 }

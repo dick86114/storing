@@ -376,6 +376,23 @@ struct CategoryManagementModelTests {
         #expect(model.noticeMessage == nil)
     }
 
+    @Test func 提交中取消后保留可能已创建的显式提示() {
+        let catalog = CategoryCatalogModel(
+            service: 分类管理服务桩(列表响应: []),
+            recentStore: 最近分类存储桩()
+        )
+        let model = CategoryManagementModel(catalog: catalog)
+        let 提示 = "已取消创建。分类可能已在服务器创建，正在刷新分类目录。"
+        catalog.presentError(提示)
+        model.isCreating = true
+
+        model.cancelCreation()
+
+        #expect(!model.isCreating)
+        #expect(model.errorMessage == 提示)
+        #expect(catalog.errorMessage == nil)
+    }
+
 }
 
 private func 分类(
