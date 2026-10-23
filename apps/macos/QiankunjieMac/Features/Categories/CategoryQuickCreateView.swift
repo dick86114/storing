@@ -12,7 +12,7 @@ struct CategoryQuickCreateView: View {
     @Bindable var catalog: CategoryCatalogModel
     let primaryActionTitle: String
     let onCancel: () -> Void
-    let onCreated: @MainActor (ArticleCategory) async -> Void
+    let onCompleted: @MainActor (CategoryQuickCreateResult) async -> Void
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var model: CategoryQuickCreateModel
@@ -25,12 +25,12 @@ struct CategoryQuickCreateView: View {
         initialName: String = "",
         primaryActionTitle: String = "创建分类",
         onCancel: @escaping () -> Void,
-        onCreated: @escaping @MainActor (ArticleCategory) async -> Void
+        onCompleted: @escaping @MainActor (CategoryQuickCreateResult) async -> Void
     ) {
         self.catalog = catalog
         self.primaryActionTitle = primaryActionTitle
         self.onCancel = onCancel
-        self.onCreated = onCreated
+        self.onCompleted = onCompleted
         _model = State(initialValue: CategoryQuickCreateModel(
             catalog: catalog,
             initialName: initialName
@@ -43,12 +43,12 @@ struct CategoryQuickCreateView: View {
         primaryActionTitle: String = "创建分类",
         onSubmit: @escaping @MainActor (CategoryDraft) async throws -> ArticleCategory,
         onCancel: @escaping () -> Void,
-        onCreated: @escaping @MainActor (ArticleCategory) async -> Void
+        onCompleted: @escaping @MainActor (CategoryQuickCreateResult) async -> Void
     ) {
         self.catalog = catalog
         self.primaryActionTitle = primaryActionTitle
         self.onCancel = onCancel
-        self.onCreated = onCreated
+        self.onCompleted = onCompleted
         _model = State(initialValue: CategoryQuickCreateModel(
             catalog: catalog,
             initialName: initialName
@@ -433,7 +433,7 @@ struct CategoryQuickCreateView: View {
         guard let task = model.startSubmission() else { return }
         Task { @MainActor in
             guard let category = await task.value else { return }
-            await onCreated(category)
+            await onCompleted(.created(category))
         }
     }
 
@@ -444,7 +444,7 @@ struct CategoryQuickCreateView: View {
 
     private func 使用现有分类() async {
         guard let category = model.useExistingCategory() else { return }
-        await onCreated(category)
+        await onCompleted(.reusedExisting(category))
     }
 
     private func optimizeDraft() async {

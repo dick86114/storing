@@ -8,8 +8,7 @@ extension ArticleCategory: @retroactive Identifiable {}
 struct CategoryManagementView: View {
     @State private var model: CategoryManagementModel
     @State private var mergingCategory: ArticleCategory?
-    @State private var draggedCategoryID: Int?
-    @State private var dragPreviewCategoryIDs: [Int]?
+    @State private var dragState = CategoryDragState()
     @Environment(\.colorScheme) private var colorScheme
 
     init(catalog: CategoryCatalogModel) {
@@ -30,13 +29,18 @@ struct CategoryManagementView: View {
         }
         .onChange(of: model.catalog.userID) {
             mergingCategory = nil
-            draggedCategoryID = nil
-            dragPreviewCategoryIDs = nil
+            dragState.cancel()
             model.resetForUserChange()
         }
         .onChange(of: model.searchText) {
-            draggedCategoryID = nil
-            dragPreviewCategoryIDs = nil
+            dragState.cancel()
+        }
+        .onChange(of: model.catalog.canReorder) { _, canReorder in
+            guard !canReorder else { return }
+            dragState.cancel()
+        }
+        .onDisappear {
+            dragState.cancel()
         }
         .sheet(isPresented: $model.isCreating) {
             CategoryQuickCreateView(
@@ -45,8 +49,8 @@ struct CategoryManagementView: View {
                 onCancel: {
                     model.cancelCreation()
                 },
-                onCreated: { category in
-                    model.didCreate(category)
+                onCompleted: { result in
+                    model.didCompleteQuickCreate(result)
                 }
             )
         }
@@ -389,24 +393,35 @@ struct CategoryManagementView: View {
                 )
         }
         .contentShape(RoundedRectangle(cornerRadius: 9))
-        .opacity(draggedCategoryID == category.id ? 0.58 : 1)
-        .scaleEffect(draggedCategoryID == category.id ? 0.985 : 1)
+        .opacity(dragState.draggedCategoryID == category.id ? 0.58 : 1)
+        .scaleEffect(dragState.draggedCategoryID == category.id ? 0.985 : 1)
         .onDrag {
             guard canDrag(category) else {
+                dragState.cancel()
                 return NSItemProvider()
             }
-            draggedCategoryID = category.id
-            dragPreviewCategoryIDs = model.catalog.categories.map(\.id)
+            guard dragState.begin(
+                categoryID: category.id,
+                categoryIDs: model.catalog.categories.map(\.id)
+            ) else {
+                return NSItemProvider()
+            }
             return NSItemProvider(object: String(category.id) as NSString)
+        }
+        .onDragSessionUpdated { session in
+            guard CategoryDragState.shouldCancel(for: session.phase) else { return }
+            cancelCategoryDrag()
         }
         .onDrop(
             of: [UTType.text],
             delegate: CategoryReorderDropDelegate(
                 targetCategoryID: category.id,
                 targetIsSystem: category.isSystem,
-                draggedCategoryID: $draggedCategoryID,
+                draggedCategoryID: dragState.draggedCategoryID,
+                canDrop: canAcceptCategoryDrop,
                 onEnter: previewCategoryMove,
-                onDrop: commitCategoryMove
+                onDrop: commitCategoryMove,
+                onCancel: cancelCategoryDrag
             )
         )
     }
@@ -693,11 +708,11 @@ struct CategoryManagementView: View {
     }
 
     private var isBusy: Bool {
-        model.isSaving || model.isOptimizing || model.catalog.isMutating
+        model.isBusy
     }
 
     private var displayedCategories: [ArticleCategory] {
-        guard let dragPreviewCategoryIDs else {
+        guard let dragPreviewCategoryIDs = dragState.previewCategoryIDs else {
             return model.filteredCategories
         }
         let order = Dictionary(uniqueKeysWithValues: dragPreviewCategoryIDs.enumerated().map {
@@ -714,12 +729,21 @@ struct CategoryManagementView: View {
 
     private func canDrag(_ category: ArticleCategory) -> Bool {
         !category.isSystem
-            && !isBusy
+            && model.catalog.canReorder
+            && !model.isSaving
+            && !model.isOptimizing
+            && model.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func canAcceptCategoryDrop() -> Bool {
+        model.catalog.canReorder
+            && !model.isSaving
+            && !model.isOptimizing
             && model.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func canMove(_ category: ArticleCategory, to targetIndex: Int?) -> Bool {
-        guard !category.isSystem, !isBusy, let targetIndex else { return false }
+        guard !category.isSystem, canAcceptCategoryDrop(), let targetIndex else { return false }
         guard model.catalog.categories.indices.contains(targetIndex) else { return false }
         return !model.catalog.categories[targetIndex].isSystem
     }
@@ -733,33 +757,34 @@ struct CategoryManagementView: View {
 
     private func previewCategoryMove(_ movingCategoryID: Int, _ targetCategoryID: Int) {
         let protectedIDs = Set(model.catalog.categories.filter(\.isSystem).map(\.id))
-        guard
-            let currentIDs = dragPreviewCategoryIDs,
-            let reorderedIDs = CategoryOrdering.reorderedIDs(
-                currentIDs,
-                moving: movingCategoryID,
-                to: targetCategoryID,
-                protecting: protectedIDs
-            )
-        else {
+        var nextState = dragState
+        guard nextState.preview(
+            moving: movingCategoryID,
+            to: targetCategoryID,
+            protecting: protectedIDs
+        ) else {
             return
         }
         withAnimation(.snappy(duration: 0.18)) {
-            dragPreviewCategoryIDs = reorderedIDs
+            dragState = nextState
         }
     }
 
     private func commitCategoryMove(_ movingCategoryID: Int, _ targetCategoryID: Int) {
-        guard let categoryIDs = dragPreviewCategoryIDs else {
-            draggedCategoryID = nil
+        guard let categoryIDs = dragState.commit() else {
             return
         }
-        draggedCategoryID = nil
-        Task {
+        Task { @MainActor in
             _ = await model.reorder(categoryIDs: categoryIDs)
-            withAnimation(.snappy(duration: 0.18)) {
-                dragPreviewCategoryIDs = nil
-            }
+        }
+    }
+
+    private func cancelCategoryDrag() {
+        guard dragState.draggedCategoryID != nil || dragState.previewCategoryIDs != nil else {
+            return
+        }
+        withAnimation(.snappy(duration: 0.18)) {
+            dragState.cancel()
         }
     }
 }
@@ -767,43 +792,40 @@ struct CategoryManagementView: View {
 private struct CategoryReorderDropDelegate: DropDelegate {
     let targetCategoryID: Int
     let targetIsSystem: Bool
-    @Binding var draggedCategoryID: Int?
+    let draggedCategoryID: Int?
+    let canDrop: () -> Bool
     let onEnter: (Int, Int) -> Void
     let onDrop: (Int, Int) -> Void
+    let onCancel: () -> Void
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        guard
-            let draggedCategoryID,
-            draggedCategoryID != targetCategoryID,
-            !targetIsSystem
-        else {
+        guard case .move = resolution else {
             return DropProposal(operation: .forbidden)
         }
         return DropProposal(operation: .move)
     }
 
     func dropEntered(info: DropInfo) {
-        guard
-            let draggedCategoryID,
-            draggedCategoryID != targetCategoryID,
-            !targetIsSystem
-        else {
-            return
-        }
-        onEnter(draggedCategoryID, targetCategoryID)
+        guard case let .move(movingCategoryID, targetCategoryID) = resolution else { return }
+        onEnter(movingCategoryID, targetCategoryID)
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        defer { draggedCategoryID = nil }
-        guard
-            let draggedCategoryID,
-            draggedCategoryID != targetCategoryID,
-            !targetIsSystem
-        else {
+        guard case let .move(movingCategoryID, targetCategoryID) = resolution else {
+            onCancel()
             return false
         }
-        onDrop(draggedCategoryID, targetCategoryID)
+        onDrop(movingCategoryID, targetCategoryID)
         return true
+    }
+
+    private var resolution: CategoryDropResolution {
+        CategoryDragState.dropResolution(
+            draggedCategoryID: draggedCategoryID,
+            targetCategoryID: targetCategoryID,
+            targetIsSystem: targetIsSystem,
+            canDrop: canDrop()
+        )
     }
 }
 

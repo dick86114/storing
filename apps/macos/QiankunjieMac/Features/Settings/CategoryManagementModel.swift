@@ -39,7 +39,7 @@ final class CategoryManagementModel: Observable {
     }
 
     var isBusy: Bool {
-        isSaving || isOptimizing || catalog.isMutating
+        isSaving || isOptimizing || catalog.isMutating || catalog.isLoading
     }
 
     func load() async {
@@ -290,11 +290,15 @@ final class CategoryManagementModel: Observable {
     }
 
     func didCreate(_ category: ArticleCategory) {
+        didCompleteQuickCreate(.created(category))
+    }
+
+    func didCompleteQuickCreate(_ result: CategoryQuickCreateResult) {
         isCreating = false
         errorMessage = nil
-        selectedCategoryID = category.id
+        selectedCategoryID = result.category.id
         noticeMessage = nil
-        weakNoticeMessage = "分类「\(category.name)」已创建"
+        weakNoticeMessage = result.creationNotice
     }
 
     func cancelCreation() {

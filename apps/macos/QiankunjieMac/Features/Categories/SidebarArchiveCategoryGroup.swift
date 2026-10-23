@@ -9,7 +9,7 @@ struct SidebarArchiveCategoryGroup: View {
     @Binding var isExpanded: Bool
     @Environment(\.colorScheme) private var colorScheme
     @State private var isQuickCreatePresented = false
-    @State private var draggedCategoryID: Int?
+    @State private var dragState = CategoryDragState()
     @State private var weakNoticeMessage: String?
 
     var body: some View {
@@ -23,6 +23,20 @@ struct SidebarArchiveCategoryGroup: View {
         .selectionDisabled()
         .listRowBackground(Color.clear)
         .statusToast(message: $weakNoticeMessage)
+        .onChange(of: model.categoryCatalog.userID) {
+            dragState.cancel()
+        }
+        .onChange(of: model.categoryCatalog.canReorder) { _, canReorder in
+            guard !canReorder else { return }
+            dragState.cancel()
+        }
+        .onChange(of: isExpanded) { _, expanded in
+            guard !expanded else { return }
+            dragState.cancel()
+        }
+        .onDisappear {
+            dragState.cancel()
+        }
         .sheet(isPresented: $isQuickCreatePresented) {
             CategoryQuickCreateView(
                 catalog: model.categoryCatalog,
@@ -30,15 +44,14 @@ struct SidebarArchiveCategoryGroup: View {
                 onCancel: {
                     isQuickCreatePresented = false
                 },
-                onCreated: { category in
-                    weakNoticeMessage = "分类「\(category.name)」已创建"
+                onCompleted: { result in
+                    let category = result.category
+                    weakNoticeMessage = result.creationNotice
                     model.selectCategory(category.id)
                     if model.selectedCategoryID == category.id {
                         isQuickCreatePresented = false
                     } else {
-                        model.categoryCatalog.presentError(
-                            "分类已创建，但无法进入该分类，请稍后重试"
-                        )
+                        model.categoryCatalog.presentError(result.navigationFailureMessage)
                     }
                 }
             )
@@ -79,12 +92,8 @@ struct SidebarArchiveCategoryGroup: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
-        .help(model.isAuthenticated ? (isExpanded ? "收起归档分类" : "展开归档分类") : "打开全部归档")
-        .accessibilityLabel(
-            model.isAuthenticated
-                ? (isExpanded ? "收起归档分类" : "展开归档分类")
-                : "打开全部归档"
-        )
+        .help(archiveRowAccessibilityLabel)
+        .accessibilityLabel(archiveRowAccessibilityLabel)
         .padding(.vertical, 2)
         .background {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -137,8 +146,18 @@ struct SidebarArchiveCategoryGroup: View {
         } else {
             categoryRowContent(category)
                 .onDrag {
-                    draggedCategoryID = category.id
+                    guard canDrag(category), dragState.begin(
+                        categoryID: category.id,
+                        categoryIDs: model.categoryCatalog.activeCategories.map(\.id)
+                    ) else {
+                        dragState.cancel()
+                        return NSItemProvider()
+                    }
                     return NSItemProvider(object: String(category.id) as NSString)
+                }
+                .onDragSessionUpdated { session in
+                    guard CategoryDragState.shouldCancel(for: session.phase) else { return }
+                    dragState.cancel()
                 }
                 .onDrop(of: [UTType.text], delegate: categoryDropDelegate(for: category))
         }
@@ -188,15 +207,29 @@ struct SidebarArchiveCategoryGroup: View {
         SidebarCategoryReorderDropDelegate(
             targetCategoryID: category.id,
             targetIsSystem: category.isSystem,
-            draggedCategoryID: $draggedCategoryID
-        ) { movingCategoryID, targetCategoryID in
-            Task {
-                try? await model.categoryCatalog.reorder(
-                    moving: movingCategoryID,
-                    to: targetCategoryID
-                )
+            draggedCategoryID: dragState.draggedCategoryID,
+            canDrop: canAcceptCategoryDrop,
+            onDrop: { movingCategoryID, targetCategoryID in
+                dragState.cancel()
+                Task {
+                    try? await model.categoryCatalog.reorder(
+                        moving: movingCategoryID,
+                        to: targetCategoryID
+                    )
+                }
+            },
+            onCancel: {
+                dragState.cancel()
             }
-        }
+        )
+    }
+
+    private func canDrag(_ category: ArticleCategory) -> Bool {
+        !category.isSystem && model.categoryCatalog.canReorder
+    }
+
+    private func canAcceptCategoryDrop() -> Bool {
+        model.categoryCatalog.canReorder
     }
 
     private func toggleArchiveRow() {
@@ -303,6 +336,11 @@ struct SidebarArchiveCategoryGroup: View {
         model.destination == .archive && model.selectedCategoryID == nil
     }
 
+    private var archiveRowAccessibilityLabel: String {
+        guard model.isAuthenticated else { return "打开全部归档" }
+        return isExpanded ? "打开全部归档并收起分类" : "打开全部归档并展开分类"
+    }
+
     private var activeCategoryIDs: [Int] {
         model.categoryCatalog.activeCategories.map(\.id)
     }
@@ -319,31 +357,34 @@ struct SidebarArchiveCategoryGroup: View {
 private struct SidebarCategoryReorderDropDelegate: DropDelegate {
     let targetCategoryID: Int
     let targetIsSystem: Bool
-    @Binding var draggedCategoryID: Int?
-    let onMove: (Int, Int) -> Void
+    let draggedCategoryID: Int?
+    let canDrop: () -> Bool
+    let onDrop: (Int, Int) -> Void
+    let onCancel: () -> Void
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        guard
-            let draggedCategoryID,
-            draggedCategoryID != targetCategoryID,
-            !targetIsSystem
-        else {
+        guard case .move = resolution else {
             return DropProposal(operation: .forbidden)
         }
         return DropProposal(operation: .move)
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        defer { draggedCategoryID = nil }
-        guard
-            let draggedCategoryID,
-            draggedCategoryID != targetCategoryID,
-            !targetIsSystem
-        else {
+        guard case let .move(movingCategoryID, targetCategoryID) = resolution else {
+            onCancel()
             return false
         }
-        onMove(draggedCategoryID, targetCategoryID)
+        onDrop(movingCategoryID, targetCategoryID)
         return true
+    }
+
+    private var resolution: CategoryDropResolution {
+        CategoryDragState.dropResolution(
+            draggedCategoryID: draggedCategoryID,
+            targetCategoryID: targetCategoryID,
+            targetIsSystem: targetIsSystem,
+            canDrop: canDrop()
+        )
     }
 }
 

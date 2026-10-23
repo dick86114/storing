@@ -565,19 +565,112 @@ struct CategoryCatalogModelTests {
         #expect(await service.列表请求次数() == 1)
         #expect(model.count(for: 1) == 3)
     }
+
+    @Test func 排序前拒绝重复缺失或越界顺序() async {
+        let service = 分类服务桩(列表响应: [
+            .success(CategoriesResponse(
+                categories: [分类(id: 1, sortOrder: 10), 分类(id: 2, sortOrder: 20)],
+                counts: [:]
+            )),
+        ])
+        let model = CategoryCatalogModel(service: service, recentStore: 最近分类存储桩())
+        model.prepareUser(userID: 7)
+        await model.load()
+
+        for 非法顺序 in [[1], [1, 1], [1, 2, 99]] {
+            do {
+                try await model.reorder(categoryIDs: 非法顺序)
+                Issue.record("非法分类顺序不应提交：\(非法顺序)")
+            } catch {
+                // 预期在本地校验阶段失败。
+            }
+        }
+
+        #expect(await service.排序请求快照().isEmpty)
+        #expect(model.categories.map(\.id) == [1, 2])
+    }
+
+    @Test func 排序前拒绝改变系统分类位置() async {
+        let service = 分类服务桩(列表响应: [
+            .success(CategoriesResponse(
+                categories: [
+                    分类(id: 1, sortOrder: 10),
+                    分类(id: 2, sortOrder: 20, isSystem: true),
+                    分类(id: 3, sortOrder: 30),
+                ],
+                counts: [:]
+            )),
+        ])
+        let model = CategoryCatalogModel(service: service, recentStore: 最近分类存储桩())
+        model.prepareUser(userID: 7)
+        await model.load()
+
+        do {
+            try await model.reorder(categoryIDs: [3, 2, 1])
+            Issue.record("移动系统分类位置时必须在发请求前失败")
+        } catch {
+            // 预期在本地校验阶段失败。
+        }
+
+        #expect(await service.排序请求快照().isEmpty)
+        #expect(model.errorMessage == "系统分类必须保持固定位置")
+    }
+
+    @Test func 排序进行中再次排序不会发出第二次请求() async throws {
+        let service = 排序闸门分类服务桩(
+            目录: CategoriesResponse(
+                categories: [
+                    分类(id: 1, sortOrder: 10),
+                    分类(id: 2, sortOrder: 20),
+                    分类(id: 3, sortOrder: 30),
+                ],
+                counts: [:]
+            ),
+            排序结果: CategoryReorderResponse(categories: [
+                分类(id: 2, sortOrder: 10),
+                分类(id: 1, sortOrder: 20),
+                分类(id: 3, sortOrder: 30),
+            ])
+        )
+        let model = CategoryCatalogModel(service: service, recentStore: 最近分类存储桩())
+        model.prepareUser(userID: 7)
+        await model.load()
+
+        let 第一次排序 = Task { @MainActor in
+            try await model.reorder(categoryIDs: [2, 1, 3])
+        }
+        await service.等待第一次排序开始()
+        let 第二次排序 = Task { @MainActor in
+            try await model.reorder(categoryIDs: [3, 1, 2])
+        }
+        await service.等待排序请求数至少为(2, 超时毫秒: 200)
+
+        #expect(await service.排序请求快照() == [[2, 1, 3]])
+
+        await service.放行排序响应()
+        try await 第一次排序.value
+        do {
+            try await 第二次排序.value
+            Issue.record("排序进行中的第二次请求必须被拒绝")
+        } catch {
+            // 预期在本地并发校验阶段失败。
+        }
+    }
 }
 
 private func 分类(
     id: Int,
     name: String = "分类",
     sortOrder: Int,
-    isActive: Bool = true
+    isActive: Bool = true,
+    isSystem: Bool = false
 ) -> ArticleCategory {
     ArticleCategory(
         id: id,
         name: name,
         sortOrder: sortOrder,
-        isActive: isActive
+        isActive: isActive,
+        isSystem: isSystem
     )
 }
 
@@ -595,6 +688,7 @@ private actor 分类服务桩: CategoryCatalogServicing {
     private var 优化响应: [Result<CategoryOptimizeResponse, 分类服务测试错误>]
     private let 创建错误: AppError?
     private var 列表请求计数 = 0
+    private var 排序请求: [[Int]] = []
 
     init(
         列表响应: [Result<CategoriesResponse, 分类服务测试错误>] = [],
@@ -638,8 +732,13 @@ private actor 分类服务桩: CategoryCatalogServicing {
     }
 
     func reorder(categoryIDs: [Int]) async throws -> CategoryReorderResponse {
+        排序请求.append(categoryIDs)
         guard !排序响应.isEmpty else { throw 分类服务测试错误.缺少响应 }
         return try 排序响应.removeFirst().get()
+    }
+
+    func 排序请求快照() -> [[Int]] {
+        排序请求
     }
 
     func delete(categoryID: Int, targetCategoryID: Int) async throws -> DeleteCategoryResponse {
@@ -703,6 +802,80 @@ private actor 并发目录服务桩: CategoryCatalogServicing {
     }
 
     func reorder(categoryIDs: [Int]) async throws -> CategoryReorderResponse {
+        throw 分类服务测试错误.缺少响应
+    }
+
+    func delete(categoryID: Int, targetCategoryID: Int) async throws -> DeleteCategoryResponse {
+        throw 分类服务测试错误.缺少响应
+    }
+
+    func merge(sourceCategoryID: Int, targetCategoryID: Int) async throws {
+        throw 分类服务测试错误.缺少响应
+    }
+
+    func optimize(_ request: CategoryOptimizeRequest) async throws -> CategoryOptimizeResponse {
+        throw 分类服务测试错误.缺少响应
+    }
+}
+
+private actor 排序闸门分类服务桩: CategoryCatalogServicing {
+    private let 目录: CategoriesResponse
+    private let 排序结果: CategoryReorderResponse
+    private var 排序请求: [[Int]] = []
+    private var 第一次排序开始: CheckedContinuation<Void, Never>?
+    private var 待放行排序: [CheckedContinuation<Void, Never>] = []
+
+    init(目录: CategoriesResponse, 排序结果: CategoryReorderResponse) {
+        self.目录 = 目录
+        self.排序结果 = 排序结果
+    }
+
+    func list(includeInactive: Bool) async throws -> CategoriesResponse {
+        目录
+    }
+
+    func reorder(categoryIDs: [Int]) async throws -> CategoryReorderResponse {
+        排序请求.append(categoryIDs)
+        if 排序请求.count == 1 {
+            第一次排序开始?.resume()
+            第一次排序开始 = nil
+        }
+        await withCheckedContinuation { continuation in
+            待放行排序.append(continuation)
+        }
+        return 排序结果
+    }
+
+    func 等待第一次排序开始() async {
+        guard 排序请求.isEmpty else { return }
+        await withCheckedContinuation { continuation in
+            第一次排序开始 = continuation
+        }
+    }
+
+    func 等待排序请求数至少为(_ count: Int, 超时毫秒: Int) async {
+        let 轮询次数 = max(1, 超时毫秒 / 10)
+        for _ in 0..<轮询次数 {
+            if 排序请求.count >= count { return }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    func 排序请求快照() -> [[Int]] {
+        排序请求
+    }
+
+    func 放行排序响应() {
+        let continuations = 待放行排序
+        待放行排序.removeAll()
+        continuations.forEach { $0.resume() }
+    }
+
+    func create(_ request: CategoryMutationRequest) async throws -> CategoryResponse {
+        throw 分类服务测试错误.缺少响应
+    }
+
+    func update(categoryID: Int, request: CategoryMutationRequest) async throws -> CategoryResponse {
         throw 分类服务测试错误.缺少响应
     }
 

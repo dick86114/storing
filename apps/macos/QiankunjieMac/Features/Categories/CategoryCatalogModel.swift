@@ -40,6 +40,11 @@ final class CategoryCatalogModel: Observable {
         return recentCategoryIDs.compactMap { activeCategoriesByID[$0] }
     }
 
+    /// 拖拽开始和落点都复用同一就绪条件，避免刷新或变更期间提交顺序。
+    var canReorder: Bool {
+        hasLoadedCatalog && !isLoading && !isMutating
+    }
+
     init(
         service: any CategoryCatalogServicing,
         recentStore: any CategoryRecentStoring,
@@ -277,6 +282,7 @@ final class CategoryCatalogModel: Observable {
     }
 
     func reorder(categoryIDs: [Int]) async throws {
+        try validateReorder(categoryIDs)
         let generation = try beginMutation()
         defer { endMutation(generation) }
 
@@ -436,6 +442,49 @@ final class CategoryCatalogModel: Observable {
         isMutating = true
         errorMessage = nil
         return requestGeneration
+    }
+
+    private func validateReorder(_ categoryIDs: [Int]) throws {
+        guard hasLoadedCatalog else {
+            errorMessage = "分类目录尚未加载完成，请稍后重试"
+            throw CategoryCatalogInternalError.目录未加载
+        }
+        guard !isLoading else {
+            errorMessage = "分类目录正在更新，请稍后重试"
+            throw CategoryCatalogInternalError.目录正在更新
+        }
+        guard !isMutating else {
+            errorMessage = "分类目录正在处理其他操作，请稍后再试"
+            throw CategoryCatalogInternalError.操作进行中
+        }
+
+        let currentIDs = categories.map(\.id)
+        guard
+            categoryIDs.count == currentIDs.count,
+            Set(categoryIDs).count == categoryIDs.count,
+            Set(categoryIDs) == Set(currentIDs)
+        else {
+            errorMessage = "分类排序数据无效"
+            throw CategoryCatalogInternalError.排序数据无效
+        }
+
+        let protectedIDs = Set(categories.filter(\.isSystem).map(\.id))
+        for (originalIndex, categoryID) in currentIDs.enumerated() {
+            guard let proposedIndex = categoryIDs.firstIndex(of: categoryID) else {
+                errorMessage = "分类排序数据无效"
+                throw CategoryCatalogInternalError.排序数据无效
+            }
+            let originalProtectedDepth = currentIDs[..<originalIndex]
+                .filter(protectedIDs.contains)
+                .count
+            let proposedProtectedDepth = categoryIDs[..<proposedIndex]
+                .filter(protectedIDs.contains)
+                .count
+            guard originalProtectedDepth == proposedProtectedDepth else {
+                errorMessage = "系统分类必须保持固定位置"
+                throw CategoryCatalogInternalError.系统分类位置固定
+            }
+        }
     }
 
     private func endMutation(_ generation: Int) {
@@ -603,7 +652,10 @@ private enum CategoryCatalogInternalError: Error {
     case 未登录
     case 请求已过期
     case 目录未加载
+    case 目录正在更新
     case 操作进行中
+    case 排序数据无效
+    case 系统分类位置固定
     case 名称为空
     case 名称过长
 }
