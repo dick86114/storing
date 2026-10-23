@@ -52,6 +52,8 @@ class ArticleRepository @Inject constructor(
   suspend fun updateCategory(id: Int, request: CategoryMutationRequest) = api.updateCategory(id, request)
   suspend fun deleteCategory(id: Int, targetCategoryId: Int) = api.deleteCategory(id, targetCategoryId)
   suspend fun reorderCategories(categoryIds: List<Int>) = api.reorderCategories(CategoryReorderRequest(categoryIds))
+  suspend fun mergeCategories(sourceCategoryId: Int, targetCategoryId: Int) =
+    api.mergeCategories(CategoryMergeRequest(sourceCategoryId, targetCategoryId))
   suspend fun optimizeCategoryDescription(request: CategoryOptimizeRequest) = api.optimizeCategoryDescription(request)
   suspend fun tags() = api.tags()
   suspend fun detail(id: Int, publicId: String? = null) =

@@ -10,7 +10,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.launch
+import com.idickies.storing.categories.CategoryCatalogRepository
+import com.idickies.storing.categories.CategoryCreationResult
 import com.idickies.storing.library.ArticleCard
 import com.idickies.storing.network.ArticleCounts
 import com.idickies.storing.reader.ReadingPositionRepository
@@ -62,8 +65,11 @@ data class LibraryUiState(
   val archiveSources: List<ArticleSource> = emptyList(),
   val archiveSourcesLoading: Boolean = false,
   val archiveCategories: List<ArticleCategory> = emptyList(),
+  val recentArchiveCategories: List<ArticleCategory> = emptyList(),
+  val archiveCategoryCounts: Map<String, Int> = emptyMap(),
   val archiveCategoryId: Int? = null,
   val archiveCategoriesLoading: Boolean = false,
+  val archiveCategoriesError: String? = null,
   val archiveTagFilter: ArchiveTagFilter = ArchiveTagFilter.All,
   val archiveTags: List<ArticleTag> = emptyList(),
   val archiveTagsLoading: Boolean = false,
@@ -99,6 +105,7 @@ class LibraryViewModel @Inject constructor(
   private val readingPositionRepository: ReadingPositionRepository,
   private val offlineDownloadManager: OfflineDownloadManager,
   private val bulkExportDownloader: BulkExportDownloader,
+  private val categoryCatalogRepository: CategoryCatalogRepository,
 ) : ViewModel() {
   private val mutableState = MutableStateFlow(LibraryUiState())
   val state = mutableState.asStateFlow()
@@ -107,12 +114,26 @@ class LibraryViewModel @Inject constructor(
   private var searchDebounceJob: Job? = null
   private var loadMoreJob: Job? = null
   private var sourceLoadJob: Job? = null
-  private var categoryLoadJob: Job? = null
   private var tagLoadJob: Job? = null
+  private val categoryAssignmentMutex = Mutex()
   private var bulkExportPollJob: Job? = null
   private val lastSeenCounts = mutableMapOf<LibraryView, Int>()
 
   init {
+    viewModelScope.launch {
+      categoryCatalogRepository.state.collect { catalog ->
+        mutableState.update { state ->
+          state.copy(
+            archiveCategories = catalog.activeCategories,
+            recentArchiveCategories = catalog.recentCategories,
+            archiveCategoryCounts = catalog.counts,
+            archiveCategoriesLoading = catalog.loading && catalog.activeCategories.isEmpty(),
+            archiveCategoriesError = catalog.error,
+          )
+        }
+      }
+    }
+    viewModelScope.launch { categoryCatalogRepository.refresh() }
     loadInitial()
     loadCounts()
   }
@@ -121,7 +142,6 @@ class LibraryViewModel @Inject constructor(
     if (view == mutableState.value.view && mutableState.value.searchQuery.isEmpty()) return
     searchDebounceJob?.cancel()
     sourceLoadJob?.cancel()
-    categoryLoadJob?.cancel()
     tagLoadJob?.cancel()
     mutableState.update {
       it.copy(
@@ -234,28 +254,19 @@ class LibraryViewModel @Inject constructor(
 
   fun prepareArchiveCategories() = loadArchiveCategories(force = true)
 
+  suspend fun createCategoryForAssignment(rawName: String): CategoryCreationResult =
+    categoryCatalogRepository.createCategory(rawName)
+
   fun createArchiveCategory(
     rawName: String,
     onComplete: (category: ArticleCategory?, errorMessage: String?) -> Unit,
   ) {
-    val request = quickCreateCategoryRequest(rawName)
-    if (request.name.isNullOrBlank()) {
-      onComplete(null, "请输入分类名称")
-      return
-    }
     viewModelScope.launch {
-      runCatching { repository.createCategory(request).category }
-        .onSuccess { category ->
-          mutableState.update { state ->
-            state.copy(
-              archiveCategories = (state.archiveCategories + category)
-                .distinctBy(ArticleCategory::id)
-                .sortedBy(ArticleCategory::sortOrder),
-            )
-          }
-          onComplete(category, null)
-        }
-        .onFailure { error -> onComplete(null, error.message ?: "新增分类失败") }
+      when (val result = categoryCatalogRepository.createCategory(rawName)) {
+        is CategoryCreationResult.Created -> onComplete(result.category, null)
+        is CategoryCreationResult.Existing -> onComplete(result.category, "已存在同名分类，已为你选中")
+        is CategoryCreationResult.Failed -> onComplete(null, result.message)
+      }
     }
   }
 
@@ -443,19 +454,8 @@ class LibraryViewModel @Inject constructor(
   private fun loadArchiveCategories(force: Boolean = false) {
     val snapshot = mutableState.value
     if (!force && !ArchiveSourceFilter.isAvailableFor(snapshot.view, snapshot.searchQuery)) return
-    categoryLoadJob?.cancel()
-    mutableState.update { it.copy(archiveCategoriesLoading = true) }
-    categoryLoadJob = viewModelScope.launch {
-      try {
-        val response = repository.categories()
-        if (!force && !ArchiveSourceFilter.isAvailableFor(mutableState.value.view, mutableState.value.searchQuery)) return@launch
-        mutableState.update { it.copy(archiveCategories = response.categories, archiveCategoriesLoading = false) }
-      } catch (error: CancellationException) {
-        throw error
-      } catch (_: Throwable) {
-        if (!force && !ArchiveSourceFilter.isAvailableFor(mutableState.value.view, mutableState.value.searchQuery)) return@launch
-        mutableState.update { it.copy(archiveCategoriesLoading = false) }
-      }
+    viewModelScope.launch {
+      if (force) categoryCatalogRepository.refresh() else categoryCatalogRepository.ensureLoaded()
     }
   }
 
@@ -731,11 +731,116 @@ class LibraryViewModel @Inject constructor(
             articles = cards,
           )
         }
+        categoryCatalogRepository.recordRecentCategory(categoryId)
         loadArchiveCategories(force = true)
       }.onFailure { error ->
         mutableState.update { it.copy(processingError = error.message ?: "修改分类失败") }
       }
     }
+  }
+
+  suspend fun assignCategoryToArticle(
+    articleId: Int,
+    category: ArticleCategory,
+    archiveIfNeeded: Boolean,
+  ): CategoryAssignmentResult = withCategoryAssignmentLock {
+    runCatching {
+      if (archiveIfNeeded) {
+        repository.toggleArchive(articleId, archived = false, categoryId = category.id)
+      } else {
+        repository.moveToCategory(articleId, category.id)
+      }
+    }.fold(
+      onSuccess = { response ->
+        val archived = when (response) {
+          is ArchiveResponse -> response.isArchived
+          else -> true
+        }
+        if (!archived && archiveIfNeeded) {
+          CategoryAssignmentResult.CreatedButAssignmentFailed(category, "归档未完成")
+        } else {
+          applyAssignedCategory(setOf(articleId), category, archiveIfNeeded = archiveIfNeeded)
+          categoryCatalogRepository.recordRecentCategory(category.id)
+          categoryCatalogRepository.refresh()
+          CategoryAssignmentResult.Success(category, succeededCount = 1)
+        }
+      },
+      onFailure = { CategoryAssignmentResult.Failure(it.message ?: "分类失败") },
+    )
+  }
+
+  suspend fun assignCategoryToArticles(
+    articleIds: Set<Int>,
+    category: ArticleCategory,
+    archiveIfNeeded: Boolean,
+  ): CategoryAssignmentResult = withCategoryAssignmentLock {
+    if (articleIds.isEmpty()) return@withCategoryAssignmentLock CategoryAssignmentResult.Failure("请先选择文章")
+    runCatching {
+      if (archiveIfNeeded) {
+        repository.bulkAction(BulkArticleAction.Archive, articleIds.toList(), category.id)
+      } else {
+        repository.moveToCategory(articleIds.toList(), category.id)
+      }
+    }.fold(
+      onSuccess = { response ->
+        val succeededIds = response.succeededIds.toSet()
+        if (succeededIds.isNotEmpty()) {
+          applyAssignedCategory(succeededIds, category, archiveIfNeeded = archiveIfNeeded)
+          categoryCatalogRepository.recordRecentCategory(category.id)
+          categoryCatalogRepository.refresh()
+        }
+        val skipped = response.skipped.size
+        val failed = response.failed.size
+        when {
+          succeededIds.isEmpty() -> CategoryAssignmentResult.Failure(
+            (response.failed.firstOrNull()?.message ?: response.skipped.firstOrNull()?.message ?: "文章尚未分类，请重试"),
+          )
+          skipped == 0 && failed == 0 -> CategoryAssignmentResult.Success(category, succeededIds.size)
+          else -> CategoryAssignmentResult.Partial(category, succeededIds.size, skipped, failed)
+        }
+      },
+      onFailure = { CategoryAssignmentResult.Failure(it.message ?: "批量分类失败") },
+    )
+  }
+
+  private suspend fun withCategoryAssignmentLock(
+    block: suspend () -> CategoryAssignmentResult,
+  ): CategoryAssignmentResult {
+    if (!categoryAssignmentMutex.tryLock()) {
+      return CategoryAssignmentResult.Failure("分类请求正在处理中，请稍候")
+    }
+    return try {
+      block()
+    } finally {
+      categoryAssignmentMutex.unlock()
+    }
+  }
+
+  private fun applyAssignedCategory(
+    articleIds: Set<Int>,
+    category: ArticleCategory,
+    archiveIfNeeded: Boolean,
+  ) {
+    mutableState.update { state ->
+      val cards = state.articles.mapNotNull { card ->
+        if (card.id !in articleIds) card
+        else if (!archiveIfNeeded && state.view == LibraryView.Archive && state.archiveCategoryId != null && state.archiveCategoryId != category.id) null
+        else card.copy(category = category, isArchived = if (archiveIfNeeded) true else card.isArchived)
+      }.filterNot { card ->
+        articleIds.contains(card.id) && archiveIfNeeded && state.view != LibraryView.Archive
+      }
+      state.copy(
+        articles = cards,
+        detail = state.detail?.let { detail ->
+          if (detail.id in articleIds) detail.copy(
+            category = category,
+            isArchived = if (archiveIfNeeded) true else detail.isArchived,
+          ) else detail
+        },
+        processingError = null,
+      )
+    }
+    loadCounts()
   }
 
   fun reclassify(article: ArticleDetail) {

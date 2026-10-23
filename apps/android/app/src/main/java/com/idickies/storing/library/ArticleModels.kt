@@ -42,6 +42,15 @@ data class CategoryDeleteResponse(
 data class CategoryReorderRequest(@SerialName("categoryIds") val categoryIds: List<Int>)
 
 @Serializable
+data class CategoryMergeRequest(
+  @SerialName("sourceCategoryId") val sourceCategoryId: Int,
+  @SerialName("targetCategoryId") val targetCategoryId: Int,
+)
+
+@Serializable
+data class CategoryMergeResponse(val ok: Boolean)
+
+@Serializable
 data class CategoryReorderResponse(val categories: List<ArticleCategory>)
 
 @Serializable
