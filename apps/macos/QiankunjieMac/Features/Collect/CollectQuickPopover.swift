@@ -30,6 +30,11 @@ struct CollectQuickPopoverView: View {
             isURLFocused = model.userID != nil
             fillDraftFromPasteboardIfPossible()
         }
+        .onChange(of: model.isSubmitting) { _, isSubmitting in
+            if !isSubmitting, model.submitErrorMessage != nil {
+                isURLFocused = true
+            }
+        }
     }
 
     private var form: some View {
@@ -43,12 +48,19 @@ struct CollectQuickPopoverView: View {
                 .onSubmit(submit)
 
             HStack(spacing: 8) {
-                Button {
-                    readFromPasteboard()
-                } label: {
-                    Label("读取剪贴板", systemImage: "doc.on.clipboard")
+                if model.isSubmitting {
+                    Button {
+                        model.cancelSubmission()
+                    } label: {
+                        Label("取消提交", systemImage: "xmark.circle")
+                    }
+                } else {
+                    Button {
+                        readFromPasteboard()
+                    } label: {
+                        Label("读取剪贴板", systemImage: "doc.on.clipboard")
+                    }
                 }
-                .disabled(model.isSubmitting)
 
                 Spacer(minLength: 0)
 

@@ -20,6 +20,10 @@ private struct CollectListOperationToken: Equatable {
     let id = UUID()
 }
 
+private enum CollectSubmissionFailure: Error, Equatable {
+    case timedOut
+}
+
 @MainActor
 @Observable
 public final class CollectModel {
@@ -46,9 +50,14 @@ public final class CollectModel {
 
     private let repository: any CollectServicing
     private let pollInterval: Duration
+    private let submissionTimeout: Duration
     private var requestGeneration = 0
     private var pollGeneration = 0
     private var clearOperationGeneration = 0
+    private var activeSubmissionID: UUID?
+    private var submissionContinuation: CheckedContinuation<CollectJob, Error>?
+    private var activeSubmissionTask: Task<Void, Never>?
+    private var submissionTimeoutTask: Task<Void, Never>?
     private let pageSize = 30
     private var nextPageOffset = 0
     private var activeListOperation: CollectListOperationToken?
@@ -60,7 +69,8 @@ public final class CollectModel {
         userID: Int? = nil,
         initialJobs: [CollectJob] = [],
         initialCurrentJob: CollectJob? = nil,
-        pollInterval: Duration = .milliseconds(2000)
+        pollInterval: Duration = .milliseconds(2000),
+        submissionTimeout: Duration = .seconds(20)
     ) {
         self.repository = repository
         self.userID = userID
@@ -68,6 +78,7 @@ public final class CollectModel {
         self.currentJob = initialCurrentJob
         self.total = initialJobs.count
         self.pollInterval = pollInterval
+        self.submissionTimeout = submissionTimeout
     }
 
     public var displayState: CollectDisplayState {
@@ -106,9 +117,14 @@ public final class CollectModel {
         requestGeneration += 1
         let generation = requestGeneration
         isSubmitting = true
+        defer {
+            if requestGeneration == generation {
+                isSubmitting = false
+            }
+        }
 
         do {
-            let job = try await repository.submit(url: url)
+            let job = try await awaitSubmission(url: url)
             guard requestGeneration == generation else { return }
 
             currentJob = job
@@ -117,14 +133,26 @@ public final class CollectModel {
             urlDraft = ""
             isSubmitting = false
             await poll(jobID: job.id, generation: pollGeneration)
+        } catch let error as CollectSubmissionFailure where error == .timedOut {
+            guard requestGeneration == generation else { return }
+            submitErrorMessage = "提交超时，请检查网络后重试；如任务已创建，可先到历史任务确认"
+        } catch is CancellationError {
+            guard requestGeneration == generation else { return }
+            submitErrorMessage = "已取消提交，可修改链接后重试"
         } catch {
             guard requestGeneration == generation else { return }
             submitErrorMessage = Self.message(for: error)
         }
+    }
 
-        if requestGeneration == generation {
-            isSubmitting = false
-        }
+    /// 用户主动取消后立即恢复输入；迟到的网络响应会因提交标识不匹配而丢弃。
+    public func cancelSubmission() {
+        guard isSubmitting, let submissionID = activeSubmissionID else { return }
+
+        requestGeneration += 1
+        isSubmitting = false
+        submitErrorMessage = "已取消提交，可修改链接后重试"
+        finishSubmission(submissionID, with: .failure(CancellationError()))
     }
 
     public func refreshJobs() async {
@@ -353,6 +381,9 @@ public final class CollectModel {
     }
 
     public func prepareUser(userID: Int?) {
+        if let submissionID = activeSubmissionID {
+            finishSubmission(submissionID, with: .failure(CancellationError()))
+        }
         requestGeneration += 1
         clearOperationGeneration += 1
         pollGeneration += 1
@@ -399,6 +430,76 @@ public final class CollectModel {
                 }
             }
         }
+    }
+
+    private func awaitSubmission(url: URL) async throws -> CollectJob {
+        let submissionID = UUID()
+        let timeout = submissionTimeout
+        let repository = repository
+
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                activeSubmissionID = submissionID
+                submissionContinuation = continuation
+                activeSubmissionTask = Task { @MainActor [weak self] in
+                    guard let self else { return }
+
+                    do {
+                        let job = try await repository.submit(url: url)
+                        finishSubmission(submissionID, with: .success(job))
+                    } catch {
+                        finishSubmission(submissionID, with: .failure(error))
+                    }
+                }
+                submissionTimeoutTask = Task { @MainActor [weak self] in
+                    do {
+                        try await Task.sleep(for: timeout)
+                    } catch {
+                        return
+                    }
+
+                    self?.finishSubmission(
+                        submissionID,
+                        with: .failure(CollectSubmissionFailure.timedOut)
+                    )
+                }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.abortCancelledSubmission(submissionID)
+            }
+        }
+    }
+
+    private func abortCancelledSubmission(_ submissionID: UUID) {
+        guard activeSubmissionID == submissionID else { return }
+
+        requestGeneration += 1
+        isSubmitting = false
+        submitErrorMessage = "已取消提交，可修改链接后重试"
+        finishSubmission(submissionID, with: .failure(CancellationError()))
+    }
+
+    private func finishSubmission(
+        _ submissionID: UUID,
+        with result: Result<CollectJob, Error>
+    ) {
+        guard
+            activeSubmissionID == submissionID,
+            let continuation = submissionContinuation
+        else {
+            return
+        }
+
+        activeSubmissionID = nil
+        submissionContinuation = nil
+        let activeTask = activeSubmissionTask
+        activeSubmissionTask = nil
+        let timeoutTask = submissionTimeoutTask
+        submissionTimeoutTask = nil
+        activeTask?.cancel()
+        timeoutTask?.cancel()
+        continuation.resume(with: result)
     }
 
     private func poll(jobID: Int, generation: Int) async {

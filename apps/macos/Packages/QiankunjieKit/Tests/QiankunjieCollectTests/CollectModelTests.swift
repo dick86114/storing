@@ -98,6 +98,66 @@ struct CollectModelTests {
         #expect(!model.isSubmitting)
     }
 
+    @Test func 提交永久挂起时超时解锁并保留输入供重试() async {
+        let repository = 模拟采集仓库()
+        await repository.holdNextSubmit()
+        let model = CollectModel(
+            repository: repository,
+            userID: 9,
+            pollInterval: .zero,
+            submissionTimeout: .milliseconds(30)
+        )
+        let url = "https://example.com/slow"
+        model.urlDraft = url
+
+        await model.submit(url)
+
+        #expect(!model.isSubmitting)
+        #expect(model.submitErrorMessage == "提交超时，请检查网络后重试；如任务已创建，可先到历史任务确认")
+        #expect(model.urlDraft == url)
+        #expect(await repository.submitCount == 1)
+
+        await model.submit(url)
+
+        #expect(model.currentJob?.id == 11)
+        #expect(model.submitErrorMessage == nil)
+        #expect(model.urlDraft.isEmpty)
+        #expect(await repository.submitCount == 2)
+    }
+
+    @Test func 取消提交立即解锁且迟到响应不会覆盖后续任务() async {
+        let repository = 模拟采集仓库()
+        await repository.holdNextSubmit()
+        let model = CollectModel(repository: repository, userID: 9, pollInterval: .zero)
+        let firstURL = "https://example.com/first"
+        model.urlDraft = firstURL
+
+        let firstSubmission = Task {
+            await model.submit(firstURL)
+        }
+        await repository.waitForSubmitRequest()
+        #expect(model.isSubmitting)
+
+        model.cancelSubmission()
+
+        #expect(!model.isSubmitting)
+        #expect(model.submitErrorMessage == "已取消提交，可修改链接后重试")
+        await firstSubmission.value
+
+        let secondURL = "https://example.com/second"
+        model.urlDraft = secondURL
+        await model.submit(secondURL)
+        #expect(model.currentJob?.id == 11)
+
+        await repository.resumeSubmit(with: .success(
+            CollectJob.fixture(id: 99, status: "pending")
+        ))
+        try? await Task.sleep(for: .milliseconds(20))
+
+        #expect(model.currentJob?.id == 11)
+        #expect(model.jobs.map(\.id) == [11])
+    }
+
     @Test func 提交失败时保留当前任务并继续轮询其他活跃任务() async throws {
         let repository = 模拟采集仓库(
             page: CollectJobPage(
