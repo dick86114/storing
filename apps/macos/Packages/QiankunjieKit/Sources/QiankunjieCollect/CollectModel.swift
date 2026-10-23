@@ -53,6 +53,7 @@ public final class CollectModel {
     private let submissionTimeout: Duration
     private var requestGeneration = 0
     private var submissionEpoch = 0
+    private var sessionGeneration = 0
     private var pollGeneration = 0
     private var clearOperationGeneration = 0
     private var activeSubmissionID: UUID?
@@ -229,14 +230,19 @@ public final class CollectModel {
             let failedJob = jobs.first(where: { $0.id == jobID && $0.status == "failed" })
         else { return }
 
-        let generation = requestGeneration
+        let operationSessionGeneration = sessionGeneration
+        let operationUserID = userID
         let pollGenerationAtStart = pollGeneration
         mutatingJobIDs.insert(jobID)
+        defer { mutatingJobIDs.remove(jobID) }
         actionErrorMessage = nil
 
         do {
             let job = try await repository.retry(id: failedJob.id)
-            guard requestGeneration == generation else { return }
+            guard
+                sessionGeneration == operationSessionGeneration,
+                self.userID == operationUserID
+            else { return }
 
             replace(job)
             if currentJob?.id == job.id {
@@ -248,11 +254,12 @@ public final class CollectModel {
                 await poll(jobID: job.id, generation: pollGeneration)
             }
         } catch {
-            guard requestGeneration == generation else { return }
+            guard
+                sessionGeneration == operationSessionGeneration,
+                self.userID == operationUserID
+            else { return }
             actionErrorMessage = Self.message(for: error)
         }
-
-        mutatingJobIDs.remove(jobID)
     }
 
     public func delete(jobID: Int) async {
@@ -389,6 +396,7 @@ public final class CollectModel {
 
     public func prepareUser(userID: Int?) {
         submissionEpoch += 1
+        sessionGeneration += 1
         if let submissionID = activeSubmissionID {
             finishSubmission(submissionID, with: .failure(CancellationError()))
         }

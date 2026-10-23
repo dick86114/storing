@@ -185,6 +185,45 @@ struct CollectModelTests {
         #expect(model.total == 1)
     }
 
+    @Test func 提交成功不会遗弃提交期间启动的重试() async {
+        let failedJob = CollectJob.fixture(id: 21, status: "failed")
+        let repository = 模拟采集仓库(
+            statuses: ["completed"],
+            retryResult: .fixture(id: 21, status: "pending")
+        )
+        await repository.holdNextSubmit()
+        await repository.holdNextRetry()
+        let model = CollectModel(
+            repository: repository,
+            userID: 9,
+            initialJobs: [failedJob],
+            pollInterval: .zero
+        )
+
+        let submission = Task {
+            await model.submit("https://example.com/submit-while-retry")
+        }
+        await repository.waitForSubmitRequest()
+        let retry = Task {
+            await model.retry(jobID: 21)
+        }
+        await repository.waitForRetryRequest()
+
+        await repository.resumeSubmit(with: .success(
+            CollectJob.fixture(id: 11, status: "completed", articleID: 7)
+        ))
+        await submission.value
+
+        await repository.resumeRetry(with: .success(
+            CollectJob.fixture(id: 21, status: "pending")
+        ))
+        await retry.value
+
+        #expect(!model.mutatingJobIDs.contains(21))
+        #expect(model.jobs.first { $0.id == 21 }?.status == "completed")
+        #expect(model.jobs.contains { $0.id == 11 })
+    }
+
     @Test func 取消提交立即解锁且迟到响应不会覆盖后续任务() async {
         let repository = 模拟采集仓库()
         await repository.holdNextSubmit()
@@ -866,6 +905,9 @@ private actor 模拟采集仓库: CollectServicing {
     private var shouldHoldNextSubmit = false
     private var heldSubmitContinuation: CheckedContinuation<CollectJob, Error>?
     private var submitRequestContinuation: CheckedContinuation<Void, Never>?
+    private var shouldHoldNextRetry = false
+    private var heldRetryContinuation: CheckedContinuation<CollectJob, Error>?
+    private var retryRequestContinuation: CheckedContinuation<Void, Never>?
     private var jobRequestContinuation: CheckedContinuation<Void, Never>?
 
     private(set) var submitCount = 0
@@ -968,6 +1010,14 @@ private actor 模拟采集仓库: CollectServicing {
 
     func retry(id: Int) async throws -> CollectJob {
         retryIDs.append(id)
+        if shouldHoldNextRetry {
+            shouldHoldNextRetry = false
+            return try await withCheckedThrowingContinuation { continuation in
+                heldRetryContinuation = continuation
+                retryRequestContinuation?.resume()
+                retryRequestContinuation = nil
+            }
+        }
         return retryResult
     }
 
@@ -1059,6 +1109,10 @@ private actor 模拟采集仓库: CollectServicing {
         shouldHoldNextSubmit = true
     }
 
+    func holdNextRetry() {
+        shouldHoldNextRetry = true
+    }
+
     func waitForSubmitRequest() async {
         if heldSubmitContinuation != nil {
             return
@@ -1072,6 +1126,22 @@ private actor 模拟采集仓库: CollectServicing {
     func resumeSubmit(with result: Result<CollectJob, Error>) {
         guard let continuation = heldSubmitContinuation else { return }
         heldSubmitContinuation = nil
+        continuation.resume(with: result)
+    }
+
+    func waitForRetryRequest() async {
+        if heldRetryContinuation != nil {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            retryRequestContinuation = continuation
+        }
+    }
+
+    func resumeRetry(with result: Result<CollectJob, Error>) {
+        guard let continuation = heldRetryContinuation else { return }
+        heldRetryContinuation = nil
         continuation.resume(with: result)
     }
 
