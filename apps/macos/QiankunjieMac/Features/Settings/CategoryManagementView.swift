@@ -5,29 +5,6 @@ import SwiftUI
 
 extension ArticleCategory: @retroactive Identifiable {}
 
-struct CategoryDraft: Sendable {
-    var name = ""
-    var description = ""
-    var includeExamples: [String] = []
-    var excludeExamples: [String] = []
-    var color = categoryPresetColors[0]
-
-    init() {}
-
-    init(category: ArticleCategory) {
-        name = category.name
-        description = category.articleDescription ?? ""
-        includeExamples = category.includeExamples
-        excludeExamples = category.excludeExamples
-        color = category.color ?? categoryPresetColors[0]
-    }
-}
-
-let categoryPresetColors = [
-    "#2F6A4F", "#3E7C83", "#536CCB", "#8A5A9E", "#B36A45", "#A67C38",
-    "#647B4D", "#2F7780", "#6675B7", "#A16078", "#9B7250", "#6B7088",
-]
-
 @MainActor
 @Observable
 final class CategoryManagementModel {
