@@ -126,39 +126,45 @@ struct ReaderModelTests {
         #expect(model.articleID == 73)
     }
 
-    @Test func 阅读器加载分类并将文章移动到新分类() async {
+    @Test func 阅读器分类操作只负责移动或归档文章() async throws {
         let current = ArticleCategory(id: 21, name: "待整理")
-        let target = ArticleCategory(id: 31, name: "技术")
         let detail = ArticleDetail(id: 12, category: current, isArchived: true)
-        let client = 模拟阅读客户端(detail: detail, categories: [current, target])
+        let client = 模拟阅读客户端(detail: detail)
         let model = ReaderModel(client: client)
 
         await model.open(articleID: 12)
-        await model.loadCategories()
-        let changed = await model.moveToCategory(31)
+        let moved = await model.moveToCategory(31)
+        await model.archive(categoryID: 41)
 
-        #expect(changed)
-        #expect(await client.categoryPaths == ["categories", "articles/12/category"])
+        #expect(moved)
+        #expect(await client.categoryPaths == ["articles/12/category"])
         #expect(await client.lastMovedCategoryID == 31)
-        #expect(model.availableCategories.map(\.id) == [21, 31])
+        #expect(await client.lastArchiveCategoryID == 41)
         #expect(model.article?.category?.id == 31)
         #expect(model.actionErrorMessage == nil)
+
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/QiankunjieReader/ReaderModel.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        #expect(!source.contains("availableCategories"))
+        #expect(!source.contains("func loadCategories()"))
+        #expect(!source.contains("func createCategory(name:"))
     }
 
-    @Test func 阅读器可以创建分类并加入可选列表() async {
-        let client = 模拟阅读客户端(
-            detail: ArticleDetail(id: 12, isArchived: true),
-            categories: []
-        )
+    @Test func 阅读器保留分类失效的结构化错误() async {
+        let client = 模拟阅读客户端(moveError: .contentUnavailable)
         let model = ReaderModel(client: client)
+
         await model.open(articleID: 12)
+        let moved = await model.moveToCategory(31)
 
-        let created = await model.createCategory(name: "  新分类  ")
-
-        #expect(created?.id == 32)
-        #expect(created?.name == "新分类")
-        #expect(await client.createdCategoryNames == ["新分类"])
-        #expect(model.availableCategories.map(\.name) == ["新分类"])
+        #expect(!moved)
+        #expect(model.actionError == .contentUnavailable)
+        #expect(model.actionErrorMessage == "请求的文章不可用")
     }
 
     @Test func API客户端游客公开路由不带认证头() async throws {
@@ -394,8 +400,7 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
     private(set) var categoryPaths: [String] = []
     private(set) var lastMovedCategoryID: Int?
     private(set) var lastArchiveCategoryID: Int?
-    private(set) var createdCategoryNames: [String] = []
-    private let categories: [ArticleCategory]
+    private let moveError: AppError?
     private(set) var lastHTMLVariant: String?
     private(set) var desktopRequestCount = 0
     private var shouldHoldFavorite = false
@@ -406,10 +411,10 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
 
     init(
         detail: ArticleDetail = 文章详情(id: 12),
-        categories: [ArticleCategory] = []
+        moveError: AppError? = nil
     ) {
         self.detail = detail
-        self.categories = categories
+        self.moveError = moveError
     }
 
     func articleDetail(articleID: Int, htmlVariant: String) async throws -> ArticleDetail {
@@ -500,20 +505,10 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
         notifyRequestWaiters()
     }
 
-    func categories() async throws -> [ArticleCategory] {
-        categoryPaths.append("categories")
-        notifyRequestWaiters()
-        return categories
-    }
-
-    func createCategory(name: String) async throws -> ArticleCategory {
-        categoryPaths.append("categories")
-        notifyRequestWaiters()
-        createdCategoryNames.append(name)
-        return ArticleCategory(id: 32, name: name)
-    }
-
     func moveArticleToCategory(articleID: Int, categoryID: Int) async throws {
+        if let moveError {
+            throw moveError
+        }
         categoryPaths.append("articles/\(articleID)/category")
         lastMovedCategoryID = categoryID
         detail = ArticleDetail(

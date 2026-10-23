@@ -201,13 +201,14 @@ struct UILabRootView: View {
                     isGuest: false
                 ),
                 userID: UILabFixtures.user.id,
+                categoryCatalog: UILabFixtures.categoryCatalog,
                 appFont: .standard,
                 readerContentWidth: .normal,
                 positionStore: UILabFixtures.appModel.readerPositionStore,
-            networkClient: UILabFixtures.readerClient,
-            onClose: {},
-            onLibraryDidChange: {}
-        )
+                networkClient: UILabFixtures.readerClient,
+                onClose: {},
+                onLibraryDidChange: {}
+            )
     }
 
     private func productionLibrary(_ state: FixtureLibraryState) -> some View {
