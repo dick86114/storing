@@ -23,8 +23,20 @@ class CategoryAssignmentPolicyTest {
       skippedIds = setOf(3),
       failedIds = setOf(4),
     )
-    assertEquals("已成功 2 篇，跳过 1 篇，失败 1 篇；请检查后重试。", result.message)
+    assertEquals("已成功 2 篇，跳过 1 篇，失败 1 篇；请重试失败项。", result.message)
     assertEquals(false, result.closesSheet)
+  }
+
+  @Test
+  fun `成功且只有跳过项时进入可关闭终态`() {
+    val result = CategoryAssignmentResult.CompletedWithSkipped(
+      category = category,
+      succeededIds = setOf(1, 2),
+      skippedIds = setOf(3),
+    )
+
+    assertEquals("分类已完成，部分文章被跳过：成功 2 篇，跳过 1 篇。", result.message)
+    assertTrue(result.closesSheet)
   }
 
   @Test

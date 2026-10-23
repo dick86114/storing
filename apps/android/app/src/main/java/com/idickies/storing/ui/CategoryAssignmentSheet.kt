@@ -143,6 +143,11 @@ internal fun CategoryAssignmentSheet(
               onAssigned(assigned.message)
               onDismissRequest()
             }
+            is CategoryAssignmentResult.CompletedWithSkipped -> {
+              submitting = false
+              onAssigned("分类「${created.category.name}」已创建；${assigned.message}")
+              onDismissRequest()
+            }
             is CategoryAssignmentResult.Partial -> {
               submitting = false
               resultMessage = "分类「${created.category.name}」已创建；${assigned.message}"
