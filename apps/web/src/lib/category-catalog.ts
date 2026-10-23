@@ -39,7 +39,12 @@ export function readCategoryRecents(
   activeCategoryIds: ReadonlySet<number>,
 ): number[] {
   const storageKey = categoryRecentsStorageKey(userId);
-  const raw = storage.getItem(storageKey);
+  let raw: string | null;
+  try {
+    raw = storage.getItem(storageKey);
+  } catch {
+    return [];
+  }
   if (!raw) return [];
 
   let parsed: unknown;
@@ -52,7 +57,11 @@ export function readCategoryRecents(
   const next = 清理最近使用(parsed, activeCategoryIds);
   const normalized = JSON.stringify(next);
   if (normalized !== raw && 'setItem' in storage) {
-    (storage as 可写存储).setItem(storageKey, normalized);
+    try {
+      (storage as 可写存储).setItem(storageKey, normalized);
+    } catch {
+      // 浏览器可能禁用本地存储；最近使用只是增强信息，不能影响分类主流程。
+    }
   }
   return next;
 }
@@ -71,6 +80,10 @@ export function rememberCategoryRecent(
     categoryId,
     ...readCategoryRecents(storage, userId, activeCategoryIds).filter((id) => id !== categoryId),
   ].slice(0, 5);
-  storage.setItem(categoryRecentsStorageKey(userId), JSON.stringify(next));
+  try {
+    storage.setItem(categoryRecentsStorageKey(userId), JSON.stringify(next));
+  } catch {
+    // 写入失败时仍返回本次内存中的最近使用结果。
+  }
   return next;
 }
