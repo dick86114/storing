@@ -2374,7 +2374,7 @@ function DetailContent({
  const { mutate: detailMutate } = useSWRConfig();
  const refreshCategoryCatalog = useRefreshCategoryCatalog();
  const categoryCatalog = useCategoryCatalog();
- const categoryRecents = useCategoryRecents(categoryCatalog.activeCategories);
+ const categoryRecents = useCategoryRecents(categoryCatalog.activeCategories, categoryCatalog.isReady);
   const isManualCapturedArticle = isSingleFileCaptureHtml(article?.contentHtml);
   const [moreOpen, setMoreOpen] = useState(false);
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);

@@ -13,7 +13,7 @@ import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type Ar
 import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { CategoryPicker } from '@/components/category/CategoryPicker';
 import { api } from '@/lib/api';
-import { assignmentFailure, bulkCategoryOutcome, type CategoryAssignmentOutcome } from '@/lib/category-picker';
+import { assignmentFailure, bulkCategoryOutcome, commitSingleArchiveAssignment, type CategoryAssignmentOutcome } from '@/lib/category-picker';
 import { scrollListToTop, setListScrollTop } from '@/lib/listScroll';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useArticleSelection } from '@/hooks/useArticleSelection';
@@ -37,7 +37,7 @@ function FavoritesContentInner() {
   const { toggleFavorite, updateArticleInView } = useArticleOperations();
   const refreshCategoryCatalog = useRefreshCategoryCatalog();
   const categoryCatalog = useCategoryCatalog();
-  const categoryRecents = useCategoryRecents(categoryCatalog.activeCategories);
+  const categoryRecents = useCategoryRecents(categoryCatalog.activeCategories, categoryCatalog.isReady);
   const { getBookmark, clearBookmark } = useBookmark();
   const [bookmarkPrompt, setBookmarkPrompt] = useState<ReadingBookmark | null>(null);
 
@@ -219,21 +219,21 @@ function FavoritesContentInner() {
   const confirmArchive = useCallback(async (categoryId?: number): Promise<CategoryAssignmentOutcome> => {
     if (!archiveTargetId) return { status: 'failure', message: '文章已变化，请重新打开归档操作。' };
     const id = archiveTargetId;
-    try {
-      await api.archive(id, categoryId);
-      updateArticleInView('favorites', id, { isArchived: true });
-      updateArticleInView('archive', id, { isArchived: true });
-      updateArticleInView('inbox', id, { isArchived: true });
-      setAllArticles((prev) => prev.map((article) => article.id === id ? { ...article, isArchived: true } : article));
-      setArchiveTargetId(null);
-      await Promise.all([refreshCategoryCatalog(), refreshList()]);
-      return {
-        status: 'success',
-        message: categoryId ? '已归档到所选分类' : '已归档，正在生成分类建议',
-      };
-    } catch (error) {
-      return assignmentFailure(error, '归档失败，请重试');
-    }
+    return commitSingleArchiveAssignment({
+      commit: async () => {
+        await api.archive(id, categoryId);
+      },
+      onCommitted: () => {
+        updateArticleInView('favorites', id, { isArchived: true });
+        updateArticleInView('archive', id, { isArchived: true });
+        updateArticleInView('inbox', id, { isArchived: true });
+        setAllArticles((prev) => prev.map((article) => article.id === id ? { ...article, isArchived: true } : article));
+      },
+      refreshAuxiliary: () => Promise.all([refreshCategoryCatalog(), refreshList()]),
+      onRefreshWarning: (error) => console.warn('文章已归档，但刷新分类或列表失败:', error),
+      successMessage: categoryId ? '已归档到所选分类' : '已归档，正在生成分类建议',
+      failureMessage: '归档失败，请重试',
+    });
   }, [archiveTargetId, refreshCategoryCatalog, refreshList, updateArticleInView]);
 
   const handleBulkAction = useCallback(async (action: BulkToolbarAction) => {

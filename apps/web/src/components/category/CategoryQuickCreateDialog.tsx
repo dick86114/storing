@@ -20,7 +20,7 @@ type CategoryQuickCreateDialogProps = {
   title?: string;
   onClose: () => void;
   onCreate: (input: CategoryQuickCreateInput) => Promise<{ category: ArchiveCategory }>;
-  onCreated: (category: ArchiveCategory) => void;
+  onCreated: (category: ArchiveCategory, meta: { reusedExisting: boolean }) => void;
 };
 
 function 转示例(value: string) {
@@ -78,7 +78,7 @@ export function CategoryQuickCreateDialog({
         excludeExamples: 转示例(excludeExamples),
         color,
       });
-      onCreated(result.category);
+      onCreated(result.category, { reusedExisting: false });
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : '创建分类失败，请重试');
     } finally {
@@ -138,8 +138,8 @@ export function CategoryQuickCreateDialog({
             <input
               ref={inputRef}
               value={name}
-              onChange={(event) => {
-                const nextName = event.target.value;
+              onInput={(event) => {
+                const nextName = event.currentTarget.value;
                 setName(nextName);
                 setColor(stableCategoryColor(nextName));
                 setError(null);
@@ -153,7 +153,7 @@ export function CategoryQuickCreateDialog({
           {duplicate && (
             <div className="category-quick-create-duplicate" role="status">
               <span>已有同名分类“{duplicate.name}”。</span>
-              <button type="button" onClick={() => onCreated(duplicate)} disabled={saving || optimizing}>使用现有分类</button>
+              <button type="button" onClick={() => onCreated(duplicate, { reusedExisting: true })} disabled={saving || optimizing}>使用现有分类</button>
             </div>
           )}
 

@@ -22,6 +22,7 @@ export function useCategoryCatalog() {
     },
   );
 
+  const isReady = data !== undefined && !error;
   const activeCategories = useMemo(() => activeCategoriesFrom(data), [data]);
   const counts = useMemo(() => Object.fromEntries(
     Object.entries(data?.counts ?? {}).map(([id, count]) => [Number(id), count]),
@@ -41,6 +42,7 @@ export function useCategoryCatalog() {
     counts,
     totalCount,
     error,
+    isReady,
     isLoading,
     isValidating,
     mutate,
