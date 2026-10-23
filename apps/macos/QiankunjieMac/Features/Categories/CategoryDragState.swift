@@ -1,7 +1,11 @@
 import SwiftUI
 
 enum CategoryDropResolution: Equatable {
-    case move(movingCategoryID: Int, targetCategoryID: Int)
+    case move(
+        movingCategoryID: Int,
+        targetCategoryID: Int,
+        reorderedCategoryIDs: [Int]
+    )
     case cancel
 }
 
@@ -35,13 +39,14 @@ struct CategoryDragState {
     ) -> Bool {
         guard
             draggedCategoryID == movingCategoryID,
-            let currentIDs = previewCategoryIDs,
+            let originalCategoryIDs,
             let reorderedIDs = CategoryOrdering.reorderedIDs(
-                currentIDs,
+                originalCategoryIDs,
                 moving: movingCategoryID,
                 to: targetCategoryID,
                 protecting: protectedIDs
-            )
+            ),
+            reorderedIDs != originalCategoryIDs
         else {
             return false
         }
@@ -51,10 +56,26 @@ struct CategoryDragState {
     }
 
     @discardableResult
-    mutating func commit() -> [Int]? {
-        let committedIDs = previewCategoryIDs == originalCategoryIDs ? nil : previewCategoryIDs
-        reset()
-        return committedIDs
+    mutating func commit(
+        moving movingCategoryID: Int,
+        to targetCategoryID: Int,
+        protecting protectedIDs: Set<Int>
+    ) -> [Int]? {
+        defer { reset() }
+        guard
+            draggedCategoryID == movingCategoryID,
+            let originalCategoryIDs,
+            let reorderedIDs = CategoryOrdering.reorderedIDs(
+                originalCategoryIDs,
+                moving: movingCategoryID,
+                to: targetCategoryID,
+                protecting: protectedIDs
+            ),
+            reorderedIDs != originalCategoryIDs
+        else {
+            return nil
+        }
+        return reorderedIDs
     }
 
     mutating func cancel() {
@@ -80,19 +101,28 @@ struct CategoryDragState {
         draggedCategoryID: Int?,
         targetCategoryID: Int,
         targetIsSystem: Bool,
+        categoryIDs: [Int],
+        protectedCategoryIDs: Set<Int>,
         canDrop: Bool
     ) -> CategoryDropResolution {
         guard
             canDrop,
             let draggedCategoryID,
             draggedCategoryID != targetCategoryID,
-            !targetIsSystem
+            !targetIsSystem,
+            let reorderedCategoryIDs = CategoryOrdering.reorderedIDs(
+                categoryIDs,
+                moving: draggedCategoryID,
+                to: targetCategoryID,
+                protecting: protectedCategoryIDs
+            )
         else {
             return .cancel
         }
         return .move(
             movingCategoryID: draggedCategoryID,
-            targetCategoryID: targetCategoryID
+            targetCategoryID: targetCategoryID,
+            reorderedCategoryIDs: reorderedCategoryIDs
         )
     }
 

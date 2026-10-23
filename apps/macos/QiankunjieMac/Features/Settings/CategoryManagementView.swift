@@ -418,6 +418,10 @@ struct CategoryManagementView: View {
                 targetCategoryID: category.id,
                 targetIsSystem: category.isSystem,
                 draggedCategoryID: dragState.draggedCategoryID,
+                categoryIDs: { dragState.originalCategoryIDs ?? [] },
+                protectedCategoryIDs: {
+                    Set(model.catalog.categories.filter(\.isSystem).map(\.id))
+                },
                 canDrop: canAcceptCategoryDrop,
                 onEnter: previewCategoryMove,
                 onDrop: commitCategoryMove,
@@ -770,13 +774,20 @@ struct CategoryManagementView: View {
         }
     }
 
-    private func commitCategoryMove(_ movingCategoryID: Int, _ targetCategoryID: Int) {
-        guard let categoryIDs = dragState.commit() else {
-            return
+    private func commitCategoryMove(_ movingCategoryID: Int, _ targetCategoryID: Int) -> Bool {
+        let protectedIDs = Set(model.catalog.categories.filter(\.isSystem).map(\.id))
+        guard let categoryIDs = dragState.commit(
+            moving: movingCategoryID,
+            to: targetCategoryID,
+            protecting: protectedIDs
+        ) else {
+            cancelCategoryDrag()
+            return false
         }
         Task { @MainActor in
             _ = await model.reorder(categoryIDs: categoryIDs)
         }
+        return true
     }
 
     private func cancelCategoryDrag() {
@@ -793,9 +804,11 @@ private struct CategoryReorderDropDelegate: DropDelegate {
     let targetCategoryID: Int
     let targetIsSystem: Bool
     let draggedCategoryID: Int?
+    let categoryIDs: () -> [Int]
+    let protectedCategoryIDs: () -> Set<Int>
     let canDrop: () -> Bool
     let onEnter: (Int, Int) -> Void
-    let onDrop: (Int, Int) -> Void
+    let onDrop: (Int, Int) -> Bool
     let onCancel: () -> Void
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
@@ -806,17 +819,20 @@ private struct CategoryReorderDropDelegate: DropDelegate {
     }
 
     func dropEntered(info: DropInfo) {
-        guard case let .move(movingCategoryID, targetCategoryID) = resolution else { return }
+        guard case let .move(movingCategoryID, targetCategoryID, _) = resolution else { return }
         onEnter(movingCategoryID, targetCategoryID)
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        guard case let .move(movingCategoryID, targetCategoryID) = resolution else {
+        guard case let .move(movingCategoryID, targetCategoryID, _) = resolution else {
             onCancel()
             return false
         }
-        onDrop(movingCategoryID, targetCategoryID)
-        return true
+        let accepted = onDrop(movingCategoryID, targetCategoryID)
+        if !accepted {
+            onCancel()
+        }
+        return accepted
     }
 
     private var resolution: CategoryDropResolution {
@@ -824,6 +840,8 @@ private struct CategoryReorderDropDelegate: DropDelegate {
             draggedCategoryID: draggedCategoryID,
             targetCategoryID: targetCategoryID,
             targetIsSystem: targetIsSystem,
+            categoryIDs: categoryIDs(),
+            protectedCategoryIDs: protectedCategoryIDs(),
             canDrop: canDrop()
         )
     }
