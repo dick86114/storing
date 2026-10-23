@@ -114,6 +114,32 @@ struct ReaderModelTests {
         #expect(刷新信号次数 == 5)
     }
 
+    @Test func 阅读器AI分类完成后重新加载并发出目录刷新信号() async {
+        let client = 模拟阅读客户端(
+            classificationDetail: ArticleDetail(
+                id: 12,
+                category: ArticleCategory(id: 31, name: "工程实践"),
+                isArchived: true
+            )
+        )
+        let model = ReaderModel(client: client)
+        await model.open(articleID: 12)
+        var 刷新信号次数 = 0
+        var 回调时分类ID: Int?
+        model.onCategoryAffectingChange = {
+            刷新信号次数 += 1
+            回调时分类ID = model.article?.category?.id
+        }
+
+        let succeeded = await model.classifyArticle()
+
+        #expect(succeeded)
+        #expect(await client.paths.contains("articles/12/classify"))
+        #expect(model.article?.category?.id == 31)
+        #expect(刷新信号次数 == 1)
+        #expect(回调时分类ID == 31)
+    }
+
     @Test func 阅读器归档会携带手工分类并在完成后回调资料库() async {
         let client = 模拟阅读客户端()
         let model = ReaderModel(client: client)
@@ -514,13 +540,16 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
     private var moveRequestCount = 0
     private var moveRequestWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
     private var requestWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
+    private var classificationDetail: ArticleDetail?
 
     init(
         detail: ArticleDetail = 文章详情(id: 12),
-        moveError: AppError? = nil
+        moveError: AppError? = nil,
+        classificationDetail: ArticleDetail? = nil
     ) {
         self.detail = detail
         self.moveError = moveError
+        self.classificationDetail = classificationDetail
     }
 
     func articleDetail(articleID: Int, htmlVariant: String) async throws -> ArticleDetail {
@@ -594,6 +623,9 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
 
     func classifyArticle(articleID: Int) async throws -> ReaderAIResult {
         paths.append("articles/\(articleID)/classify")
+        if let classificationDetail {
+            detail = classificationDetail
+        }
         return ReaderAIResult(ok: true)
     }
 

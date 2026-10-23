@@ -51,6 +51,8 @@ enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
     case currentVersion = "current-version"
     case categoryPicker = "category-picker"
     case categoryManagement = "category-management"
+    case readerCategoryUnavailable = "reader-category-unavailable"
+    case categoryCreateCancel = "category-create-cancel"
 
     var id: String { rawValue }
 
@@ -70,6 +72,8 @@ enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
         case .currentVersion: "当前版本更新"
         case .categoryPicker: "分类选择器"
         case .categoryManagement: "分类管理"
+        case .readerCategoryUnavailable: "阅读器分类失效"
+        case .categoryCreateCancel: "创建分类取消"
         }
     }
 
@@ -169,6 +173,10 @@ struct UILabRootView: View {
                 UILabCategoryPickerScene()
             case .categoryManagement:
                 CategoryManagementView(catalog: UILabFixtures.categoryCatalog)
+            case .readerCategoryUnavailable:
+                readerCategoryUnavailable
+            case .categoryCreateCancel:
+                CategoryManagementView(catalog: UILabFixtures.categoryCreateCancelCatalog)
             }
         }
         .frame(minWidth: 960, minHeight: 620)
@@ -211,6 +219,14 @@ struct UILabRootView: View {
     }
 
     private var reader: some View {
+        reader(networkClient: UILabFixtures.readerClient)
+    }
+
+    private var readerCategoryUnavailable: some View {
+        reader(networkClient: UILabFixtures.readerCategoryUnavailableClient)
+    }
+
+    private func reader(networkClient: any ReaderNetworkClient) -> some View {
             ReaderPaneView(
                 selection: ReaderSelection(
                     articleID: UILabFixtures.article.id,
@@ -222,7 +238,7 @@ struct UILabRootView: View {
                 appFont: .standard,
                 readerContentWidth: .normal,
                 positionStore: UILabFixtures.appModel.readerPositionStore,
-                networkClient: UILabFixtures.readerClient,
+                networkClient: networkClient,
                 onClose: {},
                 onLibraryDidChange: {}
             )

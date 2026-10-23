@@ -17,7 +17,7 @@ apps/macos/scripts/macos-ui-lab.sh update-notice light
 apps/macos/scripts/macos-ui-lab.sh update-notice dark
 ```
 
-脚本会校验 Xcode、生成工程、构建 Debug App、启动指定场景，并输出当前外观对应的截图路径。可用场景与脚本接口保持一致：`login`、`library`、`empty`、`loading`、`offline`、`reader`、`collect`（快速采集弹窗）、`tasks`（历史任务页）、`settings`、`update`、`update-notice`、`current-version`、`category-picker`（分类选择器）、`category-management`（分类管理）。第二个参数可省略，支持 `light` 或 `dark`；省略时使用系统外观，建议截图路径会标记为 `system.png`。
+脚本会校验 Xcode、生成工程、构建 Debug App、启动指定场景，并输出当前外观对应的截图路径。可用场景与脚本接口保持一致：`login`、`library`、`empty`、`loading`、`offline`、`reader`、`collect`（快速采集弹窗）、`tasks`（历史任务页）、`settings`、`update`、`update-notice`、`current-version`、`category-picker`（分类选择器）、`category-management`（分类管理）、`reader-category-unavailable`（阅读器分类失效）、`category-create-cancel`（慢速创建后取消）。第二个参数可省略，支持 `light` 或 `dark`；省略时使用系统外观，建议截图路径会标记为 `system.png`。
 
 ## 场景与截图路径
 
@@ -37,6 +37,8 @@ apps/macos/scripts/macos-ui-lab.sh update-notice dark
 | `current-version` | 当前版本日志、刷新按钮、刷新后的结构和日志缓存更新 | `artifacts/macos-ui-lab/current-version/light.png`、`dark.png` |
 | `category-picker` | 搜索、AI、最近使用、全部分类、当前分类、搜索无结果时的内联创建、部分成功与网络失败文案 | `artifacts/macos-ui-lab/category-picker/light.png`、`dark.png` |
 | `category-management` | 列表与详情、轻量创建、高级规则入口、启用/停用/系统分类、重复名称与合并部分成功文案 | `artifacts/macos-ui-lab/category-management/light.png`、`dark.png` |
+| `reader-category-unavailable` | 已归档阅读器、分类选择器、服务端分类失效文案与失效分类刷新 | `artifacts/macos-ui-lab/reader-category-unavailable/light.png`、`dark.png` |
+| `category-create-cancel` | 分类管理、慢速创建、提交中取消、关闭表单与可能已创建提示 | `artifacts/macos-ui-lab/category-create-cancel/light.png`、`dark.png` |
 
 截图只保存在本机 `artifacts/` 目录，不应提交包含真实路径、账号或系统隐私的图片。每个场景至少保留浅色和深色证据；交互验证时补充点击前后的截图。
 
@@ -57,5 +59,5 @@ apps/macos/scripts/macos-ui-lab.sh update-notice dark
 11. 在 `category-management` 选择已停用的“旧项目”并合并到任一启用分类，确认“合并已提交，但分类目录刷新失败，请重试刷新”提示不溢出，随后可通过“刷新”恢复目录。
 12. 深色模式下分类颜色点、当前/选中背景、停用状态和禁用按钮仍能清楚区分；所有固定截图均不包含真实账号、路径或用户数据。
 13. `library` 先选择“工作”，再提交文章搜索并清除；搜索态与清除后都必须显示“全部文章”，侧栏“归档”主行保持一致，不能残留“工作”选中态。
-14. `reader` 打开分类选择器并点击“学习”，应显示“分类已停用，请重新选择”，刷新后该分类从选择器移除。
-15. `category-management` 新建分类后点击创建，并在两秒内的创建态点击取消；表单应关闭且显示“已取消创建。分类可能已在服务器创建，正在刷新分类目录”，不得静默进入新分类。
+14. `reader-category-unavailable` 点击“修改分类，当前技术”，再点击“学习”；选择器应保持打开并显示服务端文案“分类已停用，请重新选择”，刷新后“学习”从选择器移除。
+15. `category-create-cancel` 点击“新增分类”，输入“临时分类”后点击“创建分类”，再立即点击“取消新建分类”；表单应关闭，分类详情选择不得跳转，并显示“已取消创建。分类可能已在服务器创建，正在刷新分类目录”。

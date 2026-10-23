@@ -348,7 +348,9 @@ final class AppModel {
 
     /// 清除搜索时保持侧栏、工具栏和列表的分类状态一致。
     func clearLibrarySearch() {
-        selectedCategoryID = nil
+        if libraryModel.isSearching {
+            selectedCategoryID = nil
+        }
         libraryModel.clearSearch()
     }
 

@@ -129,7 +129,10 @@ enum UILabFixtures {
     static let readerCategories = categoryFixtures
     static let categoryService = FixtureCategoryCatalogService(categories: readerCategories)
 
-    static let categoryCatalog: CategoryCatalogModel = {
+    static let categoryCatalog = makeCategoryCatalog()
+    static let categoryCreateCancelCatalog = makeCategoryCatalog()
+
+    private static func makeCategoryCatalog() -> CategoryCatalogModel {
         let recentStore = CategoryRecentStore(defaults: preferences)
         recentStore.save(categoryRecentIDs, userID: user.id)
         let catalog = CategoryCatalogModel(
@@ -138,7 +141,7 @@ enum UILabFixtures {
         )
         catalog.prepareUser(userID: user.id)
         return catalog
-    }()
+    }
 
     static let articles = [
         article,
@@ -164,6 +167,25 @@ enum UILabFixtures {
         aiCategory: article.aiCategory,
         aiTags: article.aiTags,
         isFavorited: true,
+        isPublished: true,
+        contentHTML: readerHTML
+    )
+
+    static let readerCategoryUnavailableDetail = ArticleDetail(
+        id: article.id,
+        title: article.title,
+        author: article.author,
+        source: article.source,
+        originalURL: article.originalURL,
+        publicID: article.publicID,
+        publishTime: article.publishTime,
+        createdAt: article.createdAt,
+        aiSummary: article.aiSummary,
+        aiCategory: article.aiCategory,
+        aiTags: article.aiTags,
+        category: readerCategories.first { $0.id == 3 },
+        isFavorited: true,
+        isArchived: true,
         isPublished: true,
         contentHTML: readerHTML
     )
@@ -526,6 +548,12 @@ extension UILabFixtures {
         categories: readerCategories,
         categoryService: categoryService
     )
+
+    static let readerCategoryUnavailableClient = UILabReaderClient(
+        detail: readerCategoryUnavailableDetail,
+        categories: readerCategories,
+        categoryService: categoryService
+    )
 }
 
 actor FixtureCategoryCatalogService: CategoryCatalogServicing {
@@ -562,8 +590,8 @@ actor FixtureCategoryCatalogService: CategoryCatalogServicing {
     }
 
     func create(_ request: CategoryMutationRequest) async throws -> CategoryResponse {
-        // 保留可观察的提交窗口，便于人工验证提交中取消不会静默跳转。
-        try await Task.sleep(for: .seconds(2))
+        // 为 CUA 点击创建与取消留出稳定窗口，验证提交中取消不会静默跳转。
+        try await Task.sleep(for: .seconds(10))
         let nextID = (categories.map(\.id).max() ?? 0) + 1
         let category = ArticleCategory(
             id: nextID,

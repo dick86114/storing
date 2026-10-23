@@ -8,6 +8,7 @@ struct UILabTests {
         #expect(UILabScenario.allCases.map(\.rawValue) == [
             "login", "library", "empty", "loading", "offline", "reader", "collect", "tasks", "settings", "update",
             "update-notice", "current-version", "category-picker", "category-management",
+            "reader-category-unavailable", "category-create-cancel",
         ])
         #expect(UILabFixtures.article.id == 1001)
         #expect(UILabFixtures.user.id == 9001)
@@ -21,6 +22,13 @@ struct UILabTests {
         #expect(scenarioValues.contains("library"))
         #expect(scenarioValues.contains("category-picker"))
         #expect(scenarioValues.contains("category-management"))
+    }
+
+    @Test func 界面实验室覆盖分类失效与创建取消定向场景() {
+        let scenarioValues = Set(UILabScenario.allCases.map(\.rawValue))
+
+        #expect(scenarioValues.contains("reader-category-unavailable"))
+        #expect(scenarioValues.contains("category-create-cancel"))
     }
 
     @Test func 界面实验室分类夹具包含启用停用系统最近使用和全部分类() {
