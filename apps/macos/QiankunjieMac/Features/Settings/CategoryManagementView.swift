@@ -9,6 +9,7 @@ struct CategoryManagementView: View {
     @State private var model: CategoryManagementModel
     @State private var mergingCategory: ArticleCategory?
     @State private var draggedCategoryID: Int?
+    @State private var dragPreviewCategoryIDs: [Int]?
     @Environment(\.colorScheme) private var colorScheme
 
     init(catalog: CategoryCatalogModel) {
@@ -23,13 +24,19 @@ struct CategoryManagementView: View {
         }
         .frame(minWidth: 960, minHeight: 640)
         .background(QiankunjieColors.background(for: colorScheme))
+        .statusToast(message: $model.weakNoticeMessage)
         .task {
             await model.load()
         }
         .onChange(of: model.catalog.userID) {
             mergingCategory = nil
             draggedCategoryID = nil
+            dragPreviewCategoryIDs = nil
             model.resetForUserChange()
+        }
+        .onChange(of: model.searchText) {
+            draggedCategoryID = nil
+            dragPreviewCategoryIDs = nil
         }
         .sheet(isPresented: $model.isCreating) {
             CategoryQuickCreateView(
@@ -230,12 +237,13 @@ struct CategoryManagementView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 7) {
-                        ForEach(model.filteredCategories) { category in
+                        ForEach(displayedCategories) { category in
                             categoryRow(category)
                         }
                     }
                     .padding(.horizontal, 10)
                     .padding(.bottom, 14)
+                    .animation(.snappy(duration: 0.2), value: displayedCategoryIDs)
                 }
             }
         }
@@ -297,8 +305,6 @@ struct CategoryManagementView: View {
         let canMoveDown = canMove(category, to: currentIndex.map { $0 + 1 })
 
         return HStack(spacing: 8) {
-            dragHandle(for: category)
-
             Button {
                 model.select(categoryID: category.id)
             } label: {
@@ -382,40 +388,27 @@ struct CategoryManagementView: View {
                         : QiankunjieColors.outline(for: colorScheme)
                 )
         }
+        .contentShape(RoundedRectangle(cornerRadius: 9))
+        .opacity(draggedCategoryID == category.id ? 0.58 : 1)
+        .scaleEffect(draggedCategoryID == category.id ? 0.985 : 1)
+        .onDrag {
+            guard canDrag(category) else {
+                return NSItemProvider()
+            }
+            draggedCategoryID = category.id
+            dragPreviewCategoryIDs = model.catalog.categories.map(\.id)
+            return NSItemProvider(object: String(category.id) as NSString)
+        }
         .onDrop(
             of: [UTType.text],
             delegate: CategoryReorderDropDelegate(
                 targetCategoryID: category.id,
                 targetIsSystem: category.isSystem,
                 draggedCategoryID: $draggedCategoryID,
-                onMove: { movingCategoryID, targetCategoryID in
-                    moveCategory(movingCategoryID, to: targetCategoryID)
-                }
+                onEnter: previewCategoryMove,
+                onDrop: commitCategoryMove
             )
         )
-    }
-
-    @ViewBuilder
-    private func dragHandle(for category: ArticleCategory) -> some View {
-        if category.isSystem || isBusy {
-            Image(systemName: "line.3.horizontal")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .frame(width: 14, height: 28)
-                .accessibilityHidden(true)
-        } else {
-            Image(systemName: "line.3.horizontal")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .frame(width: 14, height: 28)
-                .contentShape(Rectangle())
-                .help("拖动排序")
-                .accessibilityLabel("拖动 \(category.name) 排序")
-                .onDrag {
-                    draggedCategoryID = category.id
-                    return NSItemProvider(object: String(category.id) as NSString)
-                }
-        }
     }
 
     private func moveButton(
@@ -703,6 +696,28 @@ struct CategoryManagementView: View {
         model.isSaving || model.isOptimizing || model.catalog.isMutating
     }
 
+    private var displayedCategories: [ArticleCategory] {
+        guard let dragPreviewCategoryIDs else {
+            return model.filteredCategories
+        }
+        let order = Dictionary(uniqueKeysWithValues: dragPreviewCategoryIDs.enumerated().map {
+            ($0.element, $0.offset)
+        })
+        return model.filteredCategories.sorted {
+            (order[$0.id] ?? .max) < (order[$1.id] ?? .max)
+        }
+    }
+
+    private var displayedCategoryIDs: [Int] {
+        displayedCategories.map(\.id)
+    }
+
+    private func canDrag(_ category: ArticleCategory) -> Bool {
+        !category.isSystem
+            && !isBusy
+            && model.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private func canMove(_ category: ArticleCategory, to targetIndex: Int?) -> Bool {
         guard !category.isSystem, !isBusy, let targetIndex else { return false }
         guard model.catalog.categories.indices.contains(targetIndex) else { return false }
@@ -716,20 +731,35 @@ struct CategoryManagementView: View {
         return "\(category.name)，\(count) 篇文章，\(state)，\(kind)"
     }
 
-    private func moveCategory(_ movingCategoryID: Int, to targetCategoryID: Int) {
+    private func previewCategoryMove(_ movingCategoryID: Int, _ targetCategoryID: Int) {
+        let protectedIDs = Set(model.catalog.categories.filter(\.isSystem).map(\.id))
         guard
-            let sourceIndex = model.catalog.categories.firstIndex(where: { $0.id == movingCategoryID }),
-            let targetIndex = model.catalog.categories.firstIndex(where: { $0.id == targetCategoryID }),
-            sourceIndex != targetIndex
+            let currentIDs = dragPreviewCategoryIDs,
+            let reorderedIDs = CategoryOrdering.reorderedIDs(
+                currentIDs,
+                moving: movingCategoryID,
+                to: targetCategoryID,
+                protecting: protectedIDs
+            )
         else {
             return
         }
+        withAnimation(.snappy(duration: 0.18)) {
+            dragPreviewCategoryIDs = reorderedIDs
+        }
+    }
 
+    private func commitCategoryMove(_ movingCategoryID: Int, _ targetCategoryID: Int) {
+        guard let categoryIDs = dragPreviewCategoryIDs else {
+            draggedCategoryID = nil
+            return
+        }
+        draggedCategoryID = nil
         Task {
-            await model.reorder(
-                moving: movingCategoryID,
-                offset: targetIndex - sourceIndex
-            )
+            _ = await model.reorder(categoryIDs: categoryIDs)
+            withAnimation(.snappy(duration: 0.18)) {
+                dragPreviewCategoryIDs = nil
+            }
         }
     }
 }
@@ -738,7 +768,8 @@ private struct CategoryReorderDropDelegate: DropDelegate {
     let targetCategoryID: Int
     let targetIsSystem: Bool
     @Binding var draggedCategoryID: Int?
-    let onMove: (Int, Int) -> Void
+    let onEnter: (Int, Int) -> Void
+    let onDrop: (Int, Int) -> Void
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
         guard
@@ -751,6 +782,17 @@ private struct CategoryReorderDropDelegate: DropDelegate {
         return DropProposal(operation: .move)
     }
 
+    func dropEntered(info: DropInfo) {
+        guard
+            let draggedCategoryID,
+            draggedCategoryID != targetCategoryID,
+            !targetIsSystem
+        else {
+            return
+        }
+        onEnter(draggedCategoryID, targetCategoryID)
+    }
+
     func performDrop(info: DropInfo) -> Bool {
         defer { draggedCategoryID = nil }
         guard
@@ -760,7 +802,7 @@ private struct CategoryReorderDropDelegate: DropDelegate {
         else {
             return false
         }
-        onMove(draggedCategoryID, targetCategoryID)
+        onDrop(draggedCategoryID, targetCategoryID)
         return true
     }
 }

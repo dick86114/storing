@@ -14,6 +14,7 @@ final class CategoryManagementModel: Observable {
 
     private(set) var errorMessage: String?
     private(set) var noticeMessage: String?
+    var weakNoticeMessage: String?
     private(set) var isSaving = false
     private(set) var isOptimizing = false
     private(set) var shouldOfferRefreshAfterMerge = false
@@ -55,6 +56,7 @@ final class CategoryManagementModel: Observable {
         let generation = beginStateCycle()
         errorMessage = nil
         noticeMessage = nil
+        weakNoticeMessage = nil
         shouldOfferRefreshAfterMerge = false
 
         if force {
@@ -93,7 +95,8 @@ final class CategoryManagementModel: Observable {
                 guard isCurrent(generation) else { return }
                 selectedCategoryID = created.id
                 isCreating = false
-                noticeMessage = "分类已创建"
+                noticeMessage = nil
+                weakNoticeMessage = "分类「\(created.name)」已创建"
             }
         } catch {
             guard isCurrent(generation) else { return }
@@ -140,21 +143,51 @@ final class CategoryManagementModel: Observable {
             errorMessage = "系统分类不可参与排序"
             return
         }
+        guard
+            let categoryIDs = CategoryOrdering.reorderedIDs(
+                catalog.categories.map(\.id),
+                moving: categoryID,
+                to: catalog.categories[targetIndex].id,
+                protecting: Set(catalog.categories.filter(\.isSystem).map(\.id))
+            )
+        else {
+            return
+        }
+        _ = await reorder(categoryIDs: categoryIDs)
+    }
 
-        var categoryIDs = catalog.categories.map(\.id)
-        categoryIDs.remove(at: sourceIndex)
-        categoryIDs.insert(categoryID, at: targetIndex)
+    func reorder(categoryIDs: [Int]) async -> Bool {
+        guard ensureIdle() else { return false }
+
+        let currentCategories = catalog.categories
+        let currentIDs = currentCategories.map(\.id)
+        guard
+            categoryIDs.count == currentIDs.count,
+            Set(categoryIDs) == Set(currentIDs)
+        else {
+            errorMessage = "分类排序数据无效"
+            return false
+        }
+        let protectedIDs = Set(currentCategories.filter(\.isSystem).map(\.id))
+        for (index, categoryID) in currentIDs.enumerated() where protectedIDs.contains(categoryID) {
+            guard categoryIDs.indices.contains(index), categoryIDs[index] == categoryID else {
+                errorMessage = "系统分类必须保持固定位置"
+                return false
+            }
+        }
 
         let generation = beginSaving()
         defer { finishSaving(generation) }
 
         do {
             try await catalog.reorder(categoryIDs: categoryIDs)
-            guard isCurrent(generation) else { return }
+            guard isCurrent(generation) else { return false }
             noticeMessage = "分类顺序已更新"
+            return true
         } catch {
-            guard isCurrent(generation) else { return }
+            guard isCurrent(generation) else { return false }
             present(error)
+            return false
         }
     }
 
@@ -260,7 +293,8 @@ final class CategoryManagementModel: Observable {
         isCreating = false
         errorMessage = nil
         selectedCategoryID = category.id
-        noticeMessage = "已选中分类「\(category.name)」"
+        noticeMessage = nil
+        weakNoticeMessage = "分类「\(category.name)」已创建"
     }
 
     func cancelCreation() {
@@ -278,6 +312,7 @@ final class CategoryManagementModel: Observable {
 
     func clearNotice() {
         noticeMessage = nil
+        weakNoticeMessage = nil
         shouldOfferRefreshAfterMerge = false
     }
 
@@ -290,6 +325,7 @@ final class CategoryManagementModel: Observable {
         deletingCategory = nil
         errorMessage = nil
         noticeMessage = nil
+        weakNoticeMessage = nil
         isSaving = false
         isOptimizing = false
         shouldOfferRefreshAfterMerge = false
