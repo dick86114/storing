@@ -68,31 +68,72 @@ enum UILabFixtures {
         isFavorited: true
     )
 
-    static let readerCategories = [
+    static let categoryFixtures = [
         ArticleCategory(
             id: 1,
             name: "待整理",
+            articleDescription: "AI 无法可靠判断，或暂时不适合归入其他分类的文章。",
+            color: "#6B7088",
             sortOrder: 0,
             isSystem: true
         ),
         ArticleCategory(
             id: 2,
-            name: "产品设计",
-            color: "#536CCB",
+            name: "工作",
+            articleDescription: "项目推进、协作沟通和产品决策相关文章。",
+            includeExamples: ["产品需求评审", "跨团队项目计划"],
+            excludeExamples: ["个人学习笔记"],
+            color: "#5B74E8",
             sortOrder: 10
         ),
         ArticleCategory(
             id: 3,
-            name: "工程实践",
-            color: "#2F6A4F",
+            name: "技术",
+            articleDescription: "工程实现、架构设计和稳定性相关文章。",
+            includeExamples: ["架构设计", "故障复盘"],
+            excludeExamples: ["团队管理"],
+            color: "#39A06D",
             sortOrder: 20
+        ),
+        ArticleCategory(
+            id: 4,
+            name: "学习",
+            articleDescription: "课程、书籍和长期知识积累。",
+            includeExamples: ["课程笔记", "读书摘要"],
+            excludeExamples: ["工作项目记录"],
+            color: "#3FA5B4",
+            sortOrder: 30
+        ),
+        ArticleCategory(
+            id: 5,
+            name: "生活",
+            articleDescription: "健康、旅行、家庭和日常兴趣。",
+            includeExamples: ["旅行攻略", "健康计划"],
+            excludeExamples: ["业务复盘"],
+            color: "#C97749",
+            sortOrder: 40
+        ),
+        ArticleCategory(
+            id: 6,
+            name: "旧项目",
+            articleDescription: "已结束项目的历史资料，保留用于追溯。",
+            includeExamples: ["已结项归档", "历史交付记录"],
+            excludeExamples: ["当前项目计划"],
+            color: "#9868B5",
+            sortOrder: 50,
+            isActive: false
         ),
     ]
 
+    static let categoryRecentIDs = [2, 3]
+    static let readerCategories = categoryFixtures
+
     static let categoryCatalog: CategoryCatalogModel = {
+        let recentStore = CategoryRecentStore(defaults: preferences)
+        recentStore.save(categoryRecentIDs, userID: user.id)
         let catalog = CategoryCatalogModel(
-            service: UILabCategoryCatalogService(categories: readerCategories),
-            recentStore: CategoryRecentStore(defaults: preferences)
+            service: FixtureCategoryCatalogService(categories: readerCategories),
+            recentStore: recentStore
         )
         catalog.prepareUser(userID: user.id)
         return catalog
@@ -148,14 +189,18 @@ enum UILabFixtures {
         initialJobs: collectJobs
     )
 
-    static let appModel = AppModel(
-        authModel: authModel,
-        libraryModel: libraryModel,
-        collectRepository: FixtureCollectRepository(jobs: collectJobs),
-        shortcutDefaults: preferences,
-        readerPositionStore: MemoryReaderPositionStore(),
-        categoryCatalog: categoryCatalog
-    )
+    static let appModel: AppModel = {
+        let model = AppModel(
+            authModel: authModel,
+            libraryModel: libraryModel,
+            collectRepository: FixtureCollectRepository(jobs: collectJobs),
+            shortcutDefaults: preferences,
+            readerPositionStore: MemoryReaderPositionStore(),
+            categoryCatalog: categoryCatalog
+        )
+        model.user = user
+        return model
+    }()
 
     static func libraryModel(for state: FixtureLibraryState) -> LibraryModel {
         LibraryModel(
@@ -470,15 +515,27 @@ extension UILabFixtures {
     )
 }
 
-private actor UILabCategoryCatalogService: CategoryCatalogServicing {
+private actor FixtureCategoryCatalogService: CategoryCatalogServicing {
     private var categories: [ArticleCategory]
+    private var counts: [String: Int]
+    private var shouldFailNextListAfterMerge = false
 
     init(categories: [ArticleCategory]) {
         self.categories = categories
+        let fixtureCounts = [1: 3, 2: 8, 3: 6, 4: 4, 5: 2, 6: 5]
+        self.counts = Dictionary(
+            uniqueKeysWithValues: categories.map { category in
+                (String(category.id), fixtureCounts[category.id] ?? 0)
+            }
+        )
     }
 
     func list(includeInactive: Bool) async throws -> CategoriesResponse {
-        目录响应()
+        if shouldFailNextListAfterMerge {
+            shouldFailNextListAfterMerge = false
+            throw AppError.network
+        }
+        return 目录响应()
     }
 
     func create(_ request: CategoryMutationRequest) async throws -> CategoryResponse {
@@ -493,6 +550,7 @@ private actor UILabCategoryCatalogService: CategoryCatalogServicing {
             sortOrder: (categories.map(\.sortOrder).max() ?? 0) + 10
         )
         categories.append(category)
+        counts[String(category.id)] = 0
         return CategoryResponse(category: category)
     }
 
@@ -533,12 +591,33 @@ private actor UILabCategoryCatalogService: CategoryCatalogServicing {
         categoryID: Int,
         targetCategoryID: Int
     ) async throws -> DeleteCategoryResponse {
+        let movedArticleCount = counts[String(categoryID)] ?? 0
         categories.removeAll { $0.id == categoryID }
-        return DeleteCategoryResponse(movedArticleCount: 0)
+        counts.removeValue(forKey: String(categoryID))
+        counts[String(targetCategoryID), default: 0] += movedArticleCount
+        return DeleteCategoryResponse(movedArticleCount: movedArticleCount)
     }
 
     func merge(sourceCategoryID: Int, targetCategoryID: Int) async throws {
-        categories.removeAll { $0.id == sourceCategoryID }
+        guard let sourceIndex = categories.firstIndex(where: { $0.id == sourceCategoryID }) else {
+            throw AppError.contentUnavailable
+        }
+        let source = categories[sourceIndex]
+        categories[sourceIndex] = ArticleCategory(
+            id: source.id,
+            name: source.name,
+            articleDescription: source.articleDescription,
+            includeExamples: source.includeExamples,
+            excludeExamples: source.excludeExamples,
+            color: source.color,
+            sortOrder: source.sortOrder,
+            isActive: false,
+            isSystem: source.isSystem
+        )
+        let movedArticleCount = counts[String(sourceCategoryID)] ?? 0
+        counts[String(sourceCategoryID)] = 0
+        counts[String(targetCategoryID), default: 0] += movedArticleCount
+        shouldFailNextListAfterMerge = source.name == "旧项目"
     }
 
     func optimize(_ request: CategoryOptimizeRequest) async throws -> CategoryOptimizeResponse {
@@ -554,9 +633,7 @@ private actor UILabCategoryCatalogService: CategoryCatalogServicing {
     private func 目录响应() -> CategoriesResponse {
         CategoriesResponse(
             categories: categories,
-            counts: Dictionary(
-                uniqueKeysWithValues: categories.map { (String($0.id), 0) }
-            )
+            counts: counts
         )
     }
 }
