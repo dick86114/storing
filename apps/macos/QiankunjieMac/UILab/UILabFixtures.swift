@@ -631,11 +631,20 @@ actor FixtureCategoryCatalogService: CategoryCatalogServicing {
     }
 
     func reorder(categoryIDs: [Int]) async throws -> CategoryReorderResponse {
-        let order = Dictionary(
-            uniqueKeysWithValues: categoryIDs.enumerated().map { ($1, $0) }
-        )
-        categories.sort {
-            order[$0.id, default: Int.max] < order[$1.id, default: Int.max]
+        let categoriesByID = Dictionary(uniqueKeysWithValues: categories.map { ($0.id, $0) })
+        categories = categoryIDs.enumerated().compactMap { index, categoryID in
+            guard let category = categoriesByID[categoryID] else { return nil }
+            return ArticleCategory(
+                id: category.id,
+                name: category.name,
+                articleDescription: category.articleDescription,
+                includeExamples: category.includeExamples,
+                excludeExamples: category.excludeExamples,
+                color: category.color,
+                sortOrder: index * 10,
+                isActive: category.isActive,
+                isSystem: category.isSystem
+            )
         }
         return CategoryReorderResponse(categories: categories)
     }

@@ -2,7 +2,6 @@ import Foundation
 import QiankunjieCore
 import QiankunjieDesignSystem
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct SidebarArchiveCategoryGroup: View {
     @Bindable var model: AppModel
@@ -10,6 +9,7 @@ struct SidebarArchiveCategoryGroup: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var isQuickCreatePresented = false
     @State private var dragState = CategoryDragState()
+    @State private var rowFrames: [Int: CGRect] = [:]
     @State private var weakNoticeMessage: String?
 
     var body: some View {
@@ -19,6 +19,10 @@ struct SidebarArchiveCategoryGroup: View {
             if model.isAuthenticated, isExpanded {
                 categoryContent
             }
+        }
+        .coordinateSpace(name: SidebarCategoryDragLayout.coordinateSpaceName)
+        .onPreferenceChange(CategoryRowFramePreferenceKey.self) { frames in
+            rowFrames = frames
         }
         .selectionDisabled()
         .listRowBackground(Color.clear)
@@ -141,26 +145,49 @@ struct SidebarArchiveCategoryGroup: View {
     @ViewBuilder
     private func categoryRow(_ category: ArticleCategory) -> some View {
         if category.isSystem {
-            categoryRowContent(category)
-                .onDrop(of: [UTType.text], delegate: categoryDropDelegate(for: category))
+            styledCategoryRow(category)
         } else {
-            categoryRowContent(category)
-                .onDrag {
-                    guard canDrag(category), dragState.begin(
-                        categoryID: category.id,
-                        categoryIDs: model.categoryCatalog.categories.map(\.id)
-                    ) else {
-                        dragState.cancel()
-                        return NSItemProvider()
-                    }
-                    return NSItemProvider(object: String(category.id) as NSString)
-                }
-                .onDragSessionUpdated { session in
-                    guard CategoryDragState.shouldCancel(for: session.phase) else { return }
-                    dragState.cancel()
-                }
-                .onDrop(of: [UTType.text], delegate: categoryDropDelegate(for: category))
+            styledCategoryRow(category)
+                .highPriorityGesture(sidebarDragGesture(for: category))
         }
+    }
+
+    private func styledCategoryRow(_ category: ArticleCategory) -> some View {
+        let isDragging = dragState.draggedCategoryID == category.id
+        let dropPlacement = dragState.dropTarget?.categoryID == category.id
+            ? dragState.dropTarget?.placement
+            : nil
+
+        return categoryRowContent(category)
+            .recordCategoryRowFrame(
+                categoryID: category.id,
+                in: SidebarCategoryDragLayout.coordinateSpaceName
+            )
+            .offset(y: isDragging ? dragState.translation.height : 0)
+            .scaleEffect(isDragging ? 1.015 : 1)
+            .shadow(
+                color: isDragging ? Color.black.opacity(0.16) : .clear,
+                radius: isDragging ? 7 : 0,
+                y: isDragging ? 3 : 0
+            )
+            .zIndex(isDragging ? 1 : 0)
+            .overlay(alignment: .top) {
+                if dropPlacement == .before {
+                    CategoryDropIndicator(
+                        placement: .before,
+                        color: QiankunjieColors.accent(for: colorScheme)
+                    )
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if dropPlacement == .after {
+                    CategoryDropIndicator(
+                        placement: .after,
+                        color: QiankunjieColors.accent(for: colorScheme)
+                    )
+                }
+            }
+            .animation(.snappy(duration: 0.18), value: isDragging)
     }
 
     private func categoryRowContent(_ category: ArticleCategory) -> some View {
@@ -201,38 +228,75 @@ struct SidebarArchiveCategoryGroup: View {
         .buttonStyle(.plain)
         .help("查看分类：\(category.name)")
         .accessibilityLabel("\(category.name)，\(model.categoryCatalog.count(for: category.id)) 篇文章")
+        .accessibilityHint("打开分类详情")
     }
 
-    private func categoryDropDelegate(for category: ArticleCategory) -> SidebarCategoryReorderDropDelegate {
-        SidebarCategoryReorderDropDelegate(
-            targetCategoryID: category.id,
-            targetIsSystem: category.isSystem,
-            draggedCategoryID: dragState.draggedCategoryID,
-            categoryIDs: { model.categoryCatalog.categories.map(\.id) },
-            protectedCategoryIDs: {
-                Set(model.categoryCatalog.categories.filter(\.isSystem).map(\.id))
-            },
-            canDrop: canAcceptCategoryDrop,
-            onDrop: { movingCategoryID, targetCategoryID in
-                let protectedIDs = Set(
-                    model.categoryCatalog.categories.filter(\.isSystem).map(\.id)
-                )
-                guard let categoryIDs = dragState.commit(
-                    moving: movingCategoryID,
-                    to: targetCategoryID,
-                    protecting: protectedIDs
-                ) else {
-                    return false
-                }
-                Task {
-                    try? await model.categoryCatalog.reorder(categoryIDs: categoryIDs)
-                }
-                return true
-            },
-            onCancel: {
-                dragState.cancel()
-            }
+    private func sidebarDragGesture(for category: ArticleCategory) -> some Gesture {
+        DragGesture(
+            minimumDistance: 0,
+            coordinateSpace: .named(SidebarCategoryDragLayout.coordinateSpaceName)
         )
+        .onChanged { value in
+            guard
+                hypot(value.translation.width, value.translation.height)
+                    >= CategoryDragState.activationDistance
+            else {
+                return
+            }
+            guard canDrag(category) else {
+                cancelCategoryDrag()
+                return
+            }
+            if dragState.draggedCategoryID == nil {
+                guard dragState.begin(
+                    categoryID: category.id,
+                    categoryIDs: model.categoryCatalog.categories.map(\.id)
+                ) else {
+                    return
+                }
+            }
+            guard dragState.draggedCategoryID == category.id else { return }
+            dragState.update(
+                translation: value.translation,
+                pointerY: value.location.y,
+                pointerX: value.location.x,
+                rows: categoryDragRows,
+                protecting: protectedCategoryIDs,
+                canDrop: canAcceptCategoryDrop()
+            )
+        }
+        .onEnded { value in
+            guard
+                hypot(value.translation.width, value.translation.height)
+                    >= CategoryDragState.activationDistance
+            else {
+                cancelCategoryDrag()
+                model.selectCategory(category.id)
+                return
+            }
+            guard dragState.draggedCategoryID == category.id else { return }
+            dragState.update(
+                translation: value.translation,
+                pointerY: value.location.y,
+                pointerX: value.location.x,
+                rows: categoryDragRows,
+                protecting: protectedCategoryIDs,
+                canDrop: canAcceptCategoryDrop()
+            )
+            guard let commit = dragState.finish(
+                protecting: protectedCategoryIDs,
+                canDrop: canAcceptCategoryDrop()
+            ) else {
+                cancelCategoryDrag()
+                return
+            }
+
+            Task { @MainActor in
+                try? await model.categoryCatalog.reorder(
+                    categoryIDs: commit.reorderedCategoryIDs
+                )
+            }
+        }
     }
 
     private func canDrag(_ category: ArticleCategory) -> Bool {
@@ -241,6 +305,25 @@ struct SidebarArchiveCategoryGroup: View {
 
     private func canAcceptCategoryDrop() -> Bool {
         model.categoryCatalog.canReorder
+    }
+
+    private var protectedCategoryIDs: Set<Int> {
+        Set(model.categoryCatalog.categories.filter(\.isSystem).map(\.id))
+    }
+
+    private var categoryDragRows: [CategoryDragRowFrame] {
+        model.categoryCatalog.activeCategories.compactMap { category in
+            rowFrames[category.id].map {
+                CategoryDragRowFrame(categoryID: category.id, frame: $0)
+            }
+        }
+    }
+
+    private func cancelCategoryDrag() {
+        guard dragState.isDragging else { return }
+        withAnimation(.snappy(duration: 0.18)) {
+            dragState.cancel()
+        }
     }
 
     private func toggleArchiveRow() {
@@ -365,45 +448,8 @@ struct SidebarArchiveCategoryGroup: View {
     }
 }
 
-private struct SidebarCategoryReorderDropDelegate: DropDelegate {
-    let targetCategoryID: Int
-    let targetIsSystem: Bool
-    let draggedCategoryID: Int?
-    let categoryIDs: () -> [Int]
-    let protectedCategoryIDs: () -> Set<Int>
-    let canDrop: () -> Bool
-    let onDrop: (Int, Int) -> Bool
-    let onCancel: () -> Void
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        guard case .move = resolution else {
-            return DropProposal(operation: .forbidden)
-        }
-        return DropProposal(operation: .move)
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        guard case let .move(movingCategoryID, targetCategoryID, _) = resolution else {
-            onCancel()
-            return false
-        }
-        let accepted = onDrop(movingCategoryID, targetCategoryID)
-        if !accepted {
-            onCancel()
-        }
-        return accepted
-    }
-
-    private var resolution: CategoryDropResolution {
-        CategoryDragState.dropResolution(
-            draggedCategoryID: draggedCategoryID,
-            targetCategoryID: targetCategoryID,
-            targetIsSystem: targetIsSystem,
-            categoryIDs: categoryIDs(),
-            protectedCategoryIDs: protectedCategoryIDs(),
-            canDrop: canDrop()
-        )
-    }
+private enum SidebarCategoryDragLayout {
+    static let coordinateSpaceName = "sidebar-category-drag"
 }
 
 private extension Color {
