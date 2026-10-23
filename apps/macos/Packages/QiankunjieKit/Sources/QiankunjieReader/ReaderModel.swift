@@ -649,6 +649,8 @@ public final class ReaderModel {
             "操作过于频繁，请稍后再试"
         case .contentUnavailable:
             "请求的文章不可用"
+        case let .categoryConflict(message):
+            message
         case .invalidInput:
             "文章请求无效，请刷新后重试"
         case .server:

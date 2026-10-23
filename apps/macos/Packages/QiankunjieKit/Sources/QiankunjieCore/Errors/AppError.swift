@@ -4,6 +4,7 @@ public enum AppError: Error, Hashable, Sendable {
     case forbidden
     case rateLimited
     case contentUnavailable
+    case categoryConflict(message: String)
     case invalidInput
     case server
 }

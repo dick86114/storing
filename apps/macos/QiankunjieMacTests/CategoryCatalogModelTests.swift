@@ -262,6 +262,39 @@ struct CategoryCatalogModelTests {
         #expect(model.errorMessage == nil)
     }
 
+    @Test func 服务端同名冲突保留草稿并显示原始消息() async {
+        let 服务端冲突消息 = "已存在同名启用分类，请换一个名称"
+        let service = 分类服务桩(
+            列表响应: [
+                .success(CategoriesResponse(
+                    categories: [分类(id: 1, name: "工程", sortOrder: 10)],
+                    counts: ["1": 2]
+                )),
+            ],
+            创建错误: .categoryConflict(message: 服务端冲突消息)
+        )
+        let model = CategoryCatalogModel(
+            service: service,
+            recentStore: 最近分类存储桩()
+        )
+
+        model.prepareUser(userID: 5)
+        await model.load()
+        var draft = CategoryDraft()
+        draft.name = "产品设计"
+
+        do {
+            _ = try await model.create(draft)
+            Issue.record("服务端同名冲突必须向调用方抛错")
+        } catch {
+            #expect(error as? AppError == .categoryConflict(message: 服务端冲突消息))
+        }
+
+        #expect(draft.name == "产品设计")
+        #expect(model.categories.map(\.id) == [1])
+        #expect(model.errorMessage == 服务端冲突消息)
+    }
+
     @Test func 合并成功但刷新失败会向调用方抛错并保留旧目录() async throws {
         let service = 分类服务桩(
             列表响应: [
@@ -317,6 +350,7 @@ private actor 分类服务桩: CategoryCatalogServicing {
     private var 删除响应: [Result<DeleteCategoryResponse, 分类服务测试错误>]
     private var 合并响应: [Result<Void, 分类服务测试错误>]
     private var 优化响应: [Result<CategoryOptimizeResponse, 分类服务测试错误>]
+    private let 创建错误: AppError?
 
     init(
         列表响应: [Result<CategoriesResponse, 分类服务测试错误>] = [],
@@ -325,7 +359,8 @@ private actor 分类服务桩: CategoryCatalogServicing {
         排序响应: [Result<CategoryReorderResponse, 分类服务测试错误>] = [],
         删除响应: [Result<DeleteCategoryResponse, 分类服务测试错误>] = [],
         合并响应: [Result<Void, 分类服务测试错误>] = [],
-        优化响应: [Result<CategoryOptimizeResponse, 分类服务测试错误>] = []
+        优化响应: [Result<CategoryOptimizeResponse, 分类服务测试错误>] = [],
+        创建错误: AppError? = nil
     ) {
         self.列表响应 = 列表响应
         self.创建响应 = 创建响应
@@ -334,6 +369,7 @@ private actor 分类服务桩: CategoryCatalogServicing {
         self.删除响应 = 删除响应
         self.合并响应 = 合并响应
         self.优化响应 = 优化响应
+        self.创建错误 = 创建错误
     }
 
     func list(includeInactive: Bool) async throws -> CategoriesResponse {
@@ -342,6 +378,7 @@ private actor 分类服务桩: CategoryCatalogServicing {
     }
 
     func create(_ request: CategoryMutationRequest) async throws -> CategoryResponse {
+        if let 创建错误 { throw 创建错误 }
         guard !创建响应.isEmpty else { throw 分类服务测试错误.缺少响应 }
         return try 创建响应.removeFirst().get()
     }

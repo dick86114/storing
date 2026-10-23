@@ -1035,6 +1035,8 @@ public final class LibraryModel {
             "请求过于频繁，请稍后再试"
         case .contentUnavailable:
             "请求的资料不可用"
+        case let .categoryConflict(message):
+            message
         case .invalidInput:
             "筛选条件无效，请调整后重试"
         case .server:
