@@ -421,6 +421,204 @@ struct AppModelTests {
         #expect(model.libraryModel.userID == nil)
         #expect(model.libraryModel.view == .published)
     }
+
+    @Test func 手动分类分类失效映射并保留服务端消息() {
+        let outcome = BulkCategoryOutcomeMapper.outcome(
+            result: NativeBulkResult(
+                requestedCount: 1,
+                succeededCount: 0,
+                skippedCount: 0,
+                failedCount: 1,
+                issues: []
+            ),
+            error: .categoryUnavailable(message: "分类已停用，不能用于归类"),
+            operation: .manual
+        )
+
+        #expect(outcome == .categoryUnavailable(message: "分类已停用，不能用于归类"))
+    }
+
+    @Test func 手动分类文章失效仍映射为内容失效() {
+        let result = NativeBulkResult(
+            requestedCount: 1,
+            succeededCount: 0,
+            skippedCount: 0,
+            failedCount: 1,
+            issues: [
+                ArticleBulkIssue(
+                    articleID: 7,
+                    code: "CONTENT_UNAVAILABLE",
+                    message: "文章不存在或无权访问"
+                )
+            ]
+        )
+
+        let outcome = BulkCategoryOutcomeMapper.outcome(
+            result: result,
+            error: .contentUnavailable,
+            operation: .manual
+        )
+
+        #expect(outcome == .contentUnavailable(message: "文章不存在或无权访问"))
+    }
+
+    @Test func AI分类无成功项时返回失败并保留文章消息() throws {
+        let result = NativeBulkResult(from: ArticleBulkAIResult(
+            requestedCount: 1,
+            queuedIDs: [],
+            alreadyQueuedIDs: [],
+            failed: [
+                ArticleBulkIssue(
+                    articleID: 7,
+                    code: "CONTENT_UNAVAILABLE",
+                    message: "请求的文章不可用"
+                )
+            ]
+        ))
+
+        let outcome = BulkCategoryOutcomeMapper.outcome(
+            result: result,
+            error: nil,
+            operation: .ai
+        )
+
+        let 失败消息: String? = {
+            guard case let .failure(message) = outcome else { return nil }
+            return message
+        }()
+        let 消息 = try #require(失败消息)
+
+        #expect(消息.contains("成功 0 篇"))
+        #expect(消息.contains("失败 1 篇"))
+        #expect(消息.contains("请求的文章不可用"))
+    }
+
+    @Test func 批量分类部分成功结果保留计数与失败原因() throws {
+        let result = NativeBulkResult(from: ArticleBulkAIResult(
+            requestedCount: 3,
+            queuedIDs: [7],
+            alreadyQueuedIDs: [8],
+            failed: [
+                ArticleBulkIssue(
+                    articleID: 9,
+                    code: "NOT_FOUND",
+                    message: "文章不存在"
+                ),
+            ]
+        ))
+
+        let outcome = BulkCategoryOutcomeMapper.outcome(
+            result: result,
+            error: nil,
+            operation: .manual
+        )
+        let partial: (
+            succeededCount: Int,
+            skippedCount: Int,
+            failedCount: Int,
+            message: String
+        )? = {
+            guard case let .partial(succeededCount, skippedCount, failedCount, message) = outcome else {
+                return nil
+            }
+            return (succeededCount, skippedCount, failedCount, message)
+        }()
+        let values = try #require(partial)
+
+        #expect(values.succeededCount == 1)
+        #expect(values.skippedCount == 1)
+        #expect(values.failedCount == 1)
+        #expect(values.message.contains("成功 1 篇"))
+        #expect(values.message.contains("跳过 1 篇"))
+        #expect(values.message.contains("失败 1 篇"))
+        #expect(values.message.contains("文章不存在"))
+    }
+
+    @Test func 批量分类只有全部成功才返回完全成功() {
+        let 结果 = NativeBulkResult(
+            requestedCount: 3,
+            succeededCount: 3,
+            skippedCount: 0,
+            failedCount: 0,
+            issues: []
+        )
+
+        let 结果状态 = BulkCategoryOutcomeMapper.outcome(
+            result: 结果,
+            error: nil,
+            operation: .manual
+        )
+
+        #expect(结果状态 == .success(succeededCount: 3, skippedCount: 0))
+    }
+
+    @Test func 批量分类包含跳过时返回部分成功并格式化三组计数() throws {
+        let 结果 = NativeBulkResult(
+            requestedCount: 3,
+            succeededCount: 1,
+            skippedCount: 2,
+            failedCount: 0,
+            issues: [
+                ArticleBulkIssue(articleID: 8, code: "NOT_ARCHIVED", message: "文章尚未归档"),
+            ]
+        )
+
+        let 结果状态 = BulkCategoryOutcomeMapper.outcome(
+            result: 结果,
+            error: nil,
+            operation: .manual
+        )
+        let 部分成功: (
+            succeededCount: Int,
+            skippedCount: Int,
+            failedCount: Int,
+            message: String
+        )? = {
+            guard case let .partial(succeededCount, skippedCount, failedCount, message) = 结果状态 else {
+                return nil
+            }
+            return (succeededCount, skippedCount, failedCount, message)
+        }()
+        let 值 = try #require(部分成功)
+
+        #expect(值.succeededCount == 1)
+        #expect(值.skippedCount == 2)
+        #expect(值.failedCount == 0)
+        #expect(值.message.contains("成功 1 篇"))
+        #expect(值.message.contains("跳过 2 篇"))
+        #expect(值.message.contains("失败 0 篇"))
+        #expect(值.message.contains("文章尚未归档"))
+    }
+
+    @Test func 批量分类没有成功项时返回失败并保留完整计数() throws {
+        let 结果 = NativeBulkResult(
+            requestedCount: 2,
+            succeededCount: 0,
+            skippedCount: 1,
+            failedCount: 1,
+            issues: [
+                ArticleBulkIssue(articleID: 7, code: "NOT_ARCHIVED", message: "文章尚未归档"),
+                ArticleBulkIssue(articleID: 8, code: "NOT_FOUND", message: "文章不存在"),
+            ]
+        )
+
+        let 结果状态 = BulkCategoryOutcomeMapper.outcome(
+            result: 结果,
+            error: nil,
+            operation: .manual
+        )
+        let 失败消息: String? = {
+            guard case let .failure(message) = 结果状态 else { return nil }
+            return message
+        }()
+        let 消息 = try #require(失败消息)
+
+        #expect(消息.contains("成功 0 篇"))
+        #expect(消息.contains("跳过 1 篇"))
+        #expect(消息.contains("失败 1 篇"))
+        #expect(消息.contains("文章尚未归档"))
+        #expect(消息.contains("文章不存在"))
+    }
 }
 
 private extension AppModel {
@@ -489,10 +687,6 @@ private actor 模拟资料库仓库: LibraryLoading {
     }
 
     func loadSources(userID: Int?) async throws -> [LibrarySource] {
-        []
-    }
-
-    func loadCategoryFilters(userID: Int?) async throws -> [LibraryCategoryFilter] {
         []
     }
 

@@ -9,6 +9,7 @@ import SwiftUI
 struct ReaderPaneView: View {
     let selection: ReaderSelection?
     let userID: Int?
+    let categoryCatalog: CategoryCatalogModel
     let appFont: AppFontPreference
     let readerContentWidth: ReaderContentWidthPreference
     let onReaderContentWidthChange: (ReaderContentWidthPreference) -> Void
@@ -26,12 +27,14 @@ struct ReaderPaneView: View {
     @State private var renameDraft = ""
     @State private var titleCopied = false
     @State private var showCategoryReason = false
+    @State private var isCategoryPickerPresented = false
     @State private var categorySheetMode: ReaderCategorySheetMode?
     @Environment(\.colorScheme) private var colorScheme
 
     init(
         selection: ReaderSelection?,
         userID: Int?,
+        categoryCatalog: CategoryCatalogModel,
         appFont: AppFontPreference = .standard,
         readerContentWidth: ReaderContentWidthPreference = .normal,
         onReaderContentWidthChange: @escaping (ReaderContentWidthPreference) -> Void = { _ in },
@@ -42,6 +45,7 @@ struct ReaderPaneView: View {
     ) {
         self.selection = selection
         self.userID = userID
+        self.categoryCatalog = categoryCatalog
         self.appFont = appFont
         self.readerContentWidth = readerContentWidth
         self.onReaderContentWidthChange = onReaderContentWidthChange
@@ -49,11 +53,13 @@ struct ReaderPaneView: View {
         self.networkClient = networkClient
         self.onClose = onClose
         self.onLibraryDidChange = onLibraryDidChange
-        _model = State(initialValue: ReaderModel(
+        let readerModel = ReaderModel(
             client: networkClient,
             positionStore: positionStore,
             userID: userID
-        ))
+        )
+        readerModel.onCategoryAffectingChange = onLibraryDidChange
+        _model = State(initialValue: readerModel)
     }
 
     var body: some View {
@@ -73,6 +79,8 @@ struct ReaderPaneView: View {
         }
         .background(QiankunjieColors.background(for: colorScheme))
         .onChange(of: userID, initial: true) { _, newValue in
+            isCategoryPickerPresented = false
+            categorySheetMode = nil
             model.prepareUser(userID: newValue)
         }
         .overlay {
@@ -85,6 +93,8 @@ struct ReaderPaneView: View {
         }
         .animation(.easeOut(duration: 0.16), value: selectedImageURL)
         .task(id: selection) {
+            isCategoryPickerPresented = false
+            categorySheetMode = nil
             if let selection {
                 await model.open(selection)
             }
@@ -159,13 +169,14 @@ struct ReaderPaneView: View {
             .clipped()
         }
         .sheet(item: $categorySheetMode) { mode in
-            ReaderCategoryEditorSheet(
+            ReaderCategoryPickerContainer(
                 model: model,
-                article: article,
-                mode: mode
-            ) {
-                onLibraryDidChange()
-            }
+                categoryCatalog: categoryCatalog,
+                userID: userID,
+                currentCategoryID: article.category?.id,
+                mode: mode,
+                onDismiss: { categorySheetMode = nil }
+            )
         }
         .confirmationDialog(
             pendingAction?.confirmationTitle ?? "",
@@ -438,7 +449,7 @@ struct ReaderPaneView: View {
             Text("分类")
             if selection?.isGuest == false && article.isArchived {
                 Button {
-                    categorySheetMode = .move
+                    isCategoryPickerPresented = true
                 } label: {
                     HStack(spacing: 3) {
                         Text(article.category?.name ?? article.aiCategory ?? "未分类")
@@ -452,6 +463,16 @@ struct ReaderPaneView: View {
                 .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
                 .help("修改分类")
                 .accessibilityLabel("修改分类，当前\(article.category?.name ?? article.aiCategory ?? "未分类")")
+                .popover(isPresented: $isCategoryPickerPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+                    ReaderCategoryPickerContainer(
+                        model: model,
+                        categoryCatalog: categoryCatalog,
+                        userID: userID,
+                        currentCategoryID: article.category?.id,
+                        mode: .move,
+                        onDismiss: { isCategoryPickerPresented = false }
+                    )
+                }
             } else {
                 Text(article.category?.name ?? article.aiCategory ?? "未分类")
                     .lineLimit(1)
@@ -554,11 +575,9 @@ struct ReaderPaneView: View {
                 await model.regenerateAI()
             case .delete:
                 await model.delete()
-                onLibraryDidChange()
                 return
             case .deletePermanent:
                 await model.deletePermanent()
-                onLibraryDidChange()
                 return
             case .openOriginal(let url):
                 if ReaderNavigationPolicy.decision(for: url) == .openExternally {
@@ -567,14 +586,14 @@ struct ReaderPaneView: View {
                 return
             }
 
-            if model.actionErrorMessage == nil {
+            if action != .inbox, model.actionErrorMessage == nil {
                 onLibraryDidChange()
             }
         }
     }
 }
 
-private enum ReaderCategorySheetMode: String, Identifiable {
+enum ReaderCategorySheetMode: String, Identifiable {
     case archive
     case move
 
@@ -582,219 +601,148 @@ private enum ReaderCategorySheetMode: String, Identifiable {
 
     var title: String {
         switch self {
-        case .archive: "归档到哪里？"
+        case .archive: "归档并分类"
         case .move: "修改分类"
         }
     }
 
     var subtitle: String {
         switch self {
-        case .archive: "分类只用于归档文章。选择分类后，文章会移入「归档」；也可以让 AI 判断。"
-        case .move: "选择预设分类，或让 AI 重新判断。"
+        case .archive: "分类只用于归档文章"
+        case .move: "选择分类，或让 AI 判断"
+        }
+    }
+
+    func selectedCategoryID(currentCategoryID: Int?) -> Int? {
+        switch self {
+        case .archive: nil
+        case .move: currentCategoryID
         }
     }
 }
 
-private struct ReaderCategoryEditorSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var colorScheme
+enum ReaderCategoryOperation {
+    case archive
+    case move
+    case classify
+}
+
+enum ReaderCategoryOutcomeMapper {
+    static func outcome(
+        succeeded: Bool,
+        error: AppError?,
+        message: String?,
+        operation: ReaderCategoryOperation
+    ) -> CategoryAssignmentOutcome {
+        if succeeded {
+            return .success(succeededCount: 1, skippedCount: 0)
+        }
+
+        if case let .categoryUnavailable(errorMessage) = error {
+            let displayMessage = message ?? errorMessage
+            return .categoryUnavailable(message: displayMessage)
+        }
+
+        let fallbackMessage = error == .contentUnavailable ? "请求的文章不可用" : "分类失败"
+        let displayMessage = message ?? fallbackMessage
+        if error == .contentUnavailable {
+            return .contentUnavailable(message: displayMessage)
+        }
+        return .failure(message: displayMessage)
+    }
+}
+
+@MainActor
+private struct ReaderCategoryPickerContainer: View {
     let model: ReaderModel
-    let article: ReaderArticle
+    let categoryCatalog: CategoryCatalogModel
+    let userID: Int?
+    let currentCategoryID: Int?
     let mode: ReaderCategorySheetMode
-    let onChanged: () -> Void
-    @State private var newCategoryName = ""
+    let onDismiss: () -> Void
+
+    @State private var pickerModel: CategoryPickerModel
+
+    init(
+        model: ReaderModel,
+        categoryCatalog: CategoryCatalogModel,
+        userID: Int?,
+        currentCategoryID: Int?,
+        mode: ReaderCategorySheetMode,
+        onDismiss: @escaping () -> Void
+    ) {
+        self.model = model
+        self.categoryCatalog = categoryCatalog
+        self.userID = userID
+        self.currentCategoryID = currentCategoryID
+        self.mode = mode
+        self.onDismiss = onDismiss
+        _pickerModel = State(initialValue: CategoryPickerModel(
+            catalog: categoryCatalog,
+            selectedCategoryID: mode.selectedCategoryID(
+                currentCategoryID: currentCategoryID
+            ),
+            targetCount: 1
+        ))
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 8) {
-                    aiCategoryButton
-                    if model.isLoadingCategories {
-                        HStack {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("正在加载分类…")
-                                .qiankunjieFont(.labelMedium)
-                        }
-                        .padding(.vertical, 12)
-                    } else if model.availableCategories.isEmpty {
-                        Text("暂无可用分类")
-                            .qiankunjieFont(.bodyMedium)
-                            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                            .padding(.vertical, 12)
-                    } else {
-                        ForEach(model.availableCategories) { category in
-                            categoryButton(category)
-                        }
-                    }
-                }
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            Divider()
-            createCategoryForm
-        }
-        .frame(width: 440, height: 420)
-        .background(QiankunjieColors.surface(for: colorScheme))
-        .task {
-            await model.loadCategories()
-        }
+        CategoryPickerContent(
+            model: pickerModel,
+            title: mode.title,
+            subtitle: mode.subtitle,
+            onSelectCategory: { category in
+                await 分配(category)
+            },
+            onSelectAI: {
+                await 交给AI判断()
+            },
+            onDismiss: onDismiss
+        )
     }
 
-    private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(mode.title)
-                    .qiankunjieFont(.titleMedium)
-                    .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
-                Text(mode.subtitle)
-                    .qiankunjieFont(.labelMedium)
-                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-            }
-            Spacer()
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .frame(width: 24, height: 24)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("关闭分类选择")
+    private func 分配(_ category: ArticleCategory) async -> CategoryAssignmentOutcome {
+        let succeeded: Bool
+        let operation: ReaderCategoryOperation
+        switch mode {
+        case .archive:
+            operation = .archive
+            succeeded = await model.archive(categoryID: category.id)
+        case .move:
+            operation = .move
+            succeeded = await model.moveToCategory(category.id)
         }
-        .padding(16)
+        if succeeded, categoryCatalog.userID == userID {
+            categoryCatalog.recordRecent(categoryID: category.id)
+        }
+        return 完成结果(succeeded: succeeded, operation: operation)
     }
 
-    private var aiCategoryButton: some View {
-        Button {
-            Task {
-                switch mode {
-                case .archive:
-                    await model.archive()
-                    if model.actionErrorMessage == nil {
-                        onChanged()
-                        dismiss()
-                    }
-                case .move:
-                    await model.classifyArticle()
-                    if model.actionErrorMessage == nil {
-                        onChanged()
-                        dismiss()
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 9) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("由 AI 判断")
-                        .qiankunjieFont(.bodyMedium)
-                    Text("低置信度会进入待整理")
-                        .qiankunjieFont(.labelMedium)
-                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(QiankunjieColors.accent(for: colorScheme).opacity(0.12))
-            }
+    private func 交给AI判断() async -> CategoryAssignmentOutcome {
+        let succeeded: Bool
+        let operation: ReaderCategoryOperation
+        switch mode {
+        case .archive:
+            operation = .archive
+            succeeded = await model.archive()
+        case .move:
+            operation = .classify
+            succeeded = await model.classifyArticle()
         }
-        .buttonStyle(.plain)
-        .disabled(model.isPerformingAction || model.isLoadingCategories)
-        .accessibilityLabel("由 AI 判断分类")
+        return 完成结果(succeeded: succeeded, operation: operation)
     }
 
-    private func categoryButton(_ category: ArticleCategory) -> some View {
-        let isSelected = category.id == article.category?.id
-
-        return Button {
-            Task {
-                let changed: Bool
-                switch mode {
-                case .archive:
-                    await model.archive(categoryID: category.id)
-                    changed = model.actionErrorMessage == nil
-                case .move:
-                    changed = await model.moveToCategory(category.id)
-                }
-                if changed {
-                    onChanged()
-                    dismiss()
-                }
-            }
-        } label: {
-            HStack(spacing: 9) {
-                Circle()
-                    .fill(Color(hexString: category.color) ?? QiankunjieColors.accent(for: colorScheme))
-                    .frame(width: 9, height: 9)
-                Text(category.name)
-                    .qiankunjieFont(.bodyMedium)
-                Spacer()
-                if isSelected {
-                    Text("当前")
-                        .qiankunjieFont(.labelMedium)
-                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(QiankunjieColors.surfaceVariant(for: colorScheme).opacity(isSelected ? 1 : 0.45))
-            }
-        }
-        .buttonStyle(.plain)
-        .disabled(isSelected || model.isPerformingAction)
-        .accessibilityLabel("移动到分类 \(category.name)")
-    }
-
-    private var createCategoryForm: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let message = model.categoryErrorMessage ?? model.actionErrorMessage {
-                Text(message)
-                    .qiankunjieFont(.labelMedium)
-                    .foregroundStyle(colorScheme == .dark ? QiankunjieColors.darkError : QiankunjieColors.lightError)
-            }
-
-            HStack(spacing: 8) {
-                TextField("新增分类名称", text: $newCategoryName)
-                    .textFieldStyle(.roundedBorder)
-                    .disabled(model.isCreatingCategory || model.isPerformingAction)
-
-                Button {
-                    Task {
-                        let name = newCategoryName
-                        guard let category = await model.createCategory(name: name) else { return }
-                        newCategoryName = ""
-                        if await model.moveToCategory(category.id) {
-                            onChanged()
-                            dismiss()
-                        }
-                    }
-                } label: {
-                    if model.isCreatingCategory {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Text("创建并选择")
-                    }
-                }
-                .disabled(
-                    newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        || model.isCreatingCategory
-                        || model.isPerformingAction
-                )
-            }
-        }
-        .padding(16)
-        .background(QiankunjieColors.surfaceVariant(for: colorScheme))
+    private func 完成结果(
+        succeeded: Bool,
+        operation: ReaderCategoryOperation
+    ) -> CategoryAssignmentOutcome {
+        let outcome = ReaderCategoryOutcomeMapper.outcome(
+            succeeded: succeeded,
+            error: model.actionError,
+            message: model.actionErrorMessage,
+            operation: operation
+        )
+        return outcome
     }
 }
 

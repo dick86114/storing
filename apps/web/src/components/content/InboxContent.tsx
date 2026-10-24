@@ -12,12 +12,15 @@ import { ListToolbar } from '@/components/article/ListToolbar';
 import { ArticleSortControl, type ArticleSortKey, type ArticleSortOrder, type ArticleSortOption } from '@/components/article/ArticleSortControl';
 import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { api } from '@/lib/api';
+import { assignmentFailure, bulkCategoryOutcome, commitSingleArchiveAssignment, type CategoryAssignmentOutcome } from '@/lib/category-picker';
 import { scrollListToTop, setListScrollTop } from '@/lib/listScroll';
 import { useArticleOperations } from '@/hooks/useArticleOperations';
 import { useArticleSelection } from '@/hooks/useArticleSelection';
 import { useBulkArticleActions } from '@/hooks/useBulkArticleActions';
 import { useBookmark, type ReadingBookmark } from '@/hooks/useBookmark';
-import { CategoryAssignmentDialog } from '@/components/article/WechatDetailPanel';
+import { useCategoryCatalog, useRefreshCategoryCatalog } from '@/hooks/useCategoryCatalog';
+import { useCategoryRecents } from '@/hooks/useCategoryRecents';
+import { CategoryPicker } from '@/components/category/CategoryPicker';
 import type { ArticleBulkAiResult, ArticleBulkActionResult, ArticleListItem, BulkExportJob } from '@storing/shared';
 
 const PER_PAGE = 18;
@@ -32,6 +35,9 @@ function InboxContentInner() {
   const { openArticle, highlightId, setMutateFn } = useArticleContext();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { archive, toggleFavorite, removeArticleFromView } = useArticleOperations();
+  const refreshCategoryCatalog = useRefreshCategoryCatalog();
+  const categoryCatalog = useCategoryCatalog();
+  const categoryRecents = useCategoryRecents(categoryCatalog.activeCategories, categoryCatalog.isReady);
   const { getBookmark, clearBookmark } = useBookmark();
   const [bookmarkPrompt, setBookmarkPrompt] = useState<ReadingBookmark | null>(null);
   const [archiveTargetId, setArchiveTargetId] = useState<number | null>(null);
@@ -110,8 +116,6 @@ function InboxContentInner() {
   );
 
   const totalPages = data?.totalPages ?? 1;
-  const { data: categoryData, mutate: mutateCategoryData } = useSWR(isAuthenticated ? 'categories:archive-action' : null, () => api.getCategories(), { revalidateOnFocus: false });
-
   useEffect(() => {
     if (data?.articles) {
       if (page === 1) {
@@ -191,34 +195,48 @@ function InboxContentInner() {
     setArchiveTargetId(id);
   }, []);
 
-  const confirmArchive = useCallback(async (categoryId?: number) => {
-    if (!archiveTargetId) return;
+  const confirmArchive = useCallback(async (categoryId?: number): Promise<CategoryAssignmentOutcome> => {
+    if (!archiveTargetId) return { status: 'failure', message: '文章已变化，请重新打开归档操作。' };
     const id = archiveTargetId;
-    setArchiveTargetId(null);
     removingIdsRef.current.add(id);
-    setAllArticles((prev) => prev.filter((a) => a.id !== id));
-    const success = await archive(id, categoryId);
-    if (success) {
-      removingIdsRef.current.delete(id);
-      showToast(categoryId ? '已归档到所选分类' : '已归档，正在生成分类建议');
-    } else {
-      removingIdsRef.current.delete(id);
-      refreshList();
-      showToast('归档失败，请重试');
-    }
-  }, [archive, archiveTargetId, showToast, refreshList]);
+    return commitSingleArchiveAssignment({
+      commit: async () => {
+        try {
+          const success = await archive(id, categoryId);
+          if (!success) throw new Error('归档失败，请重试');
+        } finally {
+          removingIdsRef.current.delete(id);
+        }
+      },
+      onCommitted: () => {
+        setAllArticles((prev) => prev.filter((article) => article.id !== id));
+      },
+      refreshAuxiliary: () => Promise.all([refreshCategoryCatalog(), refreshList()]),
+      onRefreshWarning: (error) => console.warn('文章已归档，但刷新分类或列表失败:', error),
+      successMessage: categoryId ? '已归档到所选分类' : '已归档，正在生成分类建议',
+      failureMessage: '归档失败，请重试',
+    });
+  }, [archive, archiveTargetId, refreshCategoryCatalog, refreshList]);
 
-  const confirmBulkArchive = useCallback(async (categoryId?: number) => {
+  const confirmBulkArchive = useCallback(async (categoryId?: number): Promise<CategoryAssignmentOutcome> => {
     const ids = [...selection.selectedIds];
-    if (ids.length === 0 || bulkActions.loadingAction !== null) return;
-    setBulkArchivePickerOpen(false);
-    try {
-      setBulkResult(await bulkActions.runAction('archive', ids, categoryId));
-      selection.remove(ids);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '批量归档失败');
+    if (ids.length === 0 || bulkActions.loadingAction !== null) {
+      return { status: 'failure', message: '没有可归档的文章，请重新选择。' };
     }
-  }, [bulkActions, selection, showToast]);
+    try {
+      const result = await bulkActions.runAction('archive', ids, categoryId);
+      if (!result) return { status: 'failure', message: '批量归档未返回结果，请重试。' };
+      setBulkResult(result);
+      selection.remove(result.succeededIds);
+      setAllArticles((prev) => prev.filter((article) => !result.succeededIds.includes(article.id)));
+      await refreshCategoryCatalog();
+      return bulkCategoryOutcome(result, categoryId
+        ? `已将 ${result.succeededIds.length} 篇文章归档到所选分类`
+        : `已将 ${result.succeededIds.length} 篇文章归档，正在生成分类建议`);
+    } catch (error) {
+      return assignmentFailure(error, '批量归档失败');
+    }
+  }, [bulkActions, refreshCategoryCatalog, selection]);
 
   const handleCreateCategory = useCallback(async (name: string) => {
     const created = await api.createCategory({
@@ -228,9 +246,9 @@ function InboxContentInner() {
       excludeExamples: [],
       color: null,
     });
-    await mutateCategoryData();
+    void refreshCategoryCatalog().catch((error) => console.error('刷新分类目录失败:', error));
     return created;
-  }, [mutateCategoryData]);
+  }, [refreshCategoryCatalog]);
 
   const handleBulkAction = useCallback(async (action: BulkToolbarAction) => {
     const ids = [...selection.selectedIds];
@@ -313,30 +331,41 @@ function InboxContentInner() {
         </div>
       )}
       {bulkArchivePickerOpen && (
-        <CategoryAssignmentDialog
-          categories={categoryData?.categories ?? []}
+        <CategoryPicker
+          categories={categoryCatalog.activeCategories}
+          recentCategoryIds={categoryRecents.recentCategoryIds}
           currentCategoryId={null}
-          loading={bulkActions.loadingAction !== null}
+          loading={categoryCatalog.isLoading || bulkActions.loadingAction !== null}
+          catalogError={categoryCatalog.error instanceof Error ? categoryCatalog.error.message : null}
+          targetCount={selection.selectedIds.size}
           title="批量归档到哪里？"
           subtitle={`分类只用于归档文章。为已选 ${selection.selectedIds.size} 篇文章选择分类后，这些文章会移入「归档」；也可以让 AI 判断。`}
           onClose={() => setBulkArchivePickerOpen(false)}
           onSelect={(categoryId) => confirmBulkArchive(categoryId)}
           onSelectAi={() => confirmBulkArchive()}
           onCreateCategory={handleCreateCategory}
+          onRememberCategory={categoryRecents.remember}
+          onCatalogRefresh={refreshCategoryCatalog}
+          onNotify={showToast}
         />
       )}
 
       {archiveTargetId && (
-        <CategoryAssignmentDialog
-          categories={categoryData?.categories ?? []}
+        <CategoryPicker
+          categories={categoryCatalog.activeCategories}
+          recentCategoryIds={categoryRecents.recentCategoryIds}
           currentCategoryId={null}
-          loading={false}
+          loading={categoryCatalog.isLoading}
+          catalogError={categoryCatalog.error instanceof Error ? categoryCatalog.error.message : null}
           title="归档到哪里？"
           subtitle="分类只用于归档文章。选择分类后，文章会移入「归档」；也可以让 AI 判断。"
           onClose={() => setArchiveTargetId(null)}
           onSelect={(categoryId) => confirmArchive(categoryId)}
           onSelectAi={() => confirmArchive()}
           onCreateCategory={handleCreateCategory}
+          onRememberCategory={categoryRecents.remember}
+          onCatalogRefresh={refreshCategoryCatalog}
+          onNotify={showToast}
         />
       )}
       <PullToRefresh

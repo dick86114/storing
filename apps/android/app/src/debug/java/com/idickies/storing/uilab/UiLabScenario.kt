@@ -14,7 +14,9 @@ enum class UiLabScenario(
   Tasks("tasks", "采集任务"),
   States("states", "状态反馈"),
   Settings("settings", "设置"),
-  Categories("categories", "分类管理");
+  Categories("categories", "分类管理"),
+  CategoryPicker("category-picker", "分类选择器"),
+  CategoryManagementError("category-management-error", "分类错误态");
 
   companion object {
     fun fromRoute(route: String?): UiLabScenario = entries.firstOrNull { it.route == route } ?: Library

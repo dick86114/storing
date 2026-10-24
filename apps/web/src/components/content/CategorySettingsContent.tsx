@@ -1,319 +1,493 @@
 'use client';
 
-import { useState } from 'react';
-import useSWR from 'swr';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowDownOutlined,
-  ArrowUpOutlined,
   BgColorsOutlined,
   CheckOutlined,
-  CloseOutlined,
   DeleteOutlined,
-  EditOutlined,
   FolderOpenOutlined,
-  PauseCircleOutlined,
-  PlayCircleOutlined,
+  MergeCellsOutlined,
   PlusOutlined,
   RobotOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
-import { api, type ArchiveCategory } from '@/lib/api';
+
+import { CategoryManagementRow } from '@/components/category/CategoryManagementRow';
+import { CategoryQuickCreateDialog, type CategoryQuickCreateInput } from '@/components/category/CategoryQuickCreateDialog';
 import { useAuth } from '@/components/providers/AuthContext';
 import { useToast } from '@/components/ui/Toast';
+import { useCategoryCatalog, useRefreshCategoryCatalog } from '@/hooks/useCategoryCatalog';
+import { api, type ArchiveCategory } from '@/lib/api';
+import { filterManagementCategories, moveUserCategory, reorderUserCategoryByOffset, resolveSelectedCategoryId } from '@/lib/category-management';
+import {
+  createCategoryMutationGate,
+  runCommittedCategoryMutation,
+  snapshotCategoryActionSource,
+  type CategoryMutationKind,
+} from '@/lib/category-mutation';
+import { CATEGORY_COLORS } from '@/lib/category-presets';
 
 type CategoryDraft = Pick<ArchiveCategory, 'name' | 'description' | 'includeExamples' | 'excludeExamples' | 'color'>;
+type ActionKind = 'merge' | 'delete' | 'activate' | 'deactivate';
 
-const CATEGORY_COLORS = [
-  '#2F6A4F', '#3E7C83', '#536CCB', '#8A5A9E', '#B36A45', '#A67C38',
-  '#647B4D', '#2F7780', '#6675B7', '#A16078', '#9B7250', '#6B7088',
-];
-const EMPTY_DRAFT: CategoryDraft = { name: '', description: '', includeExamples: [], excludeExamples: [], color: CATEGORY_COLORS[0] };
+const EMPTY_DRAFT: CategoryDraft = {
+  name: '',
+  description: '',
+  includeExamples: [],
+  excludeExamples: [],
+  color: CATEGORY_COLORS[0],
+};
 
-function examplesToText(examples: string[]) { return examples.join('\n'); }
-function textToExamples(value: string) { return value.split('\n').map((item) => item.trim()).filter(Boolean); }
+function 示例转文本(examples: string[]) {
+  return examples.join('\n');
+}
 
-function CategoryIconButton({ label, children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
-  return <button className="category-card-icon-button" type="button" aria-label={label} title={label} {...props}>{children}</button>;
+function 文本转示例(value: string) {
+  return value.split('\n').map((item) => item.trim()).filter(Boolean);
+}
+
+function 分类计数(counts: Record<number, number>, id: number) {
+  return counts[id] ?? 0;
 }
 
 export function CategorySettingsContent() {
   const { isAuthenticated } = useAuth();
   const { showToast } = useToast();
-  const { data, mutate, isLoading } = useSWR(isAuthenticated ? 'categories:settings' : null, () => api.getCategories(true), { revalidateOnFocus: false });
+  const catalog = useCategoryCatalog();
+  const refreshCategoryCatalog = useRefreshCategoryCatalog();
+  const [query, setQuery] = useState('');
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const pendingSelectedIdRef = useRef<number | null>(null);
   const [draft, setDraft] = useState<CategoryDraft>(EMPTY_DRAFT);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
-  const [actionCategory, setActionCategory] = useState<ArchiveCategory | null>(null);
-  const [actionKind, setActionKind] = useState<'activate' | 'deactivate' | 'delete' | null>(null);
+  const [activeMutation, setActiveMutation] = useState<CategoryMutationKind | null>(null);
+  const mutationGateRef = useRef(createCategoryMutationGate());
+  const [draggedId, setDraggedId] = useState<number | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [actionKind, setActionKind] = useState<ActionKind | null>(null);
+  const [actionSource, setActionSource] = useState<ArchiveCategory | null>(null);
   const [actionTargetId, setActionTargetId] = useState<number | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [optimizing, setOptimizing] = useState(false);
-  const categories = data?.categories ?? [];
-  const activeTargets = categories.filter((category) => category.isActive && !category.isSystem);
+  const [catalogRefreshWarning, setCatalogRefreshWarning] = useState(false);
 
-  const closeForm = (force = false) => {
-    if (!force && (saving || optimizing)) return;
-    setDraft(EMPTY_DRAFT);
-    setEditingId(null);
-    setFormOpen(false);
-  };
+  const orderedCategories = useMemo(
+    () => [...catalog.categories].sort((left, right) => (
+      left.sortOrder - right.sortOrder || (left.createdAt ?? '').localeCompare(right.createdAt ?? '')
+    )),
+    [catalog.categories],
+  );
+  const filteredCategories = useMemo(
+    () => filterManagementCategories(orderedCategories, query),
+    [orderedCategories, query],
+  );
+  const selected = orderedCategories.find((category) => category.id === selectedId) ?? null;
+  const userCategories = orderedCategories.filter((category) => !category.isSystem);
+  const activeTargets = orderedCategories.filter((category) => category.isActive);
 
-  const openCreate = () => {
-    setDraft(EMPTY_DRAFT);
-    setEditingId(null);
-    setFormOpen(true);
-  };
+  useEffect(() => {
+    const nextId = resolveSelectedCategoryId(orderedCategories, selectedId, pendingSelectedIdRef.current);
+    if (nextId === selectedId) {
+      if (selectedId !== null && orderedCategories.some((category) => category.id === selectedId)) {
+        pendingSelectedIdRef.current = null;
+      }
+      return;
+    }
+    setSelectedId(nextId);
+  }, [orderedCategories, selectedId]);
 
-  const openEdit = (category: ArchiveCategory) => {
-    setEditingId(category.id);
+  useEffect(() => {
+    if (!selected) {
+      setDraft(EMPTY_DRAFT);
+      return;
+    }
     setDraft({
-      name: category.name,
-      description: category.description ?? '',
-      includeExamples: category.includeExamples,
-      excludeExamples: category.excludeExamples,
-      color: category.color ?? CATEGORY_COLORS[0],
+      name: selected.name,
+      description: selected.description ?? '',
+      includeExamples: selected.includeExamples,
+      excludeExamples: selected.excludeExamples,
+      color: selected.color ?? CATEGORY_COLORS[0],
     });
-    setFormOpen(true);
-  };
+  }, [selected]);
+
+
+  const warnRefresh = useCallback((error: unknown) => {
+    console.warn('分类操作已提交，但刷新目录失败:', error);
+    setCatalogRefreshWarning(true);
+    showToast('操作已提交，分类目录刷新失败，请稍后重试');
+  }, [showToast]);
+
+  const refreshCatalogAfterMutation = useCallback(async () => {
+    await refreshCategoryCatalog();
+    setCatalogRefreshWarning(false);
+  }, [refreshCategoryCatalog]);
+
+  const retryCatalogRefresh = useCallback(async () => {
+    try {
+      await refreshCategoryCatalog();
+      setCatalogRefreshWarning(false);
+    } catch (error) {
+      warnRefresh(error);
+    }
+  }, [refreshCategoryCatalog, warnRefresh]);
+
+  const runLockedMutation = useCallback(async <T,>(
+    kind: CategoryMutationKind,
+    task: () => Promise<T>,
+  ): Promise<{ status: 'completed'; value: T } | { status: 'locked' }> => {
+    const gate = mutationGateRef.current;
+    if (!gate.tryAcquire(kind)) return { status: 'locked' };
+    setActiveMutation(kind);
+    try {
+      return { status: 'completed', value: await task() };
+    } finally {
+      gate.release(kind);
+      setActiveMutation(null);
+    }
+  }, []);
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!draft.name.trim()) return showToast('请输入分类名称');
-    setSaving(true);
-    try {
-      const payload = { ...draft, name: draft.name.trim(), description: draft.description?.trim() || null };
-      if (editingId) await api.updateCategory(editingId, payload);
-      else await api.createCategory(payload);
-      await mutate();
-      closeForm(true);
-      showToast(editingId ? '分类已更新' : '分类已创建');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '保存分类失败');
-    } finally {
-      setSaving(false);
-    }
+    if (!selected || selected.isSystem || !draft.name.trim()) return;
+    const source = selected;
+    await runLockedMutation('save', () => runCommittedCategoryMutation({
+      commit: () => api.updateCategory(source.id, {
+        ...draft,
+        name: draft.name.trim(),
+        description: draft.description?.trim() || null,
+      }),
+      refresh: refreshCatalogAfterMutation,
+      onCommitted: () => showToast('分类已保存'),
+      onFailure: (error) => showToast(error instanceof Error ? error.message : '保存分类失败'),
+      onRefreshWarning: warnRefresh,
+    }));
   };
 
   const optimizeDraft = async () => {
-    if (!draft.name.trim()) return showToast('请先填写分类名称');
-    setOptimizing(true);
-    try {
-      const { draft: optimized } = await api.optimizeCategoryDescription({
+    if (!draft.name.trim()) return;
+    await runLockedMutation('optimize', () => runCommittedCategoryMutation({
+      commit: () => api.optimizeCategoryDescription({
         name: draft.name.trim(),
         description: draft.description?.trim() || null,
         includeExamples: draft.includeExamples,
         excludeExamples: draft.excludeExamples,
-      });
-      setDraft((current) => ({
-        ...current,
-        description: optimized.description || current.description,
-        includeExamples: optimized.includeExamples?.length ? optimized.includeExamples : current.includeExamples,
-        excludeExamples: optimized.excludeExamples?.length ? optimized.excludeExamples : current.excludeExamples,
-      }));
-      showToast('已生成分类规则草案，请按需调整');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'AI 优化失败，请稍后重试');
-    } finally {
-      setOptimizing(false);
+      }),
+      onCommitted: (result) => {
+        setDraft((current) => ({
+          ...current,
+          description: result.draft.description || current.description,
+          includeExamples: result.draft.includeExamples?.length ? result.draft.includeExamples : current.includeExamples,
+          excludeExamples: result.draft.excludeExamples?.length ? result.draft.excludeExamples : current.excludeExamples,
+        }));
+        showToast('已生成分类规则草案');
+      },
+      onFailure: (error) => showToast(error instanceof Error ? error.message : 'AI 优化失败，请稍后重试'),
+    }));
+  };
+
+  const persistOrder = useCallback(async (nextCategories: ArchiveCategory[]) => {
+    if (nextCategories === orderedCategories) return;
+    await runLockedMutation('reorder', () => runCommittedCategoryMutation({
+      commit: () => api.reorderCategories(nextCategories.filter((category) => !category.isSystem).map((category) => category.id)),
+      refresh: refreshCatalogAfterMutation,
+      onCommitted: () => {},
+      onFailure: (error) => {
+        showToast(error instanceof Error ? error.message : '保存分类顺序失败');
+        void refreshCategoryCatalog().catch(warnRefresh);
+      },
+      onRefreshWarning: warnRefresh,
+    }));
+  }, [orderedCategories, refreshCatalogAfterMutation, refreshCategoryCatalog, runLockedMutation, showToast, warnRefresh]);
+
+  const moveByKeyboard = (categoryId: number, offset: -1 | 1) => {
+    const next = reorderUserCategoryByOffset(orderedCategories, categoryId, offset);
+    if (next !== orderedCategories) void persistOrder(next);
+  };
+
+  const handleDrop = (targetId: number) => {
+    if (draggedId === null || draggedId === targetId) return;
+    const next = moveUserCategory(orderedCategories, draggedId, targetId);
+    setDraggedId(null);
+    if (next !== orderedCategories) void persistOrder(next);
+  };
+
+  const createCategory = async (input: CategoryQuickCreateInput) => {
+    const lockedResult = await runLockedMutation('create', () => runCommittedCategoryMutation({
+      commit: () => api.createCategory(input),
+      refresh: refreshCatalogAfterMutation,
+      onCommitted: () => {},
+      onFailure: (error) => console.warn('创建分类失败:', error),
+      onRefreshWarning: warnRefresh,
+    }));
+    if (lockedResult.status === 'locked') throw new Error('正在处理其他分类操作，请稍后再试');
+    if (lockedResult.value.status === 'failure') {
+      throw lockedResult.value.error instanceof Error
+        ? lockedResult.value.error
+        : new Error('创建分类失败，请重试');
     }
+    return lockedResult.value.value;
   };
 
-  const openDeactivate = (category: ArchiveCategory) => {
-    setActionCategory(category);
-    setActionKind('deactivate');
+  const openAction = (kind: ActionKind) => {
+    if (!selected || selected.isSystem || mutationGateRef.current.active !== null) return;
+    setActionKind(kind);
+    setActionSource(snapshotCategoryActionSource(selected));
     setActionTargetId(null);
   };
 
-  const openActivate = (category: ArchiveCategory) => {
-    setActionCategory(category);
-    setActionKind('activate');
-    setActionTargetId(null);
-  };
-
-  const openDelete = (category: ArchiveCategory) => {
-    const firstTarget = activeTargets.find((target) => target.id !== category.id) ?? null;
-    setActionCategory(category);
-    setActionKind('delete');
-    setActionTargetId(firstTarget?.id ?? null);
-  };
-
-  const closeAction = (force = false) => {
-    if (!force && saving) return;
-    setActionCategory(null);
+  const closeAction = () => {
+    if (mutationGateRef.current.active !== null) return;
     setActionKind(null);
+    setActionSource(null);
     setActionTargetId(null);
   };
 
-  const confirmDeactivate = async () => {
-    if (!actionCategory) return;
-    setSaving(true);
-    try {
-      await api.updateCategory(actionCategory.id, { isActive: false });
-      await mutate();
-      closeAction(true);
-      showToast('分类已停用');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '停用分类失败');
-    } finally {
-      setSaving(false);
+  const confirmAction = async () => {
+    const source = actionSource;
+    const kind = actionKind;
+    const targetId = actionTargetId;
+    if (!source || !kind || (kind === 'merge' || kind === 'delete') && !targetId) return;
+
+    const lockedResult = await runLockedMutation(kind, () => runCommittedCategoryMutation({
+      commit: async (): Promise<unknown> => {
+        if (kind === 'merge' && targetId) return api.mergeCategories(source.id, targetId);
+        if (kind === 'delete' && targetId) return api.deleteCategory(source.id, targetId);
+        return api.updateCategory(source.id, { isActive: kind === 'activate' });
+      },
+      refresh: refreshCatalogAfterMutation,
+      onCommitted: () => {
+        if ((kind === 'merge' || kind === 'delete') && targetId) {
+          pendingSelectedIdRef.current = null;
+          setSelectedId(targetId);
+        }
+        showToast(kind === 'merge'
+          ? '分类已合并'
+          : kind === 'delete'
+            ? '分类已迁移并删除'
+            : kind === 'activate'
+              ? '分类已启用'
+              : '分类已停用');
+      },
+      onFailure: (error) => showToast(error instanceof Error ? error.message : '分类操作失败'),
+      onRefreshWarning: warnRefresh,
+    }));
+
+    if (lockedResult.status === 'completed' && lockedResult.value.status === 'success') {
+      setActionKind(null);
+      setActionSource(null);
+      setActionTargetId(null);
     }
   };
 
-  const confirmActivate = async () => {
-    if (!actionCategory) return;
-    setSaving(true);
-    try {
-      await api.updateCategory(actionCategory.id, { isActive: true });
-      await mutate();
-      closeAction(true);
-      showToast('分类已重新启用');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '重新启用分类失败');
-    } finally {
-      setSaving(false);
-    }
-  };
+  const mutationLocked = activeMutation !== null;
+  const actionCopy = actionKind === 'merge'
+    ? { title: '合并分类', description: '目标分类会保留，当前分类下的文章会迁移过去。', confirm: '确认合并' }
+    : actionKind === 'delete'
+      ? { title: '删除分类', description: '先选择接收文章的分类；迁移完成后当前分类会被删除。', confirm: '迁移并删除' }
+      : actionKind === 'activate'
+        ? { title: '启用分类', description: '启用后，AI 会再次将符合规则的新归档文章分到这个分类。', confirm: '确认启用' }
+        : { title: '停用分类', description: '停用后，AI 不再新增文章到这个分类；已有文章保持原分类。', confirm: '确认停用' };
 
-  const move = async (category: ArchiveCategory, offset: -1 | 1) => {
-    const index = categories.findIndex((item) => item.id === category.id);
-    const targetIndex = index + offset;
-    if (index < 0 || targetIndex < 0 || targetIndex >= categories.length) return;
-    const categoryIds = categories.map((item) => item.id);
-    [categoryIds[index], categoryIds[targetIndex]] = [categoryIds[targetIndex], categoryIds[index]];
-    setSaving(true);
-    try {
-      await api.reorderCategories(categoryIds);
-      await mutate();
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '调整排序失败');
-    } finally {
-      setSaving(false);
-    }
-  };
+  if (!isAuthenticated) {
+    return <div className="category-management-empty">请登录后管理分类。</div>;
+  }
 
-  const confirmDelete = async () => {
-    if (!actionCategory || !actionTargetId) return;
-    setSaving(true);
-    try {
-      const result = await api.deleteCategory(actionCategory.id, actionTargetId);
-      await mutate();
-      closeAction(true);
-      showToast(`分类已删除，已迁移 ${result.movedArticleCount} 篇文章`);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '删除分类失败');
-    } finally {
-      setSaving(false);
-    }
-  };
+  return (
+    <section className="category-management-shell" aria-busy={catalog.isLoading || mutationLocked}>
+      <header className="category-management-header">
+        <div>
+          <span>分类设置</span>
+          <h1>管理分类</h1>
+          <p>系统分类保持固定；用户分类可排序、编辑、合并或迁移删除。</p>
+        </div>
+        <button className="category-management-create" type="button" disabled={mutationLocked} onClick={() => setCreateOpen(true)}>
+          <PlusOutlined aria-hidden="true" />新建分类
+        </button>
+      </header>
 
-  if (!isAuthenticated) return null;
+      {catalog.error && (
+        <div className="category-management-error" role="alert">
+          <span>{catalog.error instanceof Error ? catalog.error.message : '分类目录加载失败'}</span>
+          <button type="button" onClick={() => void refreshCategoryCatalog()}>重试</button>
+        </div>
+      )}
 
-  return <section className="category-settings-shell">
-    <header className="category-settings-header">
-      <div>
-        <span className="category-settings-eyebrow">归档组织</span>
-        <h1>分类管理</h1>
-        <p>分类只用于组织已归档文章；文章归档时即可选择分类，AI 只会从这里选择，不会自行创建分类。</p>
+      {catalogRefreshWarning && (
+        <div className="category-management-refresh-warning" role="status">
+          <span>分类目录刷新失败，当前展示可能不是最新。</span>
+          <button type="button" disabled={mutationLocked} onClick={() => void retryCatalogRefresh()}>重试刷新</button>
+        </div>
+      )}
+
+      <div className="category-management-layout">
+        <aside className="category-management-list-panel" aria-label="分类列表">
+          <label className="category-management-search">
+            <SearchOutlined aria-hidden="true" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索分类" aria-label="搜索分类" />
+          </label>
+
+          <div className="category-management-list" role="listbox" aria-label="分类">
+            {filteredCategories.map((category) => {
+              const active = category.id === selectedId;
+              const indexInUsers = userCategories.findIndex((item) => item.id === category.id);
+              return (
+                <CategoryManagementRow
+                  key={category.id}
+                  category={category}
+                  count={分类计数(catalog.counts, category.id)}
+                  selected={active}
+                  first={indexInUsers === 0}
+                  last={indexInUsers === userCategories.length - 1}
+                  locked={mutationLocked}
+                  draggedId={draggedId}
+                  onSelect={() => {
+                    pendingSelectedIdRef.current = null;
+                    setSelectedId(category.id);
+                  }}
+                  onMove={(offset) => moveByKeyboard(category.id, offset)}
+                  onDragStart={(categoryId) => setDraggedId(categoryId)}
+                  onDragEnd={() => setDraggedId(null)}
+                  onDrop={handleDrop}
+                />
+              );
+            })}
+            {!catalog.isLoading && filteredCategories.length === 0 && (
+              <div className="category-management-list-empty">
+                <FolderOpenOutlined aria-hidden="true" />
+                <p>{query ? '没有匹配的分类' : '还没有用户分类'}</p>
+                {!query && <button type="button" disabled={mutationLocked} onClick={() => setCreateOpen(true)}>创建第一个分类</button>}
+              </div>
+            )}
+          </div>
+        </aside>
+
+        <div className="category-management-detail-panel">
+          {!selected ? (
+            <div className="category-management-detail-empty">选择一个分类查看详情</div>
+          ) : selected.isSystem ? (
+            <article className="category-management-system-detail">
+              <header>
+                <span className="category-management-color" style={{ background: selected.color ?? 'var(--text-muted)' }} aria-hidden="true" />
+                <div><span>系统分类</span><h2>{selected.name}</h2></div>
+              </header>
+              <p>{selected.description || '系统会在这里收拢暂时无法明确归类的归档文章。'}</p>
+              <dl>
+                <div><dt>文章数</dt><dd>{分类计数(catalog.counts, selected.id)} 篇</dd></div>
+                <div><dt>规则</dt><dd>固定分类，不可重命名、停用、删除或排序。</dd></div>
+              </dl>
+            </article>
+          ) : (
+            <form className="category-management-form" onSubmit={save}>
+              <header className="category-management-detail-header">
+                <div>
+                  <span>{selected.isActive ? '用户分类' : '已停用分类'}</span>
+                  <h2>{selected.name}</h2>
+                </div>
+                <div className="category-management-detail-actions">
+                  <button type="button" disabled={mutationLocked} onClick={() => openAction('merge')}><MergeCellsOutlined />合并分类</button>
+                  <button type="button" className="is-danger" disabled={mutationLocked} onClick={() => openAction('delete')}><DeleteOutlined />删除分类</button>
+                  <button type="button" disabled={mutationLocked} onClick={() => openAction(selected.isActive ? 'deactivate' : 'activate')}>
+                    {selected.isActive ? '停用分类' : '启用分类'}
+                  </button>
+                </div>
+              </header>
+
+              <label className="category-form-field">
+                <span>分类名称</span>
+                <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} maxLength={40} />
+              </label>
+              <label className="category-form-field">
+                <span>分类说明</span>
+                <textarea value={draft.description ?? ''} onChange={(event) => setDraft({ ...draft, description: event.target.value })} maxLength={500} rows={3} />
+                {!draft.description?.trim() && <small>未填写说明时，AI 会更倾向于把不明确文章放入待整理。</small>}
+              </label>
+              <div className="category-form-rule-grid">
+                <label className="category-form-field">
+                  <span>适合收录</span>
+                  <textarea value={示例转文本(draft.includeExamples)} onChange={(event) => setDraft({ ...draft, includeExamples: 文本转示例(event.target.value) })} rows={4} />
+                </label>
+                <label className="category-form-field">
+                  <span>不适合收录</span>
+                  <textarea value={示例转文本(draft.excludeExamples)} onChange={(event) => setDraft({ ...draft, excludeExamples: 文本转示例(event.target.value) })} rows={4} />
+                </label>
+              </div>
+              <div className="category-form-color">
+                <div><span>显示颜色</span><small>用于归档导航和文章分类标识。</small></div>
+                <div className="category-form-color-controls">
+                  <div className="category-form-color-swatches" aria-label="预设颜色">
+                    {CATEGORY_COLORS.map((color) => (
+                      <button
+                        key={color}
+                        className={draft.color === color ? 'is-selected' : ''}
+                        type="button"
+                        onClick={() => setDraft({ ...draft, color })}
+                        style={{ '--swatch-color': color } as React.CSSProperties}
+                        aria-label={`选择颜色 ${color}`}
+                        title={color}
+                      >
+                        {draft.color === color && <CheckOutlined aria-hidden="true" />}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="category-form-custom-color" title="自定义颜色">
+                    <BgColorsOutlined aria-hidden="true" />
+                    <span>调色盘</span>
+                    <input type="color" value={draft.color ?? CATEGORY_COLORS[0]} onChange={(event) => setDraft({ ...draft, color: event.target.value })} aria-label="自定义分类颜色" />
+                  </label>
+                </div>
+              </div>
+
+              <footer className="category-management-form-footer">
+                <button type="button" className="category-management-optimize" onClick={optimizeDraft} disabled={mutationLocked || !draft.name.trim()}>
+                  <RobotOutlined /> {activeMutation === 'optimize' ? '正在生成…' : 'AI 优化分类说明'}
+                </button>
+                <button type="submit" disabled={mutationLocked || !draft.name.trim()}>{activeMutation === 'save' ? '保存中…' : '保存修改'}</button>
+              </footer>
+            </form>
+          )}
+        </div>
       </div>
-      <button className="category-settings-create-button" type="button" onClick={openCreate}>
-        <PlusOutlined aria-hidden="true" />
-        新增分类
-      </button>
-    </header>
 
-    <div className="category-settings-guide" role="note">
-      <RobotOutlined aria-hidden="true" />
-      <p><strong>收录边界怎么写？</strong>“适合收录”填写该分类典型文章主题或场景；“不适合收录”填写容易混淆、但应归入其他分类的内容。每行一个例子，越具体越有助于 AI 判断。</p>
-    </div>
+      {createOpen && (
+        <CategoryQuickCreateDialog
+          categories={orderedCategories}
+          onClose={() => setCreateOpen(false)}
+          onCreate={createCategory}
+          onCreated={(category, meta) => {
+            setCreateOpen(false);
+            setQuery('');
+            pendingSelectedIdRef.current = category.id;
+            setSelectedId(category.id);
+            showToast(meta.reusedExisting ? `已定位现有分类「${category.name}」` : `已创建分类「${category.name}」`);
+          }}
+        />
+      )}
 
-    <div className="category-workbench-grid" aria-busy={isLoading}>
-      {categories.map((category, index) => {
-        const articleCount = data?.counts[String(category.id)] ?? 0;
-        const canDelete = activeTargets.some((target) => target.id !== category.id);
-        return <article key={category.id} className={`category-workbench-card${category.isActive ? '' : ' is-inactive'}${category.isSystem ? ' is-system' : ''}`}>
-          <div className="category-workbench-card-accent" style={{ background: category.color ?? 'var(--text-muted)' }} aria-hidden="true" />
-          <div className="category-workbench-card-topline">
-            <span className="category-workbench-card-order">{String(index + 1).padStart(2, '0')}</span>
-            <div className="category-workbench-card-actions">
-              {index > 0 && <CategoryIconButton label={`上移 ${category.name}`} onClick={() => move(category, -1)} disabled={saving}><ArrowUpOutlined /></CategoryIconButton>}
-              {index < categories.length - 1 && <CategoryIconButton label={`下移 ${category.name}`} onClick={() => move(category, 1)} disabled={saving}><ArrowDownOutlined /></CategoryIconButton>}
-              {!category.isSystem && <>
-                <CategoryIconButton label={`编辑 ${category.name}`} onClick={() => openEdit(category)} disabled={saving}><EditOutlined /></CategoryIconButton>
-                {category.isActive && <CategoryIconButton label={`停用 ${category.name}`} onClick={() => openDeactivate(category)} disabled={saving}><PauseCircleOutlined /></CategoryIconButton>}
-                {!category.isActive && <CategoryIconButton label={`重新启用 ${category.name}`} onClick={() => openActivate(category)} disabled={saving}><PlayCircleOutlined /></CategoryIconButton>}
-                <CategoryIconButton label={`删除 ${category.name}`} onClick={() => openDelete(category)} disabled={saving || !canDelete}><DeleteOutlined /></CategoryIconButton>
-              </>}
-            </div>
-          </div>
-          <div className="category-workbench-card-heading">
-            <span className="category-workbench-card-color" style={{ background: category.color ?? 'var(--text-muted)' }} aria-hidden="true" />
-            <h2>{category.name}</h2>
-            {category.isSystem && <span className="category-workbench-card-badge">系统</span>}
-            {!category.isActive && <span className="category-workbench-card-badge is-paused">已停用</span>}
-          </div>
-          <p className="category-workbench-card-description">{category.description || '尚未设置分类说明，AI 会优先将不明确的文章归入待整理。'}</p>
-          <div className="category-workbench-card-rules">
-            <div><span>适合</span><p>{category.includeExamples.length ? category.includeExamples.slice(0, 2).join('、') : '尚未定义'}</p></div>
-            <div><span>排除</span><p>{category.excludeExamples.length ? category.excludeExamples.slice(0, 2).join('、') : '尚未定义'}</p></div>
-          </div>
-          <footer className="category-workbench-card-footer">
-            <span><FolderOpenOutlined aria-hidden="true" />{articleCount} 篇归档文章</span>
-            {category.isSystem && <span>不可停用</span>}
-          </footer>
-        </article>;
-      })}
-      {!isLoading && categories.length === 0 && <div className="category-workbench-empty"><FolderOpenOutlined aria-hidden="true" /><p>还没有分类，先建立一个让 AI 可以遵循的归档边界。</p><button type="button" onClick={openCreate}>新增分类</button></div>}
-    </div>
-
-    {formOpen && <div className="category-form-overlay" role="presentation" onMouseDown={() => closeForm()}>
-      <form className="category-form-modal" onSubmit={save} role="dialog" aria-modal="true" aria-labelledby="category-form-title" onMouseDown={(event) => event.stopPropagation()}>
-        <header className="category-form-header">
-          <div><span>{editingId ? '调整规则' : '建立归档边界'}</span><h2 id="category-form-title">{editingId ? '编辑分类' : '新增分类'}</h2></div>
-          <button type="button" className="category-form-close" onClick={() => closeForm()} disabled={saving || optimizing} aria-label="关闭分类表单"><CloseOutlined /></button>
-        </header>
-        <label className="category-form-field"><span>分类名称</span><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="例如：编程开发" maxLength={40} autoFocus /></label>
-        <div className="category-form-field category-form-field--description">
-          <div className="category-form-field-label"><span>分类说明</span><button type="button" onClick={optimizeDraft} disabled={optimizing || saving}><RobotOutlined aria-hidden="true" />{optimizing ? '正在优化…' : 'AI 优化'}</button></div>
-          <textarea value={draft.description ?? ''} onChange={(event) => setDraft({ ...draft, description: event.target.value })} placeholder="用一句话说明这个分类的长期归属边界。" rows={3} maxLength={500} />
+      {actionKind && actionSource && (
+        <div className="category-form-overlay" role="presentation" onMouseDown={closeAction}>
+          <section className="category-action-modal" role="dialog" aria-modal="true" aria-labelledby="category-action-title" onMouseDown={(event) => event.stopPropagation()}>
+            <header>
+              <span>{actionCopy.title}</span>
+              <h2 id="category-action-title">{actionSource.name}</h2>
+            </header>
+            <p>{actionCopy.description}</p>
+            {(actionKind === 'merge' || actionKind === 'delete') && (
+              <label>
+                目标分类
+                <select value={actionTargetId ?? ''} onChange={(event) => setActionTargetId(event.target.value ? Number(event.target.value) : null)} disabled={mutationLocked}>
+                  <option value="">请选择目标分类</option>
+                  {activeTargets.filter((category) => category.id !== actionSource.id).map((category) => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <footer>
+              <button type="button" onClick={closeAction} disabled={mutationLocked}>取消</button>
+              <button type="button" onClick={confirmAction} disabled={mutationLocked || ((actionKind === 'merge' || actionKind === 'delete') && !actionTargetId)}>
+                {mutationLocked ? '处理中…' : actionCopy.confirm}
+              </button>
+            </footer>
+          </section>
         </div>
-        <div className="category-form-rule-grid">
-          <label className="category-form-field"><span>适合收录</span><small>写典型主题、文章类型或问题场景，每行一个。</small><textarea value={examplesToText(draft.includeExamples)} onChange={(event) => setDraft({ ...draft, includeExamples: textToExamples(event.target.value) })} placeholder={'Docker 部署与运维\n容器网络与镜像\nKubernetes 实践'} rows={4} /></label>
-          <label className="category-form-field"><span>不适合收录</span><small>写容易混淆但应归到其他分类的内容，每行一个。</small><textarea value={examplesToText(draft.excludeExamples)} onChange={(event) => setDraft({ ...draft, excludeExamples: textToExamples(event.target.value) })} placeholder={'纯产品新闻\n非技术效率工具\n个人生活随笔'} rows={4} /></label>
-        </div>
-        <div className="category-form-color">
-          <div><span>显示颜色</span><small>用于归档导航和文章分类标识。</small></div>
-          <div className="category-form-color-controls">
-            <div className="category-form-color-swatches" aria-label="预设颜色">
-              {CATEGORY_COLORS.map((color) => <button key={color} className={draft.color === color ? 'is-selected' : ''} type="button" onClick={() => setDraft({ ...draft, color })} style={{ '--swatch-color': color } as React.CSSProperties} aria-label={`选择颜色 ${color}`} title={color}>{draft.color === color && <CheckOutlined aria-hidden="true" />}</button>)}
-            </div>
-            <label className="category-form-custom-color" title="自定义颜色">
-              <BgColorsOutlined aria-hidden="true" />
-              <span>调色盘</span>
-              <input type="color" value={draft.color ?? CATEGORY_COLORS[0]} onChange={(event) => setDraft({ ...draft, color: event.target.value })} aria-label="自定义分类颜色" />
-            </label>
-          </div>
-        </div>
-        <footer className="category-form-footer"><button type="button" onClick={() => closeForm()} disabled={saving || optimizing}>取消</button><button className="category-form-save" type="submit" disabled={saving || optimizing}>{saving ? '保存中…' : editingId ? '保存修改' : '创建分类'}</button></footer>
-      </form>
-    </div>}
-
-    {actionCategory && actionKind && <div className="category-form-overlay" role="presentation" onMouseDown={() => closeAction()}>
-      <section className={`category-action-modal category-action-modal--${actionKind}`} role="dialog" aria-modal="true" aria-labelledby="category-action-title" onMouseDown={(event) => event.stopPropagation()}>
-        <header>
-          {actionKind === 'delete' ? <DeleteOutlined aria-hidden="true" /> : actionKind === 'activate' ? <PlayCircleOutlined aria-hidden="true" /> : <PauseCircleOutlined aria-hidden="true" />}
-          <div><span>{actionKind === 'delete' ? '不可撤销' : actionKind === 'activate' ? '恢复 AI 自动归类' : '可随时重新启用'}</span><h2 id="category-action-title">{actionKind === 'delete' ? `删除“${actionCategory.name}”` : actionKind === 'activate' ? `重新启用“${actionCategory.name}”` : `停用“${actionCategory.name}”`}</h2></div>
-        </header>
-        {actionKind === 'delete' ? <>
-          <p>删除前，请选择一个分类接收现有归档文章。迁移完成后，这个分类会从分类管理中移除。</p>
-          <label>文章迁移到<select value={actionTargetId ?? ''} onChange={(event) => setActionTargetId(event.target.value ? Number(event.target.value) : null)} disabled={saving}><option value="">请选择目标分类</option>{activeTargets.filter((target) => target.id !== actionCategory.id).map((target) => <option key={target.id} value={target.id}>{target.name}</option>)}</select></label>
-          <footer><button type="button" onClick={() => closeAction()} disabled={saving}>取消</button><button type="button" onClick={confirmDelete} disabled={!actionTargetId || saving}>{saving ? '正在删除…' : '迁移并删除'}</button></footer>
-        </> : actionKind === 'activate' ? <>
-          <p>重新启用后，AI 会再次将符合规则的新归档文章分到这个分类；已有文章保持原样。</p>
-          <footer><button type="button" onClick={() => closeAction()} disabled={saving}>取消</button><button type="button" onClick={confirmActivate} disabled={saving}>{saving ? '正在启用…' : '确认启用'}</button></footer>
-        </> : <>
-          <p>停用后，AI 不会再将新归档文章分到这个分类；已有文章保持原分类不变。需要时可在编辑分类中重新启用。</p>
-          <footer><button type="button" onClick={() => closeAction()} disabled={saving}>取消</button><button type="button" onClick={confirmDeactivate} disabled={saving}>{saving ? '正在停用…' : '确认停用'}</button></footer>
-        </>}
-      </section>
-    </div>}
-  </section>;
+      )}
+    </section>
+  );
 }

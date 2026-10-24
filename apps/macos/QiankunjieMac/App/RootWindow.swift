@@ -141,9 +141,7 @@ struct RootWindow: View {
                     AdminSettingsView(repository: model.authModel.repository)
                 } else if model.destination == .categories {
                     if model.isAuthenticated {
-                        CategoryManagementView(
-                            client: ManagementAPIClient(repository: model.authModel.repository)
-                        )
+                        CategoryManagementView(catalog: model.categoryCatalog)
                     } else {
                         GuestAccessView(
                             title: "登录后管理分类",
@@ -205,6 +203,9 @@ struct RootWindow: View {
             } else if let libraryView = model.destination.libraryView {
                 CompactArticleListView(
                     model: model.libraryModel,
+                    categoryCatalog: model.categoryCatalog,
+                    selectedCategoryID: model.selectedCategoryID,
+                    onSelectCategory: model.selectCategory,
                     selection: articleSelection,
                     presentationMode: presentationModeBinding
                 )
@@ -262,6 +263,7 @@ struct RootWindow: View {
         ReaderPaneView(
             selection: model.selectedReaderSelection,
             userID: model.user?.id,
+            categoryCatalog: model.categoryCatalog,
             appFont: model.settingsModel.appFont,
             readerContentWidth: model.settingsModel.readerContentWidth,
             onReaderContentWidthChange: {
@@ -273,9 +275,7 @@ struct RootWindow: View {
                 model.closeArticle()
             },
             onLibraryDidChange: {
-                Task {
-                    await model.libraryModel.load(reset: true)
-                }
+                model.handleLibraryDidChange()
             }
         )
     }

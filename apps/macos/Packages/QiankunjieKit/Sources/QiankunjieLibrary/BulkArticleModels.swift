@@ -177,6 +177,7 @@ public struct NativeBulkResult: Equatable, Sendable {
     public let requestedCount: Int
     public let succeededCount: Int
     public let skippedCount: Int
+    public let failedCount: Int
     public let issues: [ArticleBulkIssue]
     public let publications: [ArticlePublicationLink]
 
@@ -184,12 +185,14 @@ public struct NativeBulkResult: Equatable, Sendable {
         requestedCount: Int,
         succeededCount: Int,
         skippedCount: Int,
+        failedCount: Int,
         issues: [ArticleBulkIssue],
         publications: [ArticlePublicationLink] = []
     ) {
         self.requestedCount = requestedCount
         self.succeededCount = succeededCount
         self.skippedCount = skippedCount
+        self.failedCount = failedCount
         self.issues = issues
         self.publications = publications
     }
@@ -198,6 +201,7 @@ public struct NativeBulkResult: Equatable, Sendable {
         requestedCount = result.requestedCount
         succeededCount = result.succeededIDs.count
         skippedCount = result.skipped.count
+        failedCount = result.failed.count
         issues = result.skipped + result.failed
         publications = result.publications ?? []
     }
@@ -206,6 +210,7 @@ public struct NativeBulkResult: Equatable, Sendable {
         requestedCount = result.requestedCount
         succeededCount = result.queuedIDs.count
         skippedCount = result.alreadyQueuedIDs.count
+        failedCount = result.failed.count
         issues = result.failed
         publications = []
     }

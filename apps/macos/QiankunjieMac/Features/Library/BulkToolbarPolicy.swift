@@ -63,17 +63,6 @@ enum BulkToolbarPolicy {
         }
     }
 
-    static func categoryConfirmation(
-        category: LibraryCategoryFilter,
-        selectedCount: Int
-    ) -> BulkConfirmationCopy {
-        copy(
-            "设置「\(category.name)」",
-            "将把 \(selectedCount) 篇文章移动到这个分类。",
-            "设置分类"
-        )
-    }
-
     private static func copy(
         _ title: String,
         _ message: String,

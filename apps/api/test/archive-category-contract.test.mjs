@@ -3,9 +3,10 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 test('分类 API、文章归档和 AI 受控分类使用同一套分类契约', async () => {
-  const [index, articleRoutes, aiService, collectService, categoryService] = await Promise.all([
+  const [index, articleRoutes, categoryRoute, aiService, collectService, categoryService] = await Promise.all([
     readFile(new URL('../src/index.ts', import.meta.url), 'utf8'),
     readFile(new URL('../src/routes/articles.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../src/routes/article-category-routes.ts', import.meta.url), 'utf8'),
     readFile(new URL('../src/services/ai.service.ts', import.meta.url), 'utf8'),
     readFile(new URL('../src/services/collect.service.ts', import.meta.url), 'utf8'),
     readFile(new URL('../src/services/category.service.ts', import.meta.url), 'utf8'),
@@ -21,7 +22,7 @@ test('分类 API、文章归档和 AI 受控分类使用同一套分类契约', 
   assert.match(articleRoutes, /articlesRoutes\.post\('\/articles\/bulk-category'/);
   assert.match(articleRoutes, /articlesRoutes\.post\('\/articles\/:id\/classify'/);
   assert.match(articleRoutes, /classifyStoredArticleForArchive/);
-  assert.match(articleRoutes, /getPendingCategory\(userId\)/);
+  assert.match(categoryRoute, /getPendingCategory\(userID\)/);
   assert.doesNotMatch(collectService, /getPendingCategory\(|markArchived:\s*true/);
   assert.match(aiService, /category_id/);
   assert.match(aiService, /只能从候选分类中选择/);

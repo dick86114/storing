@@ -5,7 +5,12 @@ import { articles, articleMetadata, categories, users } from '../db/schema.js';
 import { eq, and, asc, desc, count, sql, or, gt, inArray } from 'drizzle-orm';
 import { classifyStoredArticleForArchive } from '../services/ai.service.js';
 import { enqueueAiGeneration, queueArchiveAiIfNeeded } from '../services/ai-generation.service.js';
-import { getCategoryById, getPendingCategory, moveArticlesToCategory } from '../services/category.service.js';
+import {
+  CategoryServiceError,
+  getCategoryById,
+  getPendingCategory,
+  moveArticlesToCategory,
+} from '../services/category.service.js';
 import { ARTICLE_BULK_ACTION_LIMIT, parseArticleBulkActionInput } from '../services/article-bulk-validation.js';
 import type { ArticleBulkActionResult } from '@storing/shared';
 import {
@@ -36,6 +41,10 @@ import {
 import { coverImageBackfillQueue } from '../services/cover-image-backfill.service.js';
 import { requireAuth, optionalAuth, isAuthenticated, getCurrentUser } from '../middleware/auth.js';
 import { sanitizeCapturedHtml } from '../services/singlefile.service.js';
+import {
+  createArchiveArticleHandler,
+  createUpdateArticleCategoryHandler,
+} from './article-category-routes.js';
 
 export const articlesRoutes = new Hono();
 
@@ -671,51 +680,27 @@ articlesRoutes.post('/articles/:id/favorite', requireAuth, async (c) => {
  * POST /articles/:id/archive — 归档（触发 AI 分类）
  * 需要登录
  */
-articlesRoutes.post('/articles/:id/archive', requireAuth, async (c) => {
-  const idParam = c.req.param('id');
-  if (!idParam) return c.json({ error: { code: 'BAD_REQUEST', message: 'Missing id' } }, 400);
-  const id = parseInt(idParam);
-
-  const userId = getCurrentUser(c).id;
-  const ownedArticle = await getArticleRecord(id, userId);
-  if (!ownedArticle) return c.json({ error: { code: 'NOT_FOUND', message: 'Article not found in your library' } }, 404);
-  const body = await c.req.json().catch(() => ({})) as { categoryId?: unknown };
-  const requestedCategoryId = typeof body.categoryId === 'number' ? body.categoryId : null;
-  if (requestedCategoryId !== null && (!Number.isInteger(requestedCategoryId) || requestedCategoryId <= 0)) {
-    return c.json({ error: { code: 'BAD_REQUEST', message: '分类 ID 无效' } }, 400);
-  }
-  const now = new Date();
-  const hasActionTimestamps = await hasMetadataTimestampColumns();
-  const category = requestedCategoryId
-    ? await getCategoryById(userId, requestedCategoryId, { requireActive: true }).catch(() => null)
-    : ownedArticle.isArchived && (ownedArticle as any).categoryId ? null : await getPendingCategory(userId);
-  if (requestedCategoryId && !category) return c.json({ error: { code: 'CATEGORY_NOT_FOUND', message: '分类不存在、已停用或无权访问' } }, 404);
-  const updateValues = {
-    ...(hasActionTimestamps ? { isArchived: true, archivedAt: now, updatedAt: now } : { isArchived: true, updatedAt: now }),
-    ...(category ? {
-      categoryId: category.id,
-      categorySource: requestedCategoryId ? 'user' : 'rule',
-      categoryReviewStatus: requestedCategoryId ? 'confirmed' : 'needs_review',
-      categoryConfidence: null,
-      categoryReason: null,
-      categoryModelVersion: null,
-    } : {}),
-  };
-
-  await db
-    .update(articleMetadata)
-    .set(updateValues)
-    .where(metadataWhereCondition(id, userId));
-
-  const existingAiReady = Boolean(ownedArticle.aiSummary && ownedArticle.aiTags?.length);
-  queueArchiveAiIfNeeded(userId, id, {
-    userSelectedCategory: Boolean(requestedCategoryId),
-    existingAiReady,
-  }).catch((error) => console.error('Archive AI trigger failed:', error instanceof Error ? error.message : error));
-  coverImageBackfillQueue.enqueue([{ articleId: id, userId }]);
-
-  return c.json({ articleId: id, isArchived: true, category: category ? { id: category.id, name: category.name } : null });
-});
+articlesRoutes.post('/articles/:id/archive', requireAuth, createArchiveArticleHandler({
+  currentUserID: (c) => getCurrentUser(c).id as number,
+  getArticleRecord,
+  getCategoryById,
+  getPendingCategory,
+  hasMetadataTimestampColumns,
+  updateMetadata: async (articleID, userID, values) => {
+    await db
+      .update(articleMetadata)
+      .set(values)
+      .where(metadataWhereCondition(articleID, userID));
+  },
+  queueArchiveAI: (userID, articleID, options) => queueArchiveAiIfNeeded(
+    userID,
+    articleID,
+    options,
+  ),
+  enqueueCoverImage: (articleID, userID) => {
+    coverImageBackfillQueue.enqueue([{ articleId: articleID, userId: userID }]);
+  },
+}));
 
 articlesRoutes.post('/articles/:id/classify', requireAuth, async (c) => {
   const id = Number(c.req.param('id'));
@@ -855,17 +840,10 @@ articlesRoutes.get('/articles/bulk-export/:jobId/download', requireAuth, async (
   return c.body(webStream, 200, buildBulkExportHeaders(download));
 });
 
-articlesRoutes.patch('/articles/:id/category', requireAuth, async (c) => {
-  const id = Number(c.req.param('id'));
-  const body = await c.req.json().catch(() => null) as { categoryId?: unknown } | null;
-  if (!Number.isInteger(id) || id <= 0 || !body || typeof body.categoryId !== 'number') return c.json({ error: { code: 'BAD_REQUEST', message: '文章或分类 ID 无效' } }, 400);
-  try {
-    const result = await moveArticlesToCategory(getCurrentUser(c).id as number, [id], body.categoryId);
-    return c.json({ articleId: id, updatedCount: result.updatedCount });
-  } catch (error) {
-    return c.json({ error: { code: 'CATEGORY_UPDATE_FAILED', message: error instanceof Error ? error.message : '修改分类失败' } }, 400);
-  }
-});
+articlesRoutes.patch('/articles/:id/category', requireAuth, createUpdateArticleCategoryHandler({
+  currentUserID: (c) => getCurrentUser(c).id as number,
+  moveArticlesToCategory,
+}));
 
 articlesRoutes.patch('/articles/:id/title', requireAuth, async (c) => {
   const id = Number(c.req.param('id'));
@@ -901,6 +879,12 @@ articlesRoutes.post('/articles/bulk-category', requireAuth, async (c) => {
     );
     return c.json(result);
   } catch (error) {
+    if (
+      error instanceof CategoryServiceError
+      && (error.code === 'CATEGORY_NOT_FOUND' || error.code === 'CATEGORY_INACTIVE')
+    ) {
+      return c.json({ error: { code: 'CATEGORY_UNAVAILABLE', message: error.message } }, 404);
+    }
     return c.json({ error: { code: 'BULK_CATEGORY_FAILED', message: error instanceof Error ? error.message : '批量分类失败' } }, 400);
   }
 });

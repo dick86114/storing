@@ -5,6 +5,7 @@ import com.idickies.storing.ui.theme.isQiankunjieDarkTheme
 import android.content.ClipboardManager
 import android.view.ViewGroup
 import android.content.Intent
+import android.widget.Toast
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -198,9 +199,12 @@ import coil3.compose.AsyncImage
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 import com.idickies.storing.library.ArticleCard
+import com.idickies.storing.categories.CategoryCreationResult
 import com.idickies.storing.library.ArticleCategory
+import com.idickies.storing.library.CategoryAssignmentResult
 import com.idickies.storing.library.ArticleCategoryResult
 import com.idickies.storing.library.ArticleDetail
+import com.idickies.storing.library.CategoryMutationRequest
 import com.idickies.storing.library.ArticleListPresentationMode
 import com.idickies.storing.library.ArticleProcessingAction
 import com.idickies.storing.library.PublicationAction
@@ -217,6 +221,7 @@ import com.idickies.storing.library.LibraryUiState
 import com.idickies.storing.library.shouldLoadMore
 import com.idickies.storing.library.canManageArticle
 import com.idickies.storing.library.publicationAction
+import com.idickies.storing.library.remainingCategoryAssignmentIds
 import com.idickies.storing.library.archiveSourceFilters
 import com.idickies.storing.library.toggleArchiveBatchSelection
 import com.idickies.storing.reader.ReaderWebView
@@ -308,8 +313,13 @@ internal fun libraryTopBarSubtitle(
   view: LibraryView,
   searchQuery: String,
   counts: ArticleCounts?,
+  archiveCategory: ArticleCategory? = null,
+  archiveCategoryCount: Int? = null,
 ): LibraryTopBarSubtitle {
   if (searchQuery.isNotBlank()) return LibraryTopBarSubtitle(label = "搜索结果", recordCount = null)
+  if (view == LibraryView.Archive && archiveCategory != null) {
+    return LibraryTopBarSubtitle(label = archiveCategory.name, recordCount = archiveCategoryCount ?: 0)
+  }
   val total = counts?.let {
     when (view) {
       LibraryView.Inbox -> it.inbox
@@ -776,6 +786,7 @@ internal fun LibraryMoreMenu(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
+  username: String?,
   sharedText: String?,
   onSharedTextConsumed: () -> Unit,
   openArticleId: Int?,
@@ -861,9 +872,18 @@ fun LibraryScreen(
   val isScrolledDown by remember(libraryListState) { derivedStateOf { libraryListState.firstVisibleItemIndex > 0 || libraryListState.firstVisibleItemScrollOffset > 200 } }
   val scope = androidx.compose.runtime.rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
+  val context = LocalContext.current
+  val onCategoryAssigned: (String) -> Unit = { message ->
+    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+  }
   var refreshAnchor by remember { mutableStateOf<LibraryRefreshAnchor?>(null) }
   var refreshWasObserved by remember { mutableStateOf(false) }
 
+  LaunchedEffect(username, isAuthenticated) {
+    archiveCategoryTarget = null
+    libraryViewModel.closeDetail()
+    libraryViewModel.prepareArchiveCategories()
+  }
   LaunchedEffect(openSettingsRequest) {
     if (openSettingsRequest) {
       showSettings = true
@@ -1010,7 +1030,12 @@ fun LibraryScreen(
       onPasswordChanged = onLogout,
     )
     showDeviceSessions -> DeviceSessionsScreen(onBack = { showDeviceSessions = false })
-    showCategoryManagement -> CategoryManagementScreen(onBack = { showCategoryManagement = false })
+    showCategoryManagement -> CategoryManagementScreen(
+      onBack = {
+        showCategoryManagement = false
+        libraryViewModel.prepareArchiveCategories()
+      },
+    )
     showSettings -> QiankunjieSettingsScreen(
       checkingUpdate = updateChecking,
       themeMode = themeMode,
@@ -1058,8 +1083,15 @@ fun LibraryScreen(
         }
       },
       archiveCategories = state.archiveCategories,
-      onMoveToCategory = { categoryId -> libraryViewModel.moveToCategory(detail, categoryId) },
-      onCreateCategory = libraryViewModel::createArchiveCategory,
+      recentArchiveCategories = state.recentArchiveCategories,
+      archiveCategoriesLoading = state.archiveCategoriesLoading,
+      archiveCategoriesError = state.archiveCategoriesError,
+      onRetryArchiveCategories = libraryViewModel::prepareArchiveCategories,
+      onAssignCategory = { category ->
+        libraryViewModel.assignCategoryToArticle(detail.id, category, archiveIfNeeded = false)
+      },
+      onCreateCategory = libraryViewModel::createCategoryForAssignment,
+      onCategoryAssigned = onCategoryAssigned,
       onReclassify = { libraryViewModel.reclassify(detail) },
       onPublication = { libraryViewModel.togglePublication(detail) },
       onOpenSharePoster = { showSharePoster = true },
@@ -1091,7 +1123,14 @@ fun LibraryScreen(
               Image(painter = painterResource(R.drawable.brand_logo), contentDescription = null, modifier = Modifier.size(26.dp))
               Column {
                 Text("乾坤戒", style = MaterialTheme.typography.titleLarge)
-                val subtitle = libraryTopBarSubtitle(state.view, state.searchQuery, state.counts)
+                val selectedArchiveCategory = state.archiveCategories.firstOrNull { it.id == state.archiveCategoryId }
+                val subtitle = libraryTopBarSubtitle(
+                  view = state.view,
+                  searchQuery = state.searchQuery,
+                  counts = state.counts,
+                  archiveCategory = selectedArchiveCategory,
+                  archiveCategoryCount = state.archiveCategoryCounts[state.archiveCategoryId?.toString()],
+                )
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                   Text(
                     subtitle.label,
@@ -1241,6 +1280,7 @@ fun LibraryScreen(
         val renderedView = LibraryView.entries[page]
         val renderedState = tabContentStates[renderedView] ?: state.takeIf { renderedView == state.view }
           ?: state.copy(view = renderedView, articles = emptyList(), loading = false, refreshing = false, error = null)
+        key(renderedView, username) {
         LibraryList(
           state = renderedState, collectUrls = collectState.urls, collectSelectedUrl = collectState.selectedUrl,
           collectSubmitting = collectState.submitting, collectMessage = collectState.message, activeJobCount = jobsState.activeJobCount,
@@ -1248,18 +1288,21 @@ fun LibraryScreen(
           onResetSort = libraryViewModel::resetSort, sortOrder = state.sortOrder, presentationMode = presentationMode,
           onPresentationModeChange = libraryLayoutViewModel::setPresentationMode, onArchiveSources = libraryViewModel::selectArchiveSources, onArchiveTags = libraryViewModel::selectArchiveTags, onArchiveCategory = libraryViewModel::selectArchiveCategory,
           onBulkToolbarAction = libraryViewModel::runBulkToolbarAction,
-          onBulkArchive = libraryViewModel::runBulkArchive,
-          onBulkCategory = libraryViewModel::runBulkCategory,
           onBulkCategoryAi = libraryViewModel::runBulkCategoryAi,
+          onAssignCategory = libraryViewModel::assignCategoryToArticles,
+          onCreateCategory = libraryViewModel::createCategoryForAssignment,
+          onAssigned = onCategoryAssigned,
+          onOpenCategoryManagement = { showCategoryManagement = true },
+          onRetryCategories = libraryViewModel::prepareArchiveCategories,
           onPrepareArchiveCategories = libraryViewModel::prepareArchiveCategories,
           onDownloadBulkExport = libraryViewModel::downloadBulkExport,
           onClearBulkResult = libraryViewModel::clearBulkResult,
-          onCreateCategory = libraryViewModel::createArchiveCategory,
           onCategoryStripPressedChanged = { pressed -> categoryStripPressed = pressed },
           onRefresh = ::refreshListPreservingPosition, onLoadMore = libraryViewModel::loadMore, onOpen = libraryViewModel::open,
           onLongPress = { longPressedArticle = it }, onSelectCollectUrl = collectViewModel::select, onSubmitCollect = collectViewModel::submit,
           listState = listStateFor(renderedView), modifier = Modifier.padding(padding),
         )
+        }
       }
     }
   }
@@ -1326,8 +1369,12 @@ fun LibraryScreen(
     )
   }
   archiveCategoryTarget?.let { target ->
-    ArchiveCategoryPickerDialog(
+    ArchiveCategoryPickerSheet(
       categories = state.archiveCategories,
+      recentCategories = state.recentArchiveCategories,
+      loading = state.archiveCategoriesLoading,
+      error = state.archiveCategoriesError,
+      onRetry = libraryViewModel::prepareArchiveCategories,
       onDismiss = { archiveCategoryTarget = null },
       onArchiveWithAi = {
         archiveCategoryTarget = null
@@ -1336,14 +1383,14 @@ fun LibraryScreen(
           is ArchiveCategoryTarget.Detail -> libraryViewModel.toggleArchive(target.article)
         }
       },
-      onArchiveInCategory = { categoryId ->
-        archiveCategoryTarget = null
+      onAssign = { category ->
         when (target) {
-          is ArchiveCategoryTarget.Card -> libraryViewModel.toggleArchiveCard(target.article, categoryId)
-          is ArchiveCategoryTarget.Detail -> libraryViewModel.toggleArchive(target.article, categoryId)
+          is ArchiveCategoryTarget.Card -> libraryViewModel.assignCategoryToArticle(target.article.id, category, archiveIfNeeded = true)
+          is ArchiveCategoryTarget.Detail -> libraryViewModel.assignCategoryToArticle(target.article.id, category, archiveIfNeeded = true)
         }
       },
-      onCreateCategory = libraryViewModel::createArchiveCategory,
+      onCreateCategory = libraryViewModel::createCategoryForAssignment,
+      onAssigned = onCategoryAssigned,
     )
   }
   if (showManualCollect) ManualCollectDialog(
@@ -1606,176 +1653,35 @@ private sealed interface ArchiveCategoryTarget {
 }
 
 @Composable
-private fun ArchiveCategoryPickerDialog(
+private fun ArchiveCategoryPickerSheet(
   categories: List<ArticleCategory>,
+  recentCategories: List<ArticleCategory>,
+  loading: Boolean,
+  error: String?,
+  onRetry: () -> Unit,
   onDismiss: () -> Unit,
   onArchiveWithAi: () -> Unit,
-  onArchiveInCategory: (Int) -> Unit,
-  onCreateCategory: (String, (ArticleCategory?, String?) -> Unit) -> Unit,
+  onAssign: suspend (ArticleCategory) -> CategoryAssignmentResult,
+  onCreateCategory: suspend (CategoryMutationRequest) -> CategoryCreationResult,
+  onAssigned: (String) -> Unit,
 ) {
-  CategoryAssignmentDialog(
-    onDismissRequest = onDismiss,
+  CategoryAssignmentSheet(
     title = "归档到哪里？",
     subtitle = "分类只用于归档文章。选择分类后，文章会移入「归档」；也可以让 AI 判断。",
     categories = categories,
+    recentCategories = recentCategories,
     currentCategoryId = null,
-    loading = false,
-    onSelect = onArchiveInCategory,
+    loading = loading,
+    loadError = error,
+    onRetry = onRetry,
+    onDismissRequest = onDismiss,
     onSelectAi = onArchiveWithAi,
+    onAssign = { categoryId ->
+      val category = categories.firstOrNull { it.id == categoryId }
+      if (category != null) onAssign(category) else CategoryAssignmentResult.Failure("分类已失效，请刷新后重试")
+    },
     onCreateCategory = onCreateCategory,
-  )
-}
-
-@Composable
-private fun CategoryAssignmentDialog(
-  onDismissRequest: () -> Unit,
-  title: String,
-  subtitle: String,
-  categories: List<ArticleCategory>,
-  currentCategoryId: Int?,
-  loading: Boolean,
-  onSelect: (Int) -> Unit,
-  onSelectAi: (() -> Unit)? = null,
-  onCreateCategory: ((String, (ArticleCategory?, String?) -> Unit) -> Unit)? = null,
-) {
-  var quickCreateOpen by remember { mutableStateOf(false) }
-  QiankunjieAlertDialog(
-    onDismissRequest = onDismissRequest,
-    icon = { Icon(Icons.AutoMirrored.Outlined.Label, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-    title = { Text(title) },
-    text = {
-      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-        onSelectAi?.let { selectAi ->
-          CategoryAssignmentRow(
-            label = "由 AI 判断",
-            detail = "低置信度会进入待整理",
-            icon = Icons.Outlined.AutoAwesome,
-            selected = false,
-            enabled = !loading,
-            onClick = selectAi,
-          )
-        }
-        categories.forEach { category ->
-          val selected = category.id == currentCategoryId
-          CategoryAssignmentRow(
-            label = category.name,
-            color = category.color?.let(::parseCategoryColor) ?: MaterialTheme.colorScheme.primary,
-            selected = selected,
-            enabled = !loading && !selected,
-            onClick = { onSelect(category.id) },
-          )
-        }
-        onCreateCategory?.let {
-          TextButton(
-            onClick = { quickCreateOpen = true },
-            enabled = !loading,
-            modifier = Modifier.fillMaxWidth(),
-          ) {
-            Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(17.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("新增分类")
-          }
-        }
-        if (categories.isEmpty() && onCreateCategory == null) {
-          Text("暂无可用分类，请先在分类管理中创建分类。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-      }
-    },
-    confirmButton = { TextButton(onClick = onDismissRequest, enabled = !loading) { Text("取消") } },
-  )
-  if (quickCreateOpen) {
-    QuickCreateCategoryDialog(
-      onDismiss = { quickCreateOpen = false },
-      onCreate = { name, onComplete ->
-        onCreateCategory?.invoke(name) { category, errorMessage ->
-          onComplete(category, errorMessage)
-          category?.let { onSelect(it.id) }
-        }
-      },
-    )
-  }
-}
-
-@Composable
-private fun CategoryAssignmentRow(
-  label: String,
-  selected: Boolean,
-  enabled: Boolean,
-  onClick: () -> Unit,
-  color: Color? = null,
-  icon: ImageVector? = null,
-  detail: String? = null,
-) {
-  Surface(
-    modifier = Modifier.fillMaxWidth().clickable(enabled = enabled) { onClick() },
-    shape = RoundedCornerShape(10.dp),
-    color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-    border = androidx.compose.foundation.BorderStroke(
-      1.dp,
-      if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.48f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
-    ),
-  ) {
-    Row(
-      modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp),
-      horizontalArrangement = Arrangement.spacedBy(10.dp),
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      when {
-        icon != null -> Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-        color != null -> Box(modifier = Modifier.size(10.dp).background(color, CircleShape))
-      }
-      Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(label, color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-        detail?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall) }
-      }
-      if (selected) Text("当前", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-    }
-  }
-}
-
-@Composable
-private fun QuickCreateCategoryDialog(
-  onDismiss: () -> Unit,
-  onCreate: (String, (ArticleCategory?, String?) -> Unit) -> Unit,
-) {
-  var name by rememberSaveable { mutableStateOf("") }
-  var submitting by remember { mutableStateOf(false) }
-  var errorMessage by remember { mutableStateOf<String?>(null) }
-  QiankunjieAlertDialog(
-    onDismissRequest = { if (!submitting) onDismiss() },
-    icon = { Icon(Icons.Outlined.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-    title = { Text("新增分类") },
-    text = {
-      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        OutlinedTextField(
-          value = name,
-          onValueChange = { name = it; errorMessage = null },
-          label = { Text("分类名称") },
-          placeholder = { Text("例如：编程开发") },
-          singleLine = true,
-          enabled = !submitting,
-          isError = errorMessage != null,
-          supportingText = errorMessage?.let { { Text(it) } },
-          modifier = Modifier.fillMaxWidth(),
-        )
-        Text("创建后会立刻用于当前文章。", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-      }
-    },
-    dismissButton = { TextButton(onClick = onDismiss, enabled = !submitting) { Text("取消") } },
-    confirmButton = {
-      Button(
-        onClick = {
-          submitting = true
-          errorMessage = null
-          onCreate(name) { category, error ->
-            submitting = false
-            if (category != null) onDismiss() else errorMessage = error
-          }
-        },
-        enabled = name.trim().isNotBlank() && !submitting,
-      ) { Text(if (submitting) "创建中…" else "创建并选择") }
-    },
+    onAssigned = onAssigned,
   )
 }
 
@@ -1861,13 +1767,15 @@ private fun LibraryList(
   onArchiveTags: (List<String>) -> Unit,
   onArchiveCategory: (Int?) -> Unit,
   onBulkToolbarAction: (BulkToolbarAction, Set<Int>) -> Unit,
-  onBulkArchive: (Set<Int>, Int?) -> Unit,
-  onBulkCategory: (Set<Int>, Int) -> Unit,
   onBulkCategoryAi: (Set<Int>) -> Unit,
+  onAssignCategory: suspend (Set<Int>, ArticleCategory, Boolean) -> CategoryAssignmentResult,
+  onCreateCategory: suspend (CategoryMutationRequest) -> CategoryCreationResult,
+  onAssigned: (String) -> Unit,
+  onOpenCategoryManagement: () -> Unit,
+  onRetryCategories: () -> Unit,
   onPrepareArchiveCategories: () -> Unit,
   onDownloadBulkExport: () -> Unit,
   onClearBulkResult: () -> Unit,
-  onCreateCategory: (String, (ArticleCategory?, String?) -> Unit) -> Unit,
   onCategoryStripPressedChanged: (Boolean) -> Unit,
   onRefresh: () -> Unit,
   onLoadMore: () -> Unit,
@@ -1900,6 +1808,18 @@ private fun LibraryList(
       selectedArticleIds = setOf(article.id)
     }
   }
+  suspend fun assignSelectedToCategory(categoryId: Int, archiveIfNeeded: Boolean): CategoryAssignmentResult {
+    val category = state.archiveCategories.firstOrNull { it.id == categoryId }
+      ?: return CategoryAssignmentResult.Failure("分类已失效，请刷新后重试")
+    val requestedIds = selectedArticleIds
+    val result = onAssignCategory(requestedIds, category, archiveIfNeeded)
+    selectedArticleIds = remainingCategoryAssignmentIds(requestedIds, result)
+    if (result.closesSheet) {
+      batchMode = false
+      bulkMenuExpanded = false
+    }
+    return result
+  }
   PullToRefreshBox(
     isRefreshing = state.refreshing,
     onRefresh = onRefresh,
@@ -1931,6 +1851,7 @@ private fun LibraryList(
               .pauseLibraryPagerWhilePressed(onCategoryStripPressedChanged)
               .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
           ) {
             AssistChip(
               onClick = { onArchiveCategory(null) },
@@ -1947,6 +1868,20 @@ private fun LibraryList(
                   containerColor = if (state.archiveCategoryId == category.id) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
                 ),
               )
+            }
+            TextButton(onClick = onOpenCategoryManagement) {
+              Icon(Icons.Outlined.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
+              Spacer(Modifier.width(4.dp))
+              Text("管理")
+            }
+          }
+          if (state.archiveCategoriesLoading && state.archiveCategories.isEmpty()) {
+            Text("正在加载分类…", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+          }
+          state.archiveCategoriesError?.let { message ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+              Text(message, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+              TextButton(onClick = onRetryCategories) { Text("重试分类") }
             }
           }
         }
@@ -2185,38 +2120,43 @@ private fun LibraryList(
       }
     }
   }
-  if (batchCategoryPickerOpen) CategoryAssignmentDialog(
-    onDismissRequest = { batchCategoryPickerOpen = false },
+  if (batchCategoryPickerOpen) CategoryAssignmentSheet(
     title = "批量修改分类",
-    subtitle = "为已选 ${selectedArticleIds.size} 篇文章选择一个预设分类。",
+    subtitle = "搜索或创建分类后应用到所选文章；也可以让 AI 判断。",
     categories = state.archiveCategories,
+    recentCategories = state.recentArchiveCategories,
     currentCategoryId = null,
-    loading = state.bulkRunningAction != null,
-    onSelect = { categoryId ->
-      onBulkCategory(selectedArticleIds, categoryId)
-    },
+    targetCount = selectedArticleIds.size,
+    loading = state.archiveCategoriesLoading,
+    loadError = state.archiveCategoriesError,
+    onRetry = onRetryCategories,
+    onDismissRequest = { batchCategoryPickerOpen = false },
     onSelectAi = {
       batchCategoryPickerOpen = false
       onBulkCategoryAi(selectedArticleIds)
     },
+    onAssign = { categoryId -> assignSelectedToCategory(categoryId, archiveIfNeeded = false) },
     onCreateCategory = onCreateCategory,
+    onAssigned = onAssigned,
   )
-  if (batchArchivePickerOpen) CategoryAssignmentDialog(
-    onDismissRequest = { batchArchivePickerOpen = false },
+  if (batchArchivePickerOpen) CategoryAssignmentSheet(
     title = "批量归档到哪里？",
-    subtitle = "分类只用于归档文章。为已选 ${selectedArticleIds.size} 篇文章选择分类后，这些文章会移入「归档」；也可以让 AI 判断。",
+    subtitle = "分类只用于归档文章；选择后这些文章会移入「归档」，也可以让 AI 判断。",
     categories = state.archiveCategories,
+    recentCategories = state.recentArchiveCategories,
     currentCategoryId = null,
-    loading = state.bulkRunningAction != null,
-    onSelect = { categoryId ->
-      batchArchivePickerOpen = false
-      onBulkArchive(selectedArticleIds, categoryId)
-    },
+    targetCount = selectedArticleIds.size,
+    loading = state.archiveCategoriesLoading,
+    loadError = state.archiveCategoriesError,
+    onRetry = onRetryCategories,
+    onDismissRequest = { batchArchivePickerOpen = false },
     onSelectAi = {
       batchArchivePickerOpen = false
-      onBulkArchive(selectedArticleIds, null)
+      onBulkToolbarAction(BulkToolbarAction.Archive, selectedArticleIds)
     },
+    onAssign = { categoryId -> assignSelectedToCategory(categoryId, archiveIfNeeded = true) },
     onCreateCategory = onCreateCategory,
+    onAssigned = onAssigned,
   )
 }
 
@@ -2306,7 +2246,7 @@ internal fun ArticleDetailSkeleton() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, archiveCategories: List<ArticleCategory>, onMoveToCategory: (Int) -> Unit, onCreateCategory: (String, (ArticleCategory?, String?) -> Unit) -> Unit, onReclassify: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onUpdateTitle: (String) -> Unit, onSaveReadingPosition: (Float) -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, archiveCategories: List<ArticleCategory>, recentArchiveCategories: List<ArticleCategory>, archiveCategoriesLoading: Boolean, archiveCategoriesError: String?, onRetryArchiveCategories: () -> Unit, onAssignCategory: suspend (ArticleCategory) -> CategoryAssignmentResult, onCreateCategory: suspend (CategoryMutationRequest) -> CategoryCreationResult, onCategoryAssigned: (String) -> Unit, onReclassify: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onUpdateTitle: (String) -> Unit, onSaveReadingPosition: (Float) -> Unit) {
   val context = LocalContext.current
   val isDarkAppearance = isQiankunjieDarkTheme()
   var confirmDelete by remember { mutableStateOf(false) }
@@ -2656,22 +2596,26 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
       dismissButton = { TextButton(onClick = { confirmProcessing = null }) { Text("取消") } },
     )
   }
-  if (categoryPickerOpen) CategoryAssignmentDialog(
-    onDismissRequest = { categoryPickerOpen = false },
+  if (categoryPickerOpen) CategoryAssignmentSheet(
     title = "修改分类",
-    subtitle = "选择预设分类，或让 AI 根据内容判断。",
+    subtitle = "搜索并选择分类，或让 AI 根据内容判断。",
     categories = archiveCategories,
+    recentCategories = recentArchiveCategories,
     currentCategoryId = article.category?.id,
-    loading = processingAction != null,
-    onSelect = { categoryId ->
-      categoryPickerOpen = false
-      onMoveToCategory(categoryId)
-    },
+    loading = archiveCategoriesLoading,
+    loadError = archiveCategoriesError,
+    onRetry = onRetryArchiveCategories,
+    onDismissRequest = { categoryPickerOpen = false },
     onSelectAi = {
       categoryPickerOpen = false
       onReclassify()
     },
+    onAssign = { categoryId ->
+      val category = archiveCategories.firstOrNull { it.id == categoryId }
+      if (category != null) onAssignCategory(category) else CategoryAssignmentResult.Failure("分类已失效，请刷新后重试")
+    },
     onCreateCategory = onCreateCategory,
+    onAssigned = onCategoryAssigned,
   )
   confirmPublication?.let { action ->
     QiankunjieAlertDialog(

@@ -31,6 +31,21 @@ struct ReaderModelTests {
         #expect(result.publicURL == "/p/token")
     }
 
+    @Test func 服务端归档响应解码分类() throws {
+        let data = Data(
+            #"{"isArchived":true,"category":{"id":31,"name":"工程实践"}}"#.utf8
+        )
+
+        let result = try JSONDecoder.qiankunjie.decode(
+            ReaderArchiveResult.self,
+            from: data
+        )
+
+        #expect(result.isArchived)
+        #expect(result.category?.id == 31)
+        #expect(result.category?.name == "工程实践")
+    }
+
     @Test func 阅读器加载桌面版HTML() async {
         let client = 模拟阅读客户端()
         let model = ReaderModel(client: client)
@@ -58,6 +73,153 @@ struct ReaderModelTests {
         #expect(model.article?.detail.aiStatus == "succeeded")
     }
 
+    @Test func 阅读器AI后台完成会发出目录刷新信号() async {
+        let client = 模拟阅读客户端(
+            detail: ArticleDetail(id: 12, isArchived: true, aiStatus: "queued")
+        )
+        let model = ReaderModel(client: client)
+        await model.open(articleID: 12)
+        var 刷新信号次数 = 0
+        model.onCategoryAffectingChange = {
+            刷新信号次数 += 1
+        }
+        await client.updateDetail(ArticleDetail(
+            id: 12,
+            category: ArticleCategory(id: 31, name: "工程实践"),
+            isArchived: true,
+            aiStatus: "succeeded"
+        ))
+
+        await model.refreshAIStatusOnce()
+        await model.refreshAIStatusOnce()
+
+        #expect(刷新信号次数 == 1)
+    }
+
+    @Test func 阅读器手动分类归档取消归档删除都会发出目录刷新信号() async {
+        let client = 模拟阅读客户端()
+        let model = ReaderModel(client: client)
+        await model.open(articleID: 12)
+        var 刷新信号次数 = 0
+        model.onCategoryAffectingChange = {
+            刷新信号次数 += 1
+        }
+
+        await model.archive(categoryID: 31)
+        _ = await model.moveToCategory(32)
+        await model.moveToInbox()
+        await model.delete()
+        await model.deletePermanent()
+
+        #expect(刷新信号次数 == 5)
+    }
+
+    @Test func 阅读器AI分类完成后重新加载并发出目录刷新信号() async {
+        let client = 模拟阅读客户端(
+            classificationDetail: ArticleDetail(
+                id: 12,
+                category: ArticleCategory(id: 31, name: "工程实践"),
+                isArchived: true
+            )
+        )
+        let model = ReaderModel(client: client)
+        await model.open(articleID: 12)
+        var 刷新信号次数 = 0
+        var 回调时分类ID: Int?
+        model.onCategoryAffectingChange = {
+            刷新信号次数 += 1
+            回调时分类ID = model.article?.category?.id
+        }
+
+        let succeeded = await model.classifyArticle()
+
+        #expect(succeeded)
+        #expect(await client.paths.contains("articles/12/classify"))
+        #expect(model.article?.category?.id == 31)
+        #expect(刷新信号次数 == 1)
+        #expect(回调时分类ID == 31)
+    }
+
+    @Test func 阅读器旧AI分类在切换文章后完成不会发出目录刷新或覆盖新文章() async {
+        let client = 模拟阅读客户端(
+            classificationDetail: ArticleDetail(
+                id: 12,
+                category: ArticleCategory(id: 31, name: "旧文章分类"),
+                isArchived: true
+            )
+        )
+        await client.setArticleDetail(
+            ArticleDetail(
+                id: 13,
+                category: ArticleCategory(id: 44, name: "新文章分类"),
+                isArchived: true
+            ),
+            for: 13
+        )
+        let model = ReaderModel(client: client)
+        await model.open(articleID: 12)
+        var 刷新信号次数 = 0
+        model.onCategoryAffectingChange = {
+            刷新信号次数 += 1
+        }
+
+        await client.holdNextClassification()
+        let 分类任务 = Task { @MainActor in
+            await model.classifyArticle()
+        }
+        await client.waitForClassificationRequestCount(1)
+        await model.open(articleID: 13)
+
+        await client.resumeClassification()
+        let succeeded = await 分类任务.value
+
+        #expect(!succeeded)
+        #expect(model.article?.id == 13)
+        #expect(model.article?.category?.id == 44)
+        #expect(刷新信号次数 == 0)
+    }
+
+    @Test func 阅读器旧AI分类在切换用户后完成不会发出目录刷新或覆盖新文章() async {
+        let client = 模拟阅读客户端(
+            classificationDetail: ArticleDetail(
+                id: 12,
+                category: ArticleCategory(id: 31, name: "旧用户文章分类"),
+                isArchived: true
+            )
+        )
+        await client.setArticleDetail(
+            ArticleDetail(
+                id: 14,
+                category: ArticleCategory(id: 55, name: "新用户文章分类"),
+                isArchived: true
+            ),
+            for: 14
+        )
+        let model = ReaderModel(client: client, userID: 1)
+        await model.open(articleID: 12)
+        var 刷新信号次数 = 0
+        model.onCategoryAffectingChange = {
+            刷新信号次数 += 1
+        }
+
+        await client.holdNextClassification()
+        let 分类任务 = Task { @MainActor in
+            await model.classifyArticle()
+        }
+        await client.waitForClassificationRequestCount(1)
+        model.prepareUser(userID: 2)
+        await model.open(articleID: 14)
+
+        await client.resumeClassification()
+        let succeeded = await 分类任务.value
+
+        #expect(!succeeded)
+        #expect(model.userID == 2)
+        #expect(model.article?.id == 14)
+        #expect(model.article?.category?.id == 55)
+        #expect(刷新信号次数 == 0)
+    }
+
     @Test func 阅读器归档会携带手工分类并在完成后回调资料库() async {
         let client = 模拟阅读客户端()
         let model = ReaderModel(client: client)
@@ -67,6 +229,18 @@ struct ReaderModelTests {
 
         #expect(await client.lastArchiveCategoryID == 31)
         #expect(model.article?.isArchived == true)
+    }
+
+    @Test func 阅读器归档成功后立即应用所选分类() async {
+        let detail = ArticleDetail(id: 12, aiCategory: "AI 分类")
+        let client = 模拟阅读客户端(detail: detail)
+        let model = ReaderModel(client: client)
+        await model.open(articleID: 12)
+
+        await model.archive(categoryID: 31)
+
+        #expect(model.article?.category?.id == 31)
+        #expect(model.article?.category?.name == "工程实践")
     }
 
     @Test func 阅读器详情暴露封面图() async {
@@ -126,39 +300,48 @@ struct ReaderModelTests {
         #expect(model.articleID == 73)
     }
 
-    @Test func 阅读器加载分类并将文章移动到新分类() async {
+    @Test func 阅读器分类操作只负责移动或归档文章() async throws {
         let current = ArticleCategory(id: 21, name: "待整理")
-        let target = ArticleCategory(id: 31, name: "技术")
         let detail = ArticleDetail(id: 12, category: current, isArchived: true)
-        let client = 模拟阅读客户端(detail: detail, categories: [current, target])
+        let client = 模拟阅读客户端(detail: detail)
         let model = ReaderModel(client: client)
 
         await model.open(articleID: 12)
-        await model.loadCategories()
-        let changed = await model.moveToCategory(31)
-
-        #expect(changed)
-        #expect(await client.categoryPaths == ["categories", "articles/12/category"])
-        #expect(await client.lastMovedCategoryID == 31)
-        #expect(model.availableCategories.map(\.id) == [21, 31])
+        let moved = await model.moveToCategory(31)
         #expect(model.article?.category?.id == 31)
+        await model.archive(categoryID: 41)
+
+        #expect(moved)
+        #expect(await client.categoryPaths == ["articles/12/category"])
+        #expect(await client.lastMovedCategoryID == 31)
+        #expect(await client.lastArchiveCategoryID == 41)
+        #expect(model.article?.category?.id == 41)
         #expect(model.actionErrorMessage == nil)
+
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/QiankunjieReader/ReaderModel.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        #expect(!source.contains("availableCategories"))
+        #expect(!source.contains("func loadCategories()"))
+        #expect(!source.contains("func createCategory(name:"))
     }
 
-    @Test func 阅读器可以创建分类并加入可选列表() async {
+    @Test func 阅读器保留分类失效的结构化错误() async {
         let client = 模拟阅读客户端(
-            detail: ArticleDetail(id: 12, isArchived: true),
-            categories: []
+            moveError: .categoryUnavailable(message: "分类已停用，不能用于归类")
         )
         let model = ReaderModel(client: client)
+
         await model.open(articleID: 12)
+        let moved = await model.moveToCategory(31)
 
-        let created = await model.createCategory(name: "  新分类  ")
-
-        #expect(created?.id == 32)
-        #expect(created?.name == "新分类")
-        #expect(await client.createdCategoryNames == ["新分类"])
-        #expect(model.availableCategories.map(\.name) == ["新分类"])
+        #expect(!moved)
+        #expect(model.actionError == .categoryUnavailable(message: "分类已停用，不能用于归类"))
+        #expect(model.actionErrorMessage == "分类已停用，不能用于归类")
     }
 
     @Test func API客户端游客公开路由不带认证头() async throws {
@@ -204,6 +387,37 @@ struct ReaderModelTests {
         #expect(model.article?.id == 92)
         #expect(model.article?.isFavorited == false)
         #expect(model.actionErrorMessage == nil)
+    }
+
+    @Test func 用户切换后旧动作不会清掉新动作忙碌锁() async throws {
+        let client = 模拟阅读客户端()
+        let model = ReaderModel(client: client, userID: 1)
+        await model.open(articleID: 91)
+        await client.holdFavorite()
+
+        let 旧用户动作 = Task {
+            await model.toggleFavorite()
+        }
+        await client.waitForRequestCount(2)
+
+        model.prepareUser(userID: 2)
+        await model.open(articleID: 92)
+        await client.holdNextMove()
+        let 新用户动作 = Task {
+            await model.moveToCategory(31)
+        }
+        await client.waitForMoveRequestCount(1)
+
+        await client.resumeFavorite()
+        await 旧用户动作.value
+
+        #expect(model.isPerformingAction)
+
+        await client.resumeMove()
+        _ = await 新用户动作.value
+
+        #expect(!model.isPerformingAction)
+        #expect(model.article?.category?.id == 31)
     }
 
     @Test func 旧删除响应不会关闭切换后的文章() async throws {
@@ -390,26 +604,37 @@ struct ReaderModelTests {
 
 private actor 模拟阅读客户端: ReaderNetworkClient {
     private var detail: ArticleDetail
+    private var articleDetailsByID: [Int: ArticleDetail] = [:]
     private(set) var paths: [String] = []
     private(set) var categoryPaths: [String] = []
     private(set) var lastMovedCategoryID: Int?
     private(set) var lastArchiveCategoryID: Int?
-    private(set) var createdCategoryNames: [String] = []
-    private let categories: [ArticleCategory]
+    private let moveError: AppError?
     private(set) var lastHTMLVariant: String?
     private(set) var desktopRequestCount = 0
     private var shouldHoldFavorite = false
     private var shouldHoldDelete = false
     private var favoriteContinuation: CheckedContinuation<ReaderFavoriteResult, Error>?
     private var deleteContinuation: CheckedContinuation<ReaderDeleteResult, Error>?
+    private var shouldHoldNextMove = false
+    private var moveContinuations: [CheckedContinuation<Void, Error>] = []
+    private var moveRequestCount = 0
+    private var moveRequestWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
     private var requestWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
+    private var classificationDetail: ArticleDetail?
+    private var shouldHoldNextClassification = false
+    private var classificationContinuation: CheckedContinuation<ReaderAIResult, Error>?
+    private var classificationRequestCount = 0
+    private var classificationRequestWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
 
     init(
         detail: ArticleDetail = 文章详情(id: 12),
-        categories: [ArticleCategory] = []
+        moveError: AppError? = nil,
+        classificationDetail: ArticleDetail? = nil
     ) {
         self.detail = detail
-        self.categories = categories
+        self.moveError = moveError
+        self.classificationDetail = classificationDetail
     }
 
     func articleDetail(articleID: Int, htmlVariant: String) async throws -> ArticleDetail {
@@ -418,6 +643,9 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
         lastHTMLVariant = htmlVariant
         if htmlVariant == "desktop" {
             desktopRequestCount += 1
+        }
+        if let detail = articleDetailsByID[articleID] {
+            return detail
         }
         return articleID == detail.id ? detail : 文章详情(id: articleID)
     }
@@ -450,7 +678,10 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
     func archive(articleID: Int, categoryID: Int?) async throws -> ReaderArchiveResult {
         paths.append("articles/\(articleID)/archive")
         lastArchiveCategoryID = categoryID
-        return ReaderArchiveResult(isArchived: true)
+        let category = categoryID.map {
+            ArticleCategory(id: $0, name: "工程实践")
+        }
+        return ReaderArchiveResult(isArchived: true, category: category)
     }
 
     func unarchive(articleID: Int) async throws -> ReaderArchiveResult {
@@ -479,7 +710,22 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
     }
 
     func classifyArticle(articleID: Int) async throws -> ReaderAIResult {
+        classificationRequestCount += 1
+        notifyClassificationRequestWaiters()
         paths.append("articles/\(articleID)/classify")
+        if shouldHoldNextClassification {
+            shouldHoldNextClassification = false
+            let result = try await withCheckedThrowingContinuation { continuation in
+                classificationContinuation = continuation
+            }
+            if let classificationDetail {
+                detail = classificationDetail
+            }
+            return result
+        }
+        if let classificationDetail {
+            detail = classificationDetail
+        }
         return ReaderAIResult(ok: true)
     }
 
@@ -500,20 +746,18 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
         notifyRequestWaiters()
     }
 
-    func categories() async throws -> [ArticleCategory] {
-        categoryPaths.append("categories")
-        notifyRequestWaiters()
-        return categories
-    }
-
-    func createCategory(name: String) async throws -> ArticleCategory {
-        categoryPaths.append("categories")
-        notifyRequestWaiters()
-        createdCategoryNames.append(name)
-        return ArticleCategory(id: 32, name: name)
-    }
-
     func moveArticleToCategory(articleID: Int, categoryID: Int) async throws {
+        moveRequestCount += 1
+        notifyMoveRequestWaiters()
+        if let moveError {
+            throw moveError
+        }
+        if shouldHoldNextMove {
+            shouldHoldNextMove = false
+            try await withCheckedThrowingContinuation { continuation in
+                moveContinuations.append(continuation)
+            }
+        }
         categoryPaths.append("articles/\(articleID)/category")
         lastMovedCategoryID = categoryID
         detail = ArticleDetail(
@@ -533,6 +777,10 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
         self.detail = detail
     }
 
+    func setArticleDetail(_ detail: ArticleDetail, for articleID: Int) {
+        articleDetailsByID[articleID] = detail
+    }
+
     func holdFavorite() {
         shouldHoldFavorite = true
     }
@@ -544,6 +792,39 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
 
     func holdDelete() {
         shouldHoldDelete = true
+    }
+
+    func holdNextMove() {
+        shouldHoldNextMove = true
+    }
+
+    func holdNextClassification() {
+        shouldHoldNextClassification = true
+    }
+
+    func waitForClassificationRequestCount(_ count: Int) async {
+        guard classificationRequestCount < count else { return }
+        await withCheckedContinuation { continuation in
+            classificationRequestWaiters[count, default: []].append(continuation)
+        }
+    }
+
+    func resumeClassification() {
+        classificationContinuation?.resume(returning: ReaderAIResult(ok: true))
+        classificationContinuation = nil
+    }
+
+    func waitForMoveRequestCount(_ count: Int) async {
+        guard moveRequestCount < count else { return }
+        await withCheckedContinuation { continuation in
+            moveRequestWaiters[count, default: []].append(continuation)
+        }
+    }
+
+    func resumeMove(with result: Result<Void, Error> = .success(())) {
+        guard !moveContinuations.isEmpty else { return }
+        let continuation = moveContinuations.removeFirst()
+        continuation.resume(with: result)
     }
 
     func resumeDelete() {
@@ -565,6 +846,22 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
         let readyKeys = requestWaiters.keys.filter { $0 <= paths.count }
         for key in readyKeys {
             let waiters = requestWaiters.removeValue(forKey: key) ?? []
+            waiters.forEach { $0.resume() }
+        }
+    }
+
+    private func notifyMoveRequestWaiters() {
+        let readyKeys = moveRequestWaiters.keys.filter { $0 <= moveRequestCount }
+        for key in readyKeys {
+            let waiters = moveRequestWaiters.removeValue(forKey: key) ?? []
+            waiters.forEach { $0.resume() }
+        }
+    }
+
+    private func notifyClassificationRequestWaiters() {
+        let readyKeys = classificationRequestWaiters.keys.filter { $0 <= classificationRequestCount }
+        for key in readyKeys {
+            let waiters = classificationRequestWaiters.removeValue(forKey: key) ?? []
             waiters.forEach { $0.resume() }
         }
     }

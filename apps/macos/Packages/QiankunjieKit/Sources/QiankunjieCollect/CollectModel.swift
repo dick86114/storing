@@ -642,6 +642,10 @@ public final class CollectModel {
             "操作过于频繁，请稍后再试"
         case .contentUnavailable:
             "采集任务不存在或已被删除"
+        case let .categoryUnavailable(message):
+            message
+        case let .categoryConflict(message):
+            message
         case .invalidInput:
             "请输入可公开访问的 HTTP(S) 链接"
         case .server:
