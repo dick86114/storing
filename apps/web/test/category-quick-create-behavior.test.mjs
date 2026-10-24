@@ -46,7 +46,7 @@ test('选择同名现有分类时明确标记 reusedExisting，不误报为新�
   dom.window.close();
 });
 
-test('AI 优化入口位于详细规则控件之后并会填充生成的规则', async () => {
+test('AI 优化入口位于详细规则说明下方并会填充生成的规则', async () => {
   const dom = 安装浏览器环境();
   const { api } = await import('../src/lib/api.ts');
   const originalOptimize = api.optimizeCategoryDescription;
@@ -76,15 +76,24 @@ test('AI 优化入口位于详细规则控件之后并会填充生成的规则',
     const nameInput = document.querySelector('input[placeholder="例如：产品设计"]');
     await act(async () => 修改输入(nameInput, '产品设计'));
 
-    const optimizeButton = document.querySelector('.category-quick-create-optimize');
-    const colorBlock = document.querySelector('.category-quick-create-color');
+    const details = document.querySelector('.category-quick-create-details');
+    const intro = details.querySelector(':scope > p');
+    const aiRow = details.querySelector('.category-quick-create-ai-row');
+    const optimizeButton = aiRow.querySelector('.category-quick-create-optimize');
+    const firstField = details.querySelector('label.category-form-field');
+    assert.ok(intro);
+    assert.ok(aiRow);
     assert.ok(optimizeButton);
-    assert.ok(colorBlock);
+    assert.ok(firstField);
     assert.ok(
-      colorBlock.compareDocumentPosition(optimizeButton) & window.Node.DOCUMENT_POSITION_FOLLOWING,
-      'AI 优化按钮应位于详细规则控件之后',
+      intro.compareDocumentPosition(aiRow) & window.Node.DOCUMENT_POSITION_FOLLOWING,
+      'AI 优化入口应位于详细规则说明下方',
     );
-    assert.match(document.querySelector('.category-quick-create-details').textContent, /AI 会根据分类名称和当前规则/);
+    assert.ok(
+      aiRow.compareDocumentPosition(firstField) & window.Node.DOCUMENT_POSITION_FOLLOWING,
+      'AI 优化入口应位于具体规则控件之前',
+    );
+    assert.match(details.textContent, /AI 会根据分类名称和当前规则/);
     assert.equal(optimizeButton.textContent.trim(), 'AI 优化');
 
     await act(async () => optimizeButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true })));
