@@ -17848,8 +17848,7 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--divider);
+  padding-top: 1px;
 }
 
 .category-quick-create-ai-row p {
