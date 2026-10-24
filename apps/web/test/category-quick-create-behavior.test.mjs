@@ -46,7 +46,7 @@ test('选择同名现有分类时明确标记 reusedExisting，不误报为新�
   dom.window.close();
 });
 
-test('AI 优化入口位于颜色区之前并会填充生成的规则', async () => {
+test('AI 优化入口位于详细规则控件之后并会填充生成的规则', async () => {
   const dom = 安装浏览器环境();
   const { api } = await import('../src/lib/api.ts');
   const originalOptimize = api.optimizeCategoryDescription;
@@ -76,16 +76,16 @@ test('AI 优化入口位于颜色区之前并会填充生成的规则', async ()
     const nameInput = document.querySelector('input[placeholder="例如：产品设计"]');
     await act(async () => 修改输入(nameInput, '产品设计'));
 
-    const optimizeButton = [...document.querySelectorAll('button')]
-      .find((item) => item.textContent.includes('AI 优化分类说明'));
+    const optimizeButton = document.querySelector('.category-quick-create-optimize');
     const colorBlock = document.querySelector('.category-quick-create-color');
     assert.ok(optimizeButton);
     assert.ok(colorBlock);
     assert.ok(
-      optimizeButton.compareDocumentPosition(colorBlock) & window.Node.DOCUMENT_POSITION_FOLLOWING,
-      'AI 优化按钮应位于颜色区之前',
+      colorBlock.compareDocumentPosition(optimizeButton) & window.Node.DOCUMENT_POSITION_FOLLOWING,
+      'AI 优化按钮应位于详细规则控件之后',
     );
-    assert.match(document.querySelector('.category-quick-create-details').textContent, /根据名称和当前规则/);
+    assert.match(document.querySelector('.category-quick-create-details').textContent, /AI 会根据分类名称和当前规则/);
+    assert.equal(optimizeButton.textContent.trim(), 'AI 优化');
 
     await act(async () => optimizeButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true })));
     await 等待条件(() => document.querySelector('textarea[placeholder="说明这个分类适合收录哪些文章"]').value === '生成后的分类说明');

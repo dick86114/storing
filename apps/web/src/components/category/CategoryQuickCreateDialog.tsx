@@ -160,23 +160,6 @@ export function CategoryQuickCreateDialog({
           <details className="category-quick-create-details">
             <summary>详细规则（可选）</summary>
             <p>未填写说明时，AI 会更倾向于把不明确文章放入待整理。</p>
-            <div className="category-quick-create-optimize-row">
-              <div className="category-quick-create-optimize-copy">
-                <strong>AI 辅助生成规则</strong>
-                <small id="category-quick-create-optimize-help">
-                  根据名称和当前规则，生成分类说明、适合收录和不适合收录示例。
-                </small>
-              </div>
-              <button
-                className="category-quick-create-optimize"
-                type="button"
-                onClick={optimize}
-                disabled={saving || optimizing || !name.trim()}
-                aria-describedby="category-quick-create-optimize-help"
-              >
-                <RobotOutlined /> {optimizing ? '正在生成…' : 'AI 优化分类说明'}
-              </button>
-            </div>
             <label className="category-form-field">
               <span>分类说明</span>
               <textarea
@@ -234,6 +217,20 @@ export function CategoryQuickCreateDialog({
                   <input type="color" value={color} onChange={(event) => setColor(event.target.value)} aria-label="自定义分类颜色" />
                 </label>
               </div>
+            </div>
+            <div className="category-quick-create-ai-row">
+              <p id="category-quick-create-optimize-help">
+                AI 会根据分类名称和当前规则，自动补全说明、适合收录和不适合收录示例。
+              </p>
+              <button
+                className="category-quick-create-optimize"
+                type="button"
+                onClick={optimize}
+                disabled={saving || optimizing || !name.trim()}
+                aria-describedby="category-quick-create-optimize-help"
+              >
+                <RobotOutlined /> {optimizing ? 'AI 优化中…' : 'AI 优化'}
+              </button>
             </div>
           </details>
 
