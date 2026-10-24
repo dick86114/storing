@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
+import NextImage from 'next/image';
 import { useSWRConfig } from 'swr';
 import QRCode from 'qrcode';
 import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, GlobalOutlined, DeleteOutlined, UpOutlined, DownOutlined, ClockCircleOutlined, LoadingOutlined, ExclamationCircleOutlined, InfoCircleOutlined, CloseOutlined } from '@ant-design/icons';
@@ -2979,7 +2980,14 @@ function DetailContent({
           <div className="detail-panel-content" style={{ padding: '16px' }}>
             {coverImage && (
               <div className="detail-panel-cover">
-                <img src={coverImage} alt="文章封面" loading="eager" decoding="async" />
+                <NextImage
+                  src={coverImage}
+                  alt="文章封面"
+                  width={1200}
+                  height={511}
+                  priority
+                  sizes="(max-width: 900px) 100vw, 750px"
+                />
               </div>
             )}
             <h1 className="detail-panel-title" style={{ fontSize: '20px', fontWeight: 500, color: 'var(--text)', lineHeight: 1.5, marginBottom: '8px' }}>
