@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import categoryQuickCreateModule from '../src/components/category/CategoryQuickCreateDialog.tsx';
-import { 安装浏览器环境, 创建根容器, 修改输入, React, act } from './test-dom.mjs';
+import { 安装浏览器环境, 创建根容器, 修改输入, 等待条件, React, act } from './test-dom.mjs';
 
 const { CategoryQuickCreateDialog } = categoryQuickCreateModule;
 
@@ -44,4 +44,61 @@ test('选择同名现有分类时明确标记 reusedExisting，不误报为新�
   assert.equal(completed[0].meta.reusedExisting, true);
   await act(async () => root.unmount());
   dom.window.close();
+});
+
+test('AI 优化入口位于颜色区之前并会填充生成的规则', async () => {
+  const dom = 安装浏览器环境();
+  const { api } = await import('../src/lib/api.ts');
+  const originalOptimize = api.optimizeCategoryDescription;
+  const calls = [];
+  api.optimizeCategoryDescription = async (input) => {
+    calls.push(input);
+    return {
+      draft: {
+        description: '生成后的分类说明',
+        includeExamples: ['产品设计方法'],
+        excludeExamples: ['纯行业新闻'],
+      },
+    };
+  };
+  const root = 创建根容器();
+
+  try {
+    await act(async () => {
+      root.render(React.createElement(CategoryQuickCreateDialog, {
+        categories: [],
+        onClose() {},
+        onCreate: async () => { throw new Error('本测试不创建分类'); },
+        onCreated() {},
+      }));
+    });
+
+    const nameInput = document.querySelector('input[placeholder="例如：产品设计"]');
+    await act(async () => 修改输入(nameInput, '产品设计'));
+
+    const optimizeButton = [...document.querySelectorAll('button')]
+      .find((item) => item.textContent.includes('AI 优化分类说明'));
+    const colorBlock = document.querySelector('.category-quick-create-color');
+    assert.ok(optimizeButton);
+    assert.ok(colorBlock);
+    assert.ok(
+      optimizeButton.compareDocumentPosition(colorBlock) & window.Node.DOCUMENT_POSITION_FOLLOWING,
+      'AI 优化按钮应位于颜色区之前',
+    );
+    assert.match(document.querySelector('.category-quick-create-details').textContent, /根据名称和当前规则/);
+
+    await act(async () => optimizeButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true })));
+    await 等待条件(() => document.querySelector('textarea[placeholder="说明这个分类适合收录哪些文章"]').value === '生成后的分类说明');
+
+    assert.deepEqual(calls[0], {
+      name: '产品设计',
+      description: null,
+      includeExamples: [],
+      excludeExamples: [],
+    });
+  } finally {
+    api.optimizeCategoryDescription = originalOptimize;
+    await act(async () => root.unmount());
+    dom.window.close();
+  }
 });
