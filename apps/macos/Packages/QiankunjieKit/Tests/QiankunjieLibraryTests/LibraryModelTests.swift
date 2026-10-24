@@ -99,7 +99,49 @@ struct LibraryModelTests {
         #expect(!model.isSourceFilterAvailable)
     }
 
-    @Test func 归档分类筛选加载并可切换栏目清理() async throws {
+    @Test func 单篇分类直接使用传入分类更新文章卡片() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [7], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            bulkRepository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+        await model.load(reset: true)
+        let category = ArticleCategory(id: 21, name: "产品设计")
+
+        await model.runArticleCategory(articleID: 7, category: category)
+
+        #expect(model.articles.first?.category?.id == 21)
+        #expect(await repository.lastBulkCategoryID == 21)
+    }
+
+    @Test func 批量分类直接使用传入分类更新文章卡片() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [7, 8], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            bulkRepository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+        await model.load(reset: true)
+        model.toggleBulkMode()
+        model.selectAllLoadedForBulk()
+        let category = ArticleCategory(id: 21, name: "产品设计")
+
+        await model.runBulkCategory(category)
+
+        #expect(model.articles.allSatisfy { $0.category?.id == 21 })
+        #expect(await repository.lastBulkCategoryID == 21)
+    }
+
+    @Test func 分类筛选继续作为归档列表查询条件() async {
         let repository = 模拟资料库仓库(
             pages: [1: .fixture(ids: [7], page: 1, totalPages: 1)]
         )
@@ -111,17 +153,199 @@ struct LibraryModelTests {
         )
 
         await model.load(reset: true)
+        #expect(await repository.lastQuery?.categoryId == nil)
 
-        #expect(model.availableCategories.map(\.name) == ["AI 工程"])
-        #expect(model.availableCategories.first?.count == 2)
-
-        model.selectCategory(3)
+        model.selectCategory(21)
         await model.load(reset: true)
-        #expect(await repository.lastQuery?.categoryId == 3)
+        #expect(await repository.lastQuery?.categoryId == 21)
 
         model.select(view: .inbox)
-        #expect(model.availableCategories.isEmpty)
         #expect(model.categoryId == nil)
+    }
+
+    @Test func 分类失败保留结构化错误和服务端消息() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [7], page: 1, totalPages: 1)],
+            bulkError: .categoryUnavailable(message: "分类已停用，不能用于归类")
+        )
+        let model = LibraryModel(
+            repository: repository,
+            bulkRepository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+        await model.load(reset: true)
+
+        await model.runArticleCategory(
+            articleID: 7,
+            category: ArticleCategory(id: 21, name: "产品设计")
+        )
+
+        #expect(model.lastBulkActionError == .categoryUnavailable(message: "分类已停用，不能用于归类"))
+        #expect(model.bulkResult?.issues.first?.message == "分类已停用，不能用于归类")
+    }
+
+    @Test func 手动分类请求在途时切换用户不会更新新用户文章() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [7], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            bulkRepository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+        await model.load(reset: true)
+        await repository.holdNextBulkCategory()
+
+        let request = Task {
+            await model.runArticleCategory(
+                articleID: 7,
+                category: ArticleCategory(id: 21, name: "产品设计")
+            )
+        }
+        await repository.waitForBulkCategoryRequests(1)
+
+        model.prepareUser(userID: 8, view: .archive)
+        await model.load(reset: true)
+        await repository.resumeBulkCategory(with: .success(ArticleBulkActionResult(
+            requestedCount: 1,
+            succeededIDs: [7],
+            skipped: [],
+            failed: []
+        )))
+        await request.value
+
+        #expect(model.userID == 8)
+        #expect(model.articles.first?.category == nil)
+        #expect(model.bulkResult == nil)
+        #expect(model.lastBulkActionError == nil)
+        #expect(model.bulkRunningAction == nil)
+    }
+
+    @Test func 分类结果刷新列表时切换用户不会写回旧分类() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [7], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            bulkRepository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+        await model.load(reset: true)
+        await repository.holdNextLoad()
+
+        let request = Task {
+            await model.runArticleCategory(
+                articleID: 7,
+                category: ArticleCategory(id: 21, name: "产品设计")
+            )
+        }
+        await repository.waitForBulkCategoryRequests(1)
+        await repository.waitForRequests(count: 2)
+
+        model.prepareUser(userID: 8, view: .archive)
+        await model.load(reset: true)
+        await repository.resumeHeldLoad(
+            with: .success(.fixture(ids: [7], page: 1, totalPages: 1))
+        )
+        await request.value
+
+        #expect(model.userID == 8)
+        #expect(model.articles.first?.category == nil)
+        #expect(model.bulkResult == nil)
+        #expect(model.bulkRunningAction == nil)
+    }
+
+    @Test func 批量AI分类请求在途时切换用户不会写回新用户状态() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [7], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            bulkRepository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+        await model.load(reset: true)
+        model.toggleBulkMode()
+        model.selectAllLoadedForBulk()
+        await repository.holdNextBulkRegenerateAI()
+
+        let request = Task {
+            await model.runBulkCategoryByAI()
+        }
+        await repository.waitForBulkRegenerateAIRequests(1)
+
+        model.prepareUser(userID: 8, view: .archive)
+        await model.load(reset: true)
+        await repository.resumeBulkRegenerateAI(with: .success(ArticleBulkAIResult(
+            requestedCount: 1,
+            queuedIDs: [7],
+            alreadyQueuedIDs: [],
+            failed: []
+        )))
+        await request.value
+
+        #expect(model.userID == 8)
+        #expect(model.articles.first?.aiStatus == nil)
+        #expect(model.bulkSelection.isEmpty)
+        #expect(model.bulkResult == nil)
+        #expect(model.lastBulkActionError == nil)
+        #expect(model.bulkRunningAction == nil)
+    }
+
+    @Test func 切换用户后可以立即执行新的分类操作() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [7], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            bulkRepository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+        await model.load(reset: true)
+        await repository.holdNextBulkCategory()
+
+        let oldRequest = Task {
+            await model.runArticleCategory(
+                articleID: 7,
+                category: ArticleCategory(id: 21, name: "产品设计")
+            )
+        }
+        await repository.waitForBulkCategoryRequests(1)
+
+        model.prepareUser(userID: 8, view: .archive)
+        await model.load(reset: true)
+        #expect(model.bulkRunningAction == nil)
+
+        await model.runArticleCategory(
+            articleID: 7,
+            category: ArticleCategory(id: 22, name: "工程实践")
+        )
+
+        #expect(model.articles.first?.category?.id == 22)
+        #expect(model.bulkResult?.succeededCount == 1)
+        #expect(await repository.bulkCategoryRequestCount == 2)
+        #expect(await repository.lastBulkCategoryID == 22)
+
+        await repository.resumeBulkCategory(with: .success(ArticleBulkActionResult(
+            requestedCount: 1,
+            succeededIDs: [7],
+            skipped: [],
+            failed: []
+        )))
+        await oldRequest.value
+
+        #expect(model.articles.first?.category?.id == 22)
+        #expect(model.bulkRunningAction == nil)
     }
 
     @Test func 来源统计解码兼容PostgreSQL时间() throws {
@@ -368,26 +592,132 @@ struct LibraryModelTests {
         #expect(model.selectedArticleID == 41)
         #expect(model.articles.map(\.id) == [41])
     }
+
+    @Test func 资料库手动归档取消归档删除和分类都会通知目录刷新() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [7], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            bulkRepository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+        await model.load(reset: true)
+        var 刷新信号次数 = 0
+        model.onCatalogAffectingChange = {
+            刷新信号次数 += 1
+        }
+
+        await model.runArticleCategory(
+            articleID: 7,
+            category: ArticleCategory(id: 21, name: "产品设计")
+        )
+        await model.runArticleToolbarAction(.archive, articleID: 7, categoryID: 21)
+        await model.runArticleToolbarAction(.unarchive, articleID: 7)
+        await model.runArticleToolbarAction(.delete, articleID: 7)
+
+        #expect(刷新信号次数 == 4)
+    }
+
+    @Test func 资料库批量分类和AI后台完成都会通知目录刷新() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: ArticleListPage(
+                articles: [ArticleCard(id: 7, isArchived: true)],
+                total: 1,
+                page: 1,
+                perPage: 20,
+                totalPages: 1
+            )]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            bulkRepository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+        await model.load(reset: true)
+        var 刷新信号次数 = 0
+        model.onCatalogAffectingChange = {
+            刷新信号次数 += 1
+        }
+
+        model.toggleBulkMode()
+        model.selectAllLoadedForBulk()
+        await model.runBulkCategory(ArticleCategory(id: 21, name: "产品设计"))
+        #expect(刷新信号次数 == 1)
+
+        model.clearBulkResult()
+        model.selectAllLoadedForBulk()
+        await model.runBulkCategoryByAI()
+        #expect(刷新信号次数 == 1)
+
+        await repository.setArticleCard(ArticleCard(
+            id: 7,
+            category: ArticleCategory(id: 22, name: "工程实践"),
+            isArchived: true,
+            aiStatus: "succeeded"
+        ))
+        await model.refreshAIStatusesOnce()
+
+        #expect(刷新信号次数 == 2)
+    }
+
+    @Test func 资料库批量取消归档归档和删除都会通知目录刷新() async {
+        let repository = 模拟资料库仓库(
+            pages: [1: .fixture(ids: [7, 8], page: 1, totalPages: 1)]
+        )
+        let model = LibraryModel(
+            repository: repository,
+            bulkRepository: repository,
+            cache: EmptyLibraryCache(),
+            userID: 7,
+            view: .archive
+        )
+        await model.load(reset: true)
+        var 刷新信号次数 = 0
+        model.onCatalogAffectingChange = {
+            刷新信号次数 += 1
+        }
+        model.toggleBulkMode()
+
+        model.selectAllLoadedForBulk()
+        await model.runBulkToolbarAction(.unarchive)
+        model.selectAllLoadedForBulk()
+        await model.runBulkToolbarAction(.archive, categoryID: 21)
+        model.selectAllLoadedForBulk()
+        await model.runBulkToolbarAction(.delete)
+
+        #expect(刷新信号次数 == 3)
+    }
 }
 
-private actor 模拟资料库仓库: LibraryLoading {
+private actor 模拟资料库仓库: LibraryLoading, LibraryBulkOperating {
     private var pages: [Int: ArticleListPage]
     private var currentError: AppError?
+    private let bulkError: AppError?
     private var shouldHoldNextLoad = false
     private var heldContinuations: [Int: CheckedContinuation<ArticleListPage, Error>] = [:]
+    private var shouldHoldNextBulkCategory = false
+    private var heldBulkCategoryContinuation: CheckedContinuation<ArticleBulkActionResult, Error>?
+    private var shouldHoldNextBulkRegenerateAI = false
+    private var heldBulkRegenerateAIContinuation: CheckedContinuation<ArticleBulkAIResult, Error>?
     private(set) var requestedPages: [Int] = []
     private(set) var lastQuery: LibraryQuery?
-    private let categoryFilters: [LibraryCategoryFilter]
+    private(set) var lastBulkCategoryID: Int?
+    private(set) var bulkCategoryRequestCount = 0
+    private(set) var bulkRegenerateAIRequestCount = 0
 
-    init(pages: [Int: ArticleListPage] = [:], error: AppError? = nil) {
+    init(
+        pages: [Int: ArticleListPage] = [:],
+        error: AppError? = nil,
+        bulkError: AppError? = nil
+    ) {
         self.pages = pages
         self.currentError = error
-        self.categoryFilters = [
-            LibraryCategoryFilter(
-                category: ArticleCategory(id: 3, name: "AI 工程", color: nil),
-                count: 2
-            ),
-        ]
+        self.bulkError = bulkError
     }
 
     func load(_ query: LibraryQuery) async throws -> ArticleListPage {
@@ -426,8 +756,72 @@ private actor 模拟资料库仓库: LibraryLoading {
         [LibrarySource(source: "少数派", count: 2, latestCreatedAt: nil)]
     }
 
-    func loadCategoryFilters(userID: Int?) async throws -> [LibraryCategoryFilter] {
-        categoryFilters
+    func runBulkAction(
+        _ action: ArticleBulkAction,
+        articleIDs: [Int],
+        categoryID: Int?
+    ) async throws -> ArticleBulkActionResult {
+        try 执行批量操作(articleIDs: articleIDs)
+    }
+
+    func runBulkCategory(
+        articleIDs: [Int],
+        categoryID: Int
+    ) async throws -> ArticleBulkActionResult {
+        bulkCategoryRequestCount += 1
+        lastBulkCategoryID = categoryID
+        if shouldHoldNextBulkCategory {
+            shouldHoldNextBulkCategory = false
+            return try await withCheckedThrowingContinuation { continuation in
+                heldBulkCategoryContinuation = continuation
+            }
+        }
+        return try 执行批量操作(articleIDs: articleIDs)
+    }
+
+    func runBulkRegenerateAI(
+        articleIDs: [Int],
+        includeCategory: Bool,
+        resetUserCategory: Bool
+    ) async throws -> ArticleBulkAIResult {
+        bulkRegenerateAIRequestCount += 1
+        if shouldHoldNextBulkRegenerateAI {
+            shouldHoldNextBulkRegenerateAI = false
+            return try await withCheckedThrowingContinuation { continuation in
+                heldBulkRegenerateAIContinuation = continuation
+            }
+        }
+        if let bulkError {
+            throw bulkError
+        }
+        return ArticleBulkAIResult(
+            requestedCount: articleIDs.count,
+            queuedIDs: articleIDs,
+            alreadyQueuedIDs: [],
+            failed: []
+        )
+    }
+
+    func runCreateBulkExport(articleIDs: [Int]) async throws -> ArticleBulkExportJob {
+        if let bulkError {
+            throw bulkError
+        }
+        return ArticleBulkExportJob(
+            id: 1,
+            format: "zip",
+            status: .succeeded,
+            requestedCount: articleIDs.count,
+            succeededCount: articleIDs.count,
+            failedCount: 0,
+            downloadURL: nil,
+            createdAt: nil,
+            finishedAt: nil,
+            expiresAt: nil
+        )
+    }
+
+    func runBulkExportJob(jobID: Int) async throws -> ArticleBulkExportJob {
+        try await runCreateBulkExport(articleIDs: [])
     }
 
     func setResult(_ page: ArticleListPage) {
@@ -460,6 +854,50 @@ private actor 模拟资料库仓库: LibraryLoading {
         while requestedPages.count < count {
             await Task.yield()
         }
+    }
+
+    func holdNextBulkCategory() {
+        shouldHoldNextBulkCategory = true
+    }
+
+    func waitForBulkCategoryRequests(_ count: Int) async {
+        while bulkCategoryRequestCount < count {
+            await Task.yield()
+        }
+    }
+
+    func resumeBulkCategory(with result: Result<ArticleBulkActionResult, Error>) {
+        let continuation = heldBulkCategoryContinuation
+        heldBulkCategoryContinuation = nil
+        continuation?.resume(with: result)
+    }
+
+    func holdNextBulkRegenerateAI() {
+        shouldHoldNextBulkRegenerateAI = true
+    }
+
+    func waitForBulkRegenerateAIRequests(_ count: Int) async {
+        while bulkRegenerateAIRequestCount < count {
+            await Task.yield()
+        }
+    }
+
+    func resumeBulkRegenerateAI(with result: Result<ArticleBulkAIResult, Error>) {
+        let continuation = heldBulkRegenerateAIContinuation
+        heldBulkRegenerateAIContinuation = nil
+        continuation?.resume(with: result)
+    }
+
+    private func 执行批量操作(articleIDs: [Int]) throws -> ArticleBulkActionResult {
+        if let bulkError {
+            throw bulkError
+        }
+        return ArticleBulkActionResult(
+            requestedCount: articleIDs.count,
+            succeededIDs: articleIDs,
+            skipped: [],
+            failed: []
+        )
     }
 }
 

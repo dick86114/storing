@@ -36,6 +36,9 @@ private struct ContextBulkActionRequest: Identifiable {
 
 struct CompactArticleListView: View {
     @Bindable var model: LibraryModel
+    @Bindable var categoryCatalog: CategoryCatalogModel
+    let selectedCategoryID: Int?
+    let onSelectCategory: (Int?) -> Void
     @Binding var selection: Int?
     @Binding var presentationMode: ArticleListPresentationMode
     @Environment(\.colorScheme) private var colorScheme
@@ -52,6 +55,9 @@ struct CompactArticleListView: View {
         VStack(spacing: 0) {
             LibraryToolbar(
                 model: model,
+                categoryCatalog: categoryCatalog,
+                selectedCategoryID: selectedCategoryID,
+                onSelectCategory: onSelectCategory,
                 presentationMode: $presentationMode,
                 onCopyOriginalLinks: {
                     copyOriginalLinks(selectedArticles())
@@ -125,7 +131,11 @@ struct CompactArticleListView: View {
             ).message)
         }
         .sheet(item: $contextBulkCategoryRequest) { request in
-            BulkCategorySelectionSheet(model: model, request: request)
+            BulkCategorySelectionSheet(
+                model: model,
+                catalog: categoryCatalog,
+                request: request
+            )
         }
         .sheet(isPresented: $isContextObsidianSheetPresented) {
             ObsidianExportSheet(
@@ -195,7 +205,7 @@ struct CompactArticleListView: View {
         guard let result = model.bulkResult else { return "" }
 
         var lines = [
-            "成功 \(result.succeededCount) 篇 · 跳过 \(result.skippedCount) 篇 · 失败 \(result.issues.count) 篇"
+            "成功 \(result.succeededCount) 篇 · 跳过 \(result.skippedCount) 篇 · 失败 \(result.failedCount) 篇"
         ]
         for issue in result.issues {
             let message = issue.message ?? "未知原因"

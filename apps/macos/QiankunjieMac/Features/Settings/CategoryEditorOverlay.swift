@@ -21,10 +21,29 @@ struct CategoryEditorOverlay: View {
             VStack(alignment: .leading, spacing: 24) {
                 header
 
+                if let error = model.errorMessage {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+                        Text(error)
+                            .font(.callout)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 8)
+                        Button("关闭") {
+                            model.clearError()
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                    }
+                    .padding(10)
+                    .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                }
+
                 VStack(alignment: .leading, spacing: 8) {
                     Text("分类名称").font(.headline)
                     TextField("例如：编程开发", text: $draft.name)
                         .textFieldStyle(.roundedBorder)
+                        .disabled(isBusy)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -49,8 +68,8 @@ struct CategoryEditorOverlay: View {
                             }
                         }
                         .disabled(
-                            draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                || model.isOptimizing
+                            isBusy
+                                || draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                         )
                     }
                     TextField(
@@ -60,6 +79,7 @@ struct CategoryEditorOverlay: View {
                     )
                     .lineLimit(3...5)
                     .textFieldStyle(.roundedBorder)
+                    .disabled(isBusy)
                 }
 
                 HStack(alignment: .top, spacing: 16) {
@@ -83,11 +103,11 @@ struct CategoryEditorOverlay: View {
                     Spacer()
                     Button("取消") { dismiss() }
                         .disabled(model.isSaving)
-                    Button(model.isSaving ? "保存中…" : category == nil ? "创建分类" : "保存修改") {
+                    Button(model.isBusy ? "处理中…" : category == nil ? "创建分类" : "保存修改") {
                         Task { await model.save(draft, editing: category) }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isSaving)
+                    .disabled(draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isBusy)
                 }
             }
             .padding(28)
@@ -142,6 +162,7 @@ struct CategoryEditorOverlay: View {
                         colorSwatch(color, isSelected: draft.color == color)
                     }
                     .buttonStyle(.plain)
+                    .disabled(isBusy)
                     .accessibilityLabel("选择颜色 \(color)")
                 }
             }
@@ -151,6 +172,7 @@ struct CategoryEditorOverlay: View {
             )) {
                 Label("调色盘", systemImage: "paintpalette")
             }
+            .disabled(isBusy)
         }
     }
 
@@ -173,11 +195,16 @@ struct CategoryEditorOverlay: View {
                 RoundedRectangle(cornerRadius: 8)
                     .strokeBorder(QiankunjieColors.outline(for: colorScheme))
             }
+            .disabled(isBusy)
             Text(footer)
                 .font(.callout)
                 .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var isBusy: Bool {
+        model.isBusy
     }
 
     private func hexString(from color: Color) -> String? {

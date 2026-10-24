@@ -18,8 +18,6 @@ public protocol ReaderNetworkClient: Sendable {
     func delete(articleID: Int) async throws -> ReaderDeleteResult
     func permanentDelete(articleID: Int) async throws
     func renameArticle(articleID: Int, title: String) async throws
-    func categories() async throws -> [ArticleCategory]
-    func createCategory(name: String) async throws -> ArticleCategory
     func moveArticleToCategory(articleID: Int, categoryID: Int) async throws
 }
 
@@ -99,9 +97,22 @@ public struct ReaderFavoriteResult: Decodable, Sendable {
 
 public struct ReaderArchiveResult: Decodable, Sendable {
     public let isArchived: Bool
+    public let category: ArticleCategory?
 
-    public init(isArchived: Bool) {
+    public init(isArchived: Bool, category: ArticleCategory? = nil) {
         self.isArchived = isArchived
+        self.category = category
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        isArchived = try container.decode(Bool.self, forKey: .isArchived)
+        category = try container.decodeIfPresent(ArticleCategory.self, forKey: .category)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case isArchived
+        case category
     }
 }
 
@@ -243,12 +254,14 @@ public struct ReaderArticle: Sendable {
     public var isFavorited: Bool
     public var isArchived: Bool
     public var isPublished: Bool
+    public var category: ArticleCategory?
 
     public init(detail: ArticleDetail) {
         self.detail = detail
         isFavorited = detail.isFavorited
         isArchived = detail.isArchived
         isPublished = detail.isPublished
+        category = detail.category
     }
 
     public var id: Int { detail.id }
@@ -262,7 +275,6 @@ public struct ReaderArticle: Sendable {
     public var aiSummary: String? { detail.aiSummary }
     public var aiCategory: String? { detail.aiCategory }
     public var aiTags: [String] { detail.aiTags }
-    public var category: ArticleCategory? { detail.category }
     public var categoryResult: ArticleCategoryResult? { detail.categoryResult }
     public var contentHTML: String? { detail.contentHTML }
     public var contentMarkdown: String? { detail.contentMarkdown }
@@ -273,21 +285,20 @@ public struct ReaderArticle: Sendable {
 public final class ReaderModel {
     public private(set) var article: ReaderArticle?
     public private(set) var articleID: Int?
-    public private(set) var availableCategories: [ArticleCategory] = []
     /// 用户手动修改后的标题，优先于服务端详情标题展示。
     public private(set) var titleOverride: String?
     public private(set) var selection: ReaderSelection?
     public private(set) var isLoading = false
     public private(set) var isPerformingAction = false
-    public private(set) var isLoadingCategories = false
-    public private(set) var isCreatingCategory = false
     public private(set) var isDeleted = false
     public private(set) var errorMessage: String?
     public private(set) var actionErrorMessage: String?
+    /// 保留结构化错误类别，供分类选择器区分文章失效与普通失败。
+    public private(set) var actionError: AppError?
     public private(set) var contentToken = ""
     public private(set) var savedReadingState: Data?
     public var onDeleted: (() -> Void)?
-    public private(set) var categoryErrorMessage: String?
+    @ObservationIgnored public var onCategoryAffectingChange: (() -> Void)?
 
     private let client: any ReaderNetworkClient
     private let positionStore: any ReaderPositionStoring
@@ -310,13 +321,15 @@ public final class ReaderModel {
     public func prepareUser(userID: Int?) {
         guard self.userID != userID else { return }
         positionStore.prepareUser(userID: userID)
+        actionGeneration += 1
         self.userID = userID
         article = nil
         articleID = nil
-        availableCategories = []
-        categoryErrorMessage = nil
         selection = nil
         savedReadingState = nil
+        isPerformingAction = false
+        actionError = nil
+        actionErrorMessage = nil
         stopAIPolling()
     }
 
@@ -364,6 +377,7 @@ public final class ReaderModel {
         isLoading = true
         errorMessage = nil
         actionErrorMessage = nil
+        actionError = nil
         savedReadingState = positionStore.readingState(
             articleID: selection.articleID
         )
@@ -415,7 +429,8 @@ public final class ReaderModel {
         }
     }
 
-    public func archive(categoryID: Int? = nil) async {
+    @discardableResult
+    public func archive(categoryID: Int? = nil) async -> Bool {
         await performAction { articleID, actionGeneration in
             let result = try await self.client.archive(
                 articleID: articleID,
@@ -425,7 +440,11 @@ public final class ReaderModel {
                 return
             }
             self.article?.isArchived = result.isArchived
+            if let category = result.category {
+                self.article?.category = category
+            }
             self.startAIPolling()
+            self.onCategoryAffectingChange?()
         }
     }
 
@@ -436,6 +455,7 @@ public final class ReaderModel {
                 return
             }
             self.article?.isArchived = result.isArchived
+            self.onCategoryAffectingChange?()
         }
     }
 
@@ -474,11 +494,14 @@ public final class ReaderModel {
         }
     }
 
-    public func classifyArticle() async {
-        await performAction { articleID, _ in
+    @discardableResult
+    public func classifyArticle() async -> Bool {
+        await performAction { articleID, actionGeneration in
             _ = try await self.client.classifyArticle(articleID: articleID)
             await self.reloadCurrentArticle()
+            guard self.isCurrentAction(actionGeneration) else { return }
             self.startAIPolling()
+            self.onCategoryAffectingChange?()
         }
     }
 
@@ -494,6 +517,7 @@ public final class ReaderModel {
                 self.isDeleted = true
                 self.positionStore.remove(articleID: articleID)
                 self.onDeleted?()
+                self.onCategoryAffectingChange?()
             }
         }
     }
@@ -509,52 +533,18 @@ public final class ReaderModel {
                 self.isDeleted = true
                 self.positionStore.remove(articleID: articleID)
                 self.onDeleted?()
+                self.onCategoryAffectingChange?()
             }
         }
     }
 
-    public func loadCategories() async {
-        guard selection?.isGuest == false, !isLoadingCategories else {
-            return
-        }
-
-        isLoadingCategories = true
-        defer { isLoadingCategories = false }
-
-        do {
-            availableCategories = try await client.categories()
-            categoryErrorMessage = nil
-        } catch {
-            categoryErrorMessage = Self.message(for: error)
-        }
-    }
-
-    public func createCategory(name: String) async -> ArticleCategory? {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !isCreatingCategory else {
-            return nil
-        }
-
-        isCreatingCategory = true
-        defer { isCreatingCategory = false }
-
-        do {
-            let category = try await client.createCategory(name: trimmed)
-            availableCategories.append(category)
-            categoryErrorMessage = nil
-            return category
-        } catch {
-            categoryErrorMessage = Self.message(for: error)
-            return nil
-        }
-    }
-
     public func moveToCategory(_ categoryID: Int) async -> Bool {
-        await performAction { articleID, _ in
+        await performAction { articleID, actionGeneration in
             try await self.client.moveArticleToCategory(articleID: articleID, categoryID: categoryID)
+            guard self.isCurrentAction(actionGeneration) else { return }
             await self.reloadCurrentArticle()
+            self.onCategoryAffectingChange?()
         }
-        return actionErrorMessage == nil
     }
 
     /// 归档后的 AI 任务是后台完成的；阅读器需要定时回读，不能永远停留“生成中”。
@@ -587,6 +577,8 @@ public final class ReaderModel {
     @discardableResult
     public func refreshAIStatusOnce() async -> Bool {
         guard let selection, let currentArticle = article else { return false }
+        let previousStatus = currentArticle.detail.aiStatus
+        let previousCategoryID = currentArticle.category?.id
 
         do {
             let detail = try await client.articleDetail(selection)
@@ -594,6 +586,11 @@ public final class ReaderModel {
             article = ReaderArticle(detail: detail)
             errorMessage = nil
             let status = detail.aiStatus
+            let wasPending = previousStatus == "queued" || previousStatus == "running"
+            let isPending = status == "queued" || status == "running"
+            if (wasPending && !isPending) || previousCategoryID != article?.category?.id {
+                onCategoryAffectingChange?()
+            }
             return status == "queued" || status == "running"
         } catch {
             // 轮询失败不打断阅读，下一轮或手动刷新再尝试。
@@ -608,11 +605,12 @@ public final class ReaderModel {
         article?.isPublished = result.article?.isPublished ?? published
     }
 
+    @discardableResult
     private func performAction(
         _ action: (Int, Int) async throws -> Void
-    ) async {
+    ) async -> Bool {
         guard let selection, !isPerformingAction else {
-            return
+            return false
         }
 
         let articleID = selection.articleID
@@ -620,17 +618,23 @@ public final class ReaderModel {
         let generation = actionGeneration
         isPerformingAction = true
         actionErrorMessage = nil
+        actionError = nil
         defer {
-            isPerformingAction = false
+            if isCurrentAction(generation) {
+                isPerformingAction = false
+            }
         }
 
         do {
             try await action(articleID, generation)
+            return isCurrentAction(generation)
         } catch {
             guard isCurrentAction(generation) else {
-                return
+                return false
             }
+            actionError = error as? AppError
             actionErrorMessage = Self.message(for: error)
+            return false
         }
     }
 
@@ -663,6 +667,10 @@ public final class ReaderModel {
             "操作过于频繁，请稍后再试"
         case .contentUnavailable:
             "请求的文章不可用"
+        case let .categoryUnavailable(message):
+            message
+        case let .categoryConflict(message):
+            message
         case .invalidInput:
             "文章请求无效，请刷新后重试"
         case .server:
@@ -812,14 +820,6 @@ private struct ReaderPermanentDeleteEnvelope: Decodable {
     let deleted: Bool
 }
 
-private struct ReaderCategoriesEnvelope: Decodable {
-    let categories: [ArticleCategory]
-}
-
-private struct ReaderCategoryEnvelope: Decodable {
-    let category: ArticleCategory
-}
-
 private struct ReaderCategoryUpdateEnvelope: Decodable {
     let articleId: Int
     let updatedCount: Int
@@ -838,23 +838,6 @@ private struct ReaderCategoryUpdateEnvelope: Decodable {
             .patch("articles/\(articleID)/title", body: body),
             authenticated: true
         )
-    }
-
-    public func categories() async throws -> [ArticleCategory] {
-        let envelope: ReaderCategoriesEnvelope = try await send(
-            .get("categories"),
-            authenticated: true
-        )
-        return envelope.categories
-    }
-
-    public func createCategory(name: String) async throws -> ArticleCategory {
-        let body = try JSONEncoder().encode(["name": name])
-        let envelope: ReaderCategoryEnvelope = try await send(
-            .post("categories", body: body),
-            authenticated: true
-        )
-        return envelope.category
     }
 
     public func moveArticleToCategory(articleID: Int, categoryID: Int) async throws {

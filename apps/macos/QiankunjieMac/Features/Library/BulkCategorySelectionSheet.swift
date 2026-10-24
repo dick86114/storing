@@ -1,3 +1,4 @@
+import QiankunjieCore
 import QiankunjieDesignSystem
 import QiankunjieLibrary
 import SwiftUI
@@ -24,6 +25,13 @@ enum BulkCategoryPurpose: String, Identifiable {
         }
     }
 
+    var singleTargetTitle: String {
+        switch self {
+        case .archive: title
+        case .setCategory: "修改分类"
+        }
+    }
+
     var subtitle: String {
         switch self {
         case .archive: "分类只用于归档文章。选择分类后，文章会移入「归档」；也可以让 AI 判断。"
@@ -32,172 +40,221 @@ enum BulkCategoryPurpose: String, Identifiable {
     }
 }
 
-/// 批量归档与批量分类共用同一个选择器，保证「由 AI 判断」入口始终可用。
-struct BulkCategorySelectionSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var colorScheme
+enum BulkCategoryOperation: Sendable {
+    case manual
+    case ai
+}
 
-    let model: LibraryModel
-    let request: BulkCategoryRequest
+enum BulkCategoryOutcomeMapper {
+    static func outcome(
+        result: NativeBulkResult?,
+        error: AppError?,
+        operation: BulkCategoryOperation
+    ) -> CategoryAssignmentOutcome {
+        let message = result?.issues.compactMap(\.message).first
 
-    private var purpose: BulkCategoryPurpose { request.purpose }
-    private var targetCount: Int {
-        request.targetArticleID == nil ? model.bulkSelection.count : 1
+        if let error {
+            switch error {
+            case .contentUnavailable:
+                return .contentUnavailable(
+                    message: normalized(message, fallback: "请求的文章不可用")
+                )
+            case let .categoryUnavailable(errorMessage):
+                return .categoryUnavailable(
+                    message: normalized(
+                        message,
+                        fallback: normalized(errorMessage, fallback: "分类已失效，请刷新后重试")
+                    )
+                )
+            default:
+                return .failure(
+                    message: normalized(message, fallback: "分类失败，请稍后重试")
+                )
+            }
+        }
+
+        guard let result else {
+            return .failure(message: "分类失败，请稍后重试")
+        }
+
+        guard result.failedCount > 0 || result.skippedCount > 0 else {
+            guard result.succeededCount == result.requestedCount else {
+                return .failure(message: summary(for: result))
+            }
+            return .success(
+                succeededCount: result.succeededCount,
+                skippedCount: result.skippedCount
+            )
+        }
+
+        let summary = summary(for: result)
+        guard result.succeededCount > 0 else {
+            return .failure(message: summary)
+        }
+        return .partial(
+            succeededCount: result.succeededCount,
+            skippedCount: result.skippedCount,
+            failedCount: result.failedCount,
+            message: summary
+        )
     }
 
-    var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 8) {
-                    aiCategoryButton
-                    if model.availableCategories.isEmpty {
-                        Text("暂无可用分类")
-                            .qiankunjieFont(.bodyMedium)
-                            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                            .padding(.vertical, 18)
-                    } else {
-                        ForEach(model.availableCategories) { category in
-                            categoryButton(category)
-                        }
-                    }
-                }
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
+    private static func normalized(_ message: String?, fallback: String) -> String {
+        guard let message = message?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !message.isEmpty
+        else {
+            return fallback
         }
-        .frame(width: 440, height: 430)
-        .background(QiankunjieColors.surface(for: colorScheme))
-        .task {
-            await model.loadAvailableCategories()
-        }
+        return message
     }
 
-    private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(purpose.title)
-                    .qiankunjieFont(.titleMedium)
-                    .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
-                Text("已选 \(targetCount) 篇。\(purpose.subtitle)")
-                    .qiankunjieFont(.labelMedium)
-                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-            }
-            Spacer()
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .frame(width: 24, height: 24)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("关闭分类选择")
-        }
-        .padding(16)
-    }
+    private static func summary(for result: NativeBulkResult) -> String {
+        let counts = [
+            "成功 \(result.succeededCount) 篇",
+            "跳过 \(result.skippedCount) 篇",
+            "失败 \(result.failedCount) 篇",
+        ]
 
-    private var aiCategoryButton: some View {
-        Button {
-            Task {
-                if let articleID = request.targetArticleID {
-                    switch purpose {
-                    case .archive:
-                        await model.runArticleToolbarAction(.archive, articleID: articleID)
-                    case .setCategory:
-                        await model.runArticleCategoryByAI(articleID: articleID)
-                    }
-                } else {
-                    switch purpose {
-                    case .archive:
-                        await model.runBulkToolbarAction(.archive)
-                    case .setCategory:
-                        await model.runBulkCategoryByAI()
-                    }
-                }
-                dismiss()
-            }
-        } label: {
-            HStack(spacing: 9) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("由 AI 判断")
-                        .qiankunjieFont(.bodyMedium)
-                    Text("低置信度会进入待整理")
-                        .qiankunjieFont(.labelMedium)
-                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(QiankunjieColors.accent(for: colorScheme).opacity(0.12))
-            }
+        let reasons = result.issues
+            .compactMap(\.message)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .prefix(2)
+        guard !reasons.isEmpty else {
+            return counts.joined(separator: "，")
         }
-        .buttonStyle(.plain)
-        .disabled(model.bulkRunningAction != nil)
-        .accessibilityLabel("由 AI 判断分类")
-    }
-
-    private func categoryButton(_ category: LibraryCategoryFilter) -> some View {
-        Button {
-            Task {
-                if let articleID = request.targetArticleID {
-                    switch purpose {
-                    case .archive:
-                        await model.runArticleToolbarAction(
-                            .archive,
-                            articleID: articleID,
-                            categoryID: category.id
-                        )
-                    case .setCategory:
-                        await model.runArticleCategory(
-                            articleID: articleID,
-                            categoryID: category.id
-                        )
-                    }
-                } else {
-                    switch purpose {
-                    case .archive:
-                        await model.runBulkToolbarAction(.archive, categoryID: category.id)
-                    case .setCategory:
-                        await model.runBulkCategory(category.id)
-                    }
-                }
-                dismiss()
-            }
-        } label: {
-            HStack(spacing: 9) {
-                Circle()
-                    .fill(Color(hexString: category.color) ?? QiankunjieColors.accent(for: colorScheme))
-                    .frame(width: 9, height: 9)
-                Text(category.name)
-                    .qiankunjieFont(.bodyMedium)
-                Spacer()
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(QiankunjieColors.surfaceVariant(for: colorScheme).opacity(0.45))
-            }
-        }
-        .buttonStyle(.plain)
-        .disabled(model.bulkRunningAction != nil)
-        .accessibilityLabel("设置分类 \(category.name)")
+        return "\(counts.joined(separator: "，"))；\(reasons.joined(separator: "；"))"
     }
 }
 
-private extension Color {
-    init?(hexString: String?) {
-        guard let hexString else { return nil }
-        let cleaned = hexString.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-        guard cleaned.count == 6, let value = UInt32(cleaned, radix: 16) else {
+/// 单篇与批量归档、分类共用同一选择器，保证 AI 与最近使用体验一致。
+struct BulkCategorySelectionSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @Bindable var model: LibraryModel
+    @Bindable var catalog: CategoryCatalogModel
+    let request: BulkCategoryRequest
+
+    var body: some View {
+        BulkCategoryPickerContainer(
+            model: model,
+            catalog: catalog,
+            request: request,
+            onDismiss: { dismiss() }
+        )
+    }
+}
+
+@MainActor
+private struct BulkCategoryPickerContainer: View {
+    let model: LibraryModel
+    let catalog: CategoryCatalogModel
+    let request: BulkCategoryRequest
+    let onDismiss: () -> Void
+
+    @State private var pickerModel: CategoryPickerModel
+
+    init(
+        model: LibraryModel,
+        catalog: CategoryCatalogModel,
+        request: BulkCategoryRequest,
+        onDismiss: @escaping () -> Void
+    ) {
+        self.model = model
+        self.catalog = catalog
+        self.request = request
+        self.onDismiss = onDismiss
+        _pickerModel = State(initialValue: CategoryPickerModel(
+            catalog: catalog,
+            selectedCategoryID: Self.selectedCategoryID(for: request, model: model),
+            targetCountProvider: {
+                request.targetArticleID == nil ? model.bulkSelection.count : 1
+            }
+        ))
+    }
+
+    var body: some View {
+        CategoryPickerContent(
+            model: pickerModel,
+            title: request.targetArticleID == nil
+                ? request.purpose.title
+                : request.purpose.singleTargetTitle,
+            subtitle: request.purpose.subtitle,
+            onSelectCategory: { category in
+                await 分配(category)
+            },
+            onSelectAI: {
+                await 交给AI判断()
+            },
+            onDismiss: onDismiss
+        )
+    }
+
+    private func 分配(_ category: ArticleCategory) async -> CategoryAssignmentOutcome {
+        if let articleID = request.targetArticleID {
+            switch request.purpose {
+            case .archive:
+                await model.runArticleToolbarAction(
+                    .archive,
+                    articleID: articleID,
+                    categoryID: category.id
+                )
+            case .setCategory:
+                await model.runArticleCategory(
+                    articleID: articleID,
+                    category: category
+                )
+            }
+        } else {
+            switch request.purpose {
+            case .archive:
+                await model.runBulkToolbarAction(.archive, categoryID: category.id)
+            case .setCategory:
+                await model.runBulkCategory(category)
+            }
+        }
+
+        let outcome = BulkCategoryOutcomeMapper.outcome(
+            result: model.bulkResult,
+            error: model.lastBulkActionError,
+            operation: .manual
+        )
+        return outcome
+    }
+
+    private func 交给AI判断() async -> CategoryAssignmentOutcome {
+        if let articleID = request.targetArticleID {
+            switch request.purpose {
+            case .archive:
+                await model.runArticleToolbarAction(.archive, articleID: articleID)
+            case .setCategory:
+                await model.runArticleCategoryByAI(articleID: articleID)
+            }
+        } else {
+            switch request.purpose {
+            case .archive:
+                await model.runBulkToolbarAction(.archive)
+            case .setCategory:
+                await model.runBulkCategoryByAI()
+            }
+        }
+
+        return BulkCategoryOutcomeMapper.outcome(
+            result: model.bulkResult,
+            error: model.lastBulkActionError,
+            operation: .ai
+        )
+    }
+
+    private static func selectedCategoryID(
+        for request: BulkCategoryRequest,
+        model: LibraryModel
+    ) -> Int? {
+        guard request.purpose == .setCategory,
+              let articleID = request.targetArticleID
+        else {
             return nil
         }
-        self.init(hex: value)
+        return model.articles.first { $0.id == articleID }?.category?.id
     }
 }

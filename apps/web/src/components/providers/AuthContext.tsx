@@ -1,6 +1,8 @@
 'use client';
 
 import { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from 'react';
+import { mutate } from 'swr';
+
 import { api, ApiRequestError } from '@/lib/api';
 
 interface User {
@@ -65,6 +67,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (username: string, password: string) => {
     const data = await api.login(username, password);
+    await mutate(
+      (key) => typeof key === 'string' && key.startsWith('categories:user:'),
+      undefined,
+      { revalidate: false },
+    );
     setUser(data.user);
     setBootFailed(false);
     setIsLoading(false);
@@ -72,6 +79,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await api.logout();
+    await mutate(
+      (key) => typeof key === 'string' && key.startsWith('categories:user:'),
+      undefined,
+      { revalidate: false },
+    );
     setUser(null);
     setBootFailed(false);
   }, []);

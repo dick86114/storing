@@ -14,6 +14,10 @@ struct ManagementAPIClient: Sendable {
         client = APIClient(tokenProvider: repository)
     }
 
+    init(client: APIClient) {
+        self.client = client
+    }
+
     func get<Response: Decodable & Sendable>(_ path: String) async throws -> Response {
         try await get(path, queryItems: [])
     }
@@ -72,6 +76,10 @@ func managementErrorMessage(for error: any Error) -> String {
         return "操作过于频繁，请稍后再试"
     case .contentUnavailable:
         return "请求的内容不存在或已失效"
+    case let .categoryUnavailable(message):
+        return message
+    case let .categoryConflict(message):
+        return message
     case .invalidInput:
         return "输入内容无效，请检查后重试"
     case .server:

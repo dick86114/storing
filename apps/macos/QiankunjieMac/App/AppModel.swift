@@ -163,14 +163,17 @@ final class AppModel {
     let settingsModel: SettingsModel
     let shortcutSettings: GlobalShortcutSettings
     let readerPositionStore: any ReaderPositionStoring
+    let categoryCatalog: CategoryCatalogModel
     private(set) var libraryModel: LibraryModel
     private(set) var collectModel: CollectModel
     let searchModel: LibraryModel
     let bulkExportService: BulkArticleExportService
     private var weChatImportCoordinator: WeChatImportCoordinator?
+    private var categoryCatalogRefreshTask: Task<Void, Never>?
 
     var user: AuthenticatedUser?
     var destination: AppDestination = .published
+    private(set) var selectedCategoryID: Int?
 
     /// 用户是否在当前会话里主动指定过要打开的页面。
     /// 启动阶段会异步恢复登录状态，如果不区分这一点，菜单栏打开设置后
@@ -187,9 +190,16 @@ final class AppModel {
         libraryModel: LibraryModel? = nil,
         collectRepository: (any CollectServicing)? = nil,
         shortcutDefaults: UserDefaults = .standard,
-        readerPositionStore: any ReaderPositionStoring = ReaderPositionStore()
+        readerPositionStore: any ReaderPositionStoring = ReaderPositionStore(),
+        categoryCatalog: CategoryCatalogModel? = nil
     ) {
         self.authModel = authModel
+        self.categoryCatalog = categoryCatalog ?? CategoryCatalogModel(
+            service: CategoryCatalogService(
+                client: ManagementAPIClient(repository: authModel.repository)
+            ),
+            recentStore: CategoryRecentStore()
+        )
         if let libraryModel {
             self.libraryModel = libraryModel
         } else {
@@ -243,14 +253,21 @@ final class AppModel {
                 requestedCount: articleIDs.count,
                 succeededCount: summary.succeededIDs.count,
                 skippedCount: 0,
+                failedCount: summary.failures.count,
                 issues: summary.failures.map {
                     ArticleBulkIssue(articleID: $0.articleID, code: "EXPORT_FAILED", message: $0.message)
                 }
             )
         }
+        self.libraryModel.onCatalogAffectingChange = { [weak self] in
+            self?.scheduleCategoryCatalogRefresh()
+        }
 
         settingsModel.onUserStateCleared = { [weak self] in
             await self?.synchronizeWithAuthentication()
+        }
+        self.categoryCatalog.onCategoriesChanged = { [weak self] in
+            self?.validateSelectedCategory()
         }
     }
 
@@ -323,6 +340,28 @@ final class AppModel {
         selectArticle(nil)
     }
 
+    /// 侧栏搜索会取消分类筛选，必须与共享导航状态一起清空分类 ID。
+    func submitLibrarySearch() {
+        selectedCategoryID = nil
+        libraryModel.submitSearch()
+    }
+
+    /// 清除搜索时保持侧栏、工具栏和列表的分类状态一致。
+    func clearLibrarySearch() {
+        if libraryModel.isSearching {
+            selectedCategoryID = nil
+        }
+        libraryModel.clearSearch()
+    }
+
+    /// 阅读器等非资料库模型通过同一入口刷新列表和分类计数。
+    func handleLibraryDidChange() {
+        scheduleCategoryCatalogRefresh()
+        Task {
+            await libraryModel.load(reset: true)
+        }
+    }
+
     func selectSearchArticle(_ article: ArticleCard) {
         selectedArticleID = article.id
         selectedReaderSelection = ReaderSelection(
@@ -336,8 +375,17 @@ final class AppModel {
         if destination.isAdminOnly, user?.role != "admin" {
             return
         }
+
+        // 侧栏主栏目始终代表全部内容；从分类筛选进入归档主行时也要立即回到全部归档。
+        let hadSelectedCategory = selectedCategoryID != nil
+        selectedCategoryID = nil
         guard destination != self.destination else {
-            if
+            if destination == .archive, hadSelectedCategory {
+                libraryModel.selectCategory(nil)
+                Task {
+                    await libraryModel.load(reset: true)
+                }
+            } else if
                 let view = destination.libraryView,
                 libraryModel.isSearching
             {
@@ -363,6 +411,83 @@ final class AppModel {
                     await libraryModel.load(reset: true)
                 }
             }
+        }
+    }
+
+    func selectCategory(_ categoryID: Int?) {
+        if let categoryID,
+           !categoryCatalog.activeCategories.contains(where: { $0.id == categoryID }) {
+            return
+        }
+
+        destination = .archive
+        selectedCategoryID = categoryID
+        hasExplicitDestinationSelection = true
+        selectArticle(nil)
+        libraryModel.select(view: .archive)
+        libraryModel.selectCategory(categoryID)
+        Task {
+            await libraryModel.load(reset: true)
+        }
+    }
+
+    /// 轻量创建只负责产生分类，导航由表单成功回调完成，避免取消后仍被跳转。
+    func createCategory(_ draft: CategoryDraft) async throws -> ArticleCategory {
+        try await categoryCatalog.create(draft)
+    }
+
+    func createCategoryAndSelect(_ draft: CategoryDraft) async -> ArticleCategory? {
+        guard categoryCatalog.hasLoadedCatalog else {
+            categoryCatalog.presentError("分类目录尚未加载完成，请稍后重试")
+            return nil
+        }
+        guard !categoryCatalog.isLoading else {
+            categoryCatalog.presentError("分类目录正在加载，请稍后重试")
+            return nil
+        }
+        guard !categoryCatalog.isMutating else {
+            categoryCatalog.presentError("分类目录正在处理其他操作，请稍后再试")
+            return nil
+        }
+
+        let 发起用户ID = categoryCatalog.userID
+
+        do {
+            let category = try await categoryCatalog.create(draft)
+            guard categoryCatalog.userID == 发起用户ID else {
+                return nil
+            }
+            selectCategory(category.id)
+            guard selectedCategoryID == category.id else {
+                categoryCatalog.presentError("分类已创建，但无法进入新分类，请稍后重试")
+                return nil
+            }
+            return category
+        } catch {
+            guard categoryCatalog.userID == 发起用户ID else {
+                return nil
+            }
+            if categoryCatalog.errorMessage == nil {
+                categoryCatalog.presentError(managementErrorMessage(for: error))
+            }
+            return nil
+        }
+    }
+
+    func validateSelectedCategory() {
+        guard let selectedCategoryID else { return }
+        guard !categoryCatalog.activeCategories.contains(where: { $0.id == selectedCategoryID }) else {
+            return
+        }
+
+        self.selectedCategoryID = nil
+        guard destination == .archive else { return }
+        if libraryModel.view != .archive {
+            libraryModel.select(view: .archive)
+        }
+        libraryModel.selectCategory(nil)
+        Task {
+            await libraryModel.load(reset: true)
         }
     }
 
@@ -417,10 +542,16 @@ final class AppModel {
             userID: user?.id,
             view: destination.libraryView ?? .published
         )
+        categoryCatalogRefreshTask?.cancel()
+        categoryCatalogRefreshTask = nil
+        categoryCatalog.prepareUser(userID: user?.id)
         collectModel.prepareUser(userID: user?.id)
         weChatImportCoordinator?.processPendingBatches()
         if previousLibraryUserID != user?.id {
             await libraryModel.clearUserScope(userID: previousLibraryUserID)
+        }
+        if isAuthenticated {
+            await categoryCatalog.load()
         }
         await libraryModel.load(reset: true)
     }
@@ -430,6 +561,23 @@ final class AppModel {
 
         Task {
             await libraryModel.load(reset: true)
+        }
+    }
+
+    private func scheduleCategoryCatalogRefresh() {
+        let expectedUserID = categoryCatalog.userID
+        categoryCatalogRefreshTask?.cancel()
+        categoryCatalogRefreshTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(200))
+            guard
+                !Task.isCancelled,
+                let self,
+                self.categoryCatalog.userID == expectedUserID
+            else {
+                return
+            }
+            await self.categoryCatalog.load()
+            self.categoryCatalogRefreshTask = nil
         }
     }
 }

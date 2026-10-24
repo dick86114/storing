@@ -58,6 +58,7 @@ struct LibraryBulkModelTests {
         #expect(model.articles.first { $0.id == 1 }?.isFavorited == true)
         #expect(model.bulkResult?.succeededCount == 1)
         #expect(model.bulkResult?.skippedCount == 1)
+        #expect(model.bulkResult?.failedCount == 1)
         #expect(model.bulkResult?.issues.count == 2)
     }
 
@@ -147,8 +148,6 @@ private actor 批量资料库仓库: LibraryLoading, LibraryBulkOperating {
     }
 
     func loadSources(userID: Int?) async throws -> [LibrarySource] { [] }
-
-    func loadCategoryFilters(userID: Int?) async throws -> [LibraryCategoryFilter] { [] }
 
     func setPage(_ page: ArticleListPage) {
         pages[page.page] = page

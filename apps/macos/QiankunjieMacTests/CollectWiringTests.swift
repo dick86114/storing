@@ -103,10 +103,6 @@ private actor 等待资料库仓库: LibraryLoading {
         []
     }
 
-    func loadCategoryFilters(userID: Int?) async throws -> [LibraryCategoryFilter] {
-        []
-    }
-
     func waitForLoadRequests(_ count: Int) async {
         if loadRequestCount >= count {
             return

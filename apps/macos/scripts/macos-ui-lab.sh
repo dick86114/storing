@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-  echo "用法：$0 <login|library|empty|loading|offline|reader|collect|tasks|settings|update|update-notice|current-version> [light|dark]"
+  echo "用法：$0 <login|library|empty|loading|offline|reader|collect|tasks|settings|update|update-notice|current-version|category-picker|category-management|reader-category-unavailable|category-create-cancel> [light|dark]"
 }
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" || $# -lt 1 || $# -gt 2 ]]; then
@@ -12,7 +12,7 @@ fi
 
 scenario="${1}"
 case "${scenario}" in
-  "login"|"library"|"empty"|"loading"|"offline"|"reader"|"collect"|"tasks"|"settings"|"update"|"update-notice"|"current-version")
+  "login"|"library"|"empty"|"loading"|"offline"|"reader"|"collect"|"tasks"|"settings"|"update"|"update-notice"|"current-version"|"category-picker"|"category-management"|"reader-category-unavailable"|"category-create-cancel")
     ;;
   *)
     echo "错误：未知 UI Lab 场景 $scenario。"
@@ -32,6 +32,8 @@ macos_dir="$(cd "${script_dir}/.." && pwd)"
 repo_dir="$(cd "${macos_dir}/../.." && pwd)"
 derived_data="${MACOS_DERIVED_DATA:-${macos_dir}/.derivedData}"
 screenshot_dir="${repo_dir}/artifacts/macos-ui-lab/${scenario}"
+screenshot_label="${appearance:-system}"
+screenshot_path="${screenshot_dir}/${screenshot_label}.png"
 
 xcodegen_bin="$("${script_dir}/verify-xcode.sh" --print-xcodegen-bin)"
 cd "${macos_dir}"
@@ -55,6 +57,6 @@ fi
 open -n "${app_path}" --args --ui-lab "${scenario}" "${appearance_args[@]}"
 
 echo "UI Lab 场景已启动：${scenario}"
-echo "浅色截图路径：${screenshot_dir}/light.png"
-echo "深色截图路径：${screenshot_dir}/dark.png"
+echo "本次外观：${screenshot_label}"
+echo "建议截图路径：${screenshot_path}"
 echo "截图后请人工确认布局、文本换行、交互态和无真实账号数据。"

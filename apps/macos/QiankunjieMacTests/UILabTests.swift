@@ -4,15 +4,60 @@ import Testing
 
 @MainActor
 struct UILabTests {
-    @Test func uiLabCoversEveryCoreScenario() {
-        #expect(UILabScenario.allCases == [
-            .login, .library, .empty, .loading, .offline, .reader, .collect, .tasks, .settings, .update, .updateNotice,
-            .currentVersion,
+    @Test func 界面实验室覆盖全部核心场景() {
+        #expect(UILabScenario.allCases.map(\.rawValue) == [
+            "login", "library", "empty", "loading", "offline", "reader", "collect", "tasks", "settings", "update",
+            "update-notice", "current-version", "category-picker", "category-management",
+            "reader-category-unavailable", "category-create-cancel",
         ])
         #expect(UILabFixtures.article.id == 1001)
         #expect(UILabFixtures.user.id == 9001)
         #expect(UILabFixtures.updateCompletionNotice.version == "0.2.0")
         #expect(UILabFixtures.updateCompletionNotice.previousVersion == "0.1.0")
+    }
+
+    @Test func 界面实验室覆盖分类导航选择器和管理页() {
+        let scenarioValues = Set(UILabScenario.allCases.map(\.rawValue))
+
+        #expect(scenarioValues.contains("library"))
+        #expect(scenarioValues.contains("category-picker"))
+        #expect(scenarioValues.contains("category-management"))
+    }
+
+    @Test func 界面实验室覆盖分类失效与创建取消定向场景() {
+        let scenarioValues = Set(UILabScenario.allCases.map(\.rawValue))
+
+        #expect(scenarioValues.contains("reader-category-unavailable"))
+        #expect(scenarioValues.contains("category-create-cancel"))
+    }
+
+    @Test func 界面实验室分类夹具包含启用停用系统最近使用和全部分类() {
+        let categories = UILabFixtures.readerCategories
+        let activeUserCategoryNames = Set(
+            categories
+                .filter { $0.isActive && !$0.isSystem }
+                .map(\.name)
+        )
+        let recentCategoryNames = UILabFixtures.categoryCatalog.recentCategoryIDs.compactMap { categoryID in
+            categories.first { $0.id == categoryID }?.name
+        }
+
+        #expect(activeUserCategoryNames.isSuperset(of: ["工作", "技术"]))
+        #expect(categories.contains { !$0.isActive && !$0.isSystem })
+        #expect(categories.contains { $0.isSystem && $0.name == "待整理" })
+        #expect(categories.count >= 6)
+        #expect(recentCategoryNames == ["工作", "技术"])
+        #expect(UILabFixtures.appModel.isAuthenticated)
+        #expect(UILabFixtures.appModel.categoryCatalog === UILabFixtures.categoryCatalog)
+    }
+
+    @Test func 界面实验室分类排序响应同步更新可观察顺序() async throws {
+        let service = FixtureCategoryCatalogService(categories: UILabFixtures.categoryFixtures)
+
+        let response = try await service.reorder(categoryIDs: [1, 3, 2, 4, 5, 6])
+
+        #expect(response.categories.map(\.id) == [1, 3, 2, 4, 5, 6])
+        #expect(response.categories.map(\.sortOrder) == [0, 10, 20, 30, 40, 50])
     }
 
     @Test func uiLabTaskFixturesCoverEveryActionState() {

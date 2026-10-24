@@ -18,10 +18,18 @@ const scenarios = [
   'update',
   'update-notice',
   'current-version',
+  'category-picker',
+  'category-management',
+  'reader-category-unavailable',
+  'category-create-cancel',
 ];
 const scenarioCaseNames = {
   'update-notice': 'updateNotice',
   'current-version': 'currentVersion',
+  'category-picker': 'categoryPicker',
+  'category-management': 'categoryManagement',
+  'reader-category-unavailable': 'readerCategoryUnavailable',
+  'category-create-cancel': 'categoryCreateCancel',
 };
 
 test('macOS UI Lab 固定全部核心验收场景', () => {
@@ -38,9 +46,25 @@ test('macOS UI Lab 固定全部核心验收场景', () => {
   assert.match(fixtureSource, /id: 1001/);
   assert.match(fixtureSource, /static let user/);
   assert.match(fixtureSource, /id: 9001/);
-  assert.match(testSource, /uiLabCoversEveryCoreScenario/);
+  assert.match(testSource, /界面实验室覆盖全部核心场景/);
+  assert.match(testSource, /界面实验室覆盖分类导航选择器和管理页/);
+  assert.match(testSource, /界面实验室分类夹具包含启用停用系统最近使用和全部分类/);
+  assert.match(testSource, /界面实验室覆盖分类失效与创建取消定向场景/);
   assert.match(testSource, /uiLabTaskFixturesCoverEveryActionState/);
   assert.match(testSource, /uiLabTaskRowsExposeOnlyAllowedActions/);
+});
+
+test('macOS UI Lab 可重复触发阅读器分类失效与慢速创建取消', () => {
+  const scenarioSource = read('apps/macos/QiankunjieMac/UILab/UILabScenario.swift');
+  const fixtureSource = read('apps/macos/QiankunjieMac/UILab/UILabFixtures.swift');
+
+  assert.match(scenarioSource, /readerCategoryUnavailable = "reader-category-unavailable"/);
+  assert.match(scenarioSource, /categoryCreateCancel = "category-create-cancel"/);
+  assert.match(scenarioSource, /UILabFixtures\.readerCategoryUnavailableClient/);
+  assert.match(scenarioSource, /CategoryManagementView\(catalog: UILabFixtures\.categoryCreateCancelCatalog\)/);
+  assert.match(fixtureSource, /static let readerCategoryUnavailableDetail/);
+  assert.match(fixtureSource, /static let readerCategoryUnavailableClient/);
+  assert.match(fixtureSource, /static let categoryCreateCancelCatalog/);
 });
 
 test('macOS UI Lab 只在 Debug 路由且不触碰生产数据边界', () => {
@@ -80,7 +104,7 @@ test('macOS UI Lab 任务夹具显式解码并暴露允许的任务动作', () =
   const scenarioSource = read('apps/macos/QiankunjieMac/UILab/UILabScenario.swift');
   const guide = read('docs/MacOS-UI-Lab.md');
 
-  assert.doesNotMatch(fixtureSource, /try\?[\s\S]*\?\? \[\]/);
+  assert.doesNotMatch(fixtureSource, /try\?[^;\n]{0,240}\?\? \[\]/);
   assert.match(fixtureSource, /fatalError\("UI Lab 采集任务夹具解码失败/);
   assert.match(fixtureSource, /"pending"/);
   assert.match(fixtureSource, /"running"/);

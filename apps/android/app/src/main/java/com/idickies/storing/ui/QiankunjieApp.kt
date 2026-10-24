@@ -537,7 +537,7 @@ internal fun LoginScreen(
 
 @Composable
 private fun HomeSkeleton(
-  @Suppress("UNUSED_PARAMETER") username: String?,
+  username: String?,
   sharedText: String?,
   onSharedTextConsumed: () -> Unit,
   openArticleId: Int?,
@@ -582,6 +582,7 @@ private fun HomeSkeleton(
     }
   }
   LibraryScreen(
+    username = username,
     sharedText = sharedText,
     onSharedTextConsumed = onSharedTextConsumed,
     openArticleId = openArticleId,

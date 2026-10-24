@@ -1,6 +1,7 @@
 package com.idickies.storing.uilab
 
 import com.idickies.storing.library.ArticleCard
+import com.idickies.storing.library.ArticleCategory
 import com.idickies.storing.library.ArticleDetail
 
 internal object UiLabFixtures {
@@ -9,6 +10,15 @@ internal object UiLabFixtures {
     ArticleCard(id = 2, title = "为什么好的移动端阅读体验应该把注意力还给正文", source = "Storing Design Notes", originalUrl = "https://openai.com", aiSummary = "真正的阅读器不该像网页缩小版，而应该在排版、留白和操作密度之间建立克制的平衡。", aiTags = listOf("阅读", "产品设计")),
     ArticleCard(id = 3, title = "来自系统分享的一条长标题示例，用于验证两行截断、卡片高度和标签换行表现", source = "微信公众号", originalUrl = "https://mp.weixin.qq.com/s/example", aiSummary = "这是固定的 UI Lab 演示数据，不包含真实账号、链接或采集正文。", aiTags = listOf("分享采集")),
   )
+
+  val categories = listOf(
+    ArticleCategory(id = 1, name = "待整理", description = "AI 无法明确归类的文章会进入这里。", sortOrder = 0, isSystem = true, color = "#6B7088"),
+    ArticleCategory(id = 2, name = "工作", description = "产品、协作与职业成长相关内容。", includeExamples = listOf("产品复盘", "团队协作"), sortOrder = 10, color = "#2F6A4F"),
+    ArticleCategory(id = 3, name = "产品设计", description = "界面、交互与设计系统相关内容。", includeExamples = listOf("交互设计", "设计系统"), sortOrder = 20, color = "#536CCB"),
+    ArticleCategory(id = 4, name = "技术", description = "工程实践与工具链。", includeExamples = listOf("Android", "架构"), sortOrder = 30, color = "#3E7C83"),
+    ArticleCategory(id = 5, name = "旧分类", sortOrder = 40, isActive = false, color = "#9B7250"),
+  )
+  val categoryCounts = mapOf("1" to 12, "2" to 8, "3" to 5, "4" to 23, "5" to 0)
 
   const val readerTitle = "把真正重要的内容留下来：从稍后读到个人知识空间"
   const val readerSummary = "这是一段固定摘要，用来验证标题、摘要卡片、正文节奏、图片占位和操作栏在不同屏幕尺寸下的视觉表现。"
