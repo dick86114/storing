@@ -160,6 +160,23 @@ export function CategoryQuickCreateDialog({
           <details className="category-quick-create-details">
             <summary>详细规则（可选）</summary>
             <p>未填写说明时，AI 会更倾向于把不明确文章放入待整理。</p>
+            <div className="category-quick-create-optimize-row">
+              <div className="category-quick-create-optimize-copy">
+                <strong>AI 辅助生成规则</strong>
+                <small id="category-quick-create-optimize-help">
+                  根据名称和当前规则，生成分类说明、适合收录和不适合收录示例。
+                </small>
+              </div>
+              <button
+                className="category-quick-create-optimize"
+                type="button"
+                onClick={optimize}
+                disabled={saving || optimizing || !name.trim()}
+                aria-describedby="category-quick-create-optimize-help"
+              >
+                <RobotOutlined /> {optimizing ? '正在生成…' : 'AI 优化分类说明'}
+              </button>
+            </div>
             <label className="category-form-field">
               <span>分类说明</span>
               <textarea
@@ -194,28 +211,30 @@ export function CategoryQuickCreateDialog({
               </label>
             </div>
             <div className="category-quick-create-color">
-              <span>显示颜色</span>
-              <div className="category-form-color-swatches" aria-label="预设颜色">
-                {CATEGORY_COLORS.map((item) => (
-                  <button
-                    key={item}
-                    className={color === item ? 'is-selected' : ''}
-                    type="button"
-                    onClick={() => setColor(item)}
-                    style={{ '--swatch-color': item } as React.CSSProperties}
-                    aria-label={`选择颜色 ${item}`}
-                  />
-                ))}
+              <div className="category-quick-create-color-heading">
+                <span>显示颜色</span>
+                <small>用于归档导航和文章分类标识。</small>
               </div>
-              <label className="category-form-custom-color" title="自定义颜色">
-                <BgColorsOutlined aria-hidden="true" />
-                <span>调色盘</span>
-                <input type="color" value={color} onChange={(event) => setColor(event.target.value)} aria-label="自定义分类颜色" />
-              </label>
+              <div className="category-quick-create-color-controls">
+                <div className="category-form-color-swatches" aria-label="预设颜色">
+                  {CATEGORY_COLORS.map((item) => (
+                    <button
+                      key={item}
+                      className={color === item ? 'is-selected' : ''}
+                      type="button"
+                      onClick={() => setColor(item)}
+                      style={{ '--swatch-color': item } as React.CSSProperties}
+                      aria-label={`选择颜色 ${item}`}
+                    />
+                  ))}
+                </div>
+                <label className="category-form-custom-color" title="自定义颜色">
+                  <BgColorsOutlined aria-hidden="true" />
+                  <span>调色盘</span>
+                  <input type="color" value={color} onChange={(event) => setColor(event.target.value)} aria-label="自定义分类颜色" />
+                </label>
+              </div>
             </div>
-            <button className="category-quick-create-optimize" type="button" onClick={optimize} disabled={saving || optimizing || !name.trim()}>
-              <RobotOutlined /> {optimizing ? '正在生成…' : 'AI 优化分类说明'}
-            </button>
           </details>
 
           {error && <p className="category-isolate-error" role="alert">{error}</p>}
