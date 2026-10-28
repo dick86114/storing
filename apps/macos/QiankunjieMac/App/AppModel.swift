@@ -163,6 +163,8 @@ final class AppModel {
     let settingsModel: SettingsModel
     let shortcutSettings: GlobalShortcutSettings
     let readerPositionStore: any ReaderPositionStoring
+    let readerArticleCache: any ReaderArticleCaching
+    let readerWebCache: ReaderWebCache
     let categoryCatalog: CategoryCatalogModel
     private(set) var libraryModel: LibraryModel
     private(set) var collectModel: CollectModel
@@ -191,6 +193,8 @@ final class AppModel {
         collectRepository: (any CollectServicing)? = nil,
         shortcutDefaults: UserDefaults = .standard,
         readerPositionStore: any ReaderPositionStoring = ReaderPositionStore(),
+        readerArticleCache: any ReaderArticleCaching = ReaderArticleCache(),
+        readerWebCache: ReaderWebCache = ReaderWebCache(),
         categoryCatalog: CategoryCatalogModel? = nil
     ) {
         self.authModel = authModel
@@ -226,6 +230,8 @@ final class AppModel {
         )
         self.shortcutSettings = GlobalShortcutSettings(defaults: shortcutDefaults)
         self.readerPositionStore = readerPositionStore
+        self.readerArticleCache = readerArticleCache
+        self.readerWebCache = readerWebCache
         let settingsModel = SettingsModel(
             authModel: authModel,
             appearanceDefaults: shortcutDefaults

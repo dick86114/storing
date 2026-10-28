@@ -78,7 +78,9 @@ struct SettingsView: View {
                     menuBarController: menuBarController,
                     isAuthenticated: model.isAuthenticated,
                     onLogin: onLogin,
-                    updateCheckRequestID: updateCheckRequestID
+                    updateCheckRequestID: updateCheckRequestID,
+                    readerArticleCache: model.readerArticleCache,
+                    readerWebCache: model.readerWebCache
                 )
             case .aiModel:
                 if model.isAuthenticated {

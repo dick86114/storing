@@ -138,6 +138,8 @@ struct UILabRootView: View {
                     menuBarController: nil,
                     isAuthenticated: true,
                     onLogin: {},
+                    readerArticleCache: UILabFixtures.appModel.readerArticleCache,
+                    readerWebCache: UILabFixtures.appModel.readerWebCache,
                     updateService: UILabFixtures.updateService,
                     updateDefaults: UILabFixtures.preferences
                 )
@@ -149,6 +151,8 @@ struct UILabRootView: View {
                     isAuthenticated: true,
                     onLogin: {},
                     updateCheckRequestID: 1,
+                    readerArticleCache: UILabFixtures.appModel.readerArticleCache,
+                    readerWebCache: UILabFixtures.appModel.readerWebCache,
                     updateService: UILabFixtures.updateService,
                     updateDefaults: UILabFixtures.preferences
                 )
@@ -238,6 +242,8 @@ struct UILabRootView: View {
                 appFont: .standard,
                 readerContentWidth: .normal,
                 positionStore: UILabFixtures.appModel.readerPositionStore,
+                articleCache: UILabFixtures.appModel.readerArticleCache,
+                webCache: UILabFixtures.appModel.readerWebCache,
                 networkClient: networkClient,
                 onClose: {},
                 onLibraryDidChange: {}

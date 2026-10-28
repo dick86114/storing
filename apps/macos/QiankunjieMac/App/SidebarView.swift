@@ -1,5 +1,6 @@
 import QiankunjieAuth
 import QiankunjieDesignSystem
+import AppKit
 import SwiftUI
 
 struct SidebarView: View {
@@ -17,6 +18,7 @@ struct SidebarView: View {
     @State private var collectIconRotation: Double = 0
     @State private var showsCollectPopover = false
     @State private var isArchiveCategoriesExpanded = true
+    @FocusState private var isSidebarFocused: Bool
 
     var body: some View {
         List(selection: destinationSelection) {
@@ -45,12 +47,24 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .focused($isSidebarFocused)
         .background(QiankunjieColors.surfaceVariant(for: colorScheme))
         .safeAreaInset(edge: .top) {
             topControls
         }
         .safeAreaInset(edge: .bottom) {
             bottomControls
+        }
+        .onAppear(perform: restoreSidebarFocusAfterShellRebuild)
+    }
+
+    /// 侧栏进入搜索或单栏布局时仍可能被重建，新列表不会自动继承第一响应者；
+    /// 主动补回焦点可避免选中行先显示为非活动灰色。
+    private func restoreSidebarFocusAfterShellRebuild() {
+        Task { @MainActor in
+            await Task.yield()
+            guard NSApp.isActive else { return }
+            isSidebarFocused = true
         }
     }
 

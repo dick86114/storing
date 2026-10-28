@@ -280,6 +280,38 @@ public struct ReaderArticle: Sendable {
     public var contentMarkdown: String? { detail.contentMarkdown }
 }
 
+extension ReaderArticle {
+    /// 动作会更新收藏、归档、分类等可变状态，缓存时合并为最新详情。
+    func detailForCache(title: String?) -> ArticleDetail {
+        ArticleDetail(
+            id: detail.id,
+            title: title ?? detail.title,
+            author: detail.author,
+            source: detail.source,
+            originalURL: detail.originalURL,
+            publicID: detail.publicID,
+            coverImage: detail.coverImage,
+            publishTime: detail.publishTime,
+            createdAt: detail.createdAt,
+            aiSummary: detail.aiSummary,
+            aiCategory: detail.aiCategory,
+            aiTags: detail.aiTags,
+            category: category,
+            categoryResult: detail.categoryResult,
+            isFavorited: isFavorited,
+            isArchived: isArchived,
+            isPublished: isPublished,
+            contentHTML: detail.contentHTML,
+            contentMarkdown: detail.contentMarkdown,
+            aiStatus: detail.aiStatus,
+            aiErrorCode: detail.aiErrorCode,
+            aiErrorMessage: detail.aiErrorMessage,
+            aiModel: detail.aiModel,
+            aiTotalTokens: detail.aiTotalTokens
+        )
+    }
+}
+
 @MainActor
 @Observable
 public final class ReaderModel {
@@ -302,6 +334,7 @@ public final class ReaderModel {
 
     private let client: any ReaderNetworkClient
     private let positionStore: any ReaderPositionStoring
+    private let articleCache: any ReaderArticleCaching
     public private(set) var userID: Int?
     private var requestGeneration = 0
     private var actionGeneration = 0
@@ -310,10 +343,12 @@ public final class ReaderModel {
     public init(
         client: any ReaderNetworkClient = APIClient(),
         positionStore: any ReaderPositionStoring = ReaderPositionStore(),
+        articleCache: any ReaderArticleCaching = EmptyReaderArticleCache(),
         userID: Int? = nil
     ) {
         self.client = client
         self.positionStore = positionStore
+        self.articleCache = articleCache
         self.userID = userID
         positionStore.prepareUser(userID: userID)
     }
@@ -368,7 +403,8 @@ public final class ReaderModel {
 
     private func load(
         _ selection: ReaderSelection,
-        requestGeneration generation: Int
+        requestGeneration generation: Int,
+        ignoresCache: Bool = false
     ) async {
         self.articleID = selection.articleID
         self.selection = selection
@@ -382,6 +418,25 @@ public final class ReaderModel {
             articleID: selection.articleID
         )
 
+        if !ignoresCache {
+            let cached = try? await articleCache.load(
+                selection: selection,
+                userID: userID
+            )
+            if
+                let cached,
+                requestGeneration == generation,
+                cached.id == selection.articleID
+            {
+                article = ReaderArticle(detail: cached)
+                contentToken = UUID().uuidString
+                errorMessage = nil
+                isLoading = false
+                scheduleAIPollingIfPending()
+                return
+            }
+        }
+
         do {
             let detail = try await client.articleDetail(selection)
             guard requestGeneration == generation else {
@@ -392,6 +447,12 @@ public final class ReaderModel {
             contentToken = UUID().uuidString
             errorMessage = nil
             scheduleAIPollingIfPending()
+            isLoading = false
+            try? await articleCache.save(
+                detail,
+                selection: selection,
+                userID: userID
+            )
         } catch {
             guard requestGeneration == generation else {
                 return
@@ -516,6 +577,7 @@ public final class ReaderModel {
             if isCurrentAction(actionGeneration) {
                 self.isDeleted = true
                 self.positionStore.remove(articleID: articleID)
+                await self.removeCachedArticle()
                 self.onDeleted?()
                 self.onCategoryAffectingChange?()
             }
@@ -532,6 +594,7 @@ public final class ReaderModel {
             if isCurrentAction(actionGeneration) {
                 self.isDeleted = true
                 self.positionStore.remove(articleID: articleID)
+                await self.removeCachedArticle()
                 self.onDeleted?()
                 self.onCategoryAffectingChange?()
             }
@@ -585,6 +648,11 @@ public final class ReaderModel {
             guard articleID == selection.articleID, article?.id == currentArticle.id else { return false }
             article = ReaderArticle(detail: detail)
             errorMessage = nil
+            try? await articleCache.save(
+                detail,
+                selection: selection,
+                userID: userID
+            )
             let status = detail.aiStatus
             let wasPending = previousStatus == "queued" || previousStatus == "running"
             let isPending = status == "queued" || status == "running"
@@ -627,7 +695,11 @@ public final class ReaderModel {
 
         do {
             try await action(articleID, generation)
-            return isCurrentAction(generation)
+            guard isCurrentAction(generation) else {
+                return false
+            }
+            await saveCurrentArticleToCache()
+            return true
         } catch {
             guard isCurrentAction(generation) else {
                 return false
@@ -644,7 +716,33 @@ public final class ReaderModel {
         }
 
         requestGeneration += 1
-        await load(selection, requestGeneration: requestGeneration)
+        await load(
+            selection,
+            requestGeneration: requestGeneration,
+            ignoresCache: true
+        )
+    }
+
+    private func saveCurrentArticleToCache() async {
+        guard let article, let selection, !isDeleted else {
+            return
+        }
+        let detail = article.detailForCache(title: titleOverride)
+        try? await articleCache.save(
+            detail,
+            selection: selection,
+            userID: userID
+        )
+    }
+
+    private func removeCachedArticle() async {
+        guard let selection else {
+            return
+        }
+        try? await articleCache.remove(
+            selection: selection,
+            userID: userID
+        )
     }
 
     private func isCurrentAction(_ generation: Int) -> Bool {
@@ -935,6 +1033,7 @@ extension ReaderModel {
             try await client.renameArticle(articleID: article.id, title: trimmed)
             titleOverride = trimmed
             errorMessage = nil
+            await saveCurrentArticleToCache()
         } catch {
             errorMessage = Self.message(for: error)
         }

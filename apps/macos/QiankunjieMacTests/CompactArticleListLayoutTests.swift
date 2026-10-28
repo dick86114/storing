@@ -158,6 +158,20 @@ struct CompactArticleListLayoutTests {
         #expect(source.contains(".overlay(alignment: .topTrailing)"))
     }
 
+    @Test func 细滚动条会关闭同一滚动容器的原生滚动条() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("QiankunjieMac/Features/Library/ThinScrollView.swift"),
+            encoding: .utf8
+        )
+
+        #expect(source.contains(".background(NativeScrollBarHider())"))
+        #expect(source.contains("scrollView.hasVerticalScroller = false"))
+        #expect(!source.contains("for window in NSApp.windows"))
+    }
+
     @Test func 标签完整展示且不截断() {
         let metrics = CompactArticleListLayoutMetrics()
         let longTag = String(repeating: "长", count: 80)

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// 使用稳定的 SwiftUI 滚动布局，并自绘可拖动细滚动条。
@@ -24,6 +25,7 @@ private struct ThinScrollContent<Content: View>: View {
                 content
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(width: proxy.size.width)
+                    .background(NativeScrollBarHider())
             }
             .scrollContentBackground(.hidden)
             .scrollIndicators(.hidden)
@@ -41,6 +43,52 @@ private struct ThinScrollContent<Content: View>: View {
             }
             .frame(width: 16)
         }
+    }
+}
+
+/// 只关闭当前细滚动容器对应的原生滚动条，避免系统滚动条与自绘滚动条同时出现。
+private struct NativeScrollBarHider: NSViewRepresentable {
+    func makeNSView(context: Context) -> ScrollBarHiderView {
+        ScrollBarHiderView()
+    }
+
+    func updateNSView(_ nsView: ScrollBarHiderView, context: Context) {
+        nsView.hideEnclosingScrollBar()
+    }
+}
+
+private final class ScrollBarHiderView: NSView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        hideEnclosingScrollBar()
+    }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        hideEnclosingScrollBar()
+    }
+
+    func hideEnclosingScrollBar() {
+        if hideNearestScrollView() { return }
+
+        DispatchQueue.main.async { [weak self] in
+            self?.hideNearestScrollView()
+        }
+    }
+
+    @discardableResult
+    private func hideNearestScrollView() -> Bool {
+        var candidate = superview
+        while let view = candidate {
+            if let scrollView = view as? NSScrollView {
+                scrollView.hasVerticalScroller = false
+                scrollView.hasHorizontalScroller = false
+                scrollView.autohidesScrollers = true
+                return true
+            }
+            candidate = view.superview
+        }
+        return false
     }
 }
 
