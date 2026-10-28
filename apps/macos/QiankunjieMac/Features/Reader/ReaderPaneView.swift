@@ -14,6 +14,8 @@ struct ReaderPaneView: View {
     let readerContentWidth: ReaderContentWidthPreference
     let onReaderContentWidthChange: (ReaderContentWidthPreference) -> Void
     let positionStore: any ReaderPositionStoring
+    let articleCache: any ReaderArticleCaching
+    let webCache: ReaderWebCache
     let networkClient: any ReaderNetworkClient
     let onClose: () -> Void
     let onLibraryDidChange: () -> Void
@@ -39,6 +41,8 @@ struct ReaderPaneView: View {
         readerContentWidth: ReaderContentWidthPreference = .normal,
         onReaderContentWidthChange: @escaping (ReaderContentWidthPreference) -> Void = { _ in },
         positionStore: any ReaderPositionStoring,
+        articleCache: any ReaderArticleCaching = EmptyReaderArticleCache(),
+        webCache: ReaderWebCache = ReaderWebCache(),
         networkClient: any ReaderNetworkClient = APIClient(),
         onClose: @escaping () -> Void,
         onLibraryDidChange: @escaping () -> Void
@@ -50,12 +54,15 @@ struct ReaderPaneView: View {
         self.readerContentWidth = readerContentWidth
         self.onReaderContentWidthChange = onReaderContentWidthChange
         self.positionStore = positionStore
+        self.articleCache = articleCache
+        self.webCache = webCache
         self.networkClient = networkClient
         self.onClose = onClose
         self.onLibraryDidChange = onLibraryDidChange
         let readerModel = ReaderModel(
             client: networkClient,
             positionStore: positionStore,
+            articleCache: articleCache,
             userID: userID
         )
         readerModel.onCategoryAffectingChange = onLibraryDidChange
@@ -154,6 +161,7 @@ struct ReaderPaneView: View {
                 contentToken: model.contentToken,
                 savedReadingState: model.savedReadingState,
                 baseURL: article.originalURL.flatMap(URL.init(string:)),
+                websiteDataStore: webCache.websiteDataStore,
                 displayStyle: ReaderContentStyle(
                     font: appFont,
                     contentWidth: readerContentWidth,

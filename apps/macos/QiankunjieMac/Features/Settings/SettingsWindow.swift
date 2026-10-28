@@ -1,6 +1,7 @@
 import AppKit
 import QiankunjieCollect
 import QiankunjieDesignSystem
+import QiankunjieReader
 import QiankunjieUpdating
 import SwiftUI
 
@@ -13,6 +14,8 @@ struct SettingsGeneralView: View {
     let isAuthenticated: Bool
     let onLogin: () -> Void
     let updateCheckRequestID: Int
+    let readerArticleCache: any ReaderArticleCaching
+    let readerWebCache: ReaderWebCache
     private let updateService: (any UpdateServicing)?
     private let updateDefaults: UserDefaults
     @State private var shortcutRegistrationMessage: String?
@@ -25,6 +28,8 @@ struct SettingsGeneralView: View {
         isAuthenticated: Bool,
         onLogin: @escaping () -> Void,
         updateCheckRequestID: Int = 0,
+        readerArticleCache: any ReaderArticleCaching = EmptyReaderArticleCache(),
+        readerWebCache: ReaderWebCache = ReaderWebCache(),
         updateService: (any UpdateServicing)? = nil,
         updateDefaults: UserDefaults = .standard
     ) {
@@ -34,6 +39,8 @@ struct SettingsGeneralView: View {
         self.isAuthenticated = isAuthenticated
         self.onLogin = onLogin
         self.updateCheckRequestID = updateCheckRequestID
+        self.readerArticleCache = readerArticleCache
+        self.readerWebCache = readerWebCache
         self.updateService = updateService
         self.updateDefaults = updateDefaults
         _shortcutRegistrationMessage = State(initialValue: nil)
@@ -70,6 +77,17 @@ struct SettingsGeneralView: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                 }
+            }
+
+            WorkspacePanel(
+                title: "本地缓存",
+                subtitle: "文章正文缓存在本机，重复打开无需再次请求。",
+                systemImage: "externaldrive"
+            ) {
+                ReaderArticleCacheSettingsView(
+                    cache: readerArticleCache,
+                    webCache: readerWebCache
+                )
             }
 
             WorkspacePanel(

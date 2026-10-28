@@ -16,7 +16,6 @@ struct RootWindow: View {
     @State private var isOpeningMainWindow = false
     @State private var contentColumnWidthOverride: CGFloat?
     private let layoutPolicy = AppShellLayoutPolicy()
-    private let columnWidthPolicy = AppShellColumnWidthPolicy()
 
     var body: some View {
         mainInterface
@@ -67,23 +66,15 @@ struct RootWindow: View {
         )
     }
 
-    private var contentColumnWidth: (minimum: CGFloat, ideal: CGFloat) {
-        columnWidthPolicy.contentColumnWidth(
-            availableWidth: availableWidth,
-            overrideWidth: contentColumnWidthOverride
-        )
-    }
-
-    /// 资料库、设置与分类管理共用同一套外壳。
-    /// 侧栏的展开与收起完全交给 NavigationSplitView，收起后不再自作一条灰色导轨。
+    /// 宽窗口中的资料库与设置类页面共用同一套两栏外壳。
+    /// 资料库列表和阅读栏在详情区内使用稳定的显式分栏，跨分组切换时只替换详情内容，
+    /// 避免全局侧栏被销毁重建。
     @ViewBuilder
     private var shell: some View {
         Group {
             switch layout {
-            case .threeColumns:
-                threeColumnShell
-            case .settings:
-                settingsShell
+            case .threeColumns, .settings:
+                workspaceShell
             case .listDetail:
                 listDetailShell
             }
@@ -91,7 +82,7 @@ struct RootWindow: View {
         .background(QiankunjieColors.background(for: colorScheme))
     }
 
-    private var threeColumnShell: some View {
+    private var workspaceShell: some View {
         NavigationSplitView(columnVisibility: $sidebarVisibility) {
             SidebarView(
                 model: model,
@@ -99,23 +90,29 @@ struct RootWindow: View {
                 onShowAbout: showAboutPanel
             )
                 .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
-        } content: {
-            listColumn
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.size.width
-                } action: { width in
-                    guard width >= contentColumnWidth.minimum else { return }
-                    contentColumnWidthOverride = width
-                }
-                .navigationSplitViewColumnWidth(
-                    min: contentColumnWidth.minimum,
-                    ideal: contentColumnWidthOverride ?? contentColumnWidth.ideal,
-                    max: .infinity
-                )
         } detail: {
-            readerPane
+            if layout == .settings {
+                settingsContent
+            } else {
+                libraryWorkspace
+            }
         }
         .navigationSplitViewStyle(.automatic)
+    }
+
+    /// 两栏外壳的详情区，再拆分出资料库列表和阅读栏。
+    /// 列表使用显式宽度，阅读器内容变化时不能反过来重新分配分栏比例。
+    private var libraryWorkspace: some View {
+        LibraryWorkspaceView(
+            overrideWidth: contentColumnWidthOverride,
+            onCommitWidth: { width in
+                contentColumnWidthOverride = width
+            }
+        ) {
+            listColumn
+        } reader: {
+            readerPane
+        }
     }
 
     private var listDetailShell: some View {
@@ -127,45 +124,35 @@ struct RootWindow: View {
         .navigationSplitViewStyle(.automatic)
     }
 
-    private var settingsShell: some View {
-        NavigationSplitView(columnVisibility: $sidebarVisibility) {
-            SidebarView(
-                model: model,
-                destinationSelection: destinationSelection,
-                onShowAbout: showAboutPanel
-            )
-            .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
-        } detail: {
-            Group {
-                if model.destination == .admin {
-                    AdminSettingsView(repository: model.authModel.repository)
-                } else if model.destination == .categories {
-                    if model.isAuthenticated {
-                        CategoryManagementView(catalog: model.categoryCatalog)
-                    } else {
-                        GuestAccessView(
-                            title: "登录后管理分类",
-                            message: "当前账号未登录，登录后即可管理分类。"
-                        ) {
-                            model.presentLogin()
-                        }
-                    }
+    private var settingsContent: some View {
+        Group {
+            if model.destination == .admin {
+                AdminSettingsView(repository: model.authModel.repository)
+            } else if model.destination == .categories {
+                if model.isAuthenticated {
+                    CategoryManagementView(catalog: model.categoryCatalog)
                 } else {
-                    SettingsView(
-                        model: model,
-                        menuBarController: menuBarController,
-                        onLogin: model.presentLogin,
-                        updateCheckRequestID: model.updateCheckRequestID
-                    )
+                    GuestAccessView(
+                        title: "登录后管理分类",
+                        message: "当前账号未登录，登录后即可管理分类。"
+                    ) {
+                        model.presentLogin()
+                    }
                 }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .tint(WorkspacePalette.primary(for: colorScheme))
-            .toolbar {
-                contentColumnTitleToolbarItem
+            } else {
+                SettingsView(
+                    model: model,
+                    menuBarController: menuBarController,
+                    onLogin: model.presentLogin,
+                    updateCheckRequestID: model.updateCheckRequestID
+                )
             }
         }
-        .navigationSplitViewStyle(.automatic)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .tint(WorkspacePalette.primary(for: colorScheme))
+        .toolbar {
+            contentColumnTitleToolbarItem
+        }
     }
 
     private var searchShell: some View {
@@ -270,6 +257,8 @@ struct RootWindow: View {
                 model.settingsModel.setReaderContentWidth($0)
             },
             positionStore: model.readerPositionStore,
+            articleCache: model.readerArticleCache,
+            webCache: model.readerWebCache,
             networkClient: model.readerAPIClient,
             onClose: {
                 model.closeArticle()

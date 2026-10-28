@@ -57,6 +57,83 @@ struct ReaderModelTests {
         #expect(model.errorMessage == nil)
     }
 
+    @Test func 阅读器重复打开同一文章优先读取本地缓存() async throws {
+        let directory = 临时阅读缓存目录()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = ReaderArticleCache(directoryURL: directory)
+        let client = 模拟阅读客户端(
+            detail: ArticleDetail(
+                id: 12,
+                title: "本地缓存文章",
+                contentHTML: "<article>缓存正文</article>"
+            )
+        )
+        let firstModel = ReaderModel(
+            client: client,
+            articleCache: cache,
+            userID: 1
+        )
+
+        await firstModel.open(articleID: 12)
+        #expect(await client.desktopRequestCount == 1)
+
+        let secondModel = ReaderModel(
+            client: client,
+            articleCache: cache,
+            userID: 1
+        )
+        await secondModel.open(articleID: 12)
+
+        #expect(await client.desktopRequestCount == 1)
+        #expect(secondModel.article?.title == "本地缓存文章")
+        #expect(secondModel.displayHTML.contains("缓存正文"))
+        #expect(!secondModel.isLoading)
+
+        await secondModel.open(articleID: 13)
+        #expect(await client.desktopRequestCount == 2)
+    }
+
+    @Test func 阅读器删除文章后同步清除本地缓存() async throws {
+        let directory = 临时阅读缓存目录()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = ReaderArticleCache(directoryURL: directory)
+        let client = 模拟阅读客户端()
+        let selection = ReaderSelection(
+            articleID: 53,
+            publicID: nil,
+            isGuest: false
+        )
+        let model = ReaderModel(
+            client: client,
+            articleCache: cache,
+            userID: 1
+        )
+
+        await model.open(articleID: 53)
+        #expect(try await cache.load(selection: selection, userID: 1) != nil)
+
+        await model.delete()
+
+        #expect(try await cache.load(selection: selection, userID: 1) == nil)
+    }
+
+    @Test func 重抓正文会绕过本地缓存() async throws {
+        let directory = 临时阅读缓存目录()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = ReaderArticleCache(directoryURL: directory)
+        let client = 模拟阅读客户端()
+        let model = ReaderModel(
+            client: client,
+            articleCache: cache,
+            userID: 1
+        )
+
+        await model.open(articleID: 42)
+        await model.refetch()
+
+        #expect(await client.desktopRequestCount == 2)
+    }
+
     @Test func 阅读器会刷新生成完成的AI摘要() async {
         let client = 模拟阅读客户端(
             detail: ArticleDetail(id: 12, isArchived: true, aiStatus: "queued")
@@ -600,6 +677,14 @@ struct ReaderModelTests {
         await secondModel.open(articleID: 65)
         #expect(secondModel.savedReadingState == nil)
     }
+}
+
+private func 临时阅读缓存目录() -> URL {
+    FileManager.default.temporaryDirectory
+        .appendingPathComponent(
+            "ReaderModelCacheTests-\(UUID().uuidString)",
+            isDirectory: true
+        )
 }
 
 private actor 模拟阅读客户端: ReaderNetworkClient {

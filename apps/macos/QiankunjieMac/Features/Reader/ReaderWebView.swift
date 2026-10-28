@@ -9,17 +9,27 @@ struct ReaderWebView: NSViewRepresentable {
     let contentToken: String
     let savedReadingState: Data?
     let baseURL: URL?
+    let websiteDataStore: WKWebsiteDataStore
     let displayStyle: ReaderContentStyle
     let onReadingStateChange: @MainActor (Data, String) -> Void
     let onImageSelected: @MainActor (URL) -> Void
 
-    func makeNSView(context: Context) -> ReaderWebViewContainer {
+    static func makeConfiguration(
+        websiteDataStore: WKWebsiteDataStore
+    ) -> WKWebViewConfiguration {
         let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = .nonPersistent()
+        configuration.websiteDataStore = websiteDataStore
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
         configuration.mediaTypesRequiringUserActionForPlayback = .all
         configuration.allowsInlinePredictions = false
+        return configuration
+    }
+
+    func makeNSView(context: Context) -> ReaderWebViewContainer {
+        let configuration = Self.makeConfiguration(
+            websiteDataStore: websiteDataStore
+        )
         configuration.userContentController.add(
             ReaderImageMessageHandler(delegate: context.coordinator),
             name: "readerImage"

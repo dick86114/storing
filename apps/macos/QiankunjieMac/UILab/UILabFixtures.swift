@@ -131,6 +131,14 @@ enum UILabFixtures {
 
     static let categoryCatalog = makeCategoryCatalog()
     static let categoryCreateCancelCatalog = makeCategoryCatalog()
+    static let readerArticleCache = ReaderArticleCache(
+        directoryURL: FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "StoringUILab-\(UUID().uuidString)",
+                isDirectory: true
+            )
+    )
+    static let readerWebCache = ReaderWebCache(identifier: UUID())
 
     private static func makeCategoryCatalog() -> CategoryCatalogModel {
         let recentStore = CategoryRecentStore(defaults: preferences)
@@ -219,6 +227,8 @@ enum UILabFixtures {
             collectRepository: FixtureCollectRepository(jobs: collectJobs),
             shortcutDefaults: preferences,
             readerPositionStore: MemoryReaderPositionStore(),
+            readerArticleCache: readerArticleCache,
+            readerWebCache: readerWebCache,
             categoryCatalog: categoryCatalog
         )
         model.user = user
