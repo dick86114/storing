@@ -25,7 +25,7 @@ test('管理员配置响应只返回摘要且不暴露明文 Key 或密文', () 
 
   assert.match(route, /getUserAiSettingsSummary\(userId\)/);
   assert.match(route, /saveUserAiSettings\(userId/);
-  assert.match(route, /resolveUserAiRuntimeConfig\(userId\)/);
+  assert.match(route, /resolveUserAiSavedApiKey\(userId\)/);
   assert.doesNotMatch(route, /apiKeyCiphertext|decryptSecret|settings\.apiKey\b/);
 });
 
@@ -44,12 +44,12 @@ test('管理员保存时校验目标用户、审计操作且审计不记录 Key'
   assert.doesNotMatch(auditDetail, /apiKey:\s*(parsed|input|body)/);
 });
 
-test('管理员配置测试校验目标用户并支持未保存的新 Key', () => {
+test('管理员配置测试校验目标用户并在未填写新 Key 时复用已保存 Key', () => {
   const route = testRoute();
 
   assert.match(route, /findAdminAiTargetUser\(userId\)/);
   assert.match(route, /USER_NOT_FOUND/);
-  assert.match(route, /resolveUserAiRuntimeConfig\(userId\)/);
+  assert.match(route, /resolveUserAiSavedApiKey\(userId\)/);
   assert.match(route, /assertUserAiProvider\(/);
   assert.match(route, /assertSafeAiBaseUrl\(/);
 });
@@ -59,7 +59,7 @@ test('目标用户模型发现仅管理员可用且优先使用用户配置', ()
 
   assert.match(route, /requireAdmin/);
   assert.match(route, /findAdminAiTargetUser\(userId\)/);
-  assert.match(route, /resolveUserAiRuntimeConfig\(userId\)/);
+  assert.match(route, /resolveUserAiSavedApiKey\(userId\)/);
   assert.match(route, /listAiModels\(config\)/);
 });
 

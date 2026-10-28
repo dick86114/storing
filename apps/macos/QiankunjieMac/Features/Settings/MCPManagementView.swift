@@ -523,59 +523,42 @@ struct MCPManagementView: View {
         SettingsPage {
             WorkspacePanel(
                 title: "连接与配额",
-                subtitle: "管理员可调整连接配额与生命周期。",
+                subtitle: "统一设置普通用户新建连接的默认限额，并管理连接生命周期。",
                 systemImage: "speedometer"
             ) {
-                if let limits = model.limits {
-                    SettingsRow(title: "每分钟") {
-                        quotaValue("\(limits.rateLimitPerMinute) 次")
-                    }
-
-                    SettingsRow(title: "每天") {
-                        quotaValue("\(limits.rateLimitPerDay) 次")
-                    }
-
-                    SettingsRow(title: "并发") {
-                        quotaValue("\(limits.concurrentCollectLimit) 个")
-                    }
-                }
-
-                SettingsRowDivider()
-
-                SettingsActionsRow {
-                    Button {
-                        Task { await model.load() }
-                    } label: {
-                        Text("刷新")
-                    }
-                    .disabled(model.isLoading)
-
-                    Button {
-                        model.isCreating = true
-                    } label: {
-                        Text("新建连接")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(model.isSaving)
+                MCPDefaultLimitsEditor(
+                    limits: model.limits,
+                    isSaving: model.isSaving,
+                    showsContainer: false
+                ) { limits in
+                    Task { await model.saveDefaultLimits(limits) }
                 }
             }
 
             WorkspacePanel(
                 title: "连接",
                 subtitle: "全部用户的 MCP 连接。",
-                systemImage: "point.3.connected.trianglepath.dotted"
+                systemImage: "point.3.connected.trianglepath.dotted",
+                headerAccessory: {
+                    HStack(spacing: 8) {
+                        Button {
+                            Task { await model.load() }
+                        } label: {
+                            Text("刷新")
+                        }
+                        .disabled(model.isLoading)
+
+                        Button {
+                            model.isCreating = true
+                        } label: {
+                            Text("新建连接")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(model.isSaving)
+                    }
+                }
             ) {
                 adminConnectionTable
-            }
-
-            WorkspacePanel(
-                title: "默认配额",
-                subtitle: "新建连接时的默认限额。",
-                systemImage: "gauge.with.needle"
-            ) {
-                MCPDefaultLimitsEditor(limits: model.limits, isSaving: model.isSaving) { limits in
-                    Task { await model.saveDefaultLimits(limits) }
-                }
             }
 
             WorkspacePanel(
@@ -586,13 +569,6 @@ struct MCPManagementView: View {
                 adminLogTable
             }
         }
-    }
-
-    private func quotaValue(_ text: String) -> some View {
-        Text(text)
-            .qiankunjieFont(.bodyMedium)
-            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-            .monospacedDigit()
     }
 
     private var adminConnectionTable: some View {
@@ -965,7 +941,7 @@ private struct MCPGuideView: View {
                     )
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
     }
 
     private var remoteGuide: some View {
@@ -1242,6 +1218,7 @@ private struct MCPClientCard: View {
 private struct MCPDefaultLimitsEditor: View {
     let limits: MCPPlatformLimits?
     let isSaving: Bool
+    var showsContainer = true
     let onSave: (MCPPlatformLimits) -> Void
     @State private var minute = 20
     @State private var day = 500
@@ -1278,11 +1255,19 @@ private struct MCPDefaultLimitsEditor: View {
             .buttonStyle(.borderedProminent)
             .disabled(isSaving)
         }
-        .padding(20)
-        .background(QiankunjieColors.surface(for: colorScheme), in: RoundedRectangle(cornerRadius: 12))
+        .padding(showsContainer ? 20 : 0)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            if showsContainer {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(QiankunjieColors.surface(for: colorScheme))
+            }
+        }
         .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(QiankunjieColors.outline(for: colorScheme))
+            if showsContainer {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(QiankunjieColors.outline(for: colorScheme))
+            }
         }
         .onAppear {
             applyLimits()

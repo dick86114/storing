@@ -69,7 +69,7 @@ function formatCollectError(error?: string | null) {
   return { summary, details, hint };
 }
 
-function serializeJob(job: any) {
+function serializeJob(job: any, includeResult = true) {
   const errorInfo = formatCollectError(job.error);
   return {
     id: job.id,
@@ -81,7 +81,7 @@ function serializeJob(job: any) {
     captureStrategy: job.captureStrategy ?? job.capture_strategy ?? null,
     articleId: job.articleId,
     title: job.title,
-    result: job.resultJson ?? null,
+    ...(includeResult ? { result: job.resultJson ?? null } : {}),
     error: job.error,
     errorSummary: errorInfo.summary,
     errorDetails: errorInfo.details,
@@ -114,7 +114,7 @@ collectRoutes.get('/mobile/collect/jobs', requireAuth, async (c) => {
   const offset = Math.max(0, Number(c.req.query('offset') || 0));
   const user = getCurrentUser(c);
   const result = await listCollectJobs(limit, offset, { userId: user.id, requestSource: ['android', 'android_share'] });
-  return c.json({ jobs: result.jobs.map(serializeJob), total: result.total, hasMore: result.hasMore });
+  return c.json({ jobs: result.jobs.map((job) => serializeJob(job, false)), total: result.total, hasMore: result.hasMore });
 });
 
 collectRoutes.get('/mobile/collect/jobs/:id', requireAuth, async (c) => {
@@ -175,7 +175,7 @@ collectRoutes.get('/macos/collect/jobs', requireAuth, async (c) => {
   const offset = Math.max(0, Number(c.req.query('offset') || 0));
   const user = getCurrentUser(c);
   const result = await listCollectJobs(limit, offset, { userId: user.id, requestSource: USER_COLLECT_SOURCES });
-  return c.json({ jobs: result.jobs.map(serializeJob), total: result.total, hasMore: result.hasMore });
+  return c.json({ jobs: result.jobs.map((job) => serializeJob(job, false)), total: result.total, hasMore: result.hasMore });
 });
 
 collectRoutes.get('/macos/collect/jobs/:id', requireAuth, async (c) => {
@@ -254,7 +254,7 @@ collectRoutes.get('/collect/jobs', requireAuth, async (c) => {
   const user = getCurrentUser(c);
   const result = await listCollectJobs(limit, offset, { userId: user.id, requestSource: 'web' });
   return c.json({
-    jobs: result.jobs.map(serializeJob),
+    jobs: result.jobs.map((job) => serializeJob(job, false)),
     total: result.total,
     hasMore: result.hasMore,
   });

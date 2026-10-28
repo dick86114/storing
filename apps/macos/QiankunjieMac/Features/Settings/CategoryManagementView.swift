@@ -275,7 +275,7 @@ struct CategoryManagementView: View {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(QiankunjiePlainButtonStyle())
                 .accessibilityLabel("清空分类搜索")
             }
         }
@@ -298,7 +298,7 @@ struct CategoryManagementView: View {
                 Button("清空搜索") {
                     model.searchText = ""
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(QiankunjiePlainButtonStyle())
                 .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
             }
         }
@@ -359,7 +359,7 @@ struct CategoryManagementView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QiankunjiePlainButtonStyle())
             .accessibilityLabel(categoryAccessibilityLabel(category))
             .accessibilityHint("打开分类详情")
 
@@ -697,7 +697,7 @@ struct CategoryManagementView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
             Button("关闭", action: onClose)
-                .buttonStyle(.plain)
+                .buttonStyle(QiankunjiePlainButtonStyle())
                 .foregroundStyle(.secondary)
                 .accessibilityLabel("关闭提示")
         }
@@ -717,13 +717,13 @@ struct CategoryManagementView: View {
             Button("刷新分类目录") {
                 Task { await model.load() }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QiankunjiePlainButtonStyle())
             .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
             .disabled(model.catalog.isLoading)
             Button("关闭") {
                 model.clearNotice()
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QiankunjiePlainButtonStyle())
             .foregroundStyle(.secondary)
             .accessibilityLabel("关闭提示")
         }
@@ -906,7 +906,7 @@ private struct CategoryDeleteSheet: View {
                 } label: {
                     Image(systemName: "xmark")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(QiankunjiePlainButtonStyle())
                 .accessibilityLabel("关闭删除分类")
             }
 
@@ -993,7 +993,7 @@ private struct CategoryMergeSheet: View {
                 } label: {
                     Image(systemName: "xmark")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(QiankunjiePlainButtonStyle())
                 .accessibilityLabel("关闭合并分类")
             }
 

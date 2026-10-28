@@ -123,3 +123,40 @@ private actor 固定令牌: TokenRefreshing {
     #expect(updatedPaths.last == "/api/v1/mobile/collect")
     #expect(updatedPaths.contains("/api/v1/macos/collect"))
 }
+
+@Test func 旧服务端采集历史回退mobile时标记来源() async throws {
+    let session = 录制兼容会话([
+        .init(statusCode: 404, body: Data("404 Not Found".utf8)),
+        .init(statusCode: 200, body: Data(#"""
+        {
+          "jobs": [{
+            "id": 11,
+            "url": "https://example.com/a",
+            "normalizedUrl": "https://example.com/a",
+            "status": "completed",
+            "stage": "completed",
+            "errorDetails": [],
+            "createdAt": "2026-09-30T00:00:00.000Z",
+            "updatedAt": "2026-09-30T00:00:00.000Z",
+            "startedAt": null,
+            "finishedAt": "2026-09-30T00:01:00.000Z"
+          }],
+          "total": 1,
+          "hasMore": false
+        }
+        """#.data(using: .utf8)!)),
+    ])
+    let repository = CollectRepository(
+        apiClient: APIClient(session: session, tokenProvider: 固定令牌())
+    )
+
+    let page = try await repository.jobs(limit: 30, offset: 0)
+    let paths = await session.请求路径
+
+    #expect(page.jobs.map(\.id) == [11])
+    #expect(page.usesLegacyMobileHistory)
+    #expect(paths == [
+        "/api/v1/macos/collect/jobs",
+        "/api/v1/mobile/collect/jobs",
+    ])
+}

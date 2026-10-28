@@ -37,6 +37,7 @@ public final class CollectModel {
     public private(set) var currentJob: CollectJob?
     public private(set) var total = 0
     public private(set) var hasMore = false
+    public private(set) var usesLegacyMobileHistory = false
     public private(set) var isLoadingJobs = true
     public private(set) var isRefreshingJobs = false
     public private(set) var isLoadingMoreJobs = false
@@ -204,6 +205,7 @@ public final class CollectModel {
             jobs = page.jobs
             total = page.total
             hasMore = page.hasMore
+            usesLegacyMobileHistory = page.usesLegacyMobileHistory
             nextPageOffset = page.hasMore ? pageSize : 0
             if let jobID = currentJob?.id {
                 currentJob = page.jobs.first { $0.id == jobID }
@@ -341,6 +343,7 @@ public final class CollectModel {
             }
             total = page.total
             hasMore = page.hasMore
+            usesLegacyMobileHistory = page.usesLegacyMobileHistory
             nextPageOffset = offset + pageSize
         } catch {
             guard canApplyListOperation(token, generation: generation, userID: operationUserID) else {
@@ -421,6 +424,7 @@ public final class CollectModel {
         currentJob = nil
         total = 0
         hasMore = false
+        usesLegacyMobileHistory = false
         nextPageOffset = 0
         urlDraft = ""
         pendingDeletionJobID = nil
@@ -648,6 +652,8 @@ public final class CollectModel {
             message
         case .invalidInput:
             "请输入可公开访问的 HTTP(S) 链接"
+        case let .serverMessage(message):
+            message
         case .server:
             "服务暂时不可用，请稍后重试"
         }

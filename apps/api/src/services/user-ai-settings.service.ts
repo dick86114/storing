@@ -181,3 +181,19 @@ export async function resolveUserAiRuntimeConfig(userId: number): Promise<UserAi
     apiKey,
   };
 }
+
+/**
+ * 模型发现只需要账户已保存的 Key，不要求用户先保存模型。
+ * 这样在已配置 Key、仅修改提供商或 Base URL 时，也可直接刷新模型清单。
+ */
+export async function resolveUserAiSavedApiKey(userId: number): Promise<string | null> {
+  const [row] = await db
+    .select({ apiKeyCiphertext: userAiSettings.apiKeyCiphertext })
+    .from(userAiSettings)
+    .where(eq(userAiSettings.userId, userId))
+    .limit(1);
+  if (!row?.apiKeyCiphertext) return null;
+
+  const apiKey = decryptSecret(row.apiKeyCiphertext).trim();
+  return apiKey || null;
+}

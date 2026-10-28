@@ -613,12 +613,14 @@ private struct UpdatePromptView: View {
 
 struct UpdateSettingsView: View {
     @State private var model: UpdateSettingsModel
+    let currentVersion: String
     let updateCheckRequestID: Int
 
     init(
         currentVersion: String = QiankunjieMacMetadata.appVersion,
         updateCheckRequestID: Int = 0
     ) {
+        self.currentVersion = currentVersion
         self.updateCheckRequestID = updateCheckRequestID
         _model = State(initialValue: UpdateSettingsModel(currentVersion: currentVersion))
     }
@@ -629,6 +631,7 @@ struct UpdateSettingsView: View {
         defaults: UserDefaults,
         updateCheckRequestID: Int = 0
     ) {
+        self.currentVersion = currentVersion
         self.updateCheckRequestID = updateCheckRequestID
         _model = State(initialValue: UpdateSettingsModel(
             currentVersion: currentVersion,
@@ -639,10 +642,37 @@ struct UpdateSettingsView: View {
 
     var body: some View {
         SettingsRow(title: "当前版本") {
-            Text("v" + QiankunjieMacMetadata.appVersion)
-                .qiankunjieFont(.bodyMedium)
-                .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                .monospacedDigit()
+            HStack(spacing: 10) {
+                Text("v" + currentVersion)
+                    .qiankunjieFont(.bodyMedium)
+                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                    .monospacedDigit()
+
+                Button {
+                    UpdateCompletionNoticeWindowController.shared.presentCurrentVersion(
+                        version: currentVersion
+                    )
+                } label: {
+                    Label("查看更新日志", systemImage: "doc.text")
+                }
+                .controlSize(.small)
+                .help("查看当前版本的更新日志")
+
+                Button {
+                    Task {
+                        await model.checkForUpdate()
+                    }
+                } label: {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 16, height: 16)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(model.isBusy)
+                .help(model.isBusy ? "正在检查更新" : "检查更新")
+                .accessibilityLabel("检查更新")
+            }
         }
         .task(id: updateCheckRequestID) {
             guard updateCheckRequestID > 0 else { return }
@@ -673,6 +703,8 @@ struct UpdateSettingsView: View {
                 )
             }
         }
+
+        updateStatus
 
         SettingsRowDivider()
 
@@ -707,10 +739,23 @@ struct UpdateSettingsView: View {
 
         SettingsRowDivider()
 
-        SettingsBlockRow(
-            title: "GitHub 令牌",
-            subtitle: "配置后 GitHub API 限额由每小时 60 次提升到 5000 次。令牌只保存在当前设备，仅用于 api.github.com；公开仓库无需勾选权限。"
-        ) {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("GitHub 令牌")
+                    .qiankunjieFont(.bodyMedium)
+                    .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+
+                InteractiveInlineLinkText(
+                    text: "配置后 GitHub API 限额由每小时 60 次提升到 5000 次。令牌只保存在当前设备，仅用于 api.github.com；公开仓库无需勾选权限。",
+                    linkText: "GitHub API",
+                    destination: URL(
+                        string: "https://github.com/settings/tokens/new?description=Qiankunjie%20update%20check"
+                    )!,
+                    colorScheme: colorScheme
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             VStack(alignment: .leading, spacing: 8) {
                 if let maskedToken = model.maskedGitHubToken {
                     HStack(spacing: 10) {
@@ -749,21 +794,9 @@ struct UpdateSettingsView: View {
                     }
                 }
 
-                HStack(spacing: 10) {
-                    Link(
-                        "创建只读令牌",
-                        destination: URL(
-                            string: "https://github.com/settings/tokens/new?description=Qiankunjie%20update%20check"
-                        )!
-                    )
-                    .qiankunjieFont(.labelMedium)
-
-                    Spacer(minLength: 0)
-
-                    if model.isSavingGitHubToken {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
+                if model.isSavingGitHubToken {
+                    ProgressView()
+                        .controlSize(.small)
                 }
 
                 if let feedback = model.gitHubTokenFeedbackText {
@@ -781,35 +814,9 @@ struct UpdateSettingsView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
 
         SettingsRowDivider()
-
-        updateLogSection
-
-        SettingsRowDivider()
-
-        updateContent
-
-        SettingsActionsRow {
-            Button {
-                Task {
-                    await model.checkForUpdate()
-                }
-            } label: {
-                Text("检查更新")
-            }
-            .disabled(model.isBusy)
-        }
-
-        if let failureText = model.failureText {
-            Text(failureText)
-                .qiankunjieFont(.labelMedium)
-                .foregroundStyle(
-                    colorScheme == .dark
-                        ? QiankunjieColors.darkError
-                        : QiankunjieColors.lightError
-                )
-        }
     }
 
     @Environment(\.colorScheme) private var colorScheme
@@ -825,44 +832,8 @@ struct UpdateSettingsView: View {
         )
     }
 
-    private var updateLogSection: some View {
-        SettingsBlockRow(title: "更新日志", subtitle: "只展示当前版本的更新说明。") {
-            VStack(alignment: .leading, spacing: 8) {
-                if let updateLog = model.updateLog, !updateLog.isEmpty {
-                    Text(updateLog)
-                        .qiankunjieFont(.labelMedium)
-                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else if let error = model.updateLogErrorText {
-                    Text(error)
-                        .qiankunjieFont(.labelMedium)
-                        .foregroundStyle(
-                            colorScheme == .dark
-                                ? QiankunjieColors.darkError
-                                : QiankunjieColors.lightError
-                        )
-                } else {
-                    Text("尚未获取更新日志")
-                        .qiankunjieFont(.labelMedium)
-                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                }
-
-                SettingsActionsRow {
-                    Button("获取更新日志") {
-                        Task {
-                            await model.fetchUpdateLog()
-                        }
-                    }
-                    .disabled(model.isFetchingUpdateLog)
-                }
-            }
-        }
-    }
-
     @ViewBuilder
-    private var updateContent: some View {
+    private var updateStatus: some View {
         switch model.phase {
         case .checking:
             HStack(spacing: 8) {
@@ -877,14 +848,9 @@ struct UpdateSettingsView: View {
                 .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
         case .available:
             if let release = model.release {
-                SettingsRow(title: "新版本", subtitle: release.releaseNotes?.isEmpty == false ? "可在「更新日志」中查看说明。" : nil) {
-                    Button("下载并安装") {
-                        Task {
-                            await model.confirmUpdate()
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
+                Label("发现新版本 v\(release.version)", systemImage: "arrow.down.circle.fill")
+                    .qiankunjieFont(.bodyMedium)
+                    .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
             }
         case .downloading:
             VStack(alignment: .leading, spacing: 8) {
@@ -908,7 +874,15 @@ struct UpdateSettingsView: View {
         case .readyToRelaunch:
             Text("正在退出应用并完成安装")
                 .qiankunjieFont(.bodyMedium)
-        case .idle, .failed:
+        case let .failed(message):
+            Text(message)
+                .qiankunjieFont(.labelMedium)
+                .foregroundStyle(
+                    colorScheme == .dark
+                        ? QiankunjieColors.darkError
+                        : QiankunjieColors.lightError
+                )
+        case .idle:
             EmptyView()
         }
     }

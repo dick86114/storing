@@ -6,7 +6,7 @@ import Testing
 struct UILabTests {
     @Test func 界面实验室覆盖全部核心场景() {
         #expect(UILabScenario.allCases.map(\.rawValue) == [
-            "login", "library", "empty", "loading", "offline", "reader", "collect", "tasks", "settings", "update",
+            "login", "library", "empty", "loading", "offline", "reader", "collect", "tasks", "settings", "ai-settings", "update",
             "update-notice", "current-version", "category-picker", "category-management",
             "reader-category-unavailable", "category-create-cancel",
         ])
@@ -89,6 +89,26 @@ struct UILabTests {
         #expect(UILabFixtures.preferences != .standard)
         #expect(UILabFixtures.preferenceSuiteName.hasPrefix("com.idickies.storing.macos.uilab."))
         #expect(UILabFixtures.updateService is UILabFixtureUpdateService)
+    }
+
+    @Test @MainActor func uiLabAISettingsProvideModelsChartsAndPagedJobs() async {
+        let model = UILabFixtures.aiSettingsModel
+        #expect(model.models.count == 8)
+        #expect(model.jobs.count == 10)
+        #expect(model.usage?.totalJobs == 27)
+        #expect(model.totalPages == 3)
+
+        await model.nextPage()
+        #expect(model.currentPage == 2)
+        #expect(model.jobs.count == 10)
+
+        await model.nextPage()
+        #expect(model.currentPage == 3)
+        #expect(model.jobs.count == 7)
+
+        await model.previousPage()
+        #expect(model.currentPage == 2)
+        #expect(model.jobs.count == 10)
     }
 
     @Test func uiLabCanForceLightAndDarkAppearanceFromCommandLine() {

@@ -105,6 +105,8 @@ public final class AuthModel {
             return message
         case .invalidInput:
             return "输入内容无效，请检查后重试"
+        case let .serverMessage(message):
+            return message
         case .server:
             return "服务暂时不可用，请稍后重试"
         }

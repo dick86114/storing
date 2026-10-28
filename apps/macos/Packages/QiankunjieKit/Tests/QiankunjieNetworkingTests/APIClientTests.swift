@@ -156,6 +156,22 @@ private actor 录制令牌提供者: TokenRefreshing {
     }
 }
 
+@Test func AI错误保留服务端可操作提示() async throws {
+    let body = #"{"error":{"code":"AI_API_KEY_REQUIRED","message":"请先填写并保存 API Key，再获取模型清单"}}"#
+        .data(using: .utf8)!
+    let session = 录制网络会话([
+        .init(statusCode: 400, data: body),
+    ])
+    let client = APIClient(
+        baseURL: URL(string: "https://storing.idickies.cc/api/v1")!,
+        session: session
+    )
+
+    await #expect(throws: AppError.serverMessage(message: "请先填写并保存 API Key，再获取模型清单")) {
+        let _: 测试响应 = try await client.send(.get("ai/models/discover"), authenticated: false)
+    }
+}
+
 @Test func 分类失效错误保留服务端消息() async throws {
     let body = #"{"error":{"code":"CATEGORY_UNAVAILABLE","message":"分类已停用，不能用于归类"}}"#
         .data(using: .utf8)!

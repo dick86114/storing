@@ -49,7 +49,7 @@ struct LoginView: View {
                             .font(.title2)
                             .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(QiankunjiePlainButtonStyle())
                     .padding(12)
                     .accessibilityLabel("关闭登录")
                 }

@@ -407,7 +407,7 @@ struct CompactArticleListView: View {
             .frame(minHeight: layoutMetrics.rowHeight, alignment: .center)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .background {
             GlassSurface(role: .control, cornerRadius: QiankunjieRadius.control) {
                 Color.clear
@@ -484,7 +484,7 @@ struct CompactArticleListView: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .background {
             GlassSurface(role: .control, cornerRadius: QiankunjieRadius.panel) {
                 Color.clear

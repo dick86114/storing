@@ -105,7 +105,7 @@ struct ResetPasswordView: View {
                 Image(systemName: Self.passwordVisibilitySymbol(isVisible: isVisible.wrappedValue))
                     .frame(width: 28, height: 28)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QiankunjiePlainButtonStyle())
             .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
             .help(isVisible.wrappedValue ? "隐藏密码" : "显示密码")
             .padding(.trailing, 6)

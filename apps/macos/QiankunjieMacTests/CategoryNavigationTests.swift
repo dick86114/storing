@@ -160,6 +160,47 @@ struct CategoryNavigationTests {
         #expect(分类目录.count(for: 21) == 3)
     }
 
+    @Test func 普通阅读器变更不刷新分类而分类变更会刷新() async {
+        let service = 导航分类服务(
+            列表响应: [
+                CategoriesResponse(
+                    categories: [分类(id: 21, sortOrder: 10)],
+                    counts: ["21": 1]
+                ),
+                CategoriesResponse(
+                    categories: [分类(id: 21, sortOrder: 10)],
+                    counts: ["21": 3]
+                ),
+            ]
+        )
+        let 分类目录 = CategoryCatalogModel(
+            service: service,
+            recentStore: 导航最近分类存储()
+        )
+        分类目录.prepareUser(userID: 9)
+        await 分类目录.load()
+
+        let 资料库仓库 = 导航资料库仓库()
+        let model = 创建应用模型(
+            用户ID: 9,
+            目的地: .favorites,
+            资料库仓库: 资料库仓库,
+            分类目录: 分类目录
+        )
+
+        model.handleLibraryDidChange()
+        await 资料库仓库.等待请求数(1)
+        try? await Task.sleep(for: .milliseconds(300))
+        #expect(await service.列表请求次数() == 1)
+
+        model.handleCategoryCatalogAffectingChange()
+        await 资料库仓库.等待请求数(2)
+        await service.等待列表请求次数(2)
+
+        #expect(await service.列表请求次数() == 2)
+        #expect(分类目录.count(for: 21) == 3)
+    }
+
     @Test func 分类被删除后当前筛选自动回到全部归档() async {
         let 分类目录 = 创建分类目录(列表响应: [
             CategoriesResponse(

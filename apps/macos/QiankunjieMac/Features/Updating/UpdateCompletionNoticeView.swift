@@ -221,11 +221,24 @@ struct UpdateCompletionNoticeView: View {
             }
         }
         .frame(width: UpdateNoticeMetrics.size.width, height: UpdateNoticeMetrics.size.height)
+        .overlay {
+            RoundedRectangle(cornerRadius: QiankunjieRadius.modal, style: .continuous)
+                .strokeBorder(
+                    outerBorderColor,
+                    lineWidth: colorScheme == .dark ? 1 : 1.2
+                )
+                .allowsHitTesting(false)
+        }
         .tint(QiankunjieColors.accent(for: colorScheme))
         .onExitCommand(perform: onDismiss)
         .task(id: notice.version) {
             await notesState.loadIfNeeded()
         }
+    }
+
+    private var outerBorderColor: Color {
+        QiankunjieColors.onSurface(for: colorScheme)
+            .opacity(colorScheme == .dark ? 0.16 : 0.14)
     }
 
     private var dragStrip: some View {
@@ -271,7 +284,7 @@ struct UpdateCompletionNoticeView: View {
                             .fill(QiankunjieColors.surfaceVariant(for: colorScheme))
                     }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QiankunjiePlainButtonStyle())
             .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
             .help("关闭")
             .accessibilityLabel("关闭版本更新内容")
@@ -330,7 +343,7 @@ struct UpdateCompletionNoticeView: View {
                                 }
                         }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(QiankunjiePlainButtonStyle())
                     .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                     .disabled(notesState.isLoadingNotes || notesState.isRefreshingNotes)
                     .help("重新获取更新日志")
@@ -578,7 +591,7 @@ final class UpdateCompletionNoticeWindowController: NSObject, NSWindowDelegate {
         window.tabbingMode = .disallowed
         window.backgroundColor = .clear
         window.isOpaque = false
-        window.hasShadow = false
+        window.hasShadow = true
         window.delegate = self
         window.contentViewController = hostingController
         window.setContentSize(UpdateNoticeMetrics.size)

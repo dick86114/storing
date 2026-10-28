@@ -174,6 +174,15 @@ public struct APIClient: @unchecked Sendable {
             break
         }
 
+        if
+            let code = serverError?.code,
+            code.hasPrefix("AI_"),
+            let message = serverError?.message,
+            !message.isEmpty
+        {
+            return .serverMessage(message: message)
+        }
+
         switch statusCode {
         case 400, 405, 409, 422:
             return .invalidInput

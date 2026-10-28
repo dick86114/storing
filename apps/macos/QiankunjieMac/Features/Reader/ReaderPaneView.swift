@@ -45,7 +45,8 @@ struct ReaderPaneView: View {
         webCache: ReaderWebCache = ReaderWebCache(),
         networkClient: any ReaderNetworkClient = APIClient(),
         onClose: @escaping () -> Void,
-        onLibraryDidChange: @escaping () -> Void
+        onLibraryDidChange: @escaping () -> Void,
+        onCategoryAffectingChange: @escaping () -> Void = {}
     ) {
         self.selection = selection
         self.userID = userID
@@ -65,7 +66,7 @@ struct ReaderPaneView: View {
             articleCache: articleCache,
             userID: userID
         )
-        readerModel.onCategoryAffectingChange = onLibraryDidChange
+        readerModel.onCategoryAffectingChange = onCategoryAffectingChange
         _model = State(initialValue: readerModel)
     }
 
@@ -340,7 +341,7 @@ struct ReaderPaneView: View {
                                 Image(systemName: "pencil")
                                     .font(.system(size: 11))
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(QiankunjiePlainButtonStyle())
                             .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                             .help("修改标题")
 
@@ -357,7 +358,7 @@ struct ReaderPaneView: View {
                                 Image(systemName: titleCopied ? "checkmark" : "doc.on.doc")
                                     .font(.system(size: 11))
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(QiankunjiePlainButtonStyle())
                             .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                             .help("复制标题")
                         }
@@ -467,7 +468,7 @@ struct ReaderPaneView: View {
                             .font(.system(size: 9, weight: .medium))
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(QiankunjiePlainButtonStyle())
                 .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
                 .help("修改分类")
                 .accessibilityLabel("修改分类，当前\(article.category?.name ?? article.aiCategory ?? "未分类")")
@@ -494,7 +495,7 @@ struct ReaderPaneView: View {
                     Image(systemName: "info.circle")
                         .font(.system(size: 12))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(QiankunjiePlainButtonStyle())
                 .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                 .accessibilityLabel("查看 AI 分类依据")
                 .help("查看 AI 分类依据")
@@ -594,7 +595,8 @@ struct ReaderPaneView: View {
                 return
             }
 
-            if action != .inbox, model.actionErrorMessage == nil {
+            // 归档和移回收件箱已经通过分类回调刷新列表，避免再次重复加载。
+            if action != .inbox, action != .archive, model.actionErrorMessage == nil {
                 onLibraryDidChange()
             }
         }
@@ -859,7 +861,7 @@ private struct ReaderAISummaryCard: View {
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(QiankunjiePlainButtonStyle())
                 .accessibilityLabel(isExpanded ? "收起 AI 摘要" : "展开 AI 摘要")
 
                 if let summary, !summary.isEmpty {
@@ -870,7 +872,7 @@ private struct ReaderAISummaryCard: View {
                             .font(.system(size: 11))
                             .frame(width: 18, height: 18)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(QiankunjiePlainButtonStyle())
                     .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                     .help("复制 AI 摘要")
                     .accessibilityLabel("复制 AI 摘要")
@@ -885,7 +887,7 @@ private struct ReaderAISummaryCard: View {
                         .rotationEffect(.degrees(isExpanded ? 0 : -90))
                         .frame(width: 18, height: 18)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(QiankunjiePlainButtonStyle())
                 .accessibilityHidden(true)
             }
             .padding(.horizontal, 14)
@@ -1085,7 +1087,7 @@ private struct ImageZoomOverlay: View {
                     .frame(width: 30, height: 30)
                     .background(.white.opacity(0.9), in: Circle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QiankunjiePlainButtonStyle())
             .keyboardShortcut(.cancelAction)
             .padding(18)
             .help("关闭图片预览")
@@ -1165,7 +1167,7 @@ private struct ImageZoomOverlay: View {
                     .font(.system(size: 13, weight: .medium))
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .foregroundStyle(.white)
         .frame(width: 28, height: 28)
         .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))

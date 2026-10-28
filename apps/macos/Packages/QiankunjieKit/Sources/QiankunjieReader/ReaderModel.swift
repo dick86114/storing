@@ -771,6 +771,8 @@ public final class ReaderModel {
             message
         case .invalidInput:
             "文章请求无效，请刷新后重试"
+        case let .serverMessage(message):
+            message
         case .server:
             "服务暂时不可用，请稍后重试"
         }

@@ -7,5 +7,6 @@ public enum AppError: Error, Hashable, Sendable {
     case categoryUnavailable(message: String)
     case categoryConflict(message: String)
     case invalidInput
+    case serverMessage(message: String)
     case server
 }

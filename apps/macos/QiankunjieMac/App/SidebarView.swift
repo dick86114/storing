@@ -73,7 +73,21 @@ struct SidebarView: View {
         let isSelected = destinationSelection.wrappedValue == destination
             && !(destination == .archive && model.selectedCategoryID != nil)
 
-        return HStack(spacing: 8) {
+        if isSelected {
+            sidebarRowContent(destination, isSelected: isSelected)
+                .tag(destination)
+        } else {
+            sidebarRowContent(destination, isSelected: isSelected)
+                .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+                .tag(destination)
+        }
+    }
+
+    private func sidebarRowContent(
+        _ destination: AppDestination,
+        isSelected: Bool
+    ) -> some View {
+        HStack(spacing: 8) {
             sidebarIcon(destination, isSelected: isSelected)
                 .frame(width: 18)
 
@@ -91,7 +105,6 @@ struct SidebarView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .center)
-        .tag(destination)
     }
 
     private func sidebarIcon(
@@ -166,7 +179,7 @@ struct SidebarView: View {
             collectButtonIcon
                 .rotationEffect(.degrees(collectIconRotation))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .background {
             ZStack {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -280,7 +293,7 @@ struct SidebarView: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .help("账号操作")
         .accessibilityLabel("账号操作")
     }
@@ -319,7 +332,7 @@ struct SidebarView: View {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(QiankunjiePlainButtonStyle())
                 .help("清除搜索")
             }
         }
@@ -431,7 +444,7 @@ private struct AccountMenuView: View {
             .padding(.vertical, 7)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .background {
             RoundedRectangle(cornerRadius: 6)
                 .fill(Color.clear)

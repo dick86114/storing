@@ -168,7 +168,11 @@ struct CollectTasksView: View {
         ContentUnavailableView(
             "暂无采集任务",
             systemImage: "tray",
-            description: Text("用左下角 + 按钮或全局快捷键粘贴公开链接，采集记录会显示在这里")
+            description: Text(
+                model.usesLegacyMobileHistory
+                    ? "当前服务端版本较旧，暂时只能显示旧版移动端采集记录。更新服务端后即可查看完整历史任务。"
+                    : "用左下角 + 按钮或全局快捷键粘贴公开链接，采集记录会显示在这里"
+            )
         )
     }
 

@@ -875,7 +875,9 @@ export async function processCollectJob(jobId: number) {
   return updated;
 }
 
-function normalizeCollectJobStrategy<T extends typeof collectJobs.$inferSelect>(job: T) {
+function normalizeCollectJobStrategy<
+  T extends Pick<typeof collectJobs.$inferSelect, 'captureStrategy' | 'method'>
+>(job: T) {
   if (job.captureStrategy) return job;
   return {
     ...job,
@@ -911,17 +913,41 @@ export async function listCollectJobs(limit = 12, offset = 0, filter: CollectJob
   const safeLimit = Math.min(Math.max(limit, 1), 100);
   const safeOffset = Math.max(offset, 0);
   const whereCondition = buildCollectJobWhere(filter);
-  const jobs = await db
-    .select()
-    .from(collectJobs)
-    .where(whereCondition)
-    .orderBy(desc(collectJobs.createdAt))
-    .limit(safeLimit)
-    .offset(safeOffset);
-  const [{ total }] = await db
-    .select({ total: sql<number>`count(*)::int` })
-    .from(collectJobs)
-    .where(whereCondition);
+  // 列表不读取 result_json，避免历史任务首屏被大 JSON 字段拖慢。
+  const [jobs, [countResult]] = await Promise.all([
+    db
+      .select({
+        id: collectJobs.id,
+        url: collectJobs.url,
+        normalizedUrl: collectJobs.normalizedUrl,
+        userId: collectJobs.userId,
+        clientId: collectJobs.clientId,
+        requestSource: collectJobs.requestSource,
+        saveToInbox: collectJobs.saveToInbox,
+        ownerDeleted: collectJobs.ownerDeleted,
+        status: collectJobs.status,
+        stage: collectJobs.stage,
+        method: collectJobs.method,
+        captureStrategy: collectJobs.captureStrategy,
+        articleId: collectJobs.articleId,
+        title: collectJobs.title,
+        error: collectJobs.error,
+        createdAt: collectJobs.createdAt,
+        updatedAt: collectJobs.updatedAt,
+        startedAt: collectJobs.startedAt,
+        finishedAt: collectJobs.finishedAt,
+      })
+      .from(collectJobs)
+      .where(whereCondition)
+      .orderBy(desc(collectJobs.createdAt), desc(collectJobs.id))
+      .limit(safeLimit)
+      .offset(safeOffset),
+    db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(collectJobs)
+      .where(whereCondition),
+  ]);
+  const total = countResult?.total ?? 0;
 
   return {
     jobs: jobs.map(normalizeCollectJobStrategy),
