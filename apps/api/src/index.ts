@@ -40,7 +40,7 @@ const allowedCorsOrigins = createAllowedCorsOrigins({
 
 app.use('*', cors({
   origin: (origin) => resolveAllowedCorsOrigin(origin, allowedCorsOrigins),
-  allowHeaders: ['Authorization', 'Content-Type'],
+  allowHeaders: ['Authorization', 'Content-Type', 'X-GitHub-Token'],
   allowMethods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   credentials: true,
 }));

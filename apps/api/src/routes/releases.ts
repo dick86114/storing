@@ -1,10 +1,21 @@
 import { Hono } from 'hono';
 import { readFile } from 'node:fs/promises';
-import { loadGitHubReleaseNotes, loadRemoteAndroidReleaseManifest, parseAndroidReleaseManifest, type AndroidReleaseManifest } from '../services/android-release.service.js';
+import {
+  GitHubReleaseAccessError,
+  loadGitHubReleaseNotes,
+  loadRemoteAndroidReleaseManifest,
+  normalizeGitHubToken,
+  parseAndroidReleaseManifest,
+  type AndroidReleaseManifest,
+} from '../services/android-release.service.js';
 
 const defaultManifestPath = '/app/releases/android/latest.json';
 
 export const releasesRoutes = new Hono();
+
+function safeErrorMessage(error: unknown): string {
+  return error instanceof Error ? `${error.name}: ${error.message}` : '未知错误';
+}
 
 async function loadLocalAndroidReleaseManifest(path: string): Promise<AndroidReleaseManifest | null> {
   const raw = await readFile(path, 'utf8');
@@ -23,15 +34,32 @@ releasesRoutes.get('/mobile/releases/latest', async (c) => {
     return c.json({ error: { code: 'VALIDATION_ERROR', message: 'versionCode 必须为正整数' } }, 400);
   }
 
+  let gitHubToken: string | undefined;
+  try {
+    gitHubToken = normalizeGitHubToken(c.req.header('X-GitHub-Token'));
+  } catch {
+    return c.json({ error: { code: 'GITHUB_TOKEN_INVALID', message: 'GitHub 令牌格式无效' } }, 400);
+  }
+
   let release: AndroidReleaseManifest | null = null;
   let remoteError: unknown = null;
   const remoteManifestUrl = process.env.ANDROID_RELEASE_MANIFEST_URL?.trim();
   if (remoteManifestUrl) {
     try {
-      release = await loadRemoteAndroidReleaseManifest(remoteManifestUrl);
+      release = await loadRemoteAndroidReleaseManifest(remoteManifestUrl, undefined, gitHubToken);
     } catch (error) {
       remoteError = error;
-      console.error('Unable to read GitHub Android release manifest:', error);
+      if (error instanceof GitHubReleaseAccessError) {
+        return c.json({
+          error: {
+            code: error.kind === 'rate-limit' ? 'GITHUB_RATE_LIMITED' : 'GITHUB_TOKEN_INVALID',
+            message: error.kind === 'rate-limit'
+              ? 'GitHub API 请求额度已用尽，请稍后重试或更换令牌'
+              : 'GitHub 令牌无效或已过期，请更新后重试',
+          },
+        }, 424);
+      }
+      console.error('Unable to read GitHub Android release manifest:', safeErrorMessage(error));
     }
   }
 
@@ -55,10 +83,10 @@ releasesRoutes.get('/mobile/releases/latest', async (c) => {
   if (resolvedRelease.versionCode <= currentVersionCode) return c.body(null, 204);
   if (!resolvedRelease.releaseTag) {
     try {
-      const body = await loadGitHubReleaseNotes(resolvedRelease.apkUrl);
+      const body = await loadGitHubReleaseNotes(resolvedRelease.apkUrl, undefined, gitHubToken);
       if (body?.trim()) resolvedRelease.releaseNotes = [body];
     } catch (error) {
-      console.error('Unable to read GitHub Android release notes:', error);
+      console.error('Unable to read GitHub Android release notes:', safeErrorMessage(error));
     }
   }
   c.header('Cache-Control', 'no-store');

@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.LockReset
 import androidx.compose.material.icons.outlined.Brightness4
@@ -62,17 +63,21 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.idickies.storing.BuildConfig
 import com.idickies.storing.ui.theme.ThemeMode
 import com.idickies.storing.cache.CacheManager
 import com.idickies.storing.diagnostics.DiagnosticsExporter
 import com.idickies.storing.update.settingsUpdatePresentation
+import com.idickies.storing.update.GitHubTokenRules
+import com.idickies.storing.update.GitHubTokenUiState
 import com.idickies.storing.update.UpdateSource
 
 private const val SETTINGS_UI_PREFERENCES = "qiankunjie_settings_ui"
 private const val GITHUB_STAR_PROMPT_DISMISSED = "github_star_prompt_dismissed"
 private const val GITHUB_REPOSITORY_URL = "https://github.com/dick86114/storing"
+private const val GITHUB_TOKEN_CREATE_URL = "https://github.com/settings/tokens/new?description=Qiankunjie%20update%20check"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,6 +88,9 @@ fun QiankunjieSettingsScreen(
   onCheckUpdate: () -> Unit,
   updateSource: UpdateSource = UpdateSource.Official,
   onUpdateSourceChange: (UpdateSource) -> Unit = {},
+  gitHubTokenState: GitHubTokenUiState = GitHubTokenUiState(),
+  onSaveGitHubToken: (String) -> Unit = {},
+  onRemoveGitHubToken: () -> Unit = {},
   onOpenReaderSettings: () -> Unit,
   onOpenChangePassword: () -> Unit,
   onOpenOfflineContent: () -> Unit,
@@ -106,10 +114,16 @@ fun QiankunjieSettingsScreen(
     context.getSharedPreferences(SETTINGS_UI_PREFERENCES, Context.MODE_PRIVATE)
   }
   var showStarPrompt by remember { mutableStateOf(false) }
+  var gitHubTokenDraft by remember { mutableStateOf("") }
   val uriHandler = LocalUriHandler.current
   val update = settingsUpdatePresentation(checkingUpdate)
   LaunchedEffect(Unit) {
     showStarPrompt = !settingsPreferences.getBoolean(GITHUB_STAR_PROMPT_DISMISSED, false)
+  }
+  LaunchedEffect(gitHubTokenState.maskedToken) {
+    if (gitHubTokenState.maskedToken != null) {
+      gitHubTokenDraft = ""
+    }
   }
   Scaffold(
     topBar = {
@@ -260,6 +274,83 @@ fun QiankunjieSettingsScreen(
               supportingText = { Text("仅拼接到 GitHub Release APK 地址前，必须是 HTTPS。") },
               modifier = Modifier.fillMaxWidth(),
             )
+          }
+        }
+      }
+      item {
+        Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+          Column(modifier = Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(13.dp), verticalAlignment = Alignment.CenterVertically) {
+              Icon(Icons.Outlined.Key, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+              Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("GitHub 令牌", style = MaterialTheme.typography.titleSmall)
+                Text(
+                  "配置后 GitHub API 限额由每小时 60 次提升到 5000 次。公开仓库无需勾选权限。",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+            }
+            if (gitHubTokenState.maskedToken != null) {
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Text(
+                  gitHubTokenState.maskedToken,
+                  modifier = Modifier.weight(1f),
+                  style = MaterialTheme.typography.bodyMedium,
+                )
+                TextButton(onClick = onRemoveGitHubToken) {
+                  Text("移除")
+                }
+              }
+            } else {
+              OutlinedTextField(
+                value = gitHubTokenDraft,
+                onValueChange = { gitHubTokenDraft = it },
+                label = { Text("GitHub Personal Access Token") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+              )
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+              ) {
+                Button(
+                  enabled = GitHubTokenRules.normalize(gitHubTokenDraft) != null,
+                  onClick = {
+                    onSaveGitHubToken(gitHubTokenDraft)
+                  },
+                ) {
+                  Text("保存令牌")
+                }
+              }
+            }
+            gitHubTokenState.message?.let { message ->
+              Text(
+                message,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (gitHubTokenState.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+            }
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Text(
+                "令牌仅用于本次更新检测，不写入服务器数据库或日志",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+              TextButton(onClick = { uriHandler.openUri(GITHUB_TOKEN_CREATE_URL) }) {
+                Text("创建只读令牌")
+              }
+            }
           }
         }
       }

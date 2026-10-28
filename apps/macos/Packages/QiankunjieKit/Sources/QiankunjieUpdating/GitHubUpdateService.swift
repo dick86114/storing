@@ -13,6 +13,7 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading, UpdateLogPr
     private let currentVersion: String
     private let network: any UpdateNetworkClient
     private let mirrorBaseProvider: @Sendable () async -> String?
+    private let gitHubTokenProvider: @Sendable () async -> String?
     private let cacheDirectory: URL
     private let retryDelay: Duration
     private let maxDownloadAttempts = 3
@@ -21,12 +22,14 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading, UpdateLogPr
         currentVersion: String,
         network: any UpdateNetworkClient = URLSessionUpdateNetworkClient(),
         mirrorBaseProvider: (@Sendable () async -> String?)? = nil,
+        gitHubTokenProvider: (@Sendable () async -> String?)? = nil,
         cacheDirectory: URL? = nil,
         retryDelay: Duration = .seconds(1)
     ) {
         self.currentVersion = currentVersion
         self.network = network
         self.mirrorBaseProvider = mirrorBaseProvider ?? { nil }
+        self.gitHubTokenProvider = gitHubTokenProvider ?? { nil }
         self.cacheDirectory = cacheDirectory ?? FileManager.default.urls(
             for: .cachesDirectory,
             in: .userDomainMask
@@ -38,6 +41,7 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading, UpdateLogPr
         currentVersion: String,
         network: any UpdateNetworkClient,
         mirrorBase: String? = nil,
+        gitHubToken: String? = nil,
         cacheDirectory: URL? = nil,
         retryDelay: Duration = .seconds(1)
     ) -> GitHubUpdateService {
@@ -45,17 +49,21 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading, UpdateLogPr
             currentVersion: currentVersion,
             network: network,
             mirrorBaseProvider: { mirrorBase },
+            gitHubTokenProvider: { gitHubToken },
             cacheDirectory: cacheDirectory,
             retryDelay: retryDelay
         )
     }
 
     public func checkForUpdate() async throws -> AppRelease? {
-        let apiReleases = try? await fetchAPIReleases()
-        if let apiReleases {
+        do {
+            let apiReleases = try await fetchAPIReleases()
             return Self.newestRelease(from: apiReleases, newerThan: currentVersion)
+        } catch let error as UpdateServiceError where Self.shouldSurfaceGitHubConfigurationError(error) {
+            throw error
+        } catch {
+            return try await fetchAtomRelease()
         }
-        return try await fetchAtomRelease()
     }
 
     public func fetchUpdateLog(for version: String) async throws -> String? {
@@ -63,23 +71,26 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading, UpdateLogPr
             throw UpdateServiceError.invalidRelease
         }
 
-        if let log = try? await fetchAPIUpdateLog(for: version) {
-            return log
+        do {
+            if let log = try await fetchAPIUpdateLog(for: version) {
+                return log
+            }
+        } catch let error as UpdateServiceError where Self.shouldSurfaceGitHubConfigurationError(error) {
+            throw error
+        } catch {
+            return try await fetchAtomUpdateLog(for: version)
         }
         return try await fetchAtomUpdateLog(for: version)
     }
 
     private func fetchAPIUpdateLog(for version: String) async throws -> String? {
-
-        var request = URLRequest(
+        var request = await gitHubAPIRequest(
             url: Self.releaseTagBaseURL.appendingPathComponent("macos-v\(version)")
         )
         request.timeoutInterval = 30
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("Qiankunjie-macOS-updater", forHTTPHeaderField: "User-Agent")
         let response = try await network.data(for: request)
         guard (200..<300).contains(response.statusCode) else {
-            throw UpdateServiceError.invalidResponse
+            throw Self.gitHubAPIError(response, tokenConfigured: request.value(forHTTPHeaderField: "Authorization") != nil)
         }
 
         struct GitHubRelease: Decodable {
@@ -156,13 +167,11 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading, UpdateLogPr
     }
 
     private func fetchAPIReleases() async throws -> [AppRelease] {
-        var request = URLRequest(url: Self.releasesURL)
+        var request = await gitHubAPIRequest(url: Self.releasesURL)
         request.timeoutInterval = 30
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("Qiankunjie-macOS-updater", forHTTPHeaderField: "User-Agent")
         let response = try await network.data(for: request)
         guard (200..<300).contains(response.statusCode) else {
-            throw UpdateServiceError.invalidResponse
+            throw Self.gitHubAPIError(response, tokenConfigured: request.value(forHTTPHeaderField: "Authorization") != nil)
         }
 
         struct GitHubRelease: Decodable {
@@ -372,6 +381,44 @@ public actor GitHubUpdateService: UpdateChecking, UpdateDownloading, UpdateLogPr
             throw UpdateServiceError.checksumUnavailable
         }
         return checksum
+    }
+
+    private func gitHubAPIRequest(url: URL) async -> URLRequest {
+        var request = URLRequest(url: url)
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("Qiankunjie-macOS-updater", forHTTPHeaderField: "User-Agent")
+        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        if let token = GitHubTokenRules.normalized(await gitHubTokenProvider()) {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        return request
+    }
+
+    private static func gitHubAPIError(
+        _ response: UpdateDataResponse,
+        tokenConfigured: Bool
+    ) -> UpdateServiceError {
+        let normalizedHeaders = Dictionary(uniqueKeysWithValues: response.headers.map {
+            ($0.key.lowercased(), $0.value)
+        })
+        let remaining = normalizedHeaders["x-ratelimit-remaining"]
+        let hasRetryAfter = normalizedHeaders["retry-after"] != nil
+        if response.statusCode == 429 || (response.statusCode == 403 && (remaining == "0" || hasRetryAfter)) {
+            return tokenConfigured ? .gitHubRateLimited : .invalidResponse
+        }
+        if tokenConfigured && (response.statusCode == 401 || response.statusCode == 403) {
+            return .gitHubAuthenticationFailed
+        }
+        return .invalidResponse
+    }
+
+    private static func shouldSurfaceGitHubConfigurationError(_ error: UpdateServiceError) -> Bool {
+        switch error {
+        case .gitHubAuthenticationFailed, .gitHubRateLimited:
+            true
+        default:
+            false
+        }
     }
 
     private static func newestRelease(

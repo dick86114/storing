@@ -10,6 +10,7 @@ import javax.inject.Singleton
 @Singleton
 class UpdateRepository @Inject constructor(
   private val api: MobileReleaseApi,
+  private val gitHubTokenStore: GitHubTokenStore,
   @ApplicationContext context: Context,
 ) {
   private val preferences = context.getSharedPreferences("qiankunjie_update_check", Context.MODE_PRIVATE)
@@ -32,6 +33,17 @@ class UpdateRepository @Inject constructor(
     preferences.edit().putString(KEY_UPDATE_SOURCE, value).apply()
   }
 
+  fun gitHubTokenMasked(): String? = gitHubTokenStore.read()?.let(GitHubTokenRules::masked)
+
+  fun saveGitHubToken(value: String) {
+    val normalized = requireNotNull(GitHubTokenRules.normalize(value)) { "请输入有效的 GitHub 令牌，且令牌中不能包含空格" }
+    gitHubTokenStore.save(normalized)
+  }
+
+  fun removeGitHubToken() {
+    gitHubTokenStore.clear()
+  }
+
   suspend fun checkOnLaunch(): AndroidRelease? = check(force = false)
 
   suspend fun checkNow(): AndroidRelease? = check(force = true)
@@ -41,15 +53,21 @@ class UpdateRepository @Inject constructor(
     val now = System.currentTimeMillis()
     if (!UpdateCheckPolicy.shouldRequest(preferences.getLong(KEY_LAST_CHECK, 0L), now, force)) return null
     preferences.edit().putLong(KEY_LAST_CHECK, now).apply()
-    val response = api.latest(BuildConfig.VERSION_CODE)
+    val response = api.latest(BuildConfig.VERSION_CODE, gitHubTokenStore.read())
     if (!response.isSuccessful) {
       val statusCode = response.code()
-      val kind = if (statusCode == 408 || statusCode == 429 || statusCode >= 500) {
-        UpdateFailureKind.Server
-      } else {
-        UpdateFailureKind.Other
+      val kind = when (statusCode) {
+        424 -> UpdateFailureKind.Token
+        408, 429 -> UpdateFailureKind.Server
+        in 500..599 -> UpdateFailureKind.Server
+        else -> UpdateFailureKind.Other
       }
-      throw UpdateCheckException(statusCode, "更新源返回 HTTP $statusCode", kind)
+      val message = if (kind == UpdateFailureKind.Token) {
+        "GitHub 令牌无效、已过期或访问额度已用尽"
+      } else {
+        "更新源返回 HTTP $statusCode"
+      }
+      throw UpdateCheckException(statusCode, message, kind)
     }
     val release = response.body()
     if (release != null && preferences.getInt(KEY_IGNORED_VERSION_CODE, 0) == release.versionCode &&

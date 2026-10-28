@@ -5,6 +5,7 @@ import java.io.IOException
 enum class UpdateFailureKind {
   Network,
   Server,
+  Token,
   Other,
 }
 

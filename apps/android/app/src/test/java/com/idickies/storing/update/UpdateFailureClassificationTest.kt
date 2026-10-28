@@ -21,6 +21,10 @@ class UpdateFailureClassificationTest {
     assertEquals(UpdateFailureKind.Server, classifyUpdateFailure(UpdateCheckException(503, "服务不可用", UpdateFailureKind.Server)))
   }
 
+  @Test fun GitHub令牌错误应提示用户更新令牌而不是更换更新源() {
+    assertEquals(UpdateFailureKind.Token, classifyUpdateFailure(UpdateCheckException(424, "令牌失效", UpdateFailureKind.Token)))
+  }
+
   @Test fun 普通业务错误不建议更换更新源() {
     assertEquals(UpdateFailureKind.Other, classifyUpdateFailure(UpdateCheckException(400, "请求无效", UpdateFailureKind.Other)))
     assertEquals(UpdateFailureKind.Other, classifyUpdateFailure(IllegalStateException("版本信息无效")))

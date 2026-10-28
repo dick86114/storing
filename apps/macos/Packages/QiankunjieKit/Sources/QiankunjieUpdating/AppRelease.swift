@@ -52,6 +52,8 @@ public enum UpdateServiceError: Equatable, Error, Sendable {
     case updateUnavailable
     case network
     case invalidResponse
+    case gitHubAuthenticationFailed
+    case gitHubRateLimited
     case checksumUnavailable
     case incompleteDownload
     case checksumMismatch

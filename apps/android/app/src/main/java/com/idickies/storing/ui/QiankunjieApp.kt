@@ -122,6 +122,7 @@ fun QiankunjieApp(
 ) {
   val state by authViewModel.state.collectAsState()
   val updateState by updateViewModel.state.collectAsState()
+  val gitHubTokenState by updateViewModel.gitHubTokenState.collectAsState()
   val themeMode by appearanceViewModel.themeMode.collectAsState()
   val systemDark = isSystemInDarkTheme()
   val user = state.user
@@ -197,6 +198,9 @@ fun QiankunjieApp(
       updateChecking = updateState.checking,
       updateSource = updateState.updateSource,
       onUpdateSourceChange = updateViewModel::selectUpdateSource,
+      gitHubTokenState = gitHubTokenState,
+      onSaveGitHubToken = updateViewModel::saveGitHubToken,
+      onRemoveGitHubToken = updateViewModel::removeGitHubToken,
       themeMode = themeMode,
       onThemeModeChange = appearanceViewModel::selectThemeMode,
       isAuthenticated = user != null,
@@ -556,6 +560,9 @@ private fun HomeSkeleton(
   updateChecking: Boolean,
   updateSource: com.idickies.storing.update.UpdateSource = com.idickies.storing.update.UpdateSource.Official,
   onUpdateSourceChange: (com.idickies.storing.update.UpdateSource) -> Unit = {},
+  gitHubTokenState: com.idickies.storing.update.GitHubTokenUiState = com.idickies.storing.update.GitHubTokenUiState(),
+  onSaveGitHubToken: (String) -> Unit = {},
+  onRemoveGitHubToken: () -> Unit = {},
   themeMode: com.idickies.storing.ui.theme.ThemeMode,
   onThemeModeChange: (com.idickies.storing.ui.theme.ThemeMode) -> Unit,
   isAuthenticated: Boolean,
@@ -597,6 +604,9 @@ private fun HomeSkeleton(
       updateChecking = updateChecking,
       updateSource = updateSource,
       onUpdateSourceChange = onUpdateSourceChange,
+      gitHubTokenState = gitHubTokenState,
+      onSaveGitHubToken = onSaveGitHubToken,
+      onRemoveGitHubToken = onRemoveGitHubToken,
     themeMode = themeMode,
     onThemeModeChange = onThemeModeChange,
     isAuthenticated = isAuthenticated,
