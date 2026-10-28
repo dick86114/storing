@@ -92,7 +92,12 @@ object AppModule {
       .authenticator(sessionRecoveryAuthenticator)
       .apply {
         if (BuildConfig.ENABLE_NETWORK_LOGGING) {
-          addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
+          addInterceptor(
+            HttpLoggingInterceptor().apply {
+              level = HttpLoggingInterceptor.Level.BASIC
+              redactHeader("X-GitHub-Token")
+            },
+          )
         }
       }
       .build()

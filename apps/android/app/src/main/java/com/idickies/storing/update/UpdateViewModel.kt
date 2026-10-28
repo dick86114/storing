@@ -22,6 +22,12 @@ data class UpdateUiState(
   val statusMessage: String? = null,
 )
 
+data class GitHubTokenUiState(
+  val maskedToken: String? = null,
+  val message: String? = null,
+  val isError: Boolean = false,
+)
+
 @HiltViewModel
 class UpdateViewModel @Inject constructor(
   private val repository: UpdateRepository,
@@ -29,6 +35,10 @@ class UpdateViewModel @Inject constructor(
 ) : ViewModel() {
   private val mutableState = MutableStateFlow(UpdateUiState(updateSource = repository.updateSource()))
   val state = mutableState.asStateFlow()
+  private val mutableGitHubTokenState = MutableStateFlow(
+    GitHubTokenUiState(maskedToken = repository.gitHubTokenMasked()),
+  )
+  val gitHubTokenState = mutableGitHubTokenState.asStateFlow()
 
   fun checkOnLaunch() = check(manual = false)
 
@@ -52,9 +62,10 @@ class UpdateViewModel @Inject constructor(
             error = when (failureKind) {
               UpdateFailureKind.Network -> "当前更新源连接失败或响应过慢，请更换更新源后重试。"
               UpdateFailureKind.Server -> "当前更新源暂时不可用，请更换更新源后重试。"
+              UpdateFailureKind.Token -> "GitHub 令牌无效、已过期或访问额度已用尽，请在设置中更新令牌后重试。"
               UpdateFailureKind.Other -> error.message ?: "检查更新失败"
             },
-            suggestChangeSource = failureKind != UpdateFailureKind.Other,
+            suggestChangeSource = failureKind != UpdateFailureKind.Other && failureKind != UpdateFailureKind.Token,
             updateSource = selectedSource,
           )
         } else {
@@ -68,6 +79,36 @@ class UpdateViewModel @Inject constructor(
   fun selectUpdateSource(source: UpdateSource) {
     repository.setUpdateSource(source)
     mutableState.value = mutableState.value.copy(updateSource = source)
+  }
+
+  fun saveGitHubToken(value: String) {
+    runCatching { repository.saveGitHubToken(value) }
+      .onSuccess {
+        mutableGitHubTokenState.value = GitHubTokenUiState(
+          maskedToken = repository.gitHubTokenMasked(),
+          message = "令牌已加密保存在当前设备，并用于后续更新检测",
+        )
+        mutableState.value = mutableState.value.copy(error = null, suggestChangeSource = false)
+      }
+      .onFailure {
+        mutableGitHubTokenState.value = mutableGitHubTokenState.value.copy(
+          message = it.message ?: "GitHub 令牌保存失败",
+          isError = true,
+        )
+      }
+  }
+
+  fun removeGitHubToken() {
+    runCatching { repository.removeGitHubToken() }
+      .onSuccess {
+        mutableGitHubTokenState.value = GitHubTokenUiState(message = "已移除当前设备保存的 GitHub 令牌")
+      }
+      .onFailure {
+        mutableGitHubTokenState.value = mutableGitHubTokenState.value.copy(
+          message = "GitHub 令牌移除失败，请稍后重试",
+          isError = true,
+        )
+      }
   }
 
   fun ignore() {

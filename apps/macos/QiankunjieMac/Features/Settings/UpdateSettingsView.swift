@@ -62,9 +62,15 @@ final class UpdateSettingsModel {
     private(set) var isFetchingUpdateLog = false
     private(set) var updateLogErrorText: String?
     private(set) var mirrorBase: String
+    private(set) var gitHubTokenDraft = ""
+    private(set) var maskedGitHubToken: String?
+    private(set) var gitHubTokenFeedbackText: String?
+    private(set) var gitHubTokenFeedbackIsError = false
+    private(set) var isSavingGitHubToken = false
 
     private let service: any UpdateServicing
     private let defaults: UserDefaults
+    private let tokenStore: any GitHubTokenStoring
     private let currentVersion: String
     private let updateLogCache: UpdateLogCache
     private let installer: any UpdateInstalling
@@ -73,6 +79,7 @@ final class UpdateSettingsModel {
     private var pendingLogRequestGeneration = 0
 
     convenience init(currentVersion: String) {
+        let tokenStore = GitHubTokenStore()
         self.init(
             currentVersion: currentVersion,
             service: GitHubUpdateService(
@@ -80,9 +87,13 @@ final class UpdateSettingsModel {
                 mirrorBaseProvider: {
                     let storedMirror = UserDefaults.standard.string(forKey: UpdateSettingsModel.mirrorStorageKey)
                     return storedMirror?.isEmpty == false ? storedMirror : nil
+                },
+                gitHubTokenProvider: {
+                    await tokenStore.readGitHubToken()
                 }
             ),
-            defaults: .standard
+            defaults: .standard,
+            tokenStore: tokenStore
         )
     }
 
@@ -90,6 +101,7 @@ final class UpdateSettingsModel {
         currentVersion: String,
         service: any UpdateServicing,
         defaults: UserDefaults,
+        tokenStore: any GitHubTokenStoring = GitHubTokenStore(),
         installer: any UpdateInstalling = UpdateInstaller(),
         terminateApplication: @escaping @MainActor () -> Void = {
             NSApplication.shared.terminate(nil)
@@ -97,6 +109,7 @@ final class UpdateSettingsModel {
     ) {
         self.service = service
         self.defaults = defaults
+        self.tokenStore = tokenStore
         self.currentVersion = currentVersion
         let updateLogCache = UpdateLogCache(defaults: defaults)
         self.updateLogCache = updateLogCache
@@ -111,6 +124,14 @@ final class UpdateSettingsModel {
 
     var canModifyMirror: Bool {
         !isBusy
+    }
+
+    var canModifyGitHubToken: Bool {
+        !isBusy && !isSavingGitHubToken
+    }
+
+    var isGitHubTokenConfigured: Bool {
+        maskedGitHubToken != nil
     }
 
     var mirrorMode: Binding<UpdateMirrorMode> {
@@ -160,6 +181,59 @@ final class UpdateSettingsModel {
         mirrorBase = value
     }
 
+    func loadGitHubTokenState() async {
+        let token = await tokenStore.readGitHubToken()
+        maskedGitHubToken = token.map(GitHubTokenRules.masked)
+    }
+
+    func updateGitHubTokenDraft(_ value: String) {
+        guard canModifyGitHubToken else { return }
+        gitHubTokenDraft = value
+        gitHubTokenFeedbackText = nil
+        gitHubTokenFeedbackIsError = false
+    }
+
+    func saveGitHubToken() async {
+        guard canModifyGitHubToken else { return }
+        guard let token = GitHubTokenRules.normalized(gitHubTokenDraft) else {
+            gitHubTokenFeedbackText = "请输入有效的 GitHub 令牌，且令牌中不能包含空格"
+            gitHubTokenFeedbackIsError = true
+            return
+        }
+
+        isSavingGitHubToken = true
+        defer { isSavingGitHubToken = false }
+        do {
+            try await tokenStore.saveGitHubToken(token)
+            maskedGitHubToken = GitHubTokenRules.masked(token)
+            gitHubTokenDraft = ""
+            gitHubTokenFeedbackText = "令牌已保存在当前设备，并用于后续 GitHub 更新请求"
+            gitHubTokenFeedbackIsError = false
+            phase = .idle
+        } catch {
+            gitHubTokenFeedbackText = "令牌保存失败，请稍后重试"
+            gitHubTokenFeedbackIsError = true
+        }
+    }
+
+    func removeGitHubToken() async {
+        guard canModifyGitHubToken else { return }
+
+        isSavingGitHubToken = true
+        defer { isSavingGitHubToken = false }
+        do {
+            try await tokenStore.clearGitHubToken()
+            maskedGitHubToken = nil
+            gitHubTokenDraft = ""
+            gitHubTokenFeedbackText = "已移除当前设备保存的 GitHub 令牌"
+            gitHubTokenFeedbackIsError = false
+            phase = .idle
+        } catch {
+            gitHubTokenFeedbackText = "令牌移除失败，请稍后重试"
+            gitHubTokenFeedbackIsError = true
+        }
+    }
+
     func checkForUpdate() async {
         guard !isBusy else { return }
         pendingLogRequestGeneration += 1
@@ -206,7 +280,7 @@ final class UpdateSettingsModel {
             updateLog = fetchedLog
             updateLogCache.save(fetchedLog, for: currentVersion)
         } catch {
-            updateLogErrorText = "获取更新日志失败，请稍后重试"
+            updateLogErrorText = Self.updateLogFailureMessage(error)
         }
     }
 
@@ -325,6 +399,10 @@ final class UpdateSettingsModel {
             "缺少 SHA-256 校验值，已拒绝下载"
         case UpdateServiceError.installFailed:
             "安装失败，旧版本备份已尝试恢复"
+        case UpdateServiceError.gitHubAuthenticationFailed:
+            "GitHub 令牌无效或已过期，请在“更新源”下方更新令牌"
+        case UpdateServiceError.gitHubRateLimited:
+            "GitHub 令牌的访问额度已用尽，请稍后重试或更换令牌"
         case is CancellationError:
             "操作已取消"
         default:
@@ -389,7 +467,18 @@ final class UpdateSettingsModel {
                   pendingLogRequestGeneration == generation,
                   pendingUpdate?.version == release.version
             else { return }
-            pendingUpdateLogErrorText = "获取更新日志失败，请稍后重试"
+            pendingUpdateLogErrorText = Self.updateLogFailureMessage(error)
+        }
+    }
+
+    private static func updateLogFailureMessage(_ error: Error) -> String {
+        switch error {
+        case UpdateServiceError.gitHubAuthenticationFailed:
+            "GitHub 令牌无效或已过期，无法读取更新日志"
+        case UpdateServiceError.gitHubRateLimited:
+            "GitHub 令牌的访问额度已用尽，暂时无法读取更新日志"
+        default:
+            "获取更新日志失败，请稍后重试"
         }
     }
 
@@ -559,6 +648,9 @@ struct UpdateSettingsView: View {
             guard updateCheckRequestID > 0 else { return }
             await model.checkForUpdate()
         }
+        .task {
+            await model.loadGitHubTokenState()
+        }
         .sheet(isPresented: updatePromptBinding) {
             if let release = model.pendingUpdate {
                 UpdatePromptView(
@@ -609,6 +701,83 @@ struct UpdateSettingsView: View {
                         model.saveMirror()
                     }
                     .disabled(!model.canModifyMirror)
+                }
+            }
+        }
+
+        SettingsRowDivider()
+
+        SettingsBlockRow(
+            title: "GitHub 令牌",
+            subtitle: "配置后 GitHub API 限额由每小时 60 次提升到 5000 次。令牌只保存在当前设备，仅用于 api.github.com；公开仓库无需勾选权限。"
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
+                if let maskedToken = model.maskedGitHubToken {
+                    HStack(spacing: 10) {
+                        Text(maskedToken)
+                            .qiankunjieFont(.bodyMedium)
+                            .monospaced()
+                            .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
+                        Spacer(minLength: 0)
+                        Button("移除") {
+                            Task {
+                                await model.removeGitHubToken()
+                            }
+                        }
+                        .disabled(!model.canModifyGitHubToken)
+                    }
+                } else {
+                    HStack(spacing: 8) {
+                        SecureField("GitHub Personal Access Token", text: Binding(
+                            get: { model.gitHubTokenDraft },
+                            set: { model.updateGitHubTokenDraft($0) }
+                        ))
+                        .textFieldStyle(.roundedBorder)
+                        .disabled(!model.canModifyGitHubToken)
+
+                        Button("保存") {
+                            Task {
+                                await model.saveGitHubToken()
+                            }
+                        }
+                        .disabled(
+                            !model.canModifyGitHubToken
+                                || model.gitHubTokenDraft.trimmingCharacters(
+                                    in: .whitespacesAndNewlines
+                                ).isEmpty
+                        )
+                    }
+                }
+
+                HStack(spacing: 10) {
+                    Link(
+                        "创建只读令牌",
+                        destination: URL(
+                            string: "https://github.com/settings/tokens/new?description=Qiankunjie%20update%20check"
+                        )!
+                    )
+                    .qiankunjieFont(.labelMedium)
+
+                    Spacer(minLength: 0)
+
+                    if model.isSavingGitHubToken {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+
+                if let feedback = model.gitHubTokenFeedbackText {
+                    Text(feedback)
+                        .qiankunjieFont(.labelMedium)
+                        .foregroundStyle(
+                            model.gitHubTokenFeedbackIsError
+                                ? (
+                                    colorScheme == .dark
+                                        ? QiankunjieColors.darkError
+                                        : QiankunjieColors.lightError
+                                )
+                                : QiankunjieColors.onSurfaceVariant(for: colorScheme)
+                        )
                 }
             }
         }

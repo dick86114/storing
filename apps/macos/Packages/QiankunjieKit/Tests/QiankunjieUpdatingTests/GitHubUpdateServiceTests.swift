@@ -99,6 +99,74 @@ extension AppRelease {
     #expect(release?.version == "1.3.0")
 }
 
+@Test func configuredGitHubTokenAuthorizesAPIRequests() async throws {
+    let network = MockUpdateNetwork([
+        .data(
+            statusCode: 200,
+            body: Data("""
+            [
+              {"tag_name":"macos-v1.3.0","assets":[{"name":"Qiankunjie-1.3.0-arm64.dmg","browser_download_url":"https://github.com/dick86114/storing/releases/download/macos-v1.3.0/Qiankunjie-1.3.0-arm64.dmg"}]}
+            ]
+            """.utf8)
+        ),
+    ])
+    let service = GitHubUpdateService.fixture(
+        currentVersion: "1.2.0",
+        network: network,
+        gitHubToken: "ghp_test_token"
+    )
+
+    _ = try await service.checkForUpdate()
+
+    let requests = await network.requests
+    #expect(requests.count == 1)
+    #expect(requests[0].value(forHTTPHeaderField: "Authorization") == "Bearer ghp_test_token")
+}
+
+@Test func atomFallbackNeverReceivesGitHubToken() async throws {
+    let atom = """
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>tag:github.com,2008:Repository/1/macos-v1.3.0</id>
+        <title>乾坤戒 1.3.0</title>
+        <content type="html">&lt;code&gt;Qiankunjie-1.3.0-arm64.dmg&lt;/code&gt;</content>
+      </entry>
+    </feed>
+    """
+    let network = MockUpdateNetwork([
+        .data(statusCode: 500, body: Data("{}".utf8)),
+        .data(statusCode: 200, body: Data(atom.utf8)),
+    ])
+    let service = GitHubUpdateService.fixture(
+        currentVersion: "1.2.0",
+        network: network,
+        gitHubToken: "ghp_test_token"
+    )
+
+    _ = try await service.checkForUpdate()
+
+    let requests = await network.requests
+    #expect(requests[0].value(forHTTPHeaderField: "Authorization") == "Bearer ghp_test_token")
+    #expect(requests[1].value(forHTTPHeaderField: "Authorization") == nil)
+}
+
+@Test func invalidGitHubTokenShowsConfigurationErrorWithoutAtomFallback() async throws {
+    let network = MockUpdateNetwork([
+        .data(statusCode: 401, body: Data(#"{"message":"Bad credentials"}"#.utf8)),
+    ])
+    let service = GitHubUpdateService.fixture(
+        currentVersion: "1.2.0",
+        network: network,
+        gitHubToken: "ghp_invalid_token"
+    )
+
+    await #expect(throws: UpdateServiceError.gitHubAuthenticationFailed) {
+        _ = try await service.checkForUpdate()
+    }
+
+    #expect(await network.requests.count == 1)
+}
+
 @Test func updateLogIsFetchedFromExactInstalledVersionTag() async throws {
     let payload = Data("""
     {"tag_name":"macos-v1.3.0","body":"## 更新日志\\n- 修复问题"}
@@ -340,6 +408,7 @@ extension AppRelease {
         currentVersion: "1.2.0",
         network: network,
         mirrorBase: "https://ghfast.top",
+        gitHubToken: "ghp_test_token",
         cacheDirectory: cacheDirectory,
         retryDelay: .zero
     )
@@ -353,6 +422,7 @@ extension AppRelease {
     #expect(requests.count == 2)
     #expect(requests[0].url?.absoluteString == "https://ghfast.top/https://github.com/dick86114/storing/releases/download/macos-v1.3.0/Qiankunjie-1.3.0-arm64.dmg")
     #expect(requests[1].value(forHTTPHeaderField: "Range") == "bytes=32-")
+    #expect(requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == nil })
     try? FileManager.default.removeItem(at: cacheDirectory)
 }
 

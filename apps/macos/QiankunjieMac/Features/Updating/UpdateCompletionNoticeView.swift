@@ -515,7 +515,13 @@ final class UpdateCompletionNoticeWindowController: NSObject, NSWindowDelegate {
             version: version,
             notes: cachedNotes ?? ""
         )
-        let service = GitHubUpdateService(currentVersion: version)
+        let tokenStore = GitHubTokenStore()
+        let service = GitHubUpdateService(
+            currentVersion: version,
+            gitHubTokenProvider: {
+                await tokenStore.readGitHubToken()
+            }
+        )
         let loadNotes: @Sendable () async -> String? = {
             guard let fetched = try? await service.fetchUpdateLog(for: version),
                   let normalized = UpdateReleaseNotesText.normalized(fetched, version: version)

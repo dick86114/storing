@@ -133,6 +133,26 @@ final class FailingUpdateInstallerSpy: UpdateInstalling {
     }
 }
 
+actor InMemoryGitHubTokenStore: GitHubTokenStoring {
+    private var token: String?
+
+    init(token: String? = nil) {
+        self.token = token
+    }
+
+    func readGitHubToken() async -> String? {
+        token
+    }
+
+    func saveGitHubToken(_ token: String) async throws {
+        self.token = token
+    }
+
+    func clearGitHubToken() async throws {
+        token = nil
+    }
+}
+
 extension AppRelease {
     fileprivate static func fixture(releaseNotes: String = "测试更新") -> AppRelease {
         let downloadURL = URL(
@@ -153,6 +173,53 @@ extension AppRelease {
 
 @MainActor
 struct UpdateSettingsModelTests {
+    @Test func 保存与移除GitHub令牌时只暴露脱敏值() async throws {
+        let (defaults, suiteName) = try temporaryDefaults()
+        let tokenStore = InMemoryGitHubTokenStore()
+        let model = UpdateSettingsModel(
+            currentVersion: "1.2.0",
+            service: GatedUpdateService(),
+            defaults: defaults,
+            tokenStore: tokenStore
+        )
+
+        await model.loadGitHubTokenState()
+        #expect(model.isGitHubTokenConfigured == false)
+
+        model.updateGitHubTokenDraft("  ghp_1234567890abcdef  ")
+        await model.saveGitHubToken()
+
+        #expect(model.maskedGitHubToken == "ghp_…cdef")
+        #expect(model.gitHubTokenDraft.isEmpty)
+        #expect(model.gitHubTokenFeedbackIsError == false)
+        #expect(await tokenStore.readGitHubToken() == "ghp_1234567890abcdef")
+
+        await model.removeGitHubToken()
+
+        #expect(model.isGitHubTokenConfigured == false)
+        #expect(await tokenStore.readGitHubToken() == nil)
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    @Test func 无效GitHub令牌不会覆盖已有配置() async throws {
+        let (defaults, suiteName) = try temporaryDefaults()
+        let tokenStore = InMemoryGitHubTokenStore(token: "ghp_existing_token")
+        let model = UpdateSettingsModel(
+            currentVersion: "1.2.0",
+            service: GatedUpdateService(),
+            defaults: defaults,
+            tokenStore: tokenStore
+        )
+
+        await model.loadGitHubTokenState()
+        model.updateGitHubTokenDraft("ghp_bad token")
+        await model.saveGitHubToken()
+
+        #expect(model.gitHubTokenFeedbackIsError)
+        #expect(await tokenStore.readGitHubToken() == "ghp_existing_token")
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
     @Test func 检测更新后停在可下载状态且不自动下载() async throws {
         let (defaults, suiteName) = try temporaryDefaults()
         let service = GatedUpdateService()
