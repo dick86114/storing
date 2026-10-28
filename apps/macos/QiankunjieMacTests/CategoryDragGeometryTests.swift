@@ -383,6 +383,38 @@ struct CategoryDragGeometryTests {
         #expect(source.contains(".statusToast(message: $weakNoticeMessage)"))
     }
 
+    @Test func 分类刷新期间不会插入占位行推动侧栏分类() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .appending(path: "../QiankunjieMac/Features/Categories/SidebarArchiveCategoryGroup.swift"),
+            encoding: .utf8
+        )
+
+        #expect(!source.contains("Text(\"正在更新分类…\")"))
+        #expect(source.contains("model.categoryCatalog.isLoading, model.categoryCatalog.hasLoadedCatalog"))
+        #expect(source.contains("正在同步分类"))
+    }
+
+    @Test func 侧栏归档主行只负责导航不触发展开() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .appending(path: "../QiankunjieMac/Features/Categories/SidebarArchiveCategoryGroup.swift"),
+            encoding: .utf8
+        )
+        let archiveRow = try #require(
+            source.slice(
+                from: "private var archiveRow",
+                to: "@ViewBuilder\n    private var categoryContent"
+            )
+        )
+
+        #expect(archiveRow.contains("Button(action: selectArchiveDestination)"))
+        #expect(archiveRow.contains("Button(action: toggleArchiveExpansion)"))
+        #expect(!archiveRow.contains("toggleArchiveRow"))
+    }
+
     @Test func 管理页用户行只呈现可访问拖拽手柄而不呈现上下移动箭头() {
         let 分类一 = ArticleCategory(id: 1, name: "第一类", sortOrder: 10)
         let 分类二 = ArticleCategory(id: 2, name: "第二类", sortOrder: 20)

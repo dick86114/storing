@@ -51,7 +51,10 @@ struct SettingsGeneralView: View {
             WorkspacePanel(
                 title: "应用与更新",
                 subtitle: "版本、更新源与更新日志。",
-                systemImage: "arrow.triangle.2.circlepath"
+                systemImage: "arrow.triangle.2.circlepath",
+                headerAccessory: {
+                    GitHubStarButton()
+                }
             ) {
                 updateContent
             }
@@ -127,10 +130,6 @@ struct SettingsGeneralView: View {
 
     @ViewBuilder
     private var updateContent: some View {
-        GitHubStarPromptView()
-
-        SettingsRowDivider()
-
         if let updateService {
             UpdateSettingsView(
                 currentVersion: QiankunjieMacMetadata.appVersion,
@@ -200,67 +199,21 @@ struct SettingsGeneralView: View {
     }
 }
 
-/// 版本区块上方的 GitHub Star 引导；用户关闭后不再打扰。
-private struct GitHubStarPromptView: View {
+/// “应用与更新”标题行右侧的 GitHub 快捷入口。
+private struct GitHubStarButton: View {
     private static let repositoryURL = URL(string: "https://github.com/dick86114/storing")!
-    @AppStorage("settings.githubStarPromptDismissed") private var isDismissed = false
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        if !isDismissed {
-            HStack(alignment: .center, spacing: 10) {
-                Image(systemName: "star.fill")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
-
-                Text("如果乾坤戒帮到了你，请在 GitHub 点个 Star，这对作者意义重大")
-                    .qiankunjieFont(.bodyMedium)
-                    .foregroundStyle(onContainerColor)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Spacer(minLength: 10)
-
-                Button {
-                    NSWorkspace.shared.open(Self.repositoryURL)
-                } label: {
-                    Label("去点 Star", systemImage: "star.fill")
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(QiankunjieColors.accent(for: colorScheme))
-
-                Button {
-                    isDismissed = true
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(onContainerColor.opacity(0.72))
-                        .frame(width: 24, height: 24)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("关闭 GitHub Star 引导")
-                .help("关闭 GitHub Star 引导")
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(containerColor, in: RoundedRectangle(cornerRadius: 10))
-            .overlay {
-                RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(QiankunjieColors.accent(for: colorScheme).opacity(0.18))
-            }
+        Button {
+            NSWorkspace.shared.open(Self.repositoryURL)
+        } label: {
+            Label("GitHub", systemImage: "star.fill")
         }
-    }
-
-    private var containerColor: Color {
-        colorScheme == .dark
-            ? QiankunjieColors.darkAccentContainer
-            : QiankunjieColors.lightAccentContainer
-    }
-
-    private var onContainerColor: Color {
-        colorScheme == .dark
-            ? QiankunjieColors.darkOnAccentContainer
-            : QiankunjieColors.lightOnAccentContainer
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .tint(QiankunjieColors.accent(for: colorScheme))
+        .accessibilityLabel("打开 GitHub 仓库并点 Star")
+        .help("打开 GitHub 仓库")
     }
 }

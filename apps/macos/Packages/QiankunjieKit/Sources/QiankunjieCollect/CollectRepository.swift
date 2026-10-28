@@ -6,11 +6,18 @@ public struct CollectJobPage: Hashable, Sendable {
     public let jobs: [CollectJob]
     public let total: Int
     public let hasMore: Bool
+    public let usesLegacyMobileHistory: Bool
 
-    public init(jobs: [CollectJob], total: Int, hasMore: Bool) {
+    public init(
+        jobs: [CollectJob],
+        total: Int,
+        hasMore: Bool,
+        usesLegacyMobileHistory: Bool = false
+    ) {
         self.jobs = jobs
         self.total = total
         self.hasMore = hasMore
+        self.usesLegacyMobileHistory = usesLegacyMobileHistory
     }
 }
 
@@ -60,11 +67,11 @@ public struct CollectRepository: CollectServicing {
 
     public func jobs(limit: Int, offset: Int) async throws -> CollectJobPage {
         let primary = APIRequest.get(
-                "macos/collect/jobs",
-                queryItems: [
-                    URLQueryItem(name: "limit", value: String(limit)),
-                    URLQueryItem(name: "offset", value: String(offset)),
-                ]
+            "macos/collect/jobs",
+            queryItems: [
+                URLQueryItem(name: "limit", value: String(limit)),
+                URLQueryItem(name: "offset", value: String(offset)),
+            ]
         )
         let fallback = APIRequest.get(
             "mobile/collect/jobs",
@@ -73,15 +80,16 @@ public struct CollectRepository: CollectServicing {
                 URLQueryItem(name: "offset", value: String(offset)),
             ]
         )
-        let response: CollectJobsEnvelope = try await request(
+        let result: (value: CollectJobsEnvelope, usedFallback: Bool) = try await requestWithFallback(
             primary: primary,
             fallback: fallback,
             authenticated: true
         )
         return CollectJobPage(
-            jobs: response.jobs,
-            total: response.total,
-            hasMore: response.hasMore
+            jobs: result.value.jobs,
+            total: result.value.total,
+            hasMore: result.value.hasMore,
+            usesLegacyMobileHistory: result.usedFallback
         )
     }
 
@@ -126,12 +134,27 @@ public struct CollectRepository: CollectServicing {
         fallback: APIRequest,
         authenticated: Bool
     ) async throws -> T {
+        let result: (value: T, usedFallback: Bool) = try await requestWithFallback(
+            primary: primary,
+            fallback: fallback,
+            authenticated: authenticated
+        )
+        return result.value
+    }
+
+    private func requestWithFallback<T: Decodable & Sendable>(
+        primary: APIRequest,
+        fallback: APIRequest,
+        authenticated: Bool
+    ) async throws -> (value: T, usedFallback: Bool) {
         do {
-            return try await apiClient.send(primary, authenticated: authenticated)
+            let value: T = try await apiClient.send(primary, authenticated: authenticated)
+            return (value, false)
         } catch AppError.contentUnavailable {
             // 旧版服务端还没有 macOS 来源；回退到现有 mobile 采集契约。
-            return try await apiClient.send(fallback, authenticated: authenticated)
-        } catch let error as DecodingError {
+            let value: T = try await apiClient.send(fallback, authenticated: authenticated)
+            return (value, true)
+        } catch is DecodingError {
             throw AppError.server
         } catch {
             throw error

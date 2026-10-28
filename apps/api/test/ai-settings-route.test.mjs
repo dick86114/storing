@@ -46,7 +46,7 @@ test('保存支持空 Key 保留，删除清空配置，测试使用极小输出
   assert.match(testRoute, /16\)/);
 });
 
-test('模型发现使用 provider、baseUrl 和 apiKey', () => {
+test('模型发现使用草稿连接信息，并在未填写新 Key 时复用已保存 Key', () => {
   const discoverRoute = routeSource.slice(
     routeSource.indexOf("aiRoutes.post('/ai/models/discover'"),
     routeSource.indexOf("aiRoutes.post('/ai/settings/test'"),
@@ -55,6 +55,8 @@ test('模型发现使用 provider、baseUrl 和 apiKey', () => {
   assert.match(discoverRoute, /provider/);
   assert.match(discoverRoute, /baseUrl/);
   assert.match(discoverRoute, /apiKey/);
+  assert.match(discoverRoute, /resolveUserAiSavedApiKey/);
+  assert.match(discoverRoute, /AI_API_KEY_REQUIRED/);
   assert.match(discoverRoute, /listAiModels/);
 });
 

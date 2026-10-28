@@ -76,6 +76,23 @@ struct CollectModelTests {
         #expect(!model.isLoadingJobs)
     }
 
+    @Test func 旧移动端历史回退标记会随列表刷新同步() async {
+        let repository = 模拟采集仓库(
+            page: CollectJobPage(
+                jobs: [.fixture(id: 21, status: "completed")],
+                total: 1,
+                hasMore: false,
+                usesLegacyMobileHistory: true
+            )
+        )
+        let model = CollectModel(repository: repository, userID: 9)
+
+        await model.refreshJobs()
+
+        #expect(model.usesLegacyMobileHistory)
+        #expect(model.jobs.map(\.id) == [21])
+    }
+
     @Test func 无效地址不会调用提交接口() async {
         let repository = 模拟采集仓库(statuses: [])
         let model = CollectModel(repository: repository, userID: 9, pollInterval: .zero)

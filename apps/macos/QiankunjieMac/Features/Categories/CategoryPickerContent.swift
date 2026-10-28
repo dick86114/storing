@@ -122,7 +122,7 @@ struct CategoryPickerContent: View {
                     .frame(width: 26, height: 26)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QiankunjiePlainButtonStyle())
             .disabled(!canDismiss)
             .accessibilityLabel("关闭分类选择")
             .help("关闭分类选择")
@@ -152,7 +152,7 @@ struct CategoryPickerContent: View {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(QiankunjiePlainButtonStyle())
                 .accessibilityLabel("清空分类搜索")
                 .help("清空分类搜索")
             }
@@ -209,7 +209,7 @@ struct CategoryPickerContent: View {
                 in: RoundedRectangle(cornerRadius: 9, style: .continuous)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .disabled(
             isBusy
                 || (model.catalogErrorMessage != nil && !model.hasActiveCategories)
@@ -302,7 +302,7 @@ struct CategoryPickerContent: View {
                     )
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .disabled(isBusy)
         .accessibilityLabel("创建分类 \(normalizedQuery) 并完成分类")
         .accessibilityHint("创建后立即应用到 \(model.targetCount) 篇文章")
@@ -325,7 +325,7 @@ struct CategoryPickerContent: View {
                     in: RoundedRectangle(cornerRadius: 9, style: .continuous)
                 )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .disabled(isBusy)
         .accessibilityLabel("创建第一个分类")
         .accessibilityHint("将焦点移到分类名称输入框")
@@ -357,7 +357,7 @@ struct CategoryPickerContent: View {
                 borderColor: borderColor
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .disabled(isBusy || isCurrent)
         .accessibilityLabel(
             isCurrent ? "当前分类，\(category.name)" : "选择分类，\(category.name)"
@@ -458,7 +458,7 @@ struct CategoryPickerContent: View {
                     in: RoundedRectangle(cornerRadius: 9, style: .continuous)
                 )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QiankunjiePlainButtonStyle())
             .disabled(isBusy)
             .accessibilityLabel("使用现有分类 \(suggestion.name)")
             .help("使用现有分类「\(suggestion.name)」")
@@ -480,7 +480,7 @@ struct CategoryPickerContent: View {
                 Image(systemName: "xmark")
                     .font(.caption.weight(.semibold))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QiankunjiePlainButtonStyle())
             .accessibilityLabel("关闭错误提示")
             .help("关闭错误提示")
         }

@@ -1085,6 +1085,8 @@ public final class LibraryModel {
             message
         case .invalidInput:
             "筛选条件无效，请调整后重试"
+        case let .serverMessage(message):
+            message
         case .server:
             "服务暂时不可用，请稍后重试"
         }

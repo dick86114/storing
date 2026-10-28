@@ -43,6 +43,10 @@ const INDEXES: ReadonlyArray<{ name: string; create: string }> = [
     create: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_collect_jobs_client_status ON collect_jobs (client_id, status)',
   },
   {
+    name: 'idx_collect_jobs_user_source_created',
+    create: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_collect_jobs_user_source_created ON collect_jobs (user_id, request_source, created_at DESC, id DESC) WHERE user_id IS NOT NULL',
+  },
+  {
     name: 'idx_collect_jobs_article',
     create: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_collect_jobs_article ON collect_jobs (article_id)',
   },
@@ -99,6 +103,7 @@ const INDEXES: ReadonlyArray<{ name: string; create: string }> = [
  *  - article_metadata(user_id, category_id, is_archived)：分类归档列表和计数
  *  - mcp_request_logs(client_id, created_at DESC)：MCP 限流 COUNT 的时间窗口查询
  *  - collect_jobs(client_id, status)：MCP 并发采集数检查
+ *  - collect_jobs(user_id, request_source, created_at DESC)：各端历史任务列表与计数
  */
 export async function ensureDatabaseIndexes(): Promise<void> {
   // pg_trgm 扩展支持 ILIKE '%keyword%' 走 GIN trigram 索引（需 superuser，失败则搜索走全表扫描）

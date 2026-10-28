@@ -61,12 +61,21 @@ struct AiSettingsTests {
                   "jobs": [{
                     "id": 8,
                     "articleId": 42,
+                    "articleTitle": "原生应用中的流畅交互设计",
+                    "triggerType": "archive",
+                    "callType": "summary_and_category",
+                    "includeCategory": true,
                     "status": "failed",
                     "errorCode": "AI_TIMEOUT",
                     "errorMessage": "模型响应超时",
+                    "provider": "deepseek",
                     "model": "deepseek-chat",
+                    "promptTokens": 80,
+                    "completionTokens": 48,
                     "totalTokens": 128,
                     "createdAt": "2026-10-08T08:30:00.000Z",
+                    "startedAt": "2026-10-08T08:30:02.000Z",
+                    "durationMs": 1580,
                     "finishedAt": null
                   }],
                   "total": 8,
@@ -74,7 +83,24 @@ struct AiSettingsTests {
                     "totalJobs": 8,
                     "succeededJobs": 6,
                     "failedJobs": 2,
-                    "totalTokens": 4096
+                    "queuedJobs": 0,
+                    "runningJobs": 0,
+                    "promptTokens": 3000,
+                    "completionTokens": 1096,
+                    "totalTokens": 4096,
+                    "averageDurationMs": 1240,
+                    "byType": [{
+                      "callType": "summary_and_category",
+                      "jobs": 5,
+                      "totalTokens": 2500
+                    }],
+                    "daily": [{
+                      "date": "2026-10-08",
+                      "jobs": 3,
+                      "succeededJobs": 2,
+                      "failedJobs": 1,
+                      "totalTokens": 1024
+                    }]
                   }
                 }
                 """#.utf8
@@ -89,10 +115,20 @@ struct AiSettingsTests {
         #expect(jobs.usage.succeededJobs == 6)
         #expect(jobs.usage.failedJobs == 2)
         #expect(jobs.usage.totalTokens == 4096)
+        #expect(jobs.usage.averageDurationMs == 1240)
+        #expect(jobs.usage.byType.first?.callType == "summary_and_category")
+        #expect(jobs.usage.daily.first?.jobs == 3)
         #expect(job.articleId == 42)
+        #expect(job.articleTitle == "原生应用中的流畅交互设计")
+        #expect(job.triggerType == "archive")
+        #expect(job.callType == "summary_and_category")
+        #expect(job.includeCategory)
         #expect(job.errorCode == "AI_TIMEOUT")
         #expect(job.errorMessage == "模型响应超时")
+        #expect(job.promptTokens == 80)
+        #expect(job.completionTokens == 48)
         #expect(job.totalTokens == 128)
+        #expect(job.durationMs == 1580)
     }
 
     @Test func 解码文章列表和详情的AI状态字段() throws {

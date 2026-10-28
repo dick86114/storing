@@ -46,6 +46,7 @@ enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
     case collect
     case tasks
     case settings
+    case aiSettings = "ai-settings"
     case update
     case updateNotice = "update-notice"
     case currentVersion = "current-version"
@@ -67,6 +68,7 @@ enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
         case .collect: "快速采集"
         case .tasks: "任务"
         case .settings: "设置"
+        case .aiSettings: "AI 模型设置"
         case .update: "更新"
         case .updateNotice: "更新完成"
         case .currentVersion: "当前版本更新"
@@ -131,6 +133,9 @@ struct UILabRootView: View {
                     model: UILabFixtures.collectModel,
                     onOpenArticle: { _ in }
                 )
+                .task {
+                    await UILabFixtures.collectModel.refreshJobs()
+                }
             case .settings:
                 SettingsGeneralView(
                     model: UILabFixtures.appModel.settingsModel,
@@ -143,6 +148,8 @@ struct UILabRootView: View {
                     updateService: UILabFixtures.updateService,
                     updateDefaults: UILabFixtures.preferences
                 )
+            case .aiSettings:
+                AiSettingsView(previewModel: UILabFixtures.aiSettingsModel)
             case .update:
                 SettingsGeneralView(
                     model: UILabFixtures.appModel.settingsModel,

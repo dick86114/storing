@@ -32,7 +32,7 @@ struct CategoryEditorOverlay: View {
                         Button("关闭") {
                             model.clearError()
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(QiankunjiePlainButtonStyle())
                         .foregroundStyle(.secondary)
                     }
                     .padding(10)
@@ -161,7 +161,7 @@ struct CategoryEditorOverlay: View {
                     } label: {
                         colorSwatch(color, isSelected: draft.color == color)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(QiankunjiePlainButtonStyle())
                     .disabled(isBusy)
                     .accessibilityLabel("选择颜色 \(color)")
                 }

@@ -215,7 +215,7 @@ struct ArticleActionBar: View {
                 }
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .accessibilityLabel("\(preference.displayName)正文宽度")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .help("正文宽度：\(preference.displayName)")

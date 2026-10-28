@@ -10,6 +10,7 @@ import {
   getUserAiSettingsSummary,
   saveUserAiSettings,
   resolveUserAiRuntimeConfig,
+  resolveUserAiSavedApiKey,
 } from '../services/user-ai-settings.service.js';
 import { assertUserAiProvider, assertSafeAiBaseUrl, callUserAi, listAiModels } from '../services/ai-provider.service.js';
 import { listAiGenerationJobs, retryAiGenerationJob } from '../services/ai-generation.service.js';
@@ -36,6 +37,16 @@ const adminDiscoverModelsInput = settingsInput.pick({
   baseUrl: true,
   apiKey: true,
 });
+
+function aiErrorCode(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.match(/^(AI_[A-Z0-9_]+)(?::|$)/)?.[1] ?? fallback;
+}
+
+function aiErrorMessage(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.replace(/^AI_[A-Z0-9_]+:\s*/, '').trim() || fallback;
+}
 
 async function findAdminAiTargetUser(userId: number) {
   const [user] = await db
@@ -81,28 +92,57 @@ aiRoutes.post('/ai/models/discover', requireAuth, async (c) => {
   const parsed = settingsInput.pick({ provider: true, baseUrl: true, apiKey: true }).safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: { code: 'AI_DISCOVERY_INVALID', message: '模型发现参数无效' } }, 400);
   try {
-    const result = await listAiModels(parsed.data);
+    const userId = getCurrentUser(c).id as number;
+    const apiKey = parsed.data.apiKey?.trim() || await resolveUserAiSavedApiKey(userId);
+    if (!apiKey) {
+      return c.json({ error: { code: 'AI_API_KEY_REQUIRED', message: '请先填写并保存 API Key，再获取模型清单' } }, 400);
+    }
+    const result = await listAiModels({ ...parsed.data, apiKey });
     return c.json(result);
   } catch (error) {
-    return c.json({ error: { code: 'AI_DISCOVERY_FAILED', message: error instanceof Error ? error.message : '获取模型列表失败' } }, 400);
+    return c.json({
+      error: {
+        code: aiErrorCode(error, 'AI_DISCOVERY_FAILED'),
+        message: aiErrorMessage(error, '获取模型列表失败'),
+      },
+    }, 400);
   }
 });
 
 aiRoutes.post('/ai/settings/test', requireAuth, async (c) => {
   const body = await c.req.json().catch(() => null) as { provider?: string; model?: string; baseUrl?: string | null; apiKey?: string } | null;
-  const config = body?.apiKey && body?.provider && body?.model ? {
-    provider: body.provider,
-    model: body.model,
-    baseUrl: body.baseUrl || null,
-    apiKey: body.apiKey,
-  } : await resolveUserAiRuntimeConfig(getCurrentUser(c).id as number);
+  const userId = getCurrentUser(c).id as number;
+  const parsed = settingsInput.pick({
+    provider: true,
+    model: true,
+    baseUrl: true,
+    apiKey: true,
+  }).safeParse(body);
+  let config: { provider: string; model: string; baseUrl: string | null; apiKey: string } | null = null;
+  if (parsed.success) {
+    const apiKey = parsed.data.apiKey?.trim() || await resolveUserAiSavedApiKey(userId);
+    if (apiKey) {
+      config = {
+        provider: parsed.data.provider,
+        model: parsed.data.model,
+        baseUrl: parsed.data.baseUrl || null,
+        apiKey,
+      };
+    }
+  }
+  config ??= await resolveUserAiRuntimeConfig(userId);
   if (!config) return c.json({ error: { code: 'AI_NOT_CONFIGURED', message: '请先保存完整的模型配置' } }, 400);
   const startedAt = Date.now();
   try {
     await callUserAi(config, '你是连通性测试助手。', '请只回复 OK', 16);
     return c.json({ ok: true, latencyMs: Date.now() - startedAt });
   } catch (error) {
-    return c.json({ error: { code: 'AI_SETTINGS_TEST_FAILED', message: error instanceof Error ? error.message : 'AI 连通性测试失败' } }, 400);
+    return c.json({
+      error: {
+        code: aiErrorCode(error, 'AI_SETTINGS_TEST_FAILED'),
+        message: aiErrorMessage(error, 'AI 连通性测试失败'),
+      },
+    }, 400);
   }
 });
 
@@ -170,15 +210,16 @@ aiRoutes.post('/ai/admin/users/:userId/settings/test', requireAdmin, async (c) =
   if (!parsed.success) return c.json({ error: { code: 'AI_SETTINGS_INVALID', message: 'AI 测试参数无效' } }, 400);
 
   try {
-    const config = parsed.data.apiKey && parsed.data.provider && parsed.data.model
-      ? {
-          provider: parsed.data.provider,
-          model: parsed.data.model,
-          baseUrl: parsed.data.baseUrl || null,
-          apiKey: parsed.data.apiKey,
-        }
-      : await resolveUserAiRuntimeConfig(userId);
-    if (!config) return c.json({ error: { code: 'AI_NOT_CONFIGURED', message: '目标用户尚未配置完整的模型信息' } }, 400);
+    const apiKey = parsed.data.apiKey?.trim() || await resolveUserAiSavedApiKey(userId);
+    if (!apiKey) {
+      return c.json({ error: { code: 'AI_NOT_CONFIGURED', message: '目标用户尚未配置完整的模型信息' } }, 400);
+    }
+    const config = {
+      provider: parsed.data.provider,
+      model: parsed.data.model,
+      baseUrl: parsed.data.baseUrl || null,
+      apiKey,
+    };
 
     assertUserAiProvider(config.provider, config.baseUrl);
     if (config.baseUrl) await assertSafeAiBaseUrl(config.baseUrl);
@@ -186,7 +227,12 @@ aiRoutes.post('/ai/admin/users/:userId/settings/test', requireAdmin, async (c) =
     await callUserAi(config, '你是连通性测试助手。', '请只回复 OK', 16);
     return c.json({ ok: true, latencyMs: Date.now() - startedAt });
   } catch (error) {
-    return c.json({ error: { code: 'AI_SETTINGS_TEST_FAILED', message: error instanceof Error ? error.message : 'AI 连通性测试失败' } }, 400);
+    return c.json({
+      error: {
+        code: aiErrorCode(error, 'AI_SETTINGS_TEST_FAILED'),
+        message: aiErrorMessage(error, 'AI 连通性测试失败'),
+      },
+    }, 400);
   }
 });
 
@@ -203,20 +249,26 @@ aiRoutes.post('/ai/admin/users/:userId/models/discover', requireAdmin, async (c)
   if (!parsed.success) return c.json({ error: { code: 'AI_DISCOVERY_INVALID', message: '模型发现参数无效' } }, 400);
 
   try {
-    const config = parsed.data.apiKey
-      ? {
-          provider: parsed.data.provider,
-          baseUrl: parsed.data.baseUrl || null,
-          apiKey: parsed.data.apiKey,
-        }
-      : await resolveUserAiRuntimeConfig(userId);
-    if (!config) return c.json({ error: { code: 'AI_NOT_CONFIGURED', message: '目标用户尚未配置完整的模型信息' } }, 400);
+    const apiKey = parsed.data.apiKey?.trim() || await resolveUserAiSavedApiKey(userId);
+    if (!apiKey) {
+      return c.json({ error: { code: 'AI_NOT_CONFIGURED', message: '目标用户尚未配置完整的模型信息' } }, 400);
+    }
+    const config = {
+      provider: parsed.data.provider,
+      baseUrl: parsed.data.baseUrl || null,
+      apiKey,
+    };
 
     assertUserAiProvider(config.provider, config.baseUrl);
     if (config.baseUrl) await assertSafeAiBaseUrl(config.baseUrl);
     return c.json(await listAiModels(config));
   } catch (error) {
-    return c.json({ error: { code: 'AI_DISCOVERY_FAILED', message: error instanceof Error ? error.message : '获取模型列表失败' } }, 400);
+    return c.json({
+      error: {
+        code: aiErrorCode(error, 'AI_DISCOVERY_FAILED'),
+        message: aiErrorMessage(error, '获取模型列表失败'),
+      },
+    }, 400);
   }
 });
 

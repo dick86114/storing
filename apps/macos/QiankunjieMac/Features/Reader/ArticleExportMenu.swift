@@ -486,7 +486,7 @@ struct ObsidianExportSheet: View {
                     .strokeBorder(Color(nsColor: .separatorColor).opacity(0.65))
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .disabled(draft.vaultURL == nil)
         .popover(isPresented: $isPathPickerPresented, arrowEdge: .bottom) {
             pathPicker
@@ -603,7 +603,7 @@ struct ObsidianExportSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QiankunjiePlainButtonStyle())
 
             ObsidianPinButton(
                 isPinned: true,
@@ -659,7 +659,7 @@ struct ObsidianExportSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QiankunjiePlainButtonStyle())
 
             ObsidianPinButton(
                 isPinned: isPinned,

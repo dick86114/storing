@@ -1,6 +1,6 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, getTableColumns, gte, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { aiGenerationJobs, articleMetadata } from '../db/schema.js';
+import { aiGenerationJobs, articleMetadata, articles } from '../db/schema.js';
 import { generateCombinedArticleAi } from './ai.service.js';
 import { resolveUserAiRuntimeConfig } from './user-ai-settings.service.js';
 import { getUserAiSettingsSummary } from './user-ai-settings.service.js';
@@ -15,27 +15,56 @@ export type AiGenerationStatus =
   | 'failed';
 
 export type AiGenerationTrigger = 'archive' | 'manual' | 'admin' | 'mcp_summary';
+export type AiGenerationCallType = 'summary' | 'summary_and_category' | 'mcp_summary';
 
 export type AiGenerationJobSummary = {
   id: number;
   articleId: number;
+  articleTitle: string | null;
   triggerType: AiGenerationTrigger;
+  callType: AiGenerationCallType;
+  includeCategory: boolean;
   status: AiGenerationStatus;
   errorCode: string | null;
   errorMessage: string | null;
   provider: string;
   model: string;
+  promptTokens: number | null;
+  completionTokens: number | null;
   totalTokens: number | null;
   contentTruncated: boolean;
   createdAt: Date;
+  startedAt: Date | null;
   finishedAt: Date | null;
+  durationMs: number | null;
+};
+
+export type AiGenerationTypeUsageSummary = {
+  callType: AiGenerationCallType;
+  jobs: number;
+  totalTokens: number;
+};
+
+export type AiGenerationDailyUsageSummary = {
+  date: string;
+  jobs: number;
+  succeededJobs: number;
+  failedJobs: number;
+  totalTokens: number;
 };
 
 export type AiGenerationUsageSummary = {
   totalJobs: number;
   succeededJobs: number;
   failedJobs: number;
+  queuedJobs: number;
+  runningJobs: number;
+  promptTokens: number;
+  completionTokens: number;
   totalTokens: number;
+  averageDurationMs: number;
+  byType: AiGenerationTypeUsageSummary[];
+  daily: AiGenerationDailyUsageSummary[];
 };
 
 export const AI_GENERATION_MAX_ATTEMPTS = 3;
@@ -45,22 +74,42 @@ export function shouldWriteArticleAiMetadata(triggerType: AiGenerationTrigger): 
 }
 
 type AiGenerationJobRow = typeof aiGenerationJobs.$inferSelect;
+type AiGenerationJobRowWithTitle = AiGenerationJobRow & { articleTitle: string | null };
 type AiGenerationDatabase = Pick<typeof db, 'update'>;
 
-function normalizeJob(row: AiGenerationJobRow): AiGenerationJobSummary {
+function callTypeForJob(row: AiGenerationJobRow): AiGenerationCallType {
+  if (row.triggerType === 'mcp_summary') return 'mcp_summary';
+  return row.includeCategory ? 'summary_and_category' : 'summary';
+}
+
+function durationMsForJob(row: AiGenerationJobRow): number | null {
+  if (!row.startedAt) return null;
+  const end = row.finishedAt?.getTime() ?? (row.status === 'running' ? Date.now() : null);
+  if (end === null) return null;
+  return Math.max(0, end - row.startedAt.getTime());
+}
+
+function normalizeJob(row: AiGenerationJobRowWithTitle): AiGenerationJobSummary {
   return {
     id: row.id,
     articleId: row.articleId,
+    articleTitle: row.articleTitle,
     triggerType: row.triggerType as AiGenerationTrigger,
+    callType: callTypeForJob(row),
+    includeCategory: row.includeCategory,
     status: row.status as AiGenerationStatus,
     errorCode: row.errorCode,
     errorMessage: row.errorMessage,
     provider: row.providerSnapshot,
     model: row.modelSnapshot,
+    promptTokens: row.promptTokens,
+    completionTokens: row.completionTokens,
     totalTokens: row.totalTokens,
     contentTruncated: row.contentTruncated,
     createdAt: row.createdAt,
+    startedAt: row.startedAt,
     finishedAt: row.finishedAt,
+    durationMs: durationMsForJob(row),
   };
 }
 
@@ -410,8 +459,12 @@ export async function listAiGenerationJobs(
   const safeLimit = Math.max(1, Math.min(50, Math.floor(limit) || 20));
   const safeOffset = Math.max(0, Math.floor(offset) || 0);
   const rows = await db
-    .select()
+    .select({
+      ...getTableColumns(aiGenerationJobs),
+      articleTitle: articles.title,
+    })
     .from(aiGenerationJobs)
+    .leftJoin(articles, eq(aiGenerationJobs.articleId, articles.id))
     .where(eq(aiGenerationJobs.userId, userId))
     .orderBy(desc(aiGenerationJobs.createdAt))
     .limit(safeLimit)
@@ -421,10 +474,53 @@ export async function listAiGenerationJobs(
       totalJobs: sql<number>`COUNT(*)::int`,
       succeededJobs: sql<number>`COUNT(*) FILTER (WHERE status = 'succeeded')::int`,
       failedJobs: sql<number>`COUNT(*) FILTER (WHERE status = 'failed')::int`,
+      queuedJobs: sql<number>`COUNT(*) FILTER (WHERE status = 'queued')::int`,
+      runningJobs: sql<number>`COUNT(*) FILTER (WHERE status = 'running')::int`,
+      promptTokens: sql<number>`COALESCE(SUM(prompt_tokens), 0)::int`,
+      completionTokens: sql<number>`COALESCE(SUM(completion_tokens), 0)::int`,
       totalTokens: sql<number>`COALESCE(SUM(total_tokens), 0)::int`,
+      averageDurationMs: sql<number>`
+        COALESCE(
+          ROUND(AVG(EXTRACT(EPOCH FROM (finished_at - started_at)) * 1000)),
+          0
+        )::int
+      `,
     })
     .from(aiGenerationJobs)
     .where(eq(aiGenerationJobs.userId, userId));
+  const callTypeExpression = sql<string>`
+    CASE
+      WHEN trigger_type = 'mcp_summary' THEN 'mcp_summary'
+      WHEN include_category = TRUE THEN 'summary_and_category'
+      ELSE 'summary'
+    END
+  `;
+  const typeRows = await db
+    .select({
+      callType: callTypeExpression,
+      jobs: sql<number>`COUNT(*)::int`,
+      totalTokens: sql<number>`COALESCE(SUM(total_tokens), 0)::int`,
+    })
+    .from(aiGenerationJobs)
+    .where(eq(aiGenerationJobs.userId, userId))
+    .groupBy(callTypeExpression)
+    .orderBy(sql`COUNT(*) DESC`);
+  const dailyDateExpression = sql<string>`TO_CHAR(${aiGenerationJobs.createdAt}, 'YYYY-MM-DD')`;
+  const dailyRows = await db
+    .select({
+      date: dailyDateExpression,
+      jobs: sql<number>`COUNT(*)::int`,
+      succeededJobs: sql<number>`COUNT(*) FILTER (WHERE status = 'succeeded')::int`,
+      failedJobs: sql<number>`COUNT(*) FILTER (WHERE status = 'failed')::int`,
+      totalTokens: sql<number>`COALESCE(SUM(total_tokens), 0)::int`,
+    })
+    .from(aiGenerationJobs)
+    .where(and(
+      eq(aiGenerationJobs.userId, userId),
+      gte(aiGenerationJobs.createdAt, new Date(Date.now() - 13 * 24 * 60 * 60 * 1000)),
+    ))
+    .groupBy(dailyDateExpression)
+    .orderBy(dailyDateExpression);
 
   return {
     jobs: rows.map(normalizeJob),
@@ -433,7 +529,18 @@ export async function listAiGenerationJobs(
       totalJobs: usage?.totalJobs ?? 0,
       succeededJobs: usage?.succeededJobs ?? 0,
       failedJobs: usage?.failedJobs ?? 0,
+      queuedJobs: usage?.queuedJobs ?? 0,
+      runningJobs: usage?.runningJobs ?? 0,
+      promptTokens: usage?.promptTokens ?? 0,
+      completionTokens: usage?.completionTokens ?? 0,
       totalTokens: usage?.totalTokens ?? 0,
+      averageDurationMs: usage?.averageDurationMs ?? 0,
+      byType: typeRows.map((row) => ({
+        callType: row.callType as AiGenerationCallType,
+        jobs: row.jobs,
+        totalTokens: row.totalTokens,
+      })),
+      daily: dailyRows,
     },
   };
 }

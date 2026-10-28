@@ -147,7 +147,7 @@ struct LibraryToolbar: View {
                 Label("清除", systemImage: "xmark.circle.fill")
                     .font(.system(size: 12, weight: .medium))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QiankunjiePlainButtonStyle())
             .help("清除搜索")
         }
         .padding(.horizontal, 16)
@@ -285,7 +285,7 @@ struct LibraryToolbar: View {
                 }
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .accessibilityLabel("\(mode.title)样式")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .help("切换到\(mode.title)样式")
@@ -313,7 +313,7 @@ struct LibraryToolbar: View {
         }
         .menuStyle(.button)
         .menuIndicator(.hidden)
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .disabled(!model.appliedSearchText.isEmpty)
         .background { controlSurface }
         .help("选择排序")
@@ -328,7 +328,7 @@ struct LibraryToolbar: View {
                 .frame(width: 28, height: 28)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .disabled(!model.appliedSearchText.isEmpty)
         .background { controlSurface }
         .help(model.order == .asc ? "当前升序" : "当前降序")
@@ -361,7 +361,7 @@ struct LibraryToolbar: View {
         }
         .menuStyle(.button)
         .menuIndicator(.hidden)
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .background { controlSurface }
         .help("选择来源")
     }
@@ -406,7 +406,7 @@ struct LibraryToolbar: View {
         }
         .menuStyle(.button)
         .menuIndicator(.visible)
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .background { controlSurface }
         .help("选择分类")
     }
@@ -468,7 +468,7 @@ struct LibraryToolbar: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .disabled(model.isRefreshing)
         .onHover { isHovered in
             guard isHovered != isRefreshButtonHovered else { return }
@@ -486,7 +486,7 @@ struct LibraryToolbar: View {
         } label: {
             bulkButtonLabel("批量操作", systemImage: "checklist")
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .disabled(model.articles.isEmpty)
         .help("进入批量操作")
     }
@@ -505,7 +505,7 @@ struct LibraryToolbar: View {
                     .padding(.horizontal, 9)
                     .frame(height: 28)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QiankunjiePlainButtonStyle())
             .disabled(model.articles.isEmpty || model.bulkRunningAction != nil)
             .background { controlSurface }
 
@@ -517,7 +517,7 @@ struct LibraryToolbar: View {
                     .padding(.horizontal, 9)
                     .frame(height: 28)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QiankunjiePlainButtonStyle())
             .disabled(model.articles.isEmpty || model.bulkRunningAction != nil)
             .background { controlSurface }
 
@@ -559,7 +559,7 @@ struct LibraryToolbar: View {
         }
         .menuStyle(.button)
         .menuIndicator(.hidden)
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .disabled(model.bulkSelection.isEmpty || model.bulkRunningAction != nil)
         .help("选择批量操作")
     }
@@ -570,7 +570,7 @@ struct LibraryToolbar: View {
         } label: {
             bulkButtonLabel("退出", systemImage: "xmark")
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .disabled(!BulkToolbarPolicy.canExit(bulkRunningAction: model.bulkRunningAction))
         .help("退出批量操作")
     }

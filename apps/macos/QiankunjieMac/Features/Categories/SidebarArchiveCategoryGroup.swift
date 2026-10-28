@@ -63,17 +63,57 @@ struct SidebarArchiveCategoryGroup: View {
     }
 
     private var archiveRow: some View {
-        Button(action: toggleArchiveRow) {
-            HStack(spacing: 8) {
-                Image(systemName: AppDestination.archive.selectedSystemImage(
-                    isSelected: isArchiveSelected
-                ))
-                    .frame(width: 18)
+        HStack(spacing: 8) {
+            Button(action: selectArchiveDestination) {
+                HStack(spacing: 8) {
+                    Image(systemName: AppDestination.archive.selectedSystemImage(
+                        isSelected: isArchiveSelected
+                    ))
+                        .frame(width: 18)
 
-                Text(AppDestination.archive.title)
-                    .lineLimit(1)
+                    Text(AppDestination.archive.title)
+                        .lineLimit(1)
 
-                if model.isAuthenticated {
+                    Spacer(minLength: 0)
+
+                    if model.categoryCatalog.isLoading, model.categoryCatalog.hasLoadedCatalog {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .frame(width: 12, height: 12)
+                            .help("正在同步分类")
+                            .accessibilityLabel("正在同步分类")
+                    } else if
+                        let errorMessage = model.categoryCatalog.errorMessage,
+                        !activeCategoryIDs.isEmpty
+                    {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(
+                                colorScheme == .dark
+                                    ? QiankunjieColors.darkError
+                                    : QiankunjieColors.lightError
+                            )
+                            .help(errorMessage)
+                            .accessibilityLabel("分类同步失败：\(errorMessage)")
+                    }
+
+                    if let count = model.libraryModel.count(for: .archive) {
+                        Text("\(count)")
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(QiankunjiePlainButtonStyle())
+            .help("打开全部归档")
+            .accessibilityLabel("打开全部归档")
+            .accessibilityHint("显示归档中的全部文章")
+
+            if model.isAuthenticated {
+                Button(action: toggleArchiveExpansion) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
@@ -81,27 +121,28 @@ struct SidebarArchiveCategoryGroup: View {
                         .frame(width: 14, height: 18)
                         .contentShape(Rectangle())
                 }
-
-                Spacer(minLength: 0)
-
-                if let count = model.libraryModel.count(for: .archive) {
-                    Text("\(count)")
-                        .font(.caption)
-                        .monospacedDigit()
-                        .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                }
+                .buttonStyle(QiankunjiePlainButtonStyle())
+                .help(isExpanded ? "收起分类" : "展开分类")
+                .accessibilityLabel(isExpanded ? "收起归档分类" : "展开归档分类")
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
         .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
-        .help(archiveRowAccessibilityLabel)
-        .accessibilityLabel(archiveRowAccessibilityLabel)
         .padding(.vertical, 2)
         .background {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(isArchiveSelected ? selectionFill : Color.clear)
+        }
+    }
+
+    private func selectArchiveDestination() {
+        guard !isArchiveSelected else { return }
+        model.selectCategory(nil)
+    }
+
+    private func toggleArchiveExpansion() {
+        guard model.isAuthenticated else { return }
+        withAnimation(.easeOut(duration: 0.16)) {
+            isExpanded.toggle()
         }
     }
 
@@ -122,16 +163,6 @@ struct SidebarArchiveCategoryGroup: View {
                 }
             }
         } else {
-            if model.categoryCatalog.isLoading {
-                statusRow {
-                    ProgressView()
-                        .controlSize(.mini)
-                    Text("正在更新分类…")
-                }
-            } else if let errorMessage = model.categoryCatalog.errorMessage {
-                failureRow(errorMessage)
-            }
-
             ForEach(model.categoryCatalog.activeCategories, id: \.id) { category in
                 categoryRow(category)
             }
@@ -225,7 +256,7 @@ struct SidebarArchiveCategoryGroup: View {
                     .fill(isSelected ? selectionFill : Color.clear)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .help("查看分类：\(category.name)")
         .accessibilityLabel("\(category.name)，\(model.categoryCatalog.count(for: category.id)) 篇文章")
         .accessibilityHint("打开分类详情")
@@ -331,16 +362,6 @@ struct SidebarArchiveCategoryGroup: View {
         }
     }
 
-    private func toggleArchiveRow() {
-        if !isArchiveSelected {
-            model.selectCategory(nil)
-        }
-        guard model.isAuthenticated else { return }
-        withAnimation(.easeOut(duration: 0.16)) {
-            isExpanded.toggle()
-        }
-    }
-
     private var managementRow: some View {
         Button {
             model.selectDestination(.categories)
@@ -361,7 +382,7 @@ struct SidebarArchiveCategoryGroup: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .help("管理分类")
         .accessibilityLabel("管理分类")
     }
@@ -386,7 +407,7 @@ struct SidebarArchiveCategoryGroup: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .help("新建分类")
         .accessibilityLabel("新建分类")
     }
@@ -408,7 +429,7 @@ struct SidebarArchiveCategoryGroup: View {
                     await model.categoryCatalog.load()
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QiankunjiePlainButtonStyle())
             .font(.caption)
             .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
             .accessibilityLabel("重新加载分类")
@@ -433,11 +454,6 @@ struct SidebarArchiveCategoryGroup: View {
 
     private var isArchiveSelected: Bool {
         model.destination == .archive && model.selectedCategoryID == nil
-    }
-
-    private var archiveRowAccessibilityLabel: String {
-        guard model.isAuthenticated else { return "打开全部归档" }
-        return isExpanded ? "打开全部归档并收起分类" : "打开全部归档并展开分类"
     }
 
     private var activeCategoryIDs: [Int] {

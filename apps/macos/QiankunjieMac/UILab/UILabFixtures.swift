@@ -205,6 +205,132 @@ enum UILabFixtures {
         )
     )
 
+    static let aiSettingsModel: AiSettingsModel = {
+        let model = AiSettingsModel(repository: authModel.repository)
+        model.configureForPreview(
+            settings: UserAiSettings(
+                provider: "deepseek",
+                model: "deepseek-chat",
+                baseUrl: "https://api.deepseek.com/v1",
+                apiKeyConfigured: true,
+                apiKeyLast4: "9F2A",
+                apiKeyUpdatedAt: "2026-10-20T08:00:00.000Z",
+                autoTriggerOnArchive: true,
+                updatedAt: "2026-10-20T08:00:00.000Z"
+            ),
+            models: aiModelOptions,
+            jobs: aiJobs,
+            usage: aiUsage,
+            totalJobs: 27,
+            previewJobsByPage: aiJobPages
+        )
+        return model
+    }()
+
+    private static let aiModelOptions = [
+        AiModelOption(id: "deepseek-chat", name: "DeepSeek Chat"),
+        AiModelOption(id: "deepseek-reasoner", name: "DeepSeek Reasoner"),
+        AiModelOption(id: "deepseek-coder", name: "DeepSeek Coder"),
+        AiModelOption(id: "Qwen/Qwen3-32B", name: "Qwen 3 32B"),
+        AiModelOption(id: "moonshot-v1-32k", name: "Moonshot 32K"),
+        AiModelOption(id: "glm-4-flash", name: "GLM-4 Flash"),
+        AiModelOption(id: "MiniMax-Text-01", name: "MiniMax Text 01"),
+        AiModelOption(id: "meta/llama-3.1-70b-instruct", name: "Llama 3.1 70B"),
+    ]
+
+    private static let aiJobPages: [Int: [AiJobSummary]] = [
+        1: (0..<10).map { makeAiJob($0) },
+        2: (10..<20).map { makeAiJob($0) },
+        3: (20..<27).map { makeAiJob($0) },
+    ]
+
+    private static let aiJobs = aiJobPages[1] ?? []
+
+    private static let aiUsage = AiGenerationUsageSummary(
+        totalJobs: 27,
+        succeededJobs: 24,
+        failedJobs: 3,
+        queuedJobs: 0,
+        runningJobs: 0,
+        promptTokens: 48_620,
+        completionTokens: 12_940,
+        totalTokens: 61_560,
+        averageDurationMs: 1_680,
+        byType: [
+            AiGenerationTypeUsageSummary(
+                callType: "summary_and_category",
+                jobs: 16,
+                totalTokens: 38_240
+            ),
+            AiGenerationTypeUsageSummary(
+                callType: "summary",
+                jobs: 8,
+                totalTokens: 17_560
+            ),
+            AiGenerationTypeUsageSummary(
+                callType: "mcp_summary",
+                jobs: 3,
+                totalTokens: 5_760
+            ),
+        ],
+        daily: (0..<14).map { index in
+            let day = 15 + index
+            let jobs = [1, 2, 1, 3, 2, 4, 2, 1, 3, 5, 2, 4, 3, 2][index]
+            return AiGenerationDailyUsageSummary(
+                date: String(format: "2026-10-%02d", day),
+                jobs: jobs,
+                succeededJobs: max(0, jobs - (index.isMultiple(of: 6) ? 1 : 0)),
+                failedJobs: index.isMultiple(of: 6) ? 1 : 0,
+                totalTokens: jobs * 2_240
+            )
+        }
+    )
+
+    private static func makeAiJob(_ index: Int) -> AiJobSummary {
+        let titles = [
+            "macOS 原生应用的交互性能优化清单",
+            "从信息架构到可访问性的设置页设计",
+            "为什么列表虚拟化对长文档仍然重要",
+            "SwiftUI 状态管理与异步任务调度实践",
+            "构建可靠的 AI 内容生成任务队列",
+            "阅读器缓存命中率和首屏速度复盘",
+            "服务端聚合图表的数据建模思路",
+            "GitHub API 限流与令牌配置指南",
+            "文章归档后的自动分类与人工复核",
+            "本地优先应用的离线体验设计",
+        ]
+        let callTypes = ["summary_and_category", "summary", "mcp_summary"]
+        let statuses = [2, 7, 17].contains(index) ? "failed" : "succeeded"
+        let callType = callTypes[index % callTypes.count]
+        let totalMinutes = 12 * 60 + 58 - index * 5
+        let hour = totalMinutes / 60
+        let minute = totalMinutes % 60
+        let createdAt = String(format: "2026-10-28T%02d:%02d:00.000Z", hour, minute)
+        let promptTokens = 1_240 + index * 130
+        let completionTokens = 320 + index * 42
+
+        return AiJobSummary(
+            id: 126 - index,
+            articleId: 8_420 - index * 17,
+            articleTitle: titles[index % titles.count],
+            triggerType: callType == "mcp_summary" ? "mcp_summary" : "archive",
+            callType: callType,
+            includeCategory: callType == "summary_and_category",
+            status: statuses,
+            errorCode: statuses == "failed" ? "AI_TIMEOUT" : nil,
+            errorMessage: statuses == "failed" ? "模型服务响应超时，请稍后重试" : nil,
+            provider: "deepseek",
+            model: index.isMultiple(of: 3) ? "deepseek-reasoner" : "deepseek-chat",
+            promptTokens: promptTokens,
+            completionTokens: completionTokens,
+            totalTokens: promptTokens + completionTokens,
+            createdAt: createdAt,
+            startedAt: createdAt,
+            finishedAt: createdAt,
+            durationMs: 920 + index * 183
+        )
+    }
+
     static let libraryModel = LibraryModel(
         repository: FixtureLibraryRepository(
             state: .content,

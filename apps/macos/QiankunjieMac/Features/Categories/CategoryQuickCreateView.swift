@@ -163,7 +163,7 @@ struct CategoryQuickCreateView: View {
                     in: RoundedRectangle(cornerRadius: 9, style: .continuous)
                 )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QiankunjiePlainButtonStyle())
             .disabled(isInteractionDisabled)
             .accessibilityLabel("使用现有分类 \(suggestion.name)")
         }
@@ -186,7 +186,7 @@ struct CategoryQuickCreateView: View {
             .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .disabled(isInteractionDisabled)
         .accessibilityLabel(showsDetails ? "收起详细规则" : "展开详细规则")
     }
@@ -318,7 +318,7 @@ struct CategoryQuickCreateView: View {
                     } label: {
                         colorSwatch(color, isSelected: model.draft.color == color)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(QiankunjiePlainButtonStyle())
                     .disabled(isInteractionDisabled)
                     .accessibilityLabel("选择颜色 \(color)")
                 }
@@ -366,7 +366,7 @@ struct CategoryQuickCreateView: View {
                     Button("重试") {
                         Task { await catalog.load() }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(QiankunjiePlainButtonStyle())
                     .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
                     .disabled(catalog.isLoading)
                     .accessibilityLabel("重新加载分类目录")

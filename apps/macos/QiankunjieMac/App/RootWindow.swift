@@ -265,6 +265,9 @@ struct RootWindow: View {
             },
             onLibraryDidChange: {
                 model.handleLibraryDidChange()
+            },
+            onCategoryAffectingChange: {
+                model.handleCategoryCatalogAffectingChange()
             }
         )
     }
@@ -444,7 +447,7 @@ private struct SearchWorkspaceView: View {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(QiankunjiePlainButtonStyle())
                     .help("清除搜索")
                 }
 
@@ -627,7 +630,7 @@ private struct SearchResultRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .background {
             RoundedRectangle(cornerRadius: QiankunjieRadius.control, style: .continuous)
                 .fill(isSelected ? QiankunjieColors.accent(for: colorScheme).opacity(0.12) : QiankunjieColors.surface(for: colorScheme))

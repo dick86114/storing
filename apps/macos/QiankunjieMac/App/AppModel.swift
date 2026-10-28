@@ -360,8 +360,15 @@ final class AppModel {
         libraryModel.clearSearch()
     }
 
-    /// 阅读器等非资料库模型通过同一入口刷新列表和分类计数。
+    /// 普通资料库变更只刷新文章列表，避免收藏、改名等无关操作触发分类刷新。
     func handleLibraryDidChange() {
+        Task {
+            await libraryModel.load(reset: true)
+        }
+    }
+
+    /// 归档、分类和 AI 归类完成会改变分类数量，此时才刷新侧栏目录。
+    func handleCategoryCatalogAffectingChange() {
         scheduleCategoryCatalogRefresh()
         Task {
             await libraryModel.load(reset: true)

@@ -46,7 +46,7 @@ struct MainWindowTitleLabel: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .onHover { hovering in
             isHovering = hovering
         }

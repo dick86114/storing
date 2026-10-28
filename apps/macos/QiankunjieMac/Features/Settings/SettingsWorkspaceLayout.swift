@@ -99,16 +99,17 @@ struct WorkspaceSidebar<ID: Hashable>: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
 /// 设置类页面右侧的内容分组卡片。
-struct WorkspacePanel<Content: View>: View {
+struct WorkspacePanel<Content: View, HeaderAccessory: View>: View {
     let title: String
     var subtitle: String?
     var systemImage: String?
+    @ViewBuilder let headerAccessory: () -> HeaderAccessory
     @ViewBuilder let content: () -> Content
     @Environment(\.colorScheme) private var colorScheme
 
@@ -116,23 +117,24 @@ struct WorkspacePanel<Content: View>: View {
         title: String,
         subtitle: String? = nil,
         systemImage: String? = nil,
+        @ViewBuilder headerAccessory: @escaping () -> HeaderAccessory,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.title = title
         self.subtitle = subtitle
         self.systemImage = systemImage
+        self.headerAccessory = headerAccessory
         self.content = content
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 10) {
+            HStack(alignment: .center, spacing: 10) {
                 if let systemImage {
                     Image(systemName: systemImage)
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(QiankunjieColors.accent(for: colorScheme))
                         .frame(width: 24)
-                        .padding(.top, 1)
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -147,7 +149,8 @@ struct WorkspacePanel<Content: View>: View {
                     }
                 }
 
-                Spacer(minLength: 0)
+                Spacer(minLength: 12)
+                headerAccessory()
             }
 
             Divider()
@@ -160,6 +163,23 @@ struct WorkspacePanel<Content: View>: View {
             RoundedRectangle(cornerRadius: 12)
                 .strokeBorder(QiankunjieColors.outline(for: colorScheme))
         }
+    }
+}
+
+extension WorkspacePanel where HeaderAccessory == EmptyView {
+    init(
+        title: String,
+        subtitle: String? = nil,
+        systemImage: String? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.init(
+            title: title,
+            subtitle: subtitle,
+            systemImage: systemImage,
+            headerAccessory: { EmptyView() },
+            content: content
+        )
     }
 }
 

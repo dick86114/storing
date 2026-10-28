@@ -76,7 +76,7 @@ struct CollectHistoryView: View {
                         .strokeBorder(QiankunjieColors.accent(for: colorScheme).opacity(0.28))
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(QiankunjiePlainButtonStyle())
             .help("粘贴公开网页链接开始采集")
             .popover(isPresented: $showsCollectPopover, arrowEdge: .bottom) {
                 CollectQuickPopoverView(
@@ -138,7 +138,7 @@ struct CollectHistoryView: View {
             .frame(width: 28, height: 28)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .background { controlSurface }
         .onHover { hovering in
             isRefreshHovered = hovering
@@ -161,7 +161,7 @@ struct CollectHistoryView: View {
                 .frame(width: 28, height: 28)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QiankunjiePlainButtonStyle())
         .background { controlSurface }
         .disabled(
             model.jobs.isEmpty
@@ -296,6 +296,7 @@ struct CollectJobRow: View {
             guard onOpenArticle != nil else { return }
             openArticle()
         }
+        .qiankunjieInteractiveHover(isActive: onOpenArticle != nil)
         .help(onOpenArticle == nil ? "" : "在右侧打开正文")
         .accessibilityAddTraits(onOpenArticle == nil ? [] : .isButton)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
