@@ -74,6 +74,10 @@ public enum BulkArticlePolicy {
                 !article.isFavorited
             case .unfavorite:
                 article.isFavorited
+            case .archive:
+                !article.isArchived
+            case .unarchive:
+                article.isArchived
             case .publish:
                 !article.isPublished
             case .unpublish:

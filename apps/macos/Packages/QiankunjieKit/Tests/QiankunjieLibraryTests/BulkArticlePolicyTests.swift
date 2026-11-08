@@ -34,13 +34,13 @@ struct BulkArticlePolicyTests {
 
         #expect(
             BulkArticlePolicy.actions(in: organize, for: ArticleCard(id: 1))
-                == [.favorite, .unarchive]
+                == [.favorite]
         )
         #expect(
             BulkArticlePolicy.actions(
                 in: organize,
                 for: ArticleCard(id: 2, isFavorited: true)
-            ) == [.unfavorite, .unarchive]
+            ) == [.unfavorite]
         )
         #expect(
             BulkArticlePolicy.actions(in: publish, for: ArticleCard(id: 3))
