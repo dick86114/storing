@@ -1,6 +1,6 @@
 'use client';
 
-import { PlusOutlined, SettingOutlined } from '@ant-design/icons';
+import { PlusOutlined } from '@ant-design/icons';
 
 import type { ArchiveCategory } from '@/lib/api';
 
@@ -11,7 +11,6 @@ type CategoryNavigationProps = {
   totalCount: number;
   onSelect: (categoryId: number | null) => void;
   onCreate?: () => void;
-  onManage?: () => void;
   compact?: boolean;
 };
 
@@ -22,7 +21,6 @@ export function CategoryNavigation({
   totalCount,
   onSelect,
   onCreate,
-  onManage,
   compact = false,
 }: CategoryNavigationProps) {
   const items = [{ id: null, name: '全部归档', color: null, isSystem: false }, ...categories];
@@ -47,10 +45,9 @@ export function CategoryNavigation({
           );
         })}
       </nav>
-      {(onCreate || onManage) && (
+      {onCreate && (
         <div className={`category-navigation-actions${compact ? ' category-navigation-actions--compact' : ''}`}>
           {onCreate && <button type="button" onClick={onCreate}><PlusOutlined aria-hidden="true" />新建分类</button>}
-          {onManage && <button type="button" onClick={onManage}><SettingOutlined aria-hidden="true" />管理分类</button>}
         </div>
       )}
       {totalCount === 0 && (

@@ -15,7 +15,8 @@ struct ReaderArticleCacheTests {
         let detail = ArticleDetail(
             id: 41,
             title: "缓存文章",
-            contentHTML: "<article>本地正文</article>"
+            contentHTML: "<article>本地正文</article>",
+            updatedAt: Date(timeIntervalSince1970: 1_794_140_100)
         )
 
         let writer = ReaderArticleCache(directoryURL: directory)
@@ -46,17 +47,17 @@ struct ReaderArticleCacheTests {
         )
 
         try await cache.save(
-            ArticleDetail(id: 42, title: "用户一"),
+            ArticleDetail(id: 42, title: "用户一", updatedAt: Date(timeIntervalSince1970: 1_794_140_100)),
             selection: privateSelection,
             userID: 1
         )
         try await cache.save(
-            ArticleDetail(id: 42, title: "用户二"),
+            ArticleDetail(id: 42, title: "用户二", updatedAt: Date(timeIntervalSince1970: 1_794_140_100)),
             selection: privateSelection,
             userID: 2
         )
         try await cache.save(
-            ArticleDetail(id: 42, title: "游客文章"),
+            ArticleDetail(id: 42, title: "游客文章", updatedAt: Date(timeIntervalSince1970: 1_794_140_100)),
             selection: publicSelection,
             userID: nil
         )
@@ -91,7 +92,7 @@ struct ReaderArticleCacheTests {
             isGuest: false
         )
         try await cache.save(
-            ArticleDetail(id: 43, contentHTML: "<p>待清理</p>"),
+            ArticleDetail(id: 43, contentHTML: "<p>待清理</p>", updatedAt: Date(timeIntervalSince1970: 1_794_140_100)),
             selection: selection,
             userID: 3
         )
@@ -119,7 +120,8 @@ struct ReaderArticleCacheTests {
             ArticleDetail(
                 id: 44,
                 title: String(repeating: "缓存", count: 100),
-                contentHTML: "<p>\(String(repeating: "正文", count: 100))</p>"
+                contentHTML: "<p>\(String(repeating: "正文", count: 100))</p>",
+                updatedAt: Date(timeIntervalSince1970: 1_794_140_100)
             ),
             selection: selection,
             userID: 3
@@ -159,6 +161,50 @@ struct ReaderArticleCacheTests {
 
         #expect(try await cache.load(selection: selection, userID: 3) == nil)
         #expect(try await cache.statistics() == .empty)
+    }
+
+    @Test func 复用旧文章ID的旧内容缓存会被识别为过期() async throws {
+        let directory = 临时缓存目录()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = ReaderArticleCache(directoryURL: directory)
+        let selection = ReaderSelection(
+            articleID: 46,
+            publicID: nil,
+            isGuest: false
+        )
+
+        try await cache.save(
+            ArticleDetail(
+                id: 46,
+                title: "没有更新时间的旧缓存",
+                contentHTML: "<p>旧正文</p>"
+            ),
+            selection: selection,
+            userID: 3
+        )
+
+        #expect(try await cache.load(selection: selection, userID: 3) == nil)
+    }
+
+    @Test func 新内容版本缓存可以读取() async throws {
+        let directory = 临时缓存目录()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = ReaderArticleCache(directoryURL: directory)
+        let selection = ReaderSelection(
+            articleID: 47,
+            publicID: nil,
+            isGuest: false
+        )
+        let detail = ArticleDetail(
+            id: 47,
+            title: "新内容版本缓存",
+            contentHTML: "<p>新正文</p>",
+            updatedAt: Date(timeIntervalSince1970: 1_794_140_100)
+        )
+
+        try await cache.save(detail, selection: selection, userID: 3)
+
+        #expect(try await cache.load(selection: selection, userID: 3) == detail)
     }
 
     private func 临时缓存目录() -> URL {

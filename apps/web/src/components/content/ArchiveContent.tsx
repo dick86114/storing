@@ -465,7 +465,7 @@ function ArchiveContentInner() {
         标签筛选{activeTags.length ? ` (${activeTags.length})` : ''}
       </button>
       {sidebarMode === 'categories' ? (
-        <CategoryNavigation categories={categories} activeCategoryId={activeCategoryId} counts={categoryCounts} totalCount={totalCount} onSelect={handleCategorySelect} onCreate={isAuthenticated ? () => setQuickCreateCategoryOpen(true) : undefined} onManage={isAuthenticated ? () => router.push('/settings/categories') : undefined} />
+        <CategoryNavigation categories={categories} activeCategoryId={activeCategoryId} counts={categoryCounts} totalCount={totalCount} onSelect={handleCategorySelect} onCreate={isAuthenticated ? () => setQuickCreateCategoryOpen(true) : undefined} />
       ) : (
         <SourceSidebar
           sources={sources}
@@ -604,7 +604,7 @@ function ArchiveContentInner() {
 
       {isMobile && (
         <>
-          <CategoryNavigation categories={categories} activeCategoryId={activeCategoryId} counts={categoryCounts} totalCount={totalCount} onSelect={handleCategorySelect} onCreate={isAuthenticated ? () => setQuickCreateCategoryOpen(true) : undefined} onManage={isAuthenticated ? () => router.push('/settings/categories') : undefined} compact />
+          <CategoryNavigation categories={categories} activeCategoryId={activeCategoryId} counts={categoryCounts} totalCount={totalCount} onSelect={handleCategorySelect} onCreate={isAuthenticated ? () => setQuickCreateCategoryOpen(true) : undefined} compact />
           <SourcePills
             sources={sources}
             activeSource={activeSource}

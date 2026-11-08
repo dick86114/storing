@@ -301,6 +301,7 @@ public struct ArticleDetail: Codable, Hashable, Sendable {
     public let aiErrorMessage: String?
     public let aiModel: String?
     public let aiTotalTokens: Int?
+    public let updatedAt: Date?
 
     public init(
         id: Int,
@@ -326,7 +327,8 @@ public struct ArticleDetail: Codable, Hashable, Sendable {
         aiErrorCode: String? = nil,
         aiErrorMessage: String? = nil,
         aiModel: String? = nil,
-        aiTotalTokens: Int? = nil
+        aiTotalTokens: Int? = nil,
+        updatedAt: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -352,6 +354,7 @@ public struct ArticleDetail: Codable, Hashable, Sendable {
         self.aiErrorMessage = aiErrorMessage
         self.aiModel = aiModel
         self.aiTotalTokens = aiTotalTokens
+        self.updatedAt = updatedAt
     }
 
     public init(from decoder: any Decoder) throws {
@@ -380,7 +383,8 @@ public struct ArticleDetail: Codable, Hashable, Sendable {
             aiErrorCode: try container.decodeIfPresent(String.self, forKey: .aiErrorCode),
             aiErrorMessage: try container.decodeIfPresent(String.self, forKey: .aiErrorMessage),
             aiModel: try container.decodeIfPresent(String.self, forKey: .aiModel),
-            aiTotalTokens: try container.decodeIfPresent(Int.self, forKey: .aiTotalTokens)
+            aiTotalTokens: try container.decodeIfPresent(Int.self, forKey: .aiTotalTokens),
+            updatedAt: try container.decodeIfPresent(Date.self, forKey: .updatedAt)
         )
     }
 
@@ -409,6 +413,7 @@ public struct ArticleDetail: Codable, Hashable, Sendable {
         case aiErrorMessage = "aiErrorMessage"
         case aiModel = "aiModel"
         case aiTotalTokens = "aiTotalTokens"
+        case updatedAt = "updatedAt"
     }
 }
 

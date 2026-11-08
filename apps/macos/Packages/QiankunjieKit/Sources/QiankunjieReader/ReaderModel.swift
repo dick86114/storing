@@ -307,7 +307,8 @@ extension ReaderArticle {
             aiErrorCode: detail.aiErrorCode,
             aiErrorMessage: detail.aiErrorMessage,
             aiModel: detail.aiModel,
-            aiTotalTokens: detail.aiTotalTokens
+            aiTotalTokens: detail.aiTotalTokens,
+            updatedAt: detail.updatedAt
         )
     }
 }

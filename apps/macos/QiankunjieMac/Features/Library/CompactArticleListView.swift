@@ -287,6 +287,7 @@ struct CompactArticleListView: View {
                             && !model.bulkSelection.isEmpty
                             && model.bulkSelection.contains(article.id)
                         let targetArticleID = operatesOnCurrentSelection ? nil : article.id
+                        let targetArticle = operatesOnCurrentSelection ? nil : article
 
                         Button(
                             operatesOnCurrentSelection
@@ -310,7 +311,8 @@ struct CompactArticleListView: View {
                             Divider()
 
                             ForEach(
-                                BulkArticlePolicy.actions(in: group, for: model.view),
+                                targetArticle.map { BulkArticlePolicy.actions(in: group, for: $0) }
+                                    ?? BulkArticlePolicy.actions(in: group, for: model.view),
                                 id: \.self
                             ) { action in
                                 contextMenuButton(action, targetArticleID: targetArticleID)
