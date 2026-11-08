@@ -45,8 +45,43 @@ public enum BulkArticlePolicy {
         in group: BulkActionGroup,
         for view: LibraryView
     ) -> [BulkToolbarAction] {
+        availableActions(in: group, for: view)
+    }
+
+    /// 单篇文章右键菜单需要按文章状态过滤收藏与发布动作。
+    public static func actions(
+        in group: BulkActionGroup,
+        for article: ArticleCard
+    ) -> [BulkToolbarAction] {
+        availableActions(in: group, for: article)
+    }
+
+    private static func availableActions(
+        in group: BulkActionGroup,
+        for view: LibraryView
+    ) -> [BulkToolbarAction] {
         let available = availableActions(for: view)
         return group.actions.filter { available.contains($0) }
+    }
+
+    private static func availableActions(
+        in group: BulkActionGroup,
+        for article: ArticleCard
+    ) -> [BulkToolbarAction] {
+        availableActions(in: group, for: .archive).filter { action in
+            switch action {
+            case .favorite:
+                !article.isFavorited
+            case .unfavorite:
+                article.isFavorited
+            case .publish:
+                !article.isPublished
+            case .unpublish:
+                article.isPublished
+            default:
+                true
+            }
+        }
     }
 
     public static func validatedIDs(_ ids: [Int]) throws -> [Int] {

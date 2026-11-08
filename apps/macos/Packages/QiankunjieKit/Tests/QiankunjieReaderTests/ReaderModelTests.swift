@@ -65,7 +65,8 @@ struct ReaderModelTests {
             detail: ArticleDetail(
                 id: 12,
                 title: "本地缓存文章",
-                contentHTML: "<article>缓存正文</article>"
+                contentHTML: "<article>缓存正文</article>",
+                updatedAt: Date(timeIntervalSince1970: 1_794_140_100)
             )
         )
         let firstModel = ReaderModel(
@@ -98,6 +99,11 @@ struct ReaderModelTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let cache = ReaderArticleCache(directoryURL: directory)
         let client = 模拟阅读客户端()
+        let detail = ArticleDetail(
+            id: 53,
+            updatedAt: Date(timeIntervalSince1970: 1_794_140_100)
+        )
+        await client.setArticleDetail(detail, for: 53)
         let selection = ReaderSelection(
             articleID: 53,
             publicID: nil,

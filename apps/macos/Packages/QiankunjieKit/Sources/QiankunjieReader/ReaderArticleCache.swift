@@ -106,6 +106,10 @@ public actor ReaderArticleCache: ReaderArticleCaching {
         do {
             let data = try Data(contentsOf: fileURL)
             let detail = try JSONDecoder.qiankunjie.decode(ArticleDetail.self, from: data)
+            guard isValidContentVersion(detail) else {
+                try? fileManager.removeItem(at: fileURL)
+                return nil
+            }
             try? fileManager.setAttributes(
                 [.modificationDate: Date()],
                 ofItemAtPath: fileURL.path
@@ -175,6 +179,13 @@ public actor ReaderArticleCache: ReaderArticleCaching {
             "v1-\(scope)-article-\(selection.articleID).json"
         )
     }
+
+    private func isValidContentVersion(_ detail: ArticleDetail) -> Bool {
+        guard let updatedAt = detail.updatedAt else { return false }
+        return updatedAt >= Self.validContentVersionStartedAt
+    }
+
+    private static let validContentVersionStartedAt = Date(timeIntervalSince1970: 1_794_140_000)
 
     private func ensureDirectoryExists() throws {
         try fileManager.createDirectory(

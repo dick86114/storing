@@ -170,7 +170,6 @@ struct SidebarArchiveCategoryGroup: View {
         }
 
         quickCreateRow
-        managementRow
     }
 
     @ViewBuilder
@@ -360,31 +359,6 @@ struct SidebarArchiveCategoryGroup: View {
         withAnimation(.snappy(duration: 0.18)) {
             dragState.cancel()
         }
-    }
-
-    private var managementRow: some View {
-        Button {
-            model.selectDestination(.categories)
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: AppDestination.categories.systemImage)
-                    .frame(width: 18)
-
-                Text("管理分类…")
-                    .lineLimit(1)
-
-                Spacer(minLength: 0)
-            }
-            .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-            .padding(.leading, 18)
-            .padding(.horizontal, 4)
-            .padding(.vertical, 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(QiankunjiePlainButtonStyle())
-        .help("管理分类")
-        .accessibilityLabel("管理分类")
     }
 
     private var quickCreateRow: some View {

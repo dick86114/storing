@@ -28,6 +28,32 @@ struct BulkArticlePolicyTests {
         #expect(BulkArticlePolicy.actionGroups(for: .published) == [.publish, .destructive])
     }
 
+    @Test func 归档单篇文章菜单按状态显示收藏和发布() {
+        let organize = BulkActionGroup.organize
+        let publish = BulkActionGroup.publish
+
+        #expect(
+            BulkArticlePolicy.actions(in: organize, for: ArticleCard(id: 1))
+                == [.favorite, .unarchive]
+        )
+        #expect(
+            BulkArticlePolicy.actions(
+                in: organize,
+                for: ArticleCard(id: 2, isFavorited: true)
+            ) == [.unfavorite, .unarchive]
+        )
+        #expect(
+            BulkArticlePolicy.actions(in: publish, for: ArticleCard(id: 3))
+                == [.publish, .exportZIP, .bulkObsidian]
+        )
+        #expect(
+            BulkArticlePolicy.actions(
+                in: publish,
+                for: ArticleCard(id: 4, isPublished: true)
+            ) == [.unpublish, .exportZIP, .bulkObsidian]
+        )
+    }
+
     @Test func 超过200篇抛出无效输入() {
         #expect(throws: AppError.invalidInput) {
             _ = try BulkArticlePolicy.validatedIDs(Array(1...201))
