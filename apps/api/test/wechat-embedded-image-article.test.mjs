@@ -28,6 +28,19 @@ test('SingleFile carousel validation and upload use the WeChat item data-src whe
   assert.match(singleFile, /Prefer that ancestor URL/);
 });
 
+test('WeChat inline images are hydrated before deciding to append a picture gallery', () => {
+  assert.match(reader, /hydrateInlinePictureImages/);
+  assert.match(reader, /image\.setAttribute\('src', picture\.cdn_url\)/);
+  assert.match(reader, /usedPictureIndexes\.has\(pictureIndex\)/);
+  assert.match(reader, /image\.setAttribute\('loading', 'lazy'\)/);
+});
+
+test('legacy duplicated WeChat picture galleries are rebuilt from source', () => {
+  assert.match(reader, /hasLegacyWechatPictureGallery/);
+  assert.match(reader, /data-storing-wechat-picture-style="true"/);
+  assert.match(reader, /!hasLegacyWechatPictureGallery\(rebuilt\)/);
+});
+
 test('WeChat markdown fallback converts SingleFile HTML to text instead of storing HTML as markdown', () => {
   assert.match(reader, /format === 'html'\s*\? await fetchSingleFileCaptureContent/);
   assert.match(reader, /: await fetchSingleFileMarkdownContent/);

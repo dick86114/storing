@@ -476,7 +476,46 @@ struct ReaderContentStyle {
     })();
     """#
 
+    /// 兼容旧版服务端缓存的微信正文：
+    /// 1. 把懒加载图片的 data-src 补成真实 src，避免只剩 alt 占位；
+    /// 2. 如果正文内已有同组图片，移除服务端曾追加到文末的重复图集；
+    /// 3. 非封面图改为懒加载，减少长文首次打开时的并发图片请求。
     static let imageSelectionScript = """
+    (function () {
+      const normalizeImages = () => {
+        const images = Array.from(document.querySelectorAll('img'));
+        for (const image of images) {
+          const source = image.dataset.src
+            || image.dataset.original
+            || image.dataset.lazySrc
+            || image.dataset.url;
+          if (!image.getAttribute('src') && source) {
+            image.setAttribute('src', source);
+          }
+          if (!image.closest('.storing-cover') && !image.closest('.wechat-picture-article')) {
+            image.setAttribute('loading', 'lazy');
+            image.setAttribute('decoding', 'async');
+          }
+        }
+
+        const gallery = document.querySelector('section.wechat-picture-article');
+        if (!gallery) return;
+        const inlineImages = Array.from(document.querySelectorAll('img')).filter(
+          (image) => !image.closest('.wechat-picture-article')
+        );
+        const galleryImages = Array.from(gallery.querySelectorAll('img'));
+        if (inlineImages.length > 0 && galleryImages.length <= inlineImages.length) {
+          gallery.remove();
+        }
+      };
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', normalizeImages, { once: true });
+      } else {
+        normalizeImages();
+      }
+    })();
+
     document.addEventListener('click', (event) => {
       const image = event.target.closest('img');
       if (!image) return;

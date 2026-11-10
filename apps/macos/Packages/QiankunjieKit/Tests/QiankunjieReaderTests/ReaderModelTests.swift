@@ -61,13 +61,21 @@ struct ReaderModelTests {
         let directory = 临时阅读缓存目录()
         defer { try? FileManager.default.removeItem(at: directory) }
         let cache = ReaderArticleCache(directoryURL: directory)
+        let createdAt = Date(timeIntervalSince1970: 1_794_139_000)
         let client = 模拟阅读客户端(
             detail: ArticleDetail(
                 id: 12,
                 title: "本地缓存文章",
+                createdAt: createdAt,
                 contentHTML: "<article>缓存正文</article>",
-                updatedAt: Date(timeIntervalSince1970: 1_794_140_100)
+                updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
             )
+        )
+        let selection = ReaderSelection(
+            articleID: 12,
+            publicID: nil,
+            isGuest: false,
+            expectedCreatedAt: createdAt
         )
         let firstModel = ReaderModel(
             client: client,
@@ -75,7 +83,7 @@ struct ReaderModelTests {
             userID: 1
         )
 
-        await firstModel.open(articleID: 12)
+        await firstModel.open(selection)
         #expect(await client.desktopRequestCount == 1)
 
         let secondModel = ReaderModel(
@@ -83,7 +91,7 @@ struct ReaderModelTests {
             articleCache: cache,
             userID: 1
         )
-        await secondModel.open(articleID: 12)
+        await secondModel.open(selection)
 
         #expect(await client.desktopRequestCount == 1)
         #expect(secondModel.article?.title == "本地缓存文章")

@@ -26,17 +26,22 @@ public struct ReaderSelection: Hashable, Sendable {
     public let articleID: Int
     public let publicID: String?
     public let isGuest: Bool
+    /// 列表中的创建时间用于识别文章 ID 被复用的情况，
+    /// 避免命中另一篇文章遗留的正文缓存。
+    public let expectedCreatedAt: Date?
 
     public init(
         articleID: Int,
         publicID: String?,
-        isGuest: Bool
+        isGuest: Bool,
+        expectedCreatedAt: Date? = nil
     ) {
         let normalizedPublicID = publicID?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         self.articleID = articleID
         self.publicID = normalizedPublicID?.isEmpty == false ? normalizedPublicID : nil
         self.isGuest = isGuest
+        self.expectedCreatedAt = expectedCreatedAt
     }
 }
 
