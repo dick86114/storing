@@ -842,13 +842,13 @@ export async function buildHtmlFromRawContent(rawContent: any): Promise<string |
   const dom = new JSDOM(html);
   const doc = dom.window.document;
   const usedPictureIndexes = new Set<number>();
-  let insertedByReference = false;
+  let insertedByReference = hydrateInlinePictureImages(doc, pictures, usedPictureIndexes) > 0;
 
   for (const link of Array.from(doc.querySelectorAll<HTMLAnchorElement>('a.wx_img_refer_link[data-seq]'))) {
     const seq = Number(link.getAttribute('data-seq'));
     const pictureIndex = Number.isFinite(seq) ? seq - 1 : -1;
     const pictureUrl = pictureUrls[pictureIndex];
-    if (!pictureUrl) continue;
+    if (!pictureUrl || usedPictureIndexes.has(pictureIndex)) continue;
 
     usedPictureIndexes.add(pictureIndex);
     insertedByReference = true;
@@ -923,6 +923,46 @@ export async function buildHtmlFromRawContent(rawContent: any): Promise<string |
   }
 
   return uploadImagesInHtml(doc.body?.innerHTML || html);
+}
+
+/**
+ * content_noencode 中常常已经保留了按原文顺序排列的 `img[data-src]`。
+ * 先给这些内嵌图补上真实地址，避免后续误判为“没有内嵌图片”而追加整套图集。
+ */
+function hydrateInlinePictureImages(
+  doc: Document,
+  pictures: WechatEmbeddedPicture[],
+  usedPictureIndexes: Set<number>
+): number {
+  if (pictures.length === 0) return 0;
+
+  const pictureIndexByUrl = new Map<string, number>();
+  pictures.forEach((picture, index) => {
+    pictureIndexByUrl.set(normalizeImageUrl(picture.cdn_url), index);
+  });
+
+  let hydrated = 0;
+  for (const image of Array.from(doc.querySelectorAll<HTMLImageElement>('img'))) {
+    if (image.closest('.wechat-picture-article')) continue;
+    const originalUrl = getImgOriginalUrl(image);
+    if (!originalUrl || originalUrl.startsWith('data:')) continue;
+
+    const pictureIndex = pictureIndexByUrl.get(normalizeImageUrl(originalUrl));
+    if (pictureIndex === undefined || usedPictureIndexes.has(pictureIndex)) continue;
+
+    const picture = pictures[pictureIndex];
+    image.setAttribute('src', picture.cdn_url);
+    if (!image.getAttribute('loading')) image.setAttribute('loading', 'lazy');
+    if (picture.width && !image.getAttribute('width')) {
+      image.setAttribute('width', String(picture.width));
+    }
+    if (picture.height && !image.getAttribute('height')) {
+      image.setAttribute('height', String(picture.height));
+    }
+    usedPictureIndexes.add(pictureIndex);
+    hydrated += 1;
+  }
+  return hydrated;
 }
 
 function getImgOriginalUrl(img: HTMLImageElement): string | null {
@@ -1075,7 +1115,9 @@ export async function uploadImagesInHtml(html: string): Promise<string> {
     if (!originalUrl || originalUrl.startsWith(IMG_HOST)) return null;
 
     const newUrl = await uploadImage(originalUrl);
-    return newUrl ? { img, newUrl } : null;
+    const resolvedUrl = newUrl
+      || (originalUrl.startsWith('data:') ? null : originalUrl);
+    return resolvedUrl ? { img, newUrl: resolvedUrl } : null;
   });
 
   const results = await limitConcurrency(tasks, 3);
@@ -1085,6 +1127,8 @@ export async function uploadImagesInHtml(html: string): Promise<string> {
     const { img, newUrl } = result;
     img.setAttribute('src', newUrl);
     img.setAttribute('referrerpolicy', 'no-referrer');
+    if (!img.getAttribute('loading')) img.setAttribute('loading', 'lazy');
+    img.setAttribute('decoding', 'async');
     img.removeAttribute('srcset');
     img.removeAttribute('data-src');
     img.removeAttribute('data-original');
@@ -1484,6 +1528,15 @@ export async function getArticleContent(
 
     // HTML 格式：检查缓存
     if (cachedHtml && (trustStoredContent || hasUsefulContent(cachedHtml, format))) {
+      // 旧版图片文章会额外追加整套图集，导致正文图片重复并全部集中到文末。
+      // 首次读到这类缓存时同步重建一次，之后继续使用修正后的 HTML。
+      if (!trustStoredContent && hasLegacyWechatPictureGallery(cachedHtml)) {
+        const rebuilt = await fetchArticleContentFromSources(articleId, format, htmlVariant);
+        if (rebuilt && hasUsefulContent(rebuilt, format) && !hasLegacyWechatPictureGallery(rebuilt)) {
+          await saveArticleContentCache(articleId, format, rebuilt, htmlVariant, userId);
+          return rebuilt;
+        }
+      }
       if (htmlVariant === 'desktop' && hasWechatImageRefs(cachedHtml)) {
         refreshArticleContentCache(articleId, format, htmlVariant, userId).catch((e) =>
           console.error(`Background HTML cache refresh failed for article ${articleId}:`, (e as Error).message)
@@ -1553,6 +1606,11 @@ export async function getArticleContent(
   await saveArticleContentCache(articleId, format, content, htmlVariant, userId)
 
   return content;
+}
+
+function hasLegacyWechatPictureGallery(html: string): boolean {
+  return html.includes('data-storing-wechat-picture-style="true"')
+    && /<img\b[^>]*\bdata-src=/i.test(html);
 }
 
 /** 微信导入文章的存量兜底：用保存的原始聊天记录按最新排版重新渲染正文。 */

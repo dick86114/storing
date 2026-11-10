@@ -106,7 +106,7 @@ public actor ReaderArticleCache: ReaderArticleCaching {
         do {
             let data = try Data(contentsOf: fileURL)
             let detail = try JSONDecoder.qiankunjie.decode(ArticleDetail.self, from: data)
-            guard isValidContentVersion(detail) else {
+            guard isSameArticle(detail, selection: selection) else {
                 try? fileManager.removeItem(at: fileURL)
                 return nil
             }
@@ -180,12 +180,21 @@ public actor ReaderArticleCache: ReaderArticleCaching {
         )
     }
 
-    private func isValidContentVersion(_ detail: ArticleDetail) -> Bool {
-        guard let updatedAt = detail.updatedAt else { return false }
-        return updatedAt >= Self.validContentVersionStartedAt
+    /// 文章 ID 可能被数据库复用；创建时间不同意味着本地正文属于另一篇文章。
+    /// 列表与详情接口可能对毫秒进行不同精度截断，因此同一秒内视为同一篇文章。
+    /// 列表未提供创建时间时，保持旧缓存的向后兼容，不额外阻断命中。
+    private func isSameArticle(
+        _ detail: ArticleDetail,
+        selection: ReaderSelection
+    ) -> Bool {
+        guard let expectedCreatedAt = selection.expectedCreatedAt else {
+            return true
+        }
+        guard let createdAt = detail.createdAt else {
+            return false
+        }
+        return abs(createdAt.timeIntervalSince(expectedCreatedAt)) < 1
     }
-
-    private static let validContentVersionStartedAt = Date(timeIntervalSince1970: 1_794_140_000)
 
     private func ensureDirectoryExists() throws {
         try fileManager.createDirectory(

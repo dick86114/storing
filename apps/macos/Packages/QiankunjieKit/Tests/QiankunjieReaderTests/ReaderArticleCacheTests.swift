@@ -10,11 +10,13 @@ struct ReaderArticleCacheTests {
         let selection = ReaderSelection(
             articleID: 41,
             publicID: nil,
-            isGuest: false
+            isGuest: false,
+            expectedCreatedAt: Date(timeIntervalSince1970: 1_794_139_000)
         )
         let detail = ArticleDetail(
             id: 41,
             title: "缓存文章",
+            createdAt: Date(timeIntervalSince1970: 1_794_139_000),
             contentHTML: "<article>本地正文</article>",
             updatedAt: Date(timeIntervalSince1970: 1_794_140_100)
         )
@@ -170,13 +172,15 @@ struct ReaderArticleCacheTests {
         let selection = ReaderSelection(
             articleID: 46,
             publicID: nil,
-            isGuest: false
+            isGuest: false,
+            expectedCreatedAt: Date(timeIntervalSince1970: 1_794_140_100)
         )
 
         try await cache.save(
             ArticleDetail(
                 id: 46,
                 title: "没有更新时间的旧缓存",
+                createdAt: Date(timeIntervalSince1970: 1_700_000_000),
                 contentHTML: "<p>旧正文</p>"
             ),
             selection: selection,
@@ -186,25 +190,73 @@ struct ReaderArticleCacheTests {
         #expect(try await cache.load(selection: selection, userID: 3) == nil)
     }
 
-    @Test func 新内容版本缓存可以读取() async throws {
+    @Test func 旧文章和非空更新时间不再阻止缓存命中() async throws {
         let directory = 临时缓存目录()
         defer { try? FileManager.default.removeItem(at: directory) }
         let cache = ReaderArticleCache(directoryURL: directory)
+        let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
         let selection = ReaderSelection(
             articleID: 47,
             publicID: nil,
-            isGuest: false
+            isGuest: false,
+            expectedCreatedAt: createdAt
         )
         let detail = ArticleDetail(
             id: 47,
-            title: "新内容版本缓存",
+            title: "较早发布的文章",
+            createdAt: createdAt,
             contentHTML: "<p>新正文</p>",
-            updatedAt: Date(timeIntervalSince1970: 1_794_140_100)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_100)
         )
 
         try await cache.save(detail, selection: selection, userID: 3)
 
         #expect(try await cache.load(selection: selection, userID: 3) == detail)
+    }
+
+    @Test func 缺少更新时间的文章仍可读取缓存() async throws {
+        let directory = 临时缓存目录()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = ReaderArticleCache(directoryURL: directory)
+        let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let selection = ReaderSelection(
+            articleID: 48,
+            publicID: nil,
+            isGuest: false,
+            expectedCreatedAt: createdAt
+        )
+        let detail = ArticleDetail(
+            id: 48,
+            title: "无更新时间文章",
+            createdAt: createdAt,
+            contentHTML: "<p>正文</p>"
+        )
+
+        try await cache.save(detail, selection: selection, userID: 3)
+
+        #expect(try await cache.load(selection: selection, userID: 3) == detail)
+    }
+
+    @Test func 服务端毫秒精度差异不会误判文章ID复用() async throws {
+        let directory = 临时缓存目录()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = ReaderArticleCache(directoryURL: directory)
+        let selection = ReaderSelection(
+            articleID: 49,
+            publicID: nil,
+            isGuest: false,
+            expectedCreatedAt: Date(timeIntervalSince1970: 1_700_000_000.733)
+        )
+        let detail = ArticleDetail(
+            id: 49,
+            title: "毫秒精度不同的缓存",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            contentHTML: "<p>正文</p>"
+        )
+
+        try await cache.save(detail, selection: selection, userID: 3)
+
+        #expect(try await cache.load(selection: selection, userID: 3)?.id == 49)
     }
 
     private func 临时缓存目录() -> URL {

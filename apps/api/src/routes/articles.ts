@@ -214,6 +214,7 @@ async function getArticleRecord(id: number, userId: number) {
       tags: articles.tags,
       readStatus: articles.readStatus,
       createdAt: articles.createdAt,
+      updatedAt: articles.updatedAt,
       isFavorited: articleMetadata.isFavorited,
       isArchived: articleMetadata.isArchived,
       isPublished: articleMetadata.isPublished,
@@ -285,6 +286,8 @@ function serializePublicPublication(article: any, options: { includeContent?: bo
     isPublished: true,
     isArchived: true,
     isFavorited: false,
+    createdAt: article.createdAt,
+    updatedAt: article.updatedAt,
   };
 
   if (options.includeContent === false) return serialized;
@@ -312,6 +315,8 @@ async function getPublicPublicationRecord(publicId: string) {
       aiTags: articleMetadata.aiTags,
       publishedAt: articleMetadata.publishedAt,
       publicId: articleMetadata.publicId,
+      createdAt: articles.createdAt,
+      updatedAt: articles.updatedAt,
     })
     .from(articleMetadata)
     .innerJoin(articles, eq(articles.id, articleMetadata.articleId))

@@ -380,7 +380,8 @@ final class AppModel {
         selectedReaderSelection = ReaderSelection(
             articleID: article.id,
             publicID: article.publicID,
-            isGuest: !isAuthenticated
+            isGuest: !isAuthenticated,
+            expectedCreatedAt: article.createdAt
         )
     }
 
@@ -511,10 +512,12 @@ final class AppModel {
             return
         }
 
+        let article = libraryModel.articles.first { $0.id == articleID }
         selectedReaderSelection = ReaderSelection(
             articleID: articleID,
-            publicID: libraryModel.articles.first { $0.id == articleID }?.publicID,
-            isGuest: !isAuthenticated
+            publicID: article?.publicID,
+            isGuest: !isAuthenticated,
+            expectedCreatedAt: article?.createdAt
         )
     }
 

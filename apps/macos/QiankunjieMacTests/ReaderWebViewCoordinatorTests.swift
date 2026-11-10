@@ -19,6 +19,20 @@ struct ReaderWebViewCoordinatorTests {
         #expect(output.localizedCaseInsensitiveContains("</head><body>正文</body></html>"))
     }
 
+    @Test func 阅读器兼容旧微信缓存并恢复内嵌图片顺序() {
+        let output = ReaderContentStyle.applying(
+            to: "<html><head><title>文章</title></head><body>正文</body></html>",
+            font: .standard,
+            contentWidth: .normal
+        )
+
+        #expect(output.contains("image.dataset.src"))
+        #expect(output.contains("image.setAttribute('src', source)"))
+        #expect(output.contains("section.wechat-picture-article"))
+        #expect(output.contains("gallery.remove()"))
+        #expect(output.contains("image.setAttribute('loading', 'lazy')"))
+    }
+
     @Test func 深色外观注入正文暗色主题() {
         let output = ReaderContentStyle.applying(
             to: "<html><head><title>文章</title></head><body>正文</body></html>",
