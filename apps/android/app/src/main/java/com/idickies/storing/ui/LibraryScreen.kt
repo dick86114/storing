@@ -948,6 +948,12 @@ fun LibraryScreen(
       }
     }
   }
+  LaunchedEffect(state.offlineError) {
+    state.offlineError?.let { message ->
+      snackbarHostState.showSnackbar(message)
+      libraryViewModel.clearOfflineError()
+    }
+  }
   LaunchedEffect(sharedText) {
     if (sharedText != null) {
       collectViewModel.receiveSharedText(sharedText)
@@ -1078,6 +1084,7 @@ fun LibraryScreen(
       savedReadingPosition = state.savedReadingPosition,
       isOfflineAvailable = state.isOfflineAvailable,
       isReadingOffline = state.isReadingOffline,
+      isReadingCached = state.isReadingCached,
       downloadingOffline = state.downloadingOffline,
       onOpenOfflineAsset = libraryViewModel::openOfflineAsset,
       onFavorite = { libraryViewModel.toggleFavorite(detail) },
@@ -1103,6 +1110,7 @@ fun LibraryScreen(
       onOpenSharePoster = { showSharePoster = true },
       onProcess = { action -> libraryViewModel.processArticle(detail, action) },
       onDownloadOffline = { libraryViewModel.downloadOffline(detail) },
+      onUpdateOffline = { libraryViewModel.updateOffline(detail.id) },
       onDeleteOffline = { libraryViewModel.deleteOffline(detail.id) },
       onDelete = { libraryViewModel.delete(detail) },
       onDeletePermanent = { libraryViewModel.deletePermanent(detail) },
@@ -2252,7 +2260,7 @@ internal fun ArticleDetailSkeleton() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, archiveCategories: List<ArticleCategory>, recentArchiveCategories: List<ArticleCategory>, archiveCategoriesLoading: Boolean, archiveCategoriesError: String?, onRetryArchiveCategories: () -> Unit, onAssignCategory: suspend (ArticleCategory) -> CategoryAssignmentResult, onCreateCategory: suspend (CategoryMutationRequest) -> CategoryCreationResult, onCategoryAssigned: (String) -> Unit, onReclassify: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onUpdateTitle: (String) -> Unit, onSaveReadingPosition: (Float) -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, isReadingCached: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, archiveCategories: List<ArticleCategory>, recentArchiveCategories: List<ArticleCategory>, archiveCategoriesLoading: Boolean, archiveCategoriesError: String?, onRetryArchiveCategories: () -> Unit, onAssignCategory: suspend (ArticleCategory) -> CategoryAssignmentResult, onCreateCategory: suspend (CategoryMutationRequest) -> CategoryCreationResult, onCategoryAssigned: (String) -> Unit, onReclassify: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onUpdateOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onUpdateTitle: (String) -> Unit, onSaveReadingPosition: (Float) -> Unit) {
   val context = LocalContext.current
   val isDarkAppearance = isQiankunjieDarkTheme()
   var confirmDelete by remember { mutableStateOf(false) }
@@ -2389,13 +2397,18 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
               if (canManage && !downloadingOffline) {
                 if (isOfflineAvailable) {
                   DropdownMenuItem(
-                    text = { Text("删除离线内容", style = MaterialTheme.typography.bodyLarge) },
+                    text = { Text("更新离线保存", style = MaterialTheme.typography.bodyLarge) },
+                    onClick = { moreExpanded = false; onUpdateOffline() },
+                    leadingIcon = { Icon(Icons.Outlined.Sync, contentDescription = null) },
+                  )
+                  DropdownMenuItem(
+                    text = { Text("删除离线保存", style = MaterialTheme.typography.bodyLarge) },
                     onClick = { moreExpanded = false; onDeleteOffline() },
                     leadingIcon = { Icon(Icons.Outlined.CloudOff, contentDescription = null) },
                   )
                 } else {
                   DropdownMenuItem(
-                    text = { Text("下载离线内容", style = MaterialTheme.typography.bodyLarge) },
+                    text = { Text("离线保存（含图片）", style = MaterialTheme.typography.bodyLarge) },
                     onClick = { moreExpanded = false; onDownloadOffline() },
                     leadingIcon = { Icon(Icons.Outlined.CloudDownload, contentDescription = null) },
                     enabled = !article.contentHtml.isNullOrBlank(),
@@ -2444,7 +2457,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
             verticalAlignment = Alignment.CenterVertically,
           ) {
             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            Text("正在下载离线内容…", style = MaterialTheme.typography.bodyMedium)
+            Text("正在保存离线内容…", style = MaterialTheme.typography.bodyMedium)
           }
         }
       }
@@ -2456,7 +2469,12 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
           key(article.id, detailRefreshVersion, readerColorScheme, readerPreferences) {
             var currentScrollPercentage by remember { mutableStateOf(0f) }
             var webLoaded by remember { mutableStateOf(false) }
-            val headerHtml = ReaderDocument.buildArticleHeader(article, readerColorScheme, isOfflineAvailable)
+            val headerHtml = ReaderDocument.buildArticleHeader(
+              article,
+              readerColorScheme,
+              isOfflineAvailable,
+              isReadingCached,
+            )
             // Fallback: ensure skeleton disappears even if onPageCommitVisible doesn't fire.
             LaunchedEffect(article.id, detailRefreshVersion) {
               kotlinx.coroutines.delay(3000)

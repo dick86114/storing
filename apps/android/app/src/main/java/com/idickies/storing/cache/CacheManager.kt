@@ -28,13 +28,18 @@ object CacheManager {
     imageCache + dbCache
   }
 
+  /** Image cache size only, excluding cached article bodies and offline saves. */
+  suspend fun imageCacheSize(context: Context): Long = withContext(Dispatchers.IO) {
+    imageCacheSizeInternal(context)
+  }
+
   /** Clear image cache only. Preserves Room cache (article metadata, pending submissions). */
   suspend fun clearImageCache(context: Context): Long = withContext(Dispatchers.IO) {
     val freed = clearDir(context.cacheDir, "image_cache") + clearDir(context.cacheDir, "coil")
     freed
   }
 
-  private fun imageCacheSize(context: Context): Long {
+  private fun imageCacheSizeInternal(context: Context): Long {
     val cacheDir = context.cacheDir
     val coilDir = File(cacheDir, "image_cache")
     val coilDir2 = File(cacheDir, "coil")

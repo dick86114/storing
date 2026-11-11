@@ -68,8 +68,8 @@ class OfflineContentViewModel @Inject constructor(
 
   fun load() {
     viewModelScope.launch {
-      val articles = downloadManager.all()
-      val size = downloadManager.totalSize()
+      val articles = downloadManager.pinnedArticles()
+      val size = downloadManager.pinnedTotalSize()
       mutableState.update { it.copy(articles = articles, totalSize = size, loading = false) }
     }
   }
@@ -83,7 +83,7 @@ class OfflineContentViewModel @Inject constructor(
 
   fun clearAll() {
     viewModelScope.launch {
-      downloadManager.clearAll()
+      downloadManager.clearPinned()
       load()
     }
   }
@@ -107,12 +107,12 @@ fun OfflineContentScreen(
     topBar = {
       TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(containerColor = liquidGlassSurfaceColor()),
-        title = { Text("离线内容") },
+        title = { Text("离线保存") },
         navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回设置") } },
         actions = {
           if (state.articles.isNotEmpty()) {
             IconButton(onClick = { confirmClearAll = true }) {
-              Icon(Icons.Outlined.DeleteSweep, contentDescription = "清理全部离线内容")
+              Icon(Icons.Outlined.DeleteSweep, contentDescription = "清理全部离线保存")
             }
           }
         },
@@ -132,7 +132,7 @@ fun OfflineContentScreen(
         ) {
           Icon(Icons.Outlined.CloudDone, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(24.dp))
           Column {
-            Text("已下载 ${state.articles.size} 篇", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text("已保存 ${state.articles.size} 篇", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
             Text("总占用 ${CacheManager.formatSize(state.totalSize)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
           }
         }
@@ -144,8 +144,8 @@ fun OfflineContentScreen(
           horizontalAlignment = Alignment.CenterHorizontally,
           verticalArrangement = Arrangement.Center,
         ) {
-          Text("还没有离线内容", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-          Text("在文章详情页选择「下载离线内容」即可保存。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+          Text("还没有离线保存的文章", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          Text("在文章详情页选择「离线保存（含图片）」即可固定到本机。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
         }
       } else {
         LazyColumn(
@@ -168,8 +168,8 @@ fun OfflineContentScreen(
     QiankunjieAlertDialog(
       onDismissRequest = { confirmClearAll = false },
       icon = { Icon(Icons.Outlined.DeleteSweep, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-      title = { Text("清理全部离线内容？") },
-      text = { Text("将删除所有已下载的离线文章，不会影响服务器上的文章。", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+      title = { Text("清理全部离线保存？") },
+      text = { Text("将删除所有已固定保存的离线文章，不影响服务器文章和自动正文缓存。", color = MaterialTheme.colorScheme.onSurfaceVariant) },
       confirmButton = { Button(onClick = { confirmClearAll = false; viewModel.clearAll() }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError)) { Text("全部删除") } },
       dismissButton = { TextButton(onClick = { confirmClearAll = false }) { Text("取消") } },
     )
@@ -199,15 +199,15 @@ private fun OfflineArticleRow(article: OfflineArticle, onOpen: () -> Unit, onDel
         }
       }
       IconButton(onClick = { confirmDelete = true }) {
-        Icon(Icons.Outlined.DeleteSweep, contentDescription = "删除离线内容", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+        Icon(Icons.Outlined.DeleteSweep, contentDescription = "删除离线保存", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
       }
     }
   }
   if (confirmDelete) {
     QiankunjieAlertDialog(
       onDismissRequest = { confirmDelete = false },
-      title = { Text("删除离线内容？") },
-      text = { Text("仅删除本机离线副本，服务器文章不受影响。", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+      title = { Text("删除离线保存？") },
+      text = { Text("仅删除本机固定保存的完整副本，服务器文章不受影响。", color = MaterialTheme.colorScheme.onSurfaceVariant) },
       confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }) { Text("删除", color = MaterialTheme.colorScheme.error) } },
       dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
     )

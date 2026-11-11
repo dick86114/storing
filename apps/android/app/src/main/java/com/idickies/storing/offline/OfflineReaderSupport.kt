@@ -12,6 +12,7 @@ private val OFFLINE_ASSET_PATH = Regex("^/articles/(\\d+)/images/([A-Za-z0-9._-]
 data class OfflineReaderContent(
   val article: OfflineArticle,
   val contentHtml: String,
+  val detail: ArticleDetail? = null,
 )
 
 data class OfflineAssetRequest(
@@ -41,9 +42,38 @@ internal fun parseOfflineAssetRequest(url: String): OfflineAssetRequest? {
   return OfflineAssetRequest(articleId = match.groupValues[1].toIntOrNull() ?: return null, fileName = match.groupValues[2])
 }
 
-/** Creates a reader model from a local copy, retaining richer metadata when the library card is available. */
+/**
+ * 从本地正文构建阅读模型。新版缓存会保存完整详情；
+ * 列表卡片仍用于覆盖当前收藏、归档等可能已变化的轻量状态。
+ */
 internal fun offlineReaderDetail(card: ArticleCard?, offline: OfflineReaderContent): ArticleDetail {
   val saved = offline.article
+  val cached = offline.detail
+  if (cached != null) {
+    return cached.copy(
+      title = card?.title ?: cached.title,
+      author = card?.author ?: cached.author,
+      source = card?.source ?: cached.source,
+      originalUrl = card?.originalUrl ?: cached.originalUrl,
+      publicId = card?.publicId ?: cached.publicId,
+      coverImage = card?.coverImage ?: cached.coverImage,
+      aiSummary = card?.aiSummary ?: cached.aiSummary,
+      aiCategory = card?.aiCategory ?: cached.aiCategory,
+      aiTags = card?.aiTags?.takeIf { it.isNotEmpty() } ?: cached.aiTags,
+      aiStatus = card?.aiStatus ?: cached.aiStatus,
+      aiErrorCode = card?.aiErrorCode ?: cached.aiErrorCode,
+      aiErrorMessage = card?.aiErrorMessage ?: cached.aiErrorMessage,
+      aiModel = card?.aiModel ?: cached.aiModel,
+      aiTotalTokens = card?.aiTotalTokens ?: cached.aiTotalTokens,
+      category = card?.category ?: cached.category,
+      categoryResult = card?.categoryResult ?: cached.categoryResult,
+      isFavorited = card?.isFavorited ?: cached.isFavorited,
+      isArchived = card?.isArchived ?: cached.isArchived,
+      isPublished = card?.isPublished ?: cached.isPublished,
+      contentHtml = offline.contentHtml,
+      contentMd = null,
+    )
+  }
   return if (card == null) {
     ArticleDetail(
       id = saved.articleId,

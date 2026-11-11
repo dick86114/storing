@@ -109,7 +109,12 @@ $darkTheme
 """.trimIndent()
 
   /** 根据文章详情构建头部 HTML，注入到 WebView 正文前 */
-  fun buildArticleHeader(article: ArticleDetail, colorScheme: ReaderColorScheme, isOfflineAvailable: Boolean): String {
+  fun buildArticleHeader(
+    article: ArticleDetail,
+    colorScheme: ReaderColorScheme,
+    isOfflineAvailable: Boolean,
+    isReadingCached: Boolean = false,
+  ): String {
     val title = escapeHtml(article.displayTitle)
     val coverHtml = article.coverImage
       ?.trim()
@@ -135,7 +140,11 @@ $darkTheme
       """<div class="qj-tags">${article.aiTags.joinToString("") { """<span class="qj-tag">${escapeHtml(it)}</span>""" }}</div>"""
     } else ""
 
-    val offlineHtml = if (isOfflineAvailable) """<div class="qj-offline">⤓ 离线可用</div>""" else ""
+    val offlineHtml = when {
+      isOfflineAvailable -> """<div class="qj-offline">⤓ 离线已保存</div>"""
+      isReadingCached -> """<div class="qj-offline">⤓ 本地缓存</div>"""
+      else -> ""
+    }
 
     val darkOverride = if (colorScheme == ReaderColorScheme.Dark) "<style>$darkHeaderOverride</style>" else ""
 

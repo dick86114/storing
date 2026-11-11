@@ -191,7 +191,7 @@ interface PendingAuthActionDao {
     PendingAuthActionEntity::class,
     PendingAuthActionFileEntity::class,
   ],
-  version = 5,
+  version = 6,
   exportSchema = false,
 )
 abstract class ArticleCacheDatabase : RoomDatabase() {
@@ -261,9 +261,84 @@ abstract class ArticleCacheDatabase : RoomDatabase() {
       }
     }
 
+    val MIGRATION_5_6 = object : Migration(5, 6) {
+      override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE offline_articles RENAME TO offline_articles_legacy")
+        database.execSQL(
+          """
+          CREATE TABLE IF NOT EXISTS offline_articles (
+            articleId INTEGER NOT NULL,
+            userId INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            source TEXT,
+            author TEXT,
+            localHtmlPath TEXT NOT NULL,
+            localCoverPath TEXT,
+            imageCount INTEGER NOT NULL,
+            totalSizeBytes INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            errorMessage TEXT,
+            downloadedAtEpochMs INTEGER NOT NULL,
+            isPinned INTEGER NOT NULL,
+            hasCompleteAssets INTEGER NOT NULL,
+            detailJson TEXT,
+            cachedAtEpochMs INTEGER NOT NULL,
+            lastAccessedAtEpochMs INTEGER NOT NULL,
+            PRIMARY KEY(userId, articleId)
+          )
+          """.trimIndent(),
+        )
+        database.execSQL(
+          """
+          INSERT INTO offline_articles (
+            articleId,
+            userId,
+            title,
+            source,
+            author,
+            localHtmlPath,
+            localCoverPath,
+            imageCount,
+            totalSizeBytes,
+            status,
+            errorMessage,
+            downloadedAtEpochMs,
+            isPinned,
+            hasCompleteAssets,
+            detailJson,
+            cachedAtEpochMs,
+            lastAccessedAtEpochMs
+          )
+          SELECT
+            articleId,
+            0,
+            title,
+            source,
+            author,
+            localHtmlPath,
+            localCoverPath,
+            imageCount,
+            totalSizeBytes,
+            status,
+            errorMessage,
+            downloadedAtEpochMs,
+            1,
+            1,
+            NULL,
+            downloadedAtEpochMs,
+            downloadedAtEpochMs
+          FROM offline_articles_legacy
+          """.trimIndent(),
+        )
+        database.execSQL("DROP TABLE offline_articles_legacy")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_offline_articles_userId_isPinned ON offline_articles(userId, isPinned)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_offline_articles_userId_lastAccessedAtEpochMs ON offline_articles(userId, lastAccessedAtEpochMs)")
+      }
+    }
+
     fun create(context: Context): ArticleCacheDatabase =
       Room.databaseBuilder(context.applicationContext, ArticleCacheDatabase::class.java, "qiankunjie_article_cache")
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
         .build()
   }
 }

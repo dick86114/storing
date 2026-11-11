@@ -50,4 +50,39 @@ class OfflineReaderRoutingTest {
     assertEquals("作者", detail.author)
     assertEquals("<p>离线正文</p>", detail.contentHtml)
   }
+
+  @Test
+  fun `automatic cache restores full detail while replacing the local body`() {
+    val cachedDetail = ArticleDetail(
+      id = 31,
+      title = "缓存标题",
+      source = "缓存来源",
+      aiSummary = "缓存摘要",
+      aiTags = listOf("缓存标签"),
+      isFavorited = true,
+      contentHtml = "不会使用这里的正文",
+    )
+    val cached = OfflineReaderContent(
+      article = OfflineArticle(
+        articleId = 31,
+        userId = 1,
+        title = "缓存标题",
+        source = "缓存来源",
+        author = null,
+        localHtmlPath = "/tmp/content.html",
+        localCoverPath = null,
+        isPinned = false,
+        hasCompleteAssets = false,
+      ),
+      contentHtml = "<p>本地缓存的正文</p>",
+      detail = cachedDetail,
+    )
+
+    val detail = offlineReaderDetail(card = null, offline = cached)
+
+    assertEquals("缓存摘要", detail.aiSummary)
+    assertEquals(listOf("缓存标签"), detail.aiTags)
+    assertTrue(detail.isFavorited)
+    assertEquals("<p>本地缓存的正文</p>", detail.contentHtml)
+  }
 }
