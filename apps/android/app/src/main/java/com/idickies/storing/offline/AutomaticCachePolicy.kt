@@ -1,7 +1,11 @@
 package com.idickies.storing.offline
 
 internal const val AUTOMATIC_CACHE_MAX_BYTES = 256L * 1024 * 1024
-internal const val AUTOMATIC_CACHE_MAX_AGE_MS = 60L * 24 * 60 * 60 * 1000
+internal const val AUTOMATIC_CACHE_MAX_AGE_DAYS = 60
+internal const val AUTOMATIC_CACHE_MAX_AGE_MS = AUTOMATIC_CACHE_MAX_AGE_DAYS * 24L * 60 * 60 * 1000
+internal const val AUTOMATIC_IMAGE_MAX_COUNT = 80
+internal const val AUTOMATIC_IMAGE_MAX_BYTES = 40L * 1024 * 1024
+internal const val AUTOMATIC_IMAGE_MAX_SINGLE_BYTES = 12L * 1024 * 1024
 
 /**
  * 自动缓存只使用“未固定”的条目，按最后访问时间先淘汰过期内容，

@@ -1,6 +1,7 @@
 package com.idickies.storing.library
 
 import android.net.Uri
+import android.webkit.WebResourceResponse
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -621,6 +622,19 @@ class LibraryViewModel @Inject constructor(
   /** Serves only validated app-owned offline image URLs to the reader WebView. */
   fun openOfflineAsset(uri: Uri) = offlineDownloadManager.openOfflineAsset(uri)
 
+  /** WebView 图片请求拦截：首次下载并落盘，后续直接复用本地文件。 */
+  fun loadReaderImage(
+    articleId: Int,
+    url: String,
+    requestHeaders: Map<String, String>,
+  ): WebResourceResponse? = offlineDownloadManager.loadReaderImage(articleId, url, requestHeaders)
+
+  fun refreshReaderAssets(articleId: Int) {
+    viewModelScope.launch {
+      runCatching { offlineDownloadManager.refreshAutomaticAssets(articleId) }
+    }
+  }
+
   fun refreshDetail() {
     val snapshot = mutableState.value
     val detail = snapshot.detail ?: return
@@ -662,7 +676,10 @@ class LibraryViewModel @Inject constructor(
     }
   }
 
-  fun closeDetail() = mutableState.update { it.copy(detail = null, detailError = null, loadingDetail = false, detailRefreshing = false, savedReadingPosition = null, isReadingOffline = false, isReadingCached = false) }
+  fun closeDetail() {
+    mutableState.value.detail?.id?.let(::refreshReaderAssets)
+    mutableState.update { it.copy(detail = null, detailError = null, loadingDetail = false, detailRefreshing = false, savedReadingPosition = null, isReadingOffline = false, isReadingCached = false) }
+  }
 
   fun toggleFavoriteCard(article: ArticleCard) {
     viewModelScope.launch {

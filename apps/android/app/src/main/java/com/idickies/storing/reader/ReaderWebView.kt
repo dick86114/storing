@@ -34,6 +34,7 @@ object ReaderWebView {
     onOpenExternalUrl: (Uri) -> Unit,
     onCategoryReasonRequested: (() -> Unit)? = null,
     offlineResourceLoader: ((Uri) -> WebResourceResponse?)? = null,
+    imageCacheLoader: ((WebResourceRequest) -> WebResourceResponse?)? = null,
     onPageFinished: (() -> Unit)? = null,
     onPageCommitVisible: (() -> Unit)? = null,
     onScrollChanged: ((Float) -> Unit)? = null,
@@ -60,7 +61,9 @@ object ReaderWebView {
 
       override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
         val uri = request?.url ?: return super.shouldInterceptRequest(view, request)
-        return offlineResourceLoader?.invoke(uri) ?: super.shouldInterceptRequest(view, request)
+        offlineResourceLoader?.invoke(uri)?.let { return it }
+        imageCacheLoader?.invoke(request)?.let { return it }
+        return super.shouldInterceptRequest(view, request)
       }
 
       override fun onPageFinished(view: WebView?, url: String?) {
