@@ -53,6 +53,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,6 +66,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.idickies.storing.BuildConfig
 import com.idickies.storing.ui.theme.ThemeMode
 import com.idickies.storing.cache.CacheManager
@@ -106,8 +108,10 @@ fun QiankunjieSettingsScreen(
   onOpenDeviceSessions: () -> Unit,
   onLogout: () -> Unit,
   onBack: () -> Unit,
+  readerCacheViewModel: ReaderCacheSettingsViewModel = hiltViewModel(),
 ) {
   var confirmLogout by remember { mutableStateOf(false) }
+  val readerCacheState by readerCacheViewModel.state.collectAsState()
   // Star 引导关闭后持久化，避免用户每次进入设置都被重复打扰。
   val context = LocalContext.current
   val settingsPreferences = remember {
@@ -119,6 +123,7 @@ fun QiankunjieSettingsScreen(
   val update = settingsUpdatePresentation(checkingUpdate)
   LaunchedEffect(Unit) {
     showStarPrompt = !settingsPreferences.getBoolean(GITHUB_STAR_PROMPT_DISMISSED, false)
+    readerCacheViewModel.refresh()
   }
   LaunchedEffect(gitHubTokenState.maskedToken) {
     if (gitHubTokenState.maskedToken != null) {
@@ -446,34 +451,25 @@ fun QiankunjieSettingsScreen(
       item {
         SettingsRow(
           icon = Icons.Outlined.CloudDone,
-          title = "离线内容管理",
-          detail = "查看和管理已下载的离线文章",
+          title = "离线保存",
+          detail = "查看和管理固定保存的完整离线文章（含图片）",
           onClick = onOpenOfflineContent,
         )
       }
       item {
-        val context = LocalContext.current
-        var cacheSize by remember { mutableStateOf<Long?>(null) }
-        var clearing by remember { mutableStateOf(false) }
-        LaunchedEffect(Unit) { cacheSize = CacheManager.totalCacheSize(context) }
-        val cleared = cacheSize == 0L
+        val clearing = readerCacheState.clearing
         SettingsRow(
           icon = Icons.Outlined.CleaningServices,
-          title = if (clearing) "正在清理…" else "清理图片缓存",
-          detail = "当前占用 ${cacheSize?.let { CacheManager.formatSize(it) } ?: "计算中…"}（不含离线下载内容）",
-          enabled = !clearing && cacheSize != null && cacheSize!! > 0L,
-          onClick = {
-            clearing = true
-            cacheSize = null
+          title = if (clearing) "正在清理…" else "清理阅读缓存",
+          detail = if (readerCacheState.loading) {
+            "正在计算自动正文与图片缓存…"
+          } else {
+            "自动正文 ${readerCacheState.automaticCount} 篇 ${CacheManager.formatSize(readerCacheState.automaticBytes)}" +
+              " · 图片 ${CacheManager.formatSize(readerCacheState.imageBytes)}（不含离线保存）"
           },
+          enabled = !clearing && !readerCacheState.loading && readerCacheState.clearableBytes > 0L,
+          onClick = readerCacheViewModel::clearReaderCache,
         )
-        LaunchedEffect(clearing) {
-          if (clearing) {
-            CacheManager.clearImageCache(context)
-            cacheSize = CacheManager.totalCacheSize(context)
-            clearing = false
-          }
-        }
       }
       item { SettingsSectionTitle("关于") }
       item {

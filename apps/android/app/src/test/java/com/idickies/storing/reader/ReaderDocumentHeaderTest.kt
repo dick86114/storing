@@ -44,4 +44,23 @@ class ReaderDocumentHeaderTest {
     assertTrue(header.contains("""<img class="qj-cover" src="https://cdn.example.com/cover.jpg"""))
     assertTrue(header.indexOf("qj-cover") < header.indexOf("qj-title"))
   }
+
+  @Test
+  fun `detail header distinguishes automatic cache from pinned offline save`() {
+    val cachedHeader = ReaderDocument.buildArticleHeader(
+      article = ArticleDetail(id = 3, title = "缓存文章"),
+      colorScheme = ReaderColorScheme.Light,
+      isOfflineAvailable = false,
+      isReadingCached = true,
+    )
+    val savedHeader = ReaderDocument.buildArticleHeader(
+      article = ArticleDetail(id = 4, title = "离线文章"),
+      colorScheme = ReaderColorScheme.Light,
+      isOfflineAvailable = true,
+      isReadingCached = true,
+    )
+
+    assertTrue(cachedHeader.contains("本地缓存"))
+    assertTrue(savedHeader.contains("离线已保存"))
+  }
 }
