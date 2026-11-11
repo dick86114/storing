@@ -16,6 +16,7 @@ import javax.inject.Inject
 data class ReaderCacheSettingsUiState(
   val automaticBytes: Long = 0L,
   val automaticCount: Int = 0,
+  val automaticImageCount: Int = 0,
   val imageBytes: Long = 0L,
   val loading: Boolean = true,
   val clearing: Boolean = false,
@@ -39,11 +40,13 @@ class ReaderCacheSettingsViewModel @Inject constructor(
     viewModelScope.launch {
       val automaticBytes = offlineDownloadManager.automaticCacheSize()
       val automaticCount = offlineDownloadManager.automaticCacheCount()
+      val automaticImageCount = offlineDownloadManager.automaticImageCount()
       val imageBytes = CacheManager.imageCacheSize(context)
       mutableState.update {
         it.copy(
           automaticBytes = automaticBytes,
           automaticCount = automaticCount,
+          automaticImageCount = automaticImageCount,
           imageBytes = imageBytes,
           loading = false,
         )

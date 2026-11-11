@@ -54,6 +54,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
@@ -852,11 +853,13 @@ fun LibraryScreen(
   var showLibrarySearch by rememberSaveable { mutableStateOf(false) }
   // 布局偏好持久化在 SharedPreferences 里，冷启动也能沿用上次选择。
   val presentationMode by libraryLayoutViewModel.presentationMode.collectAsState()
-  val inboxListState = rememberLazyListState()
-  val favoritesListState = rememberLazyListState()
-  val archiveListState = rememberLazyListState()
-  val publishedListState = rememberLazyListState()
-  fun listStateFor(view: LibraryView): LazyListState = when (view) {
+  val inboxListState = rememberLazyStaggeredGridState()
+  val favoritesListState = rememberLazyStaggeredGridState()
+  val archiveListState = rememberLazyStaggeredGridState()
+  val publishedListState = rememberLazyStaggeredGridState()
+  val settingsListState = rememberLazyListState()
+  var expandedSettingsSections by remember { mutableStateOf(emptySet<SettingsSection>()) }
+  fun listStateFor(view: LibraryView): LazyStaggeredGridState = when (view) {
     LibraryView.Inbox -> inboxListState
     LibraryView.Favorites -> favoritesListState
     LibraryView.Archive -> archiveListState
@@ -1070,6 +1073,15 @@ fun LibraryScreen(
       onOpenDeviceSessions = { showDeviceSessions = true },
       onLogout = { showSettings = false; onLogout() },
       onBack = { showSettings = false },
+      expandedSettingsSections = expandedSettingsSections,
+      onToggleSettingsSection = { section ->
+        expandedSettingsSections = if (section in expandedSettingsSections) {
+          expandedSettingsSections - section
+        } else {
+          expandedSettingsSections + section
+        }
+      },
+      listState = settingsListState,
     )
     detail != null -> ArticleReader(
       article = detail,
@@ -1087,6 +1099,8 @@ fun LibraryScreen(
       isReadingCached = state.isReadingCached,
       downloadingOffline = state.downloadingOffline,
       onOpenOfflineAsset = libraryViewModel::openOfflineAsset,
+      onLoadReaderImage = { url, headers -> libraryViewModel.loadReaderImage(detail.id, url, headers) },
+      onReaderPageFinished = { libraryViewModel.refreshReaderAssets(detail.id) },
       onFavorite = { libraryViewModel.toggleFavorite(detail) },
       onArchive = {
         if (detail.isArchived) libraryViewModel.toggleArchive(detail)
@@ -1797,7 +1811,7 @@ private fun LibraryList(
   onLongPress: (com.idickies.storing.library.ArticleCard) -> Unit,
   onSelectCollectUrl: (String) -> Unit,
   onSubmitCollect: () -> Unit,
-  listState: LazyListState,
+  listState: LazyStaggeredGridState,
   modifier: Modifier = Modifier,
 ) {
   val isDarkAppearance = isQiankunjieDarkTheme()
@@ -1806,13 +1820,12 @@ private fun LibraryList(
   var selectedArticleIds by remember { mutableStateOf<Set<Int>>(emptySet()) }
   var batchCategoryPickerOpen by remember { mutableStateOf(false) }
   var batchArchivePickerOpen by remember { mutableStateOf(false) }
-  val gridState = rememberLazyStaggeredGridState()
   LaunchedEffect(state.articles) {
     selectedArticleIds = selectedArticleIds intersect state.articles.map { it.id }.toSet()
   }
-  val lastVisibleItemIndex by remember { derivedStateOf { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 } }
+  val lastVisibleItemIndex by remember { derivedStateOf { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 } }
   LaunchedEffect(lastVisibleItemIndex, state.articles.size, state.hasMore, state.loadingMore, state.fromCache) {
-    if (!state.loadingMore && !state.fromCache && shouldLoadMore(lastVisibleItemIndex, gridState.layoutInfo.totalItemsCount, state.hasMore)) onLoadMore()
+    if (!state.loadingMore && !state.fromCache && shouldLoadMore(lastVisibleItemIndex, listState.layoutInfo.totalItemsCount, state.hasMore)) onLoadMore()
   }
   val handleArticleLongPress: (com.idickies.storing.library.ArticleCard) -> Unit = { article ->
     if (batchMode && selectedArticleIds.isNotEmpty()) {
@@ -1842,7 +1855,7 @@ private fun LibraryList(
     LazyVerticalStaggeredGrid(
       columns = StaggeredGridCells.Fixed(if (usesMasonryGrid(presentationMode)) 2 else 1),
       modifier = Modifier.fillMaxSize(),
-      state = gridState,
+      state = listState,
       contentPadding = PaddingValues(16.dp),
       verticalItemSpacing = 14.dp,
       horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -2260,7 +2273,7 @@ internal fun ArticleDetailSkeleton() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, isReadingCached: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, archiveCategories: List<ArticleCategory>, recentArchiveCategories: List<ArticleCategory>, archiveCategoriesLoading: Boolean, archiveCategoriesError: String?, onRetryArchiveCategories: () -> Unit, onAssignCategory: suspend (ArticleCategory) -> CategoryAssignmentResult, onCreateCategory: suspend (CategoryMutationRequest) -> CategoryCreationResult, onCategoryAssigned: (String) -> Unit, onReclassify: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onUpdateOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onUpdateTitle: (String) -> Unit, onSaveReadingPosition: (Float) -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, isReadingCached: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onLoadReaderImage: (String, Map<String, String>) -> android.webkit.WebResourceResponse?, onReaderPageFinished: () -> Unit, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, archiveCategories: List<ArticleCategory>, recentArchiveCategories: List<ArticleCategory>, archiveCategoriesLoading: Boolean, archiveCategoriesError: String?, onRetryArchiveCategories: () -> Unit, onAssignCategory: suspend (ArticleCategory) -> CategoryAssignmentResult, onCreateCategory: suspend (CategoryMutationRequest) -> CategoryCreationResult, onCategoryAssigned: (String) -> Unit, onReclassify: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onUpdateOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onUpdateTitle: (String) -> Unit, onSaveReadingPosition: (Float) -> Unit) {
   val context = LocalContext.current
   val isDarkAppearance = isQiankunjieDarkTheme()
   var confirmDelete by remember { mutableStateOf(false) }
@@ -2492,8 +2505,12 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
                       onOpenExternalUrl = { uri -> webContext.startActivity(Intent(Intent.ACTION_VIEW, uri)) },
                       onCategoryReasonRequested = { showCategoryReason = true },
                       offlineResourceLoader = if (isReadingOffline) onOpenOfflineAsset else null,
+                      imageCacheLoader = if (isReadingOffline) null else { request ->
+                        onLoadReaderImage(request.url.toString(), request.requestHeaders)
+                      },
                       onPageFinished = {
                         savedReadingPosition?.let { pos -> ReaderWebView.restoreScrollPosition(this, pos) }
+                        onReaderPageFinished()
                       },
                       onPageCommitVisible = { webLoaded = true },
                       onScrollChanged = { percentage -> currentScrollPercentage = percentage },

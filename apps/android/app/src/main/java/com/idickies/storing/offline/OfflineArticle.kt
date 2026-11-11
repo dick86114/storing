@@ -70,6 +70,12 @@ interface OfflineArticleDao {
   @Query("SELECT COUNT(*) FROM offline_articles WHERE userId = :userId AND isPinned = 0 AND status = 'Completed'")
   suspend fun automaticCount(userId: Int): Int
 
+  @Query("SELECT SUM(imageCount) FROM offline_articles WHERE userId = :userId AND isPinned = 0 AND status = 'Completed'")
+  suspend fun automaticImageCount(userId: Int): Int?
+
+  @Query("UPDATE offline_articles SET imageCount = :imageCount, totalSizeBytes = :totalSizeBytes WHERE userId = :userId AND articleId = :articleId AND isPinned = 0")
+  suspend fun updateAutomaticAssets(userId: Int, articleId: Int, imageCount: Int, totalSizeBytes: Long)
+
   @Query("UPDATE offline_articles SET lastAccessedAtEpochMs = :lastAccessedAtEpochMs WHERE userId = :userId AND articleId = :articleId")
   suspend fun touch(userId: Int, articleId: Int, lastAccessedAtEpochMs: Long)
 

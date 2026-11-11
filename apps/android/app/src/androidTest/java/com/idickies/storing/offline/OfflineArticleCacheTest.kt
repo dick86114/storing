@@ -18,6 +18,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.security.MessageDigest
 
 @RunWith(AndroidJUnit4::class)
 class OfflineArticleCacheTest {
@@ -88,6 +89,22 @@ class OfflineArticleCacheTest {
     assertEquals("<article><p>自动缓存正文</p></article>", restored!!.contentHtml)
     assertEquals("缓存摘要", restored.detail?.aiSummary)
     assertEquals(listOf("Android"), restored.detail?.aiTags)
+
+    val articleDir = File(restored.article.localHtmlPath).parentFile!!
+    val imagesDir = File(articleDir, "images").apply { mkdirs() }
+    File(imagesDir, "img_existing.jpg").writeBytes(byteArrayOf(1, 2, 3))
+    manager.refreshAutomaticAssets(article.id)
+    assertEquals(1, manager.automaticImageCount())
+    assertTrue(manager.automaticCacheSize() > restored.article.totalSizeBytes)
+
+    val imageUrl = "https://cdn.example.com/reader.jpg"
+    val imageDigest = MessageDigest.getInstance("SHA-256")
+      .digest(imageUrl.toByteArray())
+      .joinToString("") { byte -> (byte.toInt() and 0xff).toString(16).padStart(2, '0') }
+    File(imagesDir, "img_$imageDigest.jpg").writeBytes(byteArrayOf(4, 5, 6))
+    val cachedImage = manager.loadReaderImage(article.id, imageUrl, mapOf("Accept" to "image/jpeg"))
+    assertNotNull(cachedImage)
+    assertEquals(listOf<Byte>(4, 5, 6), cachedImage!!.data.readBytes().toList())
 
     manager.download(
       article = article,

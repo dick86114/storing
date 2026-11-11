@@ -12,7 +12,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.ByteArrayInputStream
 import java.io.File
+import java.security.MessageDigest
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -36,6 +38,7 @@ class OfflineDownloadManager @Inject constructor(
   /** 所有未固定自动缓存的占用。 */
   suspend fun automaticCacheSize(): Long = withContext(Dispatchers.IO) {
     val userId = prepareUser()
+    dao.automatic(userId).forEach { refreshAutomaticAssets(userId, it) }
     trimAutomaticCache(userId)
     dao.automaticSize(userId) ?: 0L
   }
@@ -45,6 +48,13 @@ class OfflineDownloadManager @Inject constructor(
     val userId = prepareUser()
     trimAutomaticCache(userId)
     dao.automaticCount(userId)
+  }
+
+  /** 所有自动缓存正文图片数量。 */
+  suspend fun automaticImageCount(): Int = withContext(Dispatchers.IO) {
+    val userId = prepareUser()
+    dao.automatic(userId).forEach { refreshAutomaticAssets(userId, it) }
+    dao.automaticImageCount(userId) ?: 0
   }
 
   /** 固定离线保存内容的总占用。 */
@@ -58,16 +68,74 @@ class OfflineDownloadManager @Inject constructor(
     dao.get(userId, articleId)?.isPinned == true
   }
 
-  /**
-   * 阅读时优先使用本地正文。固定离线条目会加载本地图片；
-   * 自动缓存条目仍使用原始图片地址，图片是否命中由网络与图片缓存决定。
-   */
+  /** 阅读时优先使用本地正文；正文图片由 WebView 请求拦截器按文章落盘复用。 */
   suspend fun loadForReading(articleId: Int): OfflineReaderContent? = withContext(Dispatchers.IO) {
     val userId = prepareUser()
     val record = dao.get(userId, articleId)
       ?.takeIf { it.status == OfflineDownloadStatus.Completed.name }
       ?: return@withContext null
     loadRecord(record)
+  }
+
+  /**
+   * 在 WebView 首次请求图片时下载并落盘，后续相同图片请求直接读取本地文件。
+   * 这是“边读边缓存”，不会在打开文章时额外预取整套图集。
+   */
+  fun loadReaderImage(
+    articleId: Int,
+    url: String,
+    requestHeaders: Map<String, String>,
+  ): WebResourceResponse? = runCatching {
+    val uri = Uri.parse(url)
+    if (uri.scheme != "http" && uri.scheme != "https") return null
+    if (!looksLikeImageRequest(uri, requestHeaders)) return null
+
+    val userId = sessionStore.read()?.userId ?: 0
+    val imagesDir = File(articleDirectory(userId, articleId), "images").apply { mkdirs() }
+    val prefix = imageCachePrefix(url)
+    findCachedImage(imagesDir, prefix)?.let { return imageResponse(it) }
+
+    val requestBuilder = Request.Builder().url(url)
+    requestHeaders.forEach { (name, value) ->
+      if (name.equals("User-Agent", ignoreCase = true) ||
+        name.equals("Referer", ignoreCase = true) ||
+        name.equals("Accept", ignoreCase = true)
+      ) {
+        requestBuilder.header(name, value)
+      }
+    }
+    client.newCall(requestBuilder.build()).execute().use { response ->
+      if (!response.isSuccessful) return null
+      val body = response.body ?: return null
+      val contentType = body.contentType()?.toString()?.substringBefore(';')
+        ?.takeIf { it.startsWith("image/", ignoreCase = true) }
+        ?: return null
+      val bytes = body.bytes()
+      if (bytes.size > AUTOMATIC_IMAGE_MAX_SINGLE_BYTES) {
+        return WebResourceResponse(contentType, null, ByteArrayInputStream(bytes))
+      }
+      val stats = imageCacheStats(imagesDir)
+      if (stats.count < AUTOMATIC_IMAGE_MAX_COUNT &&
+        stats.bytes + bytes.size <= AUTOMATIC_IMAGE_MAX_BYTES
+      ) {
+        val extension = imageExtension(contentType, uri)
+        val target = File(imagesDir, "$prefix.$extension")
+        val temporary = File(imagesDir, "tmp_${UUID.randomUUID()}")
+        temporary.writeBytes(bytes)
+        if (!temporary.renameTo(target)) {
+          target.writeBytes(bytes)
+          temporary.delete()
+        }
+      }
+      WebResourceResponse(contentType, null, ByteArrayInputStream(bytes))
+    }
+  }.getOrNull()
+
+  /** 统计自动缓存正文图片数量与总占用；设置页和关闭阅读器时调用。 */
+  suspend fun refreshAutomaticAssets(articleId: Int) = withContext(Dispatchers.IO) {
+    val userId = prepareUser()
+    val record = dao.get(userId, articleId) ?: return@withContext
+    refreshAutomaticAssets(userId, record)
   }
 
   suspend fun loadPinnedForReading(articleId: Int): OfflineReaderContent? = withContext(Dispatchers.IO) {
@@ -95,6 +163,7 @@ class OfflineDownloadManager @Inject constructor(
     val articleDir = articleDirectory(userId, article.id).apply { mkdirs() }
     val htmlFile = File(articleDir, "content.html")
     htmlFile.writeText(html)
+    val imageStats = imageCacheStats(File(articleDir, "images"))
     val detailJson = json.encodeToString(
       ArticleDetail.serializer(),
       article.copy(contentHtml = null, contentMd = null),
@@ -107,8 +176,8 @@ class OfflineDownloadManager @Inject constructor(
       author = article.author,
       localHtmlPath = htmlFile.absolutePath,
       localCoverPath = null,
-      imageCount = 0,
-      totalSizeBytes = htmlFile.length(),
+      imageCount = imageStats.count,
+      totalSizeBytes = htmlFile.length() + imageStats.bytes,
       status = OfflineDownloadStatus.Completed.name,
       downloadedAtEpochMs = now,
       isPinned = false,
@@ -227,8 +296,79 @@ class OfflineDownloadManager @Inject constructor(
     return userId
   }
 
+  private val imageExtensions = setOf("jpg", "jpeg", "png", "webp", "gif", "avif", "bmp", "svg")
+
   private fun articleDirectory(userId: Int, articleId: Int): File =
     File(File(baseDir, "user-$userId"), "article-$articleId")
+
+  private fun looksLikeImageRequest(uri: Uri, headers: Map<String, String>): Boolean {
+    val accept = headers.entries
+      .firstOrNull { it.key.equals("Accept", ignoreCase = true) }
+      ?.value
+      .orEmpty()
+    if (accept.contains("image/", ignoreCase = true)) return true
+    val extension = uri.lastPathSegment
+      ?.substringAfterLast('.', "")
+      ?.lowercase()
+      .orEmpty()
+    return extension in imageExtensions
+  }
+
+  private fun imageCachePrefix(url: String): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+      .digest(url.toByteArray(Charsets.UTF_8))
+    return "img_" + digest.joinToString("") { byte ->
+      (byte.toInt() and 0xff).toString(16).padStart(2, '0')
+    }
+  }
+
+  private fun findCachedImage(imagesDir: File, prefix: String): File? =
+    imagesDir.listFiles()?.firstOrNull { file ->
+      file.isFile && file.name.startsWith("$prefix.")
+    }
+
+  private fun imageResponse(file: File): WebResourceResponse {
+    val mimeType = MimeTypeMap.getSingleton()
+      .getMimeTypeFromExtension(file.extension.lowercase())
+      ?: "image/jpeg"
+    return WebResourceResponse(mimeType, null, file.inputStream())
+  }
+
+  private fun imageCacheStats(imagesDir: File): ImageCacheStats {
+    val files = imagesDir.listFiles()?.filter { it.isFile && !it.name.startsWith("tmp_") }.orEmpty()
+    return ImageCacheStats(
+      count = files.size,
+      bytes = files.sumOf { it.length() },
+    )
+  }
+
+  private fun imageExtension(contentType: String, uri: Uri): String {
+    val mimeExtension = MimeTypeMap.getSingleton()
+      .getExtensionFromMimeType(contentType)
+      ?.lowercase()
+      ?.takeIf { it in imageExtensions }
+    val urlExtension = uri.lastPathSegment
+      ?.substringAfterLast('.', "")
+      ?.lowercase()
+      ?.takeIf { it in imageExtensions }
+    return mimeExtension ?: urlExtension ?: "jpg"
+  }
+
+  private suspend fun refreshAutomaticAssets(userId: Int, record: OfflineArticle) {
+    if (record.isPinned) return
+    val articleDir = File(record.localHtmlPath).parentFile ?: return
+    val imageCount = File(articleDir, "images")
+      .listFiles()
+      ?.count { it.isFile && !it.name.startsWith("tmp_") }
+      ?: 0
+    val totalSizeBytes = articleDir
+      .walkTopDown()
+      .filter { it.isFile }
+      .sumOf { it.length() }
+    if (record.imageCount != imageCount || record.totalSizeBytes != totalSizeBytes) {
+      dao.updateAutomaticAssets(userId, record.articleId, imageCount, totalSizeBytes)
+    }
+  }
 
   private suspend fun loadRecord(record: OfflineArticle): OfflineReaderContent? {
     val htmlFile = File(record.localHtmlPath)
@@ -314,4 +454,9 @@ class OfflineDownloadManager @Inject constructor(
     }
     return target
   }
+
+  private data class ImageCacheStats(
+    val count: Int,
+    val bytes: Long,
+  )
 }
