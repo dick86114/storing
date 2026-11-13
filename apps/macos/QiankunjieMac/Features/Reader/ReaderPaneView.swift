@@ -582,6 +582,8 @@ struct ReaderPaneView: View {
                 await model.refetch()
             case .regenerateAI:
                 await model.regenerateAI()
+            case .deepAnalysis:
+                break
             case .delete:
                 await model.delete()
                 return

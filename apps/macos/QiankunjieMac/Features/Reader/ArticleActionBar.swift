@@ -10,6 +10,7 @@ enum ReaderArticleAction: Identifiable, Equatable {
     case unpublish
     case refetch
     case regenerateAI
+    case deepAnalysis
     case delete
     case deletePermanent
     case openOriginal(URL)
@@ -23,6 +24,7 @@ enum ReaderArticleAction: Identifiable, Equatable {
         case .unpublish: "unpublish"
         case .refetch: "refetch"
         case .regenerateAI: "regenerate-ai"
+        case .deepAnalysis: "deep-analysis"
         case .delete: "delete"
         case .deletePermanent: "delete-permanent"
         case .openOriginal: "open-original"
@@ -37,6 +39,7 @@ enum ReaderArticleAction: Identifiable, Equatable {
         case .unpublish: "取消公开？"
         case .refetch: "重新抓取正文？"
         case .regenerateAI: "重新生成 AI 信息？"
+        case .deepAnalysis: ""
         case .delete: "删除这篇文章？"
         case .deletePermanent: "彻底删除这篇文章？"
         case .openOriginal: "打开原始网页？"
@@ -52,6 +55,7 @@ enum ReaderArticleAction: Identifiable, Equatable {
         case .unpublish: "取消后公开链接将不可访问。"
         case .refetch: "服务端会覆盖当前正文和封面。"
         case .regenerateAI: "当前 AI 摘要和标签会被替换。"
+        case .deepAnalysis: ""
         case .delete: "文章会从资料库中移除。"
         case .deletePermanent: "正文、媒体和元数据会从服务器彻底清除，无法恢复。"
         case .openOriginal: "网页将在默认浏览器中打开。"
@@ -67,6 +71,7 @@ enum ReaderArticleAction: Identifiable, Equatable {
         case .unpublish: "取消公开"
         case .refetch: "重新抓取"
         case .regenerateAI: "重新生成"
+        case .deepAnalysis: "深度报告"
         case .delete: "删除"
         case .deletePermanent: "彻底删除"
         case .openOriginal: "打开原文"
@@ -153,6 +158,10 @@ struct ArticleActionBar: View {
             .disabled(accountActionsDisabled)
             actionButton("sparkles", "重新生成 AI 摘要和标签") {
                 onAction(.regenerateAI)
+            }
+            .disabled(accountActionsDisabled)
+            actionButton("doc.text.magnifyingglass", "深度报告") {
+                onAction(.deepAnalysis)
             }
             .disabled(accountActionsDisabled)
 
