@@ -160,7 +160,7 @@ struct ArticleActionBar: View {
                 onAction(.regenerateAI)
             }
             .disabled(accountActionsDisabled)
-            actionButton("doc.text.magnifyingglass", "深度报告") {
+            actionButton("bubbles.and.sparkles.fill", "深度报告") {
                 onAction(.deepAnalysis)
             }
             .disabled(accountActionsDisabled)
