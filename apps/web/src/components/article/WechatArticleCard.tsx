@@ -277,6 +277,17 @@ function WechatArticleCardBase({ article, onClick, onToggleFavorite, onArchive, 
           {aiStatusText(article.aiStatus)}
         </span>
       )}
+      {article.deepAnalysis && article.deepAnalysis.status !== 'not_generated' && (
+        <span className={`article-deep-state is-${article.deepAnalysis.status === 'queued' || article.deepAnalysis.status === 'running' ? 'running' : article.deepAnalysis.status === 'failed' ? 'failed' : 'done'}`}>
+          {article.deepAnalysis.status === 'queued' || article.deepAnalysis.status === 'running'
+            ? '深度解析中'
+            : article.deepAnalysis.status === 'failed'
+              ? '解析失败'
+              : article.deepAnalysis.stale
+                ? '深度报告·旧'
+                : '深度报告'}
+        </span>
+      )}
       <span className="article-card-footer-meta">
         {article.isPublished && <span className="article-card-published-mark" title="已公开" aria-label="已公开"><GlobalOutlined aria-hidden="true" /></span>}
         <span

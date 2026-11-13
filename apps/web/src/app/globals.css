@@ -17580,6 +17580,101 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   line-height: 1.45;
 }
 
+.article-deep-state {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.article-deep-state.is-running {
+  color: #2563a8;
+  background: #e7eff8;
+}
+.article-deep-state.is-failed {
+  color: #a33a34;
+  background: #fae8e6;
+}
+.deep-analysis-entry {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.deep-analysis-entry-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.deep-analysis-state {
+  font-size: 12px;
+  color: var(--muted);
+}
+.deep-analysis-state.is-running { color: #2563a8; }
+.deep-analysis-state.is-failed { color: #a33a34; }
+.deep-analysis-state.is-done { color: var(--accent); }
+.deep-analysis-entry p {
+  margin: 8px 0 10px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.deep-analysis-entry-actions {
+  display: flex;
+  gap: 8px;
+}
+.deep-analysis-entry-actions button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 9px;
+}
+.deep-analysis-drawer {
+  position: fixed;
+  top: 44px;
+  right: 0;
+  bottom: 0;
+  width: min(420px, 100%);
+  overflow: auto;
+  padding: 14px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  z-index: 1100;
+}
+.deep-analysis-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.deep-analysis-drawer-head button {
+  margin-left: 6px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 4px 7px;
+  font-size: 12px;
+}
+.deep-analysis-section {
+  margin-bottom: 10px;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+.deep-analysis-section h3 {
+  margin: 0 0 7px;
+  font-size: 13px;
+}
+.deep-analysis-section ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
 .ai-summary-meta > span {
   display: inline-flex;
   min-width: 0;
