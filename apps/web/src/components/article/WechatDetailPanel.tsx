@@ -20,6 +20,7 @@ import type { ArticleListMutation } from '@/components/providers/ArticleContext'
 import { CategoryPicker } from '@/components/category/CategoryPicker';
 import { useCategoryCatalog, useRefreshCategoryCatalog } from '@/hooks/useCategoryCatalog';
 import { useCategoryRecents } from '@/hooks/useCategoryRecents';
+import { DeepAnalysisPanel } from '@/components/article/DeepAnalysisPanel';
 
 const DETAIL_PANEL_DEFAULT_WIDTH = 750;
 const DETAIL_PANEL_MIN_WIDTH = 560;
@@ -2859,6 +2860,10 @@ function DetailContent({
                       </button>
                     )}
                   </>
+                )}
+
+                {isAuthenticated && article && (
+                  <DeepAnalysisPanel articleId={article.id} articleTitle={article.title} />
                 )}
               </div>
             </>
