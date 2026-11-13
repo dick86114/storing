@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { asc } from 'drizzle-orm';
 import { getArticleContent } from './reader.service.js';
 import {
   buildDeepAnalysisPrompt,
@@ -9,6 +10,7 @@ import {
 } from './deep-analysis-ai.service.js';
 import { callUserAi } from './ai-provider.service.js';
 import { resolveUserAiRuntimeConfig } from './user-ai-settings.service.js';
+import { createDeepAnalysisNotification } from './user-notification.service.js';
 import { db } from '../db/index.js';
 import { articleDeepAnalyses, articles } from '../db/schema.js';
 
@@ -214,7 +216,7 @@ export async function enqueueDeepAnalysis(
 }
 
 async function claimNextDeepAnalysisJob() {
-  return db.transaction(async (database) => {
+  const claimed = await db.transaction(async (database) => {
     const result = await database.execute(sql`
       SELECT *
       FROM article_deep_analyses
@@ -246,6 +248,7 @@ async function claimNextDeepAnalysisJob() {
       .returning();
     return claimed;
   });
+  return claimed;
 }
 
 async function buildArticleDeepInput(userId: number, articleId: number) {
@@ -349,6 +352,17 @@ export async function runDeepAnalysisWorkers(): Promise<void> {
         completionTokens: aiResult.completionTokens,
         totalTokens: aiResult.totalTokens,
       }, prompt.contentTruncated);
+      const [articleTitle] = await db
+        .select({ title: articles.title })
+        .from(articles)
+        .where(eq(articles.id, job.articleId))
+        .limit(1);
+      await createDeepAnalysisNotification({
+        userId: job.userId,
+        articleId: job.articleId,
+        articleTitle: articleTitle?.title ?? null,
+        reportVersion: job.version,
+      });
     } catch (error) {
       await failDeepAnalysisJob(job, error);
     }
@@ -383,4 +397,54 @@ export async function retryDeepAnalysisJob(userId: number, jobId: number): Promi
     updatedAt: new Date(),
   }).where(eq(articleDeepAnalyses.id, job.id));
   void runDeepAnalysisWorkers().catch((error) => console.error('深度报告重试失败:', errorText(error)));
+}
+
+export function getDeepAnalysisVersions(userId: number, articleId: number) {
+  return db
+    .select({
+      id: articleDeepAnalyses.id,
+      version: articleDeepAnalyses.version,
+      status: articleDeepAnalyses.status,
+      isCurrent: articleDeepAnalyses.isCurrent,
+      contentTruncated: articleDeepAnalyses.contentTruncated,
+      totalTokens: articleDeepAnalyses.totalTokens,
+      generatedAt: articleDeepAnalyses.finishedAt,
+      createdAt: articleDeepAnalyses.createdAt,
+    })
+    .from(articleDeepAnalyses)
+    .where(and(
+      eq(articleDeepAnalyses.userId, userId),
+      eq(articleDeepAnalyses.articleId, articleId),
+    ))
+    .orderBy(asc(articleDeepAnalyses.version));
+}
+
+export async function restoreDeepAnalysisVersion(
+  userId: number,
+  articleId: number,
+  version: number,
+): Promise<void> {
+  await db.transaction(async (database) => {
+    const [target] = await database
+      .select({ id: articleDeepAnalyses.id })
+      .from(articleDeepAnalyses)
+      .where(and(
+        eq(articleDeepAnalyses.userId, userId),
+        eq(articleDeepAnalyses.articleId, articleId),
+        eq(articleDeepAnalyses.version, version),
+        eq(articleDeepAnalyses.status, 'succeeded'),
+      ))
+      .limit(1);
+    if (!target) throw new Error('DEEP_ANALYSIS_VERSION_NOT_FOUND');
+    await database.update(articleDeepAnalyses)
+      .set({ isCurrent: false, updatedAt: new Date() })
+      .where(and(
+        eq(articleDeepAnalyses.userId, userId),
+        eq(articleDeepAnalyses.articleId, articleId),
+        eq(articleDeepAnalyses.isCurrent, true),
+      ));
+    await database.update(articleDeepAnalyses)
+      .set({ isCurrent: true, updatedAt: new Date() })
+      .where(eq(articleDeepAnalyses.id, target.id));
+  });
 }
