@@ -6,6 +6,7 @@ import android.webkit.MimeTypeMap
 import android.webkit.WebResourceResponse
 import com.idickies.storing.auth.SessionStore
 import com.idickies.storing.library.ArticleDetail
+import com.idickies.storing.library.DeepAnalysisReport
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -189,6 +190,25 @@ class OfflineDownloadManager @Inject constructor(
     dao.upsert(record)
     trimAutomaticCache(userId)
     record
+  }
+
+  /** 深度报告较小，随正文缓存保存一份，离线阅读时仍可直接查看。 */
+  suspend fun saveDeepAnalysis(articleId: Int, report: DeepAnalysisReport) = withContext(Dispatchers.IO) {
+    val userId = prepareUser()
+    val record = dao.get(userId, articleId) ?: return@withContext
+    val articleDir = File(record.localHtmlPath).parentFile ?: return@withContext
+    val reportFile = File(articleDir, "deep-analysis.json")
+    reportFile.writeText(json.encodeToString(DeepAnalysisReport.serializer(), report))
+  }
+
+  suspend fun loadDeepAnalysis(articleId: Int): DeepAnalysisReport? = withContext(Dispatchers.IO) {
+    val userId = prepareUser()
+    val record = dao.get(userId, articleId) ?: return@withContext null
+    val reportFile = File(File(record.localHtmlPath).parentFile, "deep-analysis.json")
+    if (!reportFile.isFile) return@withContext null
+    runCatching {
+      json.decodeFromString(DeepAnalysisReport.serializer(), reportFile.readText())
+    }.getOrNull()
   }
 
   /** 下载文章内容为固定离线保存：HTML + 封面 + 内嵌图片。 */

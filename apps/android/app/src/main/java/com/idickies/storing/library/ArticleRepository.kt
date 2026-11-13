@@ -6,6 +6,7 @@ import com.idickies.storing.database.toCached
 import com.idickies.storing.network.ArticleApi
 import com.idickies.storing.network.ArticleCounts
 import com.idickies.storing.network.PermanentDeleteResponse
+import com.idickies.storing.library.UserNotificationsResponse
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -88,6 +89,7 @@ class ArticleRepository @Inject constructor(
   suspend fun deepAnalysis(id: Int) = api.deepAnalysis(id)
   suspend fun deepAnalysisVersions(id: Int) = api.deepAnalysisVersions(id)
   suspend fun restoreDeepAnalysis(id: Int, version: Int) = api.restoreDeepAnalysis(id, version)
+  suspend fun notifications(): UserNotificationsResponse = api.notifications()
   suspend fun delete(id: Int) = api.delete(id)
   suspend fun deletePermanent(id: Int): PermanentDeleteResponse = api.deletePermanent(id)
   suspend fun counts(): ArticleCounts = api.counts()

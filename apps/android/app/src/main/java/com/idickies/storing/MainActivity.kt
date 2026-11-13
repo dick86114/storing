@@ -139,6 +139,8 @@ class MainActivity : FragmentActivity() {
   companion object {
     const val EXTRA_SHARED_TEXT = "com.idickies.storing.extra.SHARED_TEXT"
     const val EXTRA_ARTICLE_ID = "com.idickies.storing.extra.ARTICLE_ID"
+    const val EXTRA_DEEP_ANALYSIS_ID = "com.idickies.storing.extra.DEEP_ANALYSIS_ID"
+    const val EXTRA_DEEP_ANALYSIS_USER_ID = "com.idickies.storing.extra.DEEP_ANALYSIS_USER_ID"
     const val EXTRA_COLLECT_JOB_ID = "com.idickies.storing.extra.COLLECT_JOB_ID"
   }
 }

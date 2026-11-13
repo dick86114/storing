@@ -2,6 +2,7 @@ package com.idickies.storing
 
 import android.app.Application
 import com.idickies.storing.notification.CollectNotificationHelper
+import com.idickies.storing.notification.DeepAnalysisNotificationHelper
 import dagger.hilt.android.HiltAndroidApp
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
@@ -18,5 +19,6 @@ class QiankunjieApplication : Application(), Configuration.Provider {
   override fun onCreate() {
     super.onCreate()
     CollectNotificationHelper.ensureChannel(this)
+    DeepAnalysisNotificationHelper.ensureChannel(this)
   }
 }
