@@ -26,10 +26,39 @@ enum DeepAnalysisInspector {
             DeepAnalysisPresentation.of(status)
         }
 
+        private var statusText: String {
+            switch presentation {
+            case .idle: "未生成"
+            case .running: "解析中"
+            case .completed: "已有报告"
+            case .failed: "解析失败"
+            }
+        }
+
         var body: some View {
             VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "bubbles.and.sparkles.fill")
+                            .font(.title2)
+                            .foregroundStyle(.blue)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("AI 增强阅读")
+                                .font(.title3.weight(.semibold))
+                            Text("深度解析文章内容，提供论点、数据、不同观点和行动指引。")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    HStack(spacing: 8) {
+                        Text("深度报告")
+                            .font(.headline)
+                        Text(statusText)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 HStack {
-                    Text("深度报告").font(.headline)
                     Spacer()
                     if presentation == .completed {
                         Button("历史版本", action: onShowHistory)
