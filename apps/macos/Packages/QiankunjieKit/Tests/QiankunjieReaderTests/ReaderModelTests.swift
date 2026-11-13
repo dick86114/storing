@@ -808,6 +808,16 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
         return ReaderAIResult(ok: true)
     }
 
+    func submitDeepAnalysis(articleID: Int) async throws -> DeepAnalysisResponse {
+        paths.append("articles/\(articleID)/deep-analysis")
+        return DeepAnalysisResponse(report: nil, summary: DeepAnalysisSummary(status: "queued"))
+    }
+
+    func deepAnalysis(articleID: Int) async throws -> DeepAnalysisResponse {
+        paths.append("articles/\(articleID)/deep-analysis")
+        return DeepAnalysisResponse(report: nil, summary: DeepAnalysisSummary(status: "queued"))
+    }
+
     func classifyArticle(articleID: Int) async throws -> ReaderAIResult {
         classificationRequestCount += 1
         notifyClassificationRequestWaiters()

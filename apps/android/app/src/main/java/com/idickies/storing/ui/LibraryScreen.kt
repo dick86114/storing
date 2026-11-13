@@ -3,11 +3,13 @@ package com.idickies.storing.ui
 import com.idickies.storing.ui.theme.isQiankunjieDarkTheme
 
 import android.content.ClipboardManager
+import android.Manifest
 import android.view.ViewGroup
 import android.content.Intent
 import android.widget.Toast
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -158,6 +160,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.core.app.ActivityCompat
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
@@ -205,6 +208,8 @@ import com.idickies.storing.library.ArticleCategory
 import com.idickies.storing.library.CategoryAssignmentResult
 import com.idickies.storing.library.ArticleCategoryResult
 import com.idickies.storing.library.ArticleDetail
+import com.idickies.storing.library.DeepAnalysisReport
+import com.idickies.storing.library.DeepAnalysisUiState
 import com.idickies.storing.library.CategoryMutationRequest
 import com.idickies.storing.library.ArticleListPresentationMode
 import com.idickies.storing.library.ArticleProcessingAction
@@ -223,6 +228,7 @@ import com.idickies.storing.library.shouldLoadMore
 import com.idickies.storing.library.canManageArticle
 import com.idickies.storing.library.publicationAction
 import com.idickies.storing.library.remainingCategoryAssignmentIds
+import com.idickies.storing.ui.DeepAnalysisSheet
 import com.idickies.storing.library.archiveSourceFilters
 import com.idickies.storing.library.toggleArchiveBatchSelection
 import com.idickies.storing.reader.ReaderWebView
@@ -941,6 +947,12 @@ fun LibraryScreen(
       jobsViewModel.stop()
     }
   }
+  DisposableEffect(Unit) {
+    if (android.os.Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+      ActivityCompat.requestPermissions(context as ComponentActivity, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 102)
+    }
+    onDispose { }
+  }
   LaunchedEffect(Unit) { collectViewModel.resumePendingSubmissions() }
   LaunchedEffect(Unit) {
     jobsViewModel.completionEvents.collect { job ->
@@ -1098,6 +1110,7 @@ fun LibraryScreen(
       isReadingOffline = state.isReadingOffline,
       isReadingCached = state.isReadingCached,
       downloadingOffline = state.downloadingOffline,
+      deepAnalysis = state.deepAnalysis,
       onOpenOfflineAsset = libraryViewModel::openOfflineAsset,
       onLoadReaderImage = { url, headers -> libraryViewModel.loadReaderImage(detail.id, url, headers) },
       onReaderPageFinished = { libraryViewModel.refreshReaderAssets(detail.id) },
@@ -1131,6 +1144,15 @@ fun LibraryScreen(
       onRefresh = libraryViewModel::refreshDetail,
       onUpdateTitle = { title -> libraryViewModel.updateTitle(detail, title) },
       onSaveReadingPosition = { percentage -> libraryViewModel.saveReadingPosition(detail.id, percentage) },
+      onDeepAnalysis = {
+        libraryViewModel.loadDeepAnalysis(detail.id)
+      },
+      onDismissDeepAnalysis = { },
+      onSubmitDeepAnalysis = { libraryViewModel.submitDeepAnalysis(detail.id) },
+      onShowDeepAnalysisHistory = { },
+      onDismissDeepAnalysisHistory = { },
+      onRestoreDeepAnalysis = { version -> libraryViewModel.restoreDeepAnalysis(detail.id, version) },
+      onLoadDeepAnalysisOffline = libraryViewModel::loadDeepAnalysisOffline,
     )
     state.loadingDetail -> ArticleDetailSkeleton()
     detailError != null -> ErrorPage(detailError, libraryViewModel::closeDetail)
@@ -2273,7 +2295,7 @@ internal fun ArticleDetailSkeleton() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, isReadingCached: Boolean, downloadingOffline: Boolean, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onLoadReaderImage: (String, Map<String, String>) -> android.webkit.WebResourceResponse?, onReaderPageFinished: () -> Unit, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, archiveCategories: List<ArticleCategory>, recentArchiveCategories: List<ArticleCategory>, archiveCategoriesLoading: Boolean, archiveCategoriesError: String?, onRetryArchiveCategories: () -> Unit, onAssignCategory: suspend (ArticleCategory) -> CategoryAssignmentResult, onCreateCategory: suspend (CategoryMutationRequest) -> CategoryCreationResult, onCategoryAssigned: (String) -> Unit, onReclassify: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onUpdateOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onUpdateTitle: (String) -> Unit, onSaveReadingPosition: (Float) -> Unit) {
+private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColorScheme: ReaderColorScheme, readerPreferences: ReaderPreferences, processingAction: ArticleProcessingAction?, permanentDeleting: Boolean, detailRefreshing: Boolean, detailRefreshVersion: Int, savedReadingPosition: Float?, isOfflineAvailable: Boolean, isReadingOffline: Boolean, isReadingCached: Boolean, downloadingOffline: Boolean, deepAnalysis: DeepAnalysisUiState, onOpenOfflineAsset: (Uri) -> android.webkit.WebResourceResponse?, onLoadReaderImage: (String, Map<String, String>) -> android.webkit.WebResourceResponse?, onReaderPageFinished: () -> Unit, onBack: () -> Unit, onFavorite: () -> Unit, onArchive: () -> Unit, archiveCategories: List<ArticleCategory>, recentArchiveCategories: List<ArticleCategory>, archiveCategoriesLoading: Boolean, archiveCategoriesError: String?, onRetryArchiveCategories: () -> Unit, onAssignCategory: suspend (ArticleCategory) -> CategoryAssignmentResult, onCreateCategory: suspend (CategoryMutationRequest) -> CategoryCreationResult, onCategoryAssigned: (String) -> Unit, onReclassify: () -> Unit, onPublication: () -> Unit, onOpenSharePoster: () -> Unit, onProcess: (ArticleProcessingAction) -> Unit, onDownloadOffline: () -> Unit, onUpdateOffline: () -> Unit, onDeleteOffline: () -> Unit, onDelete: () -> Unit, onDeletePermanent: () -> Unit, onRefresh: () -> Unit, onUpdateTitle: (String) -> Unit, onSaveReadingPosition: (Float) -> Unit, onDeepAnalysis: () -> Unit, onDismissDeepAnalysis: () -> Unit, onSubmitDeepAnalysis: () -> Unit, onShowDeepAnalysisHistory: () -> Unit, onDismissDeepAnalysisHistory: () -> Unit, onRestoreDeepAnalysis: (Int) -> Unit, onLoadDeepAnalysisOffline: suspend (Int) -> DeepAnalysisReport?) {
   val context = LocalContext.current
   val isDarkAppearance = isQiankunjieDarkTheme()
   var confirmDelete by remember { mutableStateOf(false) }
@@ -2285,6 +2307,8 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
   var moreExpanded by remember { mutableStateOf(false) }
   var categoryPickerOpen by remember { mutableStateOf(false) }
   var showCategoryReason by remember { mutableStateOf(false) }
+  var showDeepAnalysis by remember { mutableStateOf(false) }
+  var showDeepAnalysisHistory by remember { mutableStateOf(false) }
   var showLibrarySearch by rememberSaveable { mutableStateOf(false) }
   BackHandler(onBack = onBack)
   val publicUrl = article.publicId?.let { "https://storing.idickies.cc/p/$it" }
@@ -2444,11 +2468,13 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
         originalUrl = article.originalUrl,
         isFavorited = article.isFavorited,
         isArchived = article.isArchived,
+        deepAnalysisStatus = article.deepAnalysis?.status,
         shareEnabled = !article.originalUrl.isNullOrBlank(),
         onOpenOriginal = { article.originalUrl?.let { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) } },
         onFavorite = onFavorite,
         onArchive = onArchive,
         onShare = ::shareOriginalUrl,
+        onDeepAnalysis = onDeepAnalysis,
       )
       if (canManage && processingAction != null) {
         Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
@@ -2621,6 +2647,54 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
         onDismiss = { showCategoryReason = false },
       )
     }
+  }
+  if (showDeepAnalysis) {
+    var offlineReport by remember(article.id) { mutableStateOf<DeepAnalysisReport?>(null) }
+    LaunchedEffect(article.id, deepAnalysis.report) {
+      offlineReport = deepAnalysis.report ?: onLoadDeepAnalysisOffline(article.id)
+    }
+    DeepAnalysisSheet(
+      report = offlineReport,
+      statusText = when (deepAnalysis.status) {
+        "queued", "running" -> "解析中"
+        "succeeded" -> "已有报告"
+        "failed" -> "解析失败"
+        else -> "未生成"
+      },
+      offline = isReadingOffline || isReadingCached,
+      onDismiss = onDismissDeepAnalysis,
+      onGenerate = onSubmitDeepAnalysis,
+      onRetry = onSubmitDeepAnalysis,
+      onShowHistory = onShowDeepAnalysisHistory,
+    )
+  }
+  if (showDeepAnalysisHistory) {
+    QiankunjieAlertDialog(
+      onDismissRequest = onDismissDeepAnalysisHistory,
+      title = { Text("历史版本") },
+      text = {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          if (deepAnalysis.versions.isEmpty()) {
+            Text("暂无历史版本")
+          } else {
+            deepAnalysis.versions.forEach { version ->
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Text("版本 ${version.version}")
+                TextButton(
+                  enabled = !version.isCurrent,
+                  onClick = { onRestoreDeepAnalysis(version.version) },
+                ) { Text("恢复") }
+              }
+            }
+          }
+        }
+      },
+      confirmButton = { TextButton(onClick = onDismissDeepAnalysisHistory) { Text("关闭") } },
+    )
   }
   confirmProcessing?.let { action ->
     QiankunjieAlertDialog(

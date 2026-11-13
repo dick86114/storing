@@ -152,6 +152,24 @@ data class DeepAnalysisVersion(
 )
 
 @Serializable
+data class UserNotification(
+  val id: Int,
+  @SerialName("articleId") val articleId: Int? = null,
+  val type: String,
+  val title: String,
+  val body: String,
+  @SerialName("reportVersion") val reportVersion: Int? = null,
+  @SerialName("readAt") val readAt: String? = null,
+  val createdAt: String,
+)
+
+@Serializable
+data class UserNotificationsResponse(
+  val notifications: List<UserNotification> = emptyList(),
+  val unreadCount: Int = 0,
+)
+
+@Serializable
 data class ArticleCard(
   val id: Int,
   val title: String? = null,

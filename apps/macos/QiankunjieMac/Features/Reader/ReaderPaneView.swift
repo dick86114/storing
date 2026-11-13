@@ -31,6 +31,7 @@ struct ReaderPaneView: View {
     @State private var showCategoryReason = false
     @State private var isCategoryPickerPresented = false
     @State private var categorySheetMode: ReaderCategorySheetMode?
+    @State private var isDeepAnalysisPresented = false
     @Environment(\.colorScheme) private var colorScheme
 
     init(
@@ -176,6 +177,20 @@ struct ReaderPaneView: View {
             .frame(minHeight: 0)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
+        }
+        .sheet(isPresented: $isDeepAnalysisPresented) {
+            DeepAnalysisInspector.Root(
+                report: model.deepAnalysis?.report,
+                status: model.deepAnalysis?.summary?.status,
+                offline: false,
+                onGenerate: {
+                    Task { await model.submitDeepAnalysis() }
+                },
+                onRetry: {
+                    Task { await model.submitDeepAnalysis() }
+                },
+                onShowHistory: {}
+            )
         }
         .sheet(item: $categorySheetMode) { mode in
             ReaderCategoryPickerContainer(
@@ -583,7 +598,8 @@ struct ReaderPaneView: View {
             case .regenerateAI:
                 await model.regenerateAI()
             case .deepAnalysis:
-                break
+                isDeepAnalysisPresented = true
+                Task { await model.loadDeepAnalysisForCurrentArticle() }
             case .delete:
                 await model.delete()
                 return

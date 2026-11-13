@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.MoveToInbox
 import androidx.compose.material3.Icon
@@ -44,7 +45,9 @@ fun ReaderActionBar(
   originalUrl: String?,
   isFavorited: Boolean,
   isArchived: Boolean,
+  deepAnalysisStatus: String? = null,
   shareEnabled: Boolean,
+  onDeepAnalysis: () -> Unit = {},
   onOpenOriginal: () -> Unit,
   onFavorite: () -> Unit,
   onArchive: () -> Unit,
@@ -86,6 +89,16 @@ fun ReaderActionBar(
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
+        ReaderAction(
+          icon = Icons.Outlined.History,
+          label = when (deepAnalysisStatus) {
+            "queued", "running" -> "解析中"
+            "succeeded" -> "深度报告"
+            else -> "深度"
+          },
+          tint = if (deepAnalysisStatus == "succeeded") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+          onClick = onDeepAnalysis,
+        )
         ReaderAction(
           icon = if (isFavorited) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder,
           label = if (isFavorited) "已收藏" else "收藏",

@@ -8,6 +8,7 @@ import com.idickies.storing.library.ArticleRefetchResponse
 import com.idickies.storing.library.ArticleRegenerateAiResponse
 import com.idickies.storing.library.DeepAnalysisResponse
 import com.idickies.storing.library.DeepAnalysisVersionsResponse
+import com.idickies.storing.library.UserNotificationsResponse
 import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.library.ArticleCategoryAssignmentRequest
 import com.idickies.storing.library.ArticleCategoryAssignmentResponse
@@ -170,6 +171,9 @@ interface ArticleApi {
     @Path("id") id: Int,
     @Path("version") version: Int,
   ): DeepAnalysisRestoreResponse
+
+  @GET("deep-analysis/notifications")
+  suspend fun notifications(@Query("limit") limit: Int = 50): UserNotificationsResponse
 
   @DELETE("articles/{id}")
   suspend fun delete(@Path("id") id: Int)
