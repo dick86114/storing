@@ -82,6 +82,76 @@ data class ArticleCategoryResult(
 )
 
 @Serializable
+data class DeepAnalysisSummary(
+  @SerialName("hasDeepAnalysis") val hasDeepAnalysis: Boolean = false,
+  val status: String = "not_generated",
+  val version: Int? = null,
+  @SerialName("generatedAt") val generatedAt: String? = null,
+  val stale: Boolean = false,
+  val errorCode: String? = null,
+)
+
+@Serializable
+data class DeepAnalysisReport(
+  @SerialName("executiveSummary") val executiveSummary: String = "",
+  @SerialName("coreArguments") val coreArguments: List<DeepAnalysisArgument> = emptyList(),
+  @SerialName("reasoningChain") val reasoningChain: List<String> = emptyList(),
+  @SerialName("keyFacts") val keyFacts: List<DeepAnalysisFact> = emptyList(),
+  @SerialName("viewpoints") val viewpoints: List<DeepAnalysisViewpoint> = emptyList(),
+  val risks: List<String> = emptyList(),
+  val actions: List<DeepAnalysisAction> = emptyList(),
+  val questions: List<String> = emptyList(),
+  @SerialName("readingPath") val readingPath: List<String> = emptyList(),
+)
+
+@Serializable
+data class DeepAnalysisArgument(
+  val claim: String,
+  val evidence: String,
+  val quoteAnchor: String? = null,
+)
+
+@Serializable
+data class DeepAnalysisFact(
+  val fact: String,
+  val basis: String,
+  val quoteAnchor: String? = null,
+)
+
+@Serializable
+data class DeepAnalysisViewpoint(
+  val stance: String,
+  val summary: String,
+  val reasoning: String,
+)
+
+@Serializable
+data class DeepAnalysisAction(
+  val action: String,
+  val condition: String,
+)
+
+@Serializable
+data class DeepAnalysisResponse(
+  val report: DeepAnalysisReport? = null,
+  val summary: DeepAnalysisSummary? = null,
+)
+
+@Serializable
+data class DeepAnalysisVersionsResponse(
+  val versions: List<DeepAnalysisVersion> = emptyList(),
+)
+
+@Serializable
+data class DeepAnalysisVersion(
+  val id: Int,
+  val version: Int,
+  val status: String,
+  val isCurrent: Boolean = false,
+  val generatedAt: String? = null,
+)
+
+@Serializable
 data class ArticleCard(
   val id: Int,
   val title: String? = null,
@@ -103,6 +173,7 @@ data class ArticleCard(
   @SerialName("isFavorited") val isFavorited: Boolean = false,
   @SerialName("isArchived") val isArchived: Boolean = false,
   @SerialName("isPublished") val isPublished: Boolean = false,
+  @SerialName("deepAnalysis") val deepAnalysis: DeepAnalysisSummary? = null,
 ) {
   val displayTitle: String get() = title?.trim().takeUnless { it.isNullOrEmpty() }
     ?: source?.trim().takeUnless { it.isNullOrEmpty() }
@@ -161,6 +232,7 @@ data class ArticleDetail(
   @SerialName("isFavorited") val isFavorited: Boolean = false,
   @SerialName("isArchived") val isArchived: Boolean = false,
   @SerialName("isPublished") val isPublished: Boolean = false,
+  @SerialName("deepAnalysis") val deepAnalysis: DeepAnalysisSummary? = null,
   @SerialName("contentHtml") val contentHtml: String? = null,
   @SerialName("contentMd") val contentMd: String? = null,
 ) {

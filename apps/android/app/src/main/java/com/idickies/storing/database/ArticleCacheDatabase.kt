@@ -13,6 +13,7 @@ import androidx.room.Transaction
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.idickies.storing.library.ArticleCard
+import com.idickies.storing.library.DeepAnalysisSummary
 import com.idickies.storing.offline.OfflineArticle
 import com.idickies.storing.offline.OfflineArticleDao
 
@@ -31,6 +32,9 @@ data class CachedArticleCard(
   val isFavorited: Boolean = false,
   val isArchived: Boolean = false,
   val isPublished: Boolean = false,
+  val deepStatus: String? = null,
+  val deepVersion: Int? = null,
+  val deepStale: Boolean = false,
 ) {
   fun toArticleCard() = ArticleCard(
     id = id,
@@ -44,6 +48,9 @@ data class CachedArticleCard(
     isFavorited = isFavorited,
     isArchived = isArchived,
     isPublished = isPublished,
+    deepAnalysis = deepStatus?.let {
+    DeepAnalysisSummary(status = it, version = deepVersion, stale = deepStale)
+    },
   )
 }
 
@@ -51,6 +58,9 @@ fun ArticleCard.toCached(userId: Int, view: String) = CachedArticleCard(
   userId = userId, view = view, id = id, title = title, author = author, source = source,
   originalUrl = originalUrl, coverImage = coverImage, aiSummary = aiSummary, aiCategory = aiCategory,
   isFavorited = isFavorited, isArchived = isArchived, isPublished = isPublished,
+  deepStatus = deepAnalysis?.status,
+  deepVersion = deepAnalysis?.version,
+  deepStale = deepAnalysis?.stale ?: false,
 )
 
 @Dao
@@ -192,6 +202,7 @@ interface PendingAuthActionDao {
     PendingAuthActionFileEntity::class,
   ],
   version = 6,
+  // Version 7 adds deep report list status fields.
   exportSchema = false,
 )
 abstract class ArticleCacheDatabase : RoomDatabase() {
