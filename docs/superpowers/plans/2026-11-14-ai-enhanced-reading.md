@@ -205,6 +205,18 @@ git add apps/api/src/services/deep-analysis.service.ts apps/api/test/deep-analys
 git commit -m "feat(api): 实现深度报告异步任务"
 ```
 
+### Task 3.1：补齐版本恢复服务
+
+**文件：**
+
+- 修改：`apps/api/src/services/deep-analysis.service.ts`
+
+**接口：**
+
+- 产出：`export async function restoreDeepAnalysisVersion(userId: number, articleId: number, version: number): Promise<void>`。
+
+实现：校验目标版本 `status = 'succeeded'`；事务中将旧当前版本置为 `false`、目标版本置为 `true`；版本不存在抛 `DEEP_ANALYSIS_VERSION_NOT_FOUND`。
+
 ### Task 4：文章 API 与用户通知
 
 **文件：**
