@@ -23,6 +23,7 @@ import { initMobileSessionSchema } from './services/mobile-session.service.js';
 import { ensureDatabaseIndexes } from './services/db-indexes.service.js';
 import { ensureUserAiSettingsSchema } from './services/user-ai-settings.service.js';
 import { ensureAiGenerationSchema, resumeAiGenerationJobs } from './services/ai-generation.service.js';
+import { ensureDeepAnalysisSchema } from './services/deep-analysis.service.js';
 import { cleanupExpiredBulkExportJobs, ensureBulkExportSchema } from './services/bulk-export-job.service.js';
 import { aiRoutes } from './routes/ai.js';
 import { requireCsrfProtection } from './middleware/auth.js';
@@ -69,6 +70,7 @@ async function startServer() {
   await initMobileSessionSchema().catch((err) => console.error('初始化客户端会话表失败:', err));
   await ensureUserAiSettingsSchema().catch((err) => console.error('初始化账号级 AI 配置表失败:', err));
   await ensureAiGenerationSchema().catch((err) => console.error('初始化 AI 任务表失败:', err));
+  await ensureDeepAnalysisSchema().catch((err) => console.error('初始化深度报告表失败:', err));
   await ensureBulkExportSchema().catch((err) => console.error('初始化批量导出任务表失败:', err));
   const admin = await ensureConfiguredAdmin();
   console.log(admin.created ? `管理员账号已创建: ${admin.user.username}` : `管理员账号已就绪: ${admin.user.username}`);
