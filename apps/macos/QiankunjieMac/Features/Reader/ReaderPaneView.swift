@@ -572,6 +572,9 @@ struct ReaderPaneView: View {
         case .archive:
             // 归档前先选分类，或明确交给 AI 判断。
             categorySheetMode = .archive
+        case .deepAnalysis:
+            isDeepAnalysisPresented = true
+            Task { await model.loadDeepAnalysisForCurrentArticle() }
         default:
             pendingAction = action
         }
