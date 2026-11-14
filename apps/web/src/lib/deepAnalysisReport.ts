@@ -19,8 +19,20 @@ export type DeepAnalysisReportRecord = {
   completionTokens?: number | null;
   totalTokens?: number | null;
   contentTruncated?: boolean;
+  providerSnapshot?: string | null;
+  attempts?: number | null;
+  durationMs?: number | null;
   generatedAt?: string | null;
 };
+
+export function formatUsageDuration(durationMs?: number | null) {
+  if (!Number.isFinite(durationMs) || (durationMs ?? 0) < 0) return null;
+  const seconds = Math.round((durationMs ?? 0) / 1000);
+  if (seconds < 60) return `${seconds} 秒`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return `${minutes} 分 ${remainder} 秒`;
+}
 
 export type ReportSectionId =
   | 'arguments'
