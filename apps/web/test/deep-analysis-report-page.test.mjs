@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 const {
+  aiWritingBand,
+  aiWritingLeaningLabel,
   buildReportMarkdown,
   evidenceMix,
   sectionThoughts,
@@ -34,6 +36,15 @@ const report = {
   actions: [{ action: '先在小书库验证', condition: '准备迁移现有藏书时' }],
   questions: ['去重算法依据什么？'],
   readingPath: ['先读安装方法', '再读整理功能'],
+  aiWriting: {
+    score: 68,
+    summary: '结构比较均衡，抽象表达较多，但仍有具体操作细节。',
+    signals: [
+      { label: '段落长度接近', detail: '多个段落都以总结句收尾。', leaning: 'ai' },
+      { label: '有具体操作过程', detail: '文中记录了安装、导入和整理的步骤。', leaning: 'human' },
+      { label: '引用来源不够具体', detail: '提到“实测”但没有给出完整样本。', leaning: 'neutral' },
+    ],
+  },
 };
 
 test('详情页按钮覆盖生成、生成中和查看报告三种文案', () => {
@@ -51,6 +62,12 @@ test('报告独立页包含目录、主旨和两类数据图表', () => {
   assert.match(page, /function StanceChart/);
   assert.match(page, /conic-gradient/);
   assert.match(page, /deep-report-stance-bar/);
+  assert.match(page, /信息依据/);
+  assert.match(page, /原文有依据/);
+  assert.match(page, /function AiWritingCard/);
+  assert.match(page, /deep-report-ai-meter-track/);
+  assert.match(page, /deep-report-ai-signal-grid/);
+  assert.match(page, /不是作者身份鉴定/);
 });
 
 test('报告页支持重新生成、保存和分享 PDF 与 Markdown', () => {
@@ -77,12 +94,23 @@ test('主旨提取与图表统计来自真实报告字段', () => {
   assert.equal(stanceMix(report).support, 1);
   assert.equal(stanceMix(report).conditional, 1);
   assert.equal(stanceMix(report).oppose, 1);
+  assert.equal(aiWritingBand(68)?.label, '更像 AI 写作');
+  assert.equal(aiWritingBand(45)?.key, 'mixed');
+  assert.equal(aiWritingBand(12)?.key, 'human');
+  assert.equal(aiWritingLeaningLabel('neutral'), '中性线索');
   assert.match(buildReportMarkdown(report, '测试文章'), /## 不同观点/);
+  assert.match(buildReportMarkdown(report, '测试文章'), /## AI 写作倾向/);
+  assert.match(buildReportMarkdown(report, '测试文章'), /68\/100/);
+  assert.match(buildReportMarkdown(report, '测试文章'), /文章最想让你相信什么/);
 });
 
 test('报告页样式覆盖桌面、移动端与打印输出', () => {
   assert.match(css, /\.deep-report-hero/);
   assert.match(css, /\.deep-report-main-idea/);
+  assert.match(css, /\.deep-report-section-title p/);
+  assert.match(css, /\.deep-report-ai-writing/);
+  assert.match(css, /\.deep-report-ai-meter-track/);
+  assert.match(css, /\.deep-report-ai-signal-grid/);
   assert.match(css, /@media \(max-width: 640px\)[\s\S]*\.deep-report-toc/);
   assert.match(css, /@media print[\s\S]*\.deep-report-toolbar/);
 });

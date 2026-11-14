@@ -45,7 +45,7 @@ const reportSections = [
   {
     title: '关键信息与数据',
     render: (report: DeepAnalysisReport) => (
-      <ul>{report.keyFacts.map((item, index) => <li key={index}>{item.fact}（{item.basis === 'source' ? '原文事实' : '模型推断'}）</li>)}</ul>
+      <ul>{report.keyFacts.map((item, index) => <li key={index}>{item.fact}（{item.basis === 'source' ? '原文有依据' : 'AI 推测'}）</li>)}</ul>
     ),
   },
   {

@@ -13,6 +13,7 @@ enum DeepAnalysisEntryAction: Equatable {
 enum DeepAnalysisInspector {
     static let sections = [
         "一段看懂",
+        "AI 写作倾向",
         "核心论点",
         "论证链路",
         "关键信息与数据",
@@ -80,6 +81,21 @@ enum DeepAnalysisInspector {
                 }
                 if let report {
                     section("一段看懂") { Text(report.executiveSummary) }
+                    if let aiWriting = report.aiWriting {
+                        section("AI 写作倾向") {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("\(aiWriting.score)/100 · \(aiWritingLabel(aiWriting.score))")
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                Text(aiWriting.summary)
+                                ForEach(aiWriting.signals, id: \.label) { signal in
+                                    Text("\(signal.leaningLabel)：\(signal.label) — \(signal.detail)")
+                                }
+                                Text("这是基于文本特征的倾向判断，不是作者身份鉴定。")
+                                    .font(.caption)
+                            }
+                        }
+                    }
                     section("核心论点") {
                         ForEach(report.coreArguments, id: \.claim) { Text("\($0.claim)：\($0.evidence)") }
                     }
@@ -113,6 +129,22 @@ enum DeepAnalysisInspector {
                 Text(title).font(.subheadline.weight(.semibold))
                 content().font(.footnote).foregroundStyle(.secondary)
             }
+        }
+
+        private func aiWritingLabel(_ score: Int) -> String {
+            if score >= 60 { return "更像 AI 写作" }
+            if score >= 30 { return "人机混合或特征不明显" }
+            return "更像人工写作"
+        }
+    }
+}
+
+private extension DeepAnalysisReport.AIWritingSignal {
+    var leaningLabel: String {
+        switch leaning {
+        case "ai": "支持 AI"
+        case "human": "支持人工"
+        default: "中性线索"
         }
     }
 }

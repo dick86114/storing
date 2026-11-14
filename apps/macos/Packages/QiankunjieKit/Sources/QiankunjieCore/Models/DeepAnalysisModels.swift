@@ -49,6 +49,18 @@ public struct DeepAnalysisReport: Codable, Hashable, Sendable {
         public var condition: String
     }
 
+    public struct AIWritingSignal: Codable, Hashable, Sendable {
+        public var label: String
+        public var detail: String
+        public var leaning: String
+    }
+
+    public struct AIWriting: Codable, Hashable, Sendable {
+        public var score: Int
+        public var summary: String
+        public var signals: [AIWritingSignal]
+    }
+
     public var executiveSummary: String
     public var coreArguments: [Argument]
     public var reasoningChain: [String]
@@ -58,6 +70,7 @@ public struct DeepAnalysisReport: Codable, Hashable, Sendable {
     public var actions: [Action]
     public var questions: [String]
     public var readingPath: [String]
+    public var aiWriting: AIWriting?
 }
 
 public enum DeepAnalysisPresentation: Equatable, Sendable {

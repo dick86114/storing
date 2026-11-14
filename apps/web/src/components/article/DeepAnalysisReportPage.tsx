@@ -13,11 +13,13 @@ import {
   DownloadOutlined,
   FileMarkdownOutlined,
   FilePdfOutlined,
+  InfoCircleOutlined,
   LineChartOutlined,
   LinkOutlined,
   LoadingOutlined,
   QuestionCircleOutlined,
   ReloadOutlined,
+  RobotOutlined,
   ShareAltOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
@@ -25,6 +27,8 @@ import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/Toast';
 import {
   REPORT_SECTIONS,
+  aiWritingBand,
+  aiWritingLeaningLabel,
   buildReportMarkdown,
   evidenceMix,
   formatUsageDuration,
@@ -121,10 +125,14 @@ function Section({
   idea: string;
   children: ReactNode;
 }) {
+  const hint = REPORT_SECTIONS.find((section) => section.id === id)?.hint ?? '';
   return (
     <section className="deep-report-section" id={`report-${id}`}>
       <div className="deep-report-section-head">
-        <h2>{title}</h2>
+        <div className="deep-report-section-title">
+          <h2>{title}</h2>
+          {hint && <p>{hint}</p>}
+        </div>
         <div className="deep-report-main-idea">
           <span>本段主旨</span>
           <p>{idea}</p>
@@ -167,11 +175,11 @@ function EvidenceChart({ report }: { report: DeepAnalysisReport }) {
     <div className="deep-report-evidence-chart">
       <div className="deep-report-donut" style={style}>
         <span>{mix.sourcePercent}%</span>
-        <small>原文事实</small>
+        <small>来自原文</small>
       </div>
       <div className="deep-report-chart-legend">
-        <div><i className="is-source" /><span>原文事实</span><strong>{mix.source}</strong></div>
-        <div><i className="is-inference" /><span>模型推断</span><strong>{mix.inference}</strong></div>
+        <div><i className="is-source" /><span>原文有依据</span><strong>{mix.source}</strong></div>
+        <div><i className="is-inference" /><span>AI 推测</span><strong>{mix.inference}</strong></div>
       </div>
     </div>
   );
@@ -192,6 +200,95 @@ function StanceChart({ report }: { report: DeepAnalysisReport }) {
         <span><i className="is-oppose" />反驳 {mix.oppose}</span>
       </div>
     </div>
+  );
+}
+
+function AiWritingCard({
+  report,
+  onRegenerate,
+  disabled,
+}: {
+  report: DeepAnalysisReport;
+  onRegenerate: () => void;
+  disabled: boolean;
+}) {
+  const aiWriting = report.aiWriting;
+  const band = aiWritingBand(aiWriting?.score);
+
+  if (!aiWriting || !band) {
+    return (
+      <article className="deep-report-ai-writing is-empty" id="report-ai-writing">
+        <div className="deep-report-ai-writing-head">
+          <div>
+            <div className="deep-report-kicker"><RobotOutlined /> 写作倾向</div>
+            <h2>这篇文章像 AI 写的吗？</h2>
+            <p>根据用词、结构、细节和引用方式做一个倾向判断，不是作者身份鉴定。</p>
+          </div>
+        </div>
+        <div className="deep-report-ai-writing-empty">
+          <p>这份报告生成较早，暂无文章 AI 写作判断。重新生成后可查看判断依据。</p>
+          <button type="button" onClick={onRegenerate} disabled={disabled}>
+            {disabled ? <LoadingOutlined spin /> : <ReloadOutlined />}
+            {disabled ? '生成中' : '重新生成报告'}
+          </button>
+        </div>
+      </article>
+    );
+  }
+
+  const score = Math.max(0, Math.min(100, Math.round(aiWriting.score)));
+
+  return (
+    <article className="deep-report-ai-writing" id="report-ai-writing">
+      <div className="deep-report-ai-writing-head">
+        <div>
+          <div className="deep-report-kicker"><RobotOutlined /> 写作倾向</div>
+          <h2>这篇文章像 AI 写的吗？</h2>
+          <p>根据用词、结构、细节和引用方式做一个倾向判断，不是作者身份鉴定。</p>
+        </div>
+        <div className={`deep-report-ai-score is-${band.key}`}>
+          <div><strong>{score}</strong><span>/100</span></div>
+          <small>{band.label}</small>
+        </div>
+      </div>
+
+      <div className="deep-report-ai-meter" aria-label={`AI 写作倾向 ${score} 分，${band.label}`}>
+        <div className="deep-report-ai-meter-track">
+          <span className="is-human" />
+          <span className="is-mixed" />
+          <span className="is-ai" />
+          <i style={{ left: `${score}%` }} />
+        </div>
+        <div className="deep-report-ai-meter-labels">
+          <span>更像人工<small>0</small></span>
+          <span>混合 / 不明显<small>50</small></span>
+          <span>更像 AI<small>100</small></span>
+        </div>
+      </div>
+
+      <p className="deep-report-ai-writing-summary">{aiWriting.summary}</p>
+
+      <div className="deep-report-ai-signals">
+        <div className="deep-report-ai-signals-head">
+          <strong>判断依据</strong>
+          <span>{aiWriting.signals.length} 条文本线索</span>
+        </div>
+        <div className="deep-report-ai-signal-grid">
+          {aiWriting.signals.map((signal, index) => (
+            <div className={`deep-report-ai-signal is-${signal.leaning}`} key={`${signal.label}-${index}`}>
+              <span>{aiWritingLeaningLabel(signal.leaning)}</span>
+              <strong>{signal.label}</strong>
+              <p>{signal.detail}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="deep-report-ai-writing-note">
+        <InfoCircleOutlined />
+        <p>这是基于文本特征的倾向判断，不是作者身份鉴定。改写、模板化写作和人机协作都可能造成误判。</p>
+      </div>
+    </article>
   );
 }
 
@@ -441,6 +538,7 @@ export function DeepAnalysisReportPage({ articleId }: { articleId: number }) {
         <aside className="deep-report-toc">
           <strong>报告目录</strong>
           <nav>
+            <a href="#report-ai-writing">AI 写作倾向</a>
             {REPORT_SECTIONS.map((section) => (
               <a key={section.id} href={`#report-${section.id}`}>{section.title}</a>
             ))}
@@ -477,23 +575,24 @@ export function DeepAnalysisReportPage({ articleId }: { articleId: number }) {
 
           <section className="deep-report-overview">
             <div className="deep-report-metrics">
-              <Metric label="核心论点" value={report.coreArguments.length} detail="文章主张与证据" icon={<BulbOutlined />} />
-              <Metric label="关键事实" value={report.keyFacts.length} detail={`${sourceFacts} 条原文依据`} icon={<CheckCircleOutlined />} />
+              <Metric label="核心论点" value={report.coreArguments.length} detail="文章的主要主张" icon={<BulbOutlined />} />
+              <Metric label="关键事实" value={report.keyFacts.length} detail={`${sourceFacts} 条有原文依据`} icon={<CheckCircleOutlined />} />
               <Metric label="不同观点" value={report.viewpoints.length} detail={`${stances.total} 个判断角度`} icon={<CompassOutlined />} />
-              <Metric label="行动建议" value={report.actions.length} detail="带适用条件" icon={<LineChartOutlined />} />
+              <Metric label="行动建议" value={report.actions.length} detail="附适用条件" icon={<LineChartOutlined />} />
             </div>
             <div className="deep-report-overview-grid">
               <div className="deep-report-insight-card">
-                <div className="deep-report-card-title"><strong>证据构成</strong><span>事实与推断分开呈现</span></div>
+                <div className="deep-report-card-title"><strong>信息依据</strong><span>关键信息从哪里来</span></div>
                 <EvidenceChart report={report} />
-                <p>报告把“原文事实”和“模型推断”分开标注，引用时优先核对原文依据。</p>
+                <p>圆环只统计关键信息来自原文还是由 AI 补充，不代表报告准确率。引用前先核对“原文有依据”的条目。</p>
               </div>
               <div className="deep-report-insight-card">
-                <div className="deep-report-card-title"><strong>观点光谱</strong><span>不止一种立场</span></div>
+                <div className="deep-report-card-title"><strong>观点分布</strong><span>同一件事的不同看法</span></div>
                 <StanceChart report={report} />
-                <p>支持、条件判断与反驳并列，方便你快速判断文章的争议空间。</p>
+                <p>这个条只表示报告整理出的观点数量，不代表文章作者持哪种立场。</p>
               </div>
             </div>
+            <AiWritingCard report={report} onRegenerate={regenerate} disabled={regenerating || pending} />
           </section>
 
           <Section id="arguments" title="核心论点" idea={thoughts.arguments}>
@@ -529,7 +628,7 @@ export function DeepAnalysisReportPage({ articleId }: { articleId: number }) {
                 {report.keyFacts.map((item, index) => (
                   <div className="deep-report-fact" key={`${item.fact}-${index}`}>
                     <span className={item.basis === 'source' ? 'is-source' : 'is-inference'}>
-                      {item.basis === 'source' ? '原文事实' : '模型推断'}
+                      {item.basis === 'source' ? '原文有依据' : 'AI 推测'}
                     </span>
                     <p>{item.fact}</p>
                     {item.quoteAnchor && <small>{item.quoteAnchor}</small>}

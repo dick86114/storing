@@ -15,8 +15,9 @@ final class DeepAnalysisPresentationTests: XCTestCase {
     }
 
     func testInspectorRendersUnifiedSections() {
-        XCTAssertEqual(DeepAnalysisInspector.sections.count, 9)
+        XCTAssertEqual(DeepAnalysisInspector.sections.count, 10)
         XCTAssertTrue(DeepAnalysisInspector.sections.contains("不同观点"))
+        XCTAssertTrue(DeepAnalysisInspector.sections.contains("AI 写作倾向"))
     }
 
     func testUnifiedAPIPathsAreStable() {

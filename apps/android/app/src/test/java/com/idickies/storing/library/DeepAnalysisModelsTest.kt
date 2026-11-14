@@ -26,12 +26,15 @@ class DeepAnalysisModelsTest {
        "reasoningChain":["a","b"],"keyFacts":[{"fact":"事实","basis":"source","quoteAnchor":null}],
        "viewpoints":[{"stance":"support","summary":"支持","reasoning":"理由"}],
        "risks":["风险"],"actions":[{"action":"动作","condition":"条件"}],
-       "questions":["问题"],"readingPath":["路径"]}
+       "questions":["问题"],"readingPath":["路径"],
+       "aiWriting":{"score":72,"summary":"可能经过 AI 辅助","signals":[{"label":"段落均衡","detail":"段落长度接近","leaning":"ai"}]}}
       """.trimIndent(),
     )
     assertEquals("第1段", report.coreArguments.single().quoteAnchor)
     assertEquals("source", report.keyFacts.single().basis)
     assertEquals("support", report.viewpoints.single().stance)
+    assertEquals(72, report.aiWriting?.score)
+    assertEquals("ai", report.aiWriting?.signals?.single()?.leaning)
   }
 
   @Test

@@ -25,10 +25,13 @@ final class DeepAnalysisModelsTests: XCTestCase {
 
     func testReportDecodesAllNineSections() throws {
         let data = Data("""
-        {"executiveSummary":"摘要","coreArguments":[],"reasoningChain":[],"keyFacts":[],"viewpoints":[],"risks":[],"actions":[],"questions":[],"readingPath":[]}
+        {"executiveSummary":"摘要","coreArguments":[],"reasoningChain":[],"keyFacts":[],"viewpoints":[],"risks":[],"actions":[],"questions":[],"readingPath":[],
+         "aiWriting":{"score":72,"summary":"可能经过 AI 辅助","signals":[{"label":"段落均衡","detail":"段落长度接近","leaning":"ai"}]}}
         """.utf8)
         let report = try JSONDecoder.qiankunjie.decode(DeepAnalysisReport.self, from: data)
 
         XCTAssertEqual(report.executiveSummary, "摘要")
+        XCTAssertEqual(report.aiWriting?.score, 72)
+        XCTAssertEqual(report.aiWriting?.signals.first?.leaning, "ai")
     }
 }

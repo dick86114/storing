@@ -102,6 +102,7 @@ data class DeepAnalysisReport(
   val actions: List<DeepAnalysisAction> = emptyList(),
   val questions: List<String> = emptyList(),
   @SerialName("readingPath") val readingPath: List<String> = emptyList(),
+  @SerialName("aiWriting") val aiWriting: DeepAnalysisAiWriting? = null,
 )
 
 @Serializable
@@ -129,6 +130,20 @@ data class DeepAnalysisViewpoint(
 data class DeepAnalysisAction(
   val action: String,
   val condition: String,
+)
+
+@Serializable
+data class DeepAnalysisAiWriting(
+  val score: Int = 0,
+  val summary: String = "",
+  val signals: List<DeepAnalysisAiWritingSignal> = emptyList(),
+)
+
+@Serializable
+data class DeepAnalysisAiWritingSignal(
+  val label: String,
+  val detail: String,
+  val leaning: String = "neutral",
 )
 
 @Serializable

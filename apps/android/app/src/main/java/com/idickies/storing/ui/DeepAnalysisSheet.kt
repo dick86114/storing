@@ -43,6 +43,26 @@ fun DeepAnalysisSheet(
       report?.let { value ->
         Text("一段看懂", style = MaterialTheme.typography.titleMedium)
         Text(value.executiveSummary, style = MaterialTheme.typography.bodyMedium)
+        value.aiWriting?.let { aiWriting ->
+          Text("AI 写作倾向", style = MaterialTheme.typography.titleMedium)
+          Text(
+            "${aiWriting.score}/100 · ${aiWritingLabel(aiWriting.score)}",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+          )
+          Text(aiWriting.summary, style = MaterialTheme.typography.bodyMedium)
+          aiWriting.signals.forEach { signal ->
+            Text(
+              "${aiWritingLeaningLabel(signal.leaning)} · ${signal.label}：${signal.detail}",
+              style = MaterialTheme.typography.bodySmall,
+            )
+          }
+          Text(
+            "这是基于文本特征的倾向判断，不是作者身份鉴定。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
         Text("核心论点", style = MaterialTheme.typography.titleMedium)
         value.coreArguments.forEach { Text("${it.claim}：${it.evidence}", style = MaterialTheme.typography.bodyMedium) }
         Text("论证链路", style = MaterialTheme.typography.titleMedium)
@@ -67,4 +87,16 @@ fun DeepAnalysisSheet(
       }
     }
   }
+}
+
+private fun aiWritingLabel(score: Int): String = when {
+  score >= 60 -> "更像 AI 写作"
+  score >= 30 -> "人机混合或特征不明显"
+  else -> "更像人工写作"
+}
+
+private fun aiWritingLeaningLabel(leaning: String): String = when (leaning) {
+  "ai" -> "支持 AI"
+  "human" -> "支持人工"
+  else -> "中性线索"
 }
