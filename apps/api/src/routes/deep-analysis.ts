@@ -66,11 +66,14 @@ deepAnalysisRoutes.get('/articles/:id/deep-analysis', requireAuth, async (c) => 
       version: articleDeepAnalyses.version,
       reportJson: articleDeepAnalyses.reportJson,
       reportMarkdown: articleDeepAnalyses.reportMarkdown,
+      providerSnapshot: articleDeepAnalyses.providerSnapshot,
       modelSnapshot: articleDeepAnalyses.modelSnapshot,
       promptTokens: articleDeepAnalyses.promptTokens,
       completionTokens: articleDeepAnalyses.completionTokens,
       totalTokens: articleDeepAnalyses.totalTokens,
       contentTruncated: articleDeepAnalyses.contentTruncated,
+      attempts: articleDeepAnalyses.attempts,
+      durationMs: articleDeepAnalyses.durationMs,
       generatedAt: articleDeepAnalyses.finishedAt,
     })
     .from(articleDeepAnalyses)

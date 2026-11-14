@@ -18593,6 +18593,27 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   line-height: 1.6;
 }
 
+.deep-report-usage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--report-line);
+  border-radius: 12px;
+  background: var(--report-raised);
+  color: var(--text);
+}
+
+.deep-report-usage span {
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.deep-report-usage span:last-child {
+  width: 100%;
+  color: var(--muted);
+}
+
 .deep-report-loading {
   display: grid;
   gap: 14px;

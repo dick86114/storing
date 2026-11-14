@@ -62,3 +62,17 @@ test('AI 加密密钥异常时返回可操作的重新保存提示', () => {
   assert.match(routeSource, /请到设置页重新保存模型 API Key/);
   assert.match(routeSource, /aiSecretInvalid \? 409 : 422/);
 });
+
+test('深度报告返回耗时、用量与模型工具快照', () => {
+  const schemaSource = readFileSync(
+    new URL('../src/db/schema.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(routeSource, /providerSnapshot: articleDeepAnalyses\.providerSnapshot/);
+  assert.match(routeSource, /attempts: articleDeepAnalyses\.attempts/);
+  assert.match(routeSource, /durationMs: articleDeepAnalyses\.durationMs/);
+  assert.match(schemaSource, /providerSnapshot: text\('provider_snapshot'\)/);
+  assert.match(schemaSource, /durationMs: integer\('duration_ms'\)/);
+  assert.match(serviceSource, /providerSnapshot: runtimeConfig\.provider/);
+  assert.match(serviceSource, /Date\.now\(\) - job\.startedAt\.getTime\(\)/);
+});

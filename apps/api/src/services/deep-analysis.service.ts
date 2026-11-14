@@ -51,6 +51,7 @@ export async function ensureDeepAnalysisSchema(): Promise<void> {
       content_hash TEXT NOT NULL,
       report_json JSONB,
       report_markdown TEXT,
+      provider_snapshot TEXT NOT NULL,
       model_snapshot TEXT NOT NULL,
       base_url_snapshot TEXT,
       prompt_tokens INTEGER,
@@ -62,12 +63,19 @@ export async function ensureDeepAnalysisSchema(): Promise<void> {
       error_code TEXT,
       error_message TEXT,
       attempts INTEGER NOT NULL DEFAULT 0,
+      duration_ms INTEGER,
       next_run_at TIMESTAMP,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
       started_at TIMESTAMP,
       finished_at TIMESTAMP
     )
+  `));
+  await db.execute(sql.raw(`
+    ALTER TABLE article_deep_analyses ADD COLUMN IF NOT EXISTS provider_snapshot TEXT NOT NULL DEFAULT 'unknown'
+  `));
+  await db.execute(sql.raw(`
+    ALTER TABLE article_deep_analyses ADD COLUMN IF NOT EXISTS duration_ms INTEGER
   `));
   await db.execute(sql.raw(`
     CREATE UNIQUE INDEX IF NOT EXISTS article_deep_analyses_user_article_active_idx
@@ -207,6 +215,7 @@ export async function enqueueDeepAnalysis(
     articleId,
     status: 'queued',
     contentHash,
+    providerSnapshot: runtimeConfig.provider,
     modelSnapshot: runtimeConfig.model,
     baseUrlSnapshot: runtimeConfig.baseUrl,
     version: (previousVersion[0]?.version ?? 0) + 1,
@@ -301,6 +310,7 @@ async function completeDeepAnalysisJob(
         promptTokens: usage.promptTokens,
         completionTokens: usage.completionTokens,
         totalTokens: usage.totalTokens,
+        durationMs: job.startedAt ? Date.now() - job.startedAt.getTime() : null,
         contentTruncated,
         errorCode: null,
         errorMessage: null,

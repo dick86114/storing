@@ -27,6 +27,7 @@ import {
   REPORT_SECTIONS,
   buildReportMarkdown,
   evidenceMix,
+  formatUsageDuration,
   formatReportDate,
   reportFileStem,
   sectionThoughts,
@@ -600,6 +601,13 @@ export function DeepAnalysisReportPage({ articleId }: { articleId: number }) {
           <footer className="deep-report-footer">
             <div><ClockCircleOutlined /> {generatedAt || '生成时间未记录'}</div>
             <div>模型：{data?.report?.modelSnapshot || '未记录'} · 版本 {data?.report?.version ?? 1}</div>
+            <div className="deep-report-usage">
+              <span>报告生成耗时：{formatUsageDuration(data?.report?.durationMs) ?? '未记录'}</span>
+              <span>调用工具：{data?.report?.providerSnapshot || '未记录'}{data?.report?.attempts ? ` · 第 ${data?.report?.attempts} 次尝试` : ''}</span>
+              <span>输入/输出 Token：{data?.report?.promptTokens ?? 0} / {data?.report?.completionTokens ?? 0}</span>
+              <span>总消耗：{data?.report?.totalTokens ?? 0} Tokens</span>
+              <span>费用以你的模型服务商账单为准，系统仅记录 Token 用量。</span>
+            </div>
             <div>本报告由 AI 生成，关键事实请回到原文核对。</div>
           </footer>
         </div>
