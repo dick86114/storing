@@ -6,6 +6,9 @@ import com.idickies.storing.library.ArticleUpdateTitleRequest
 import com.idickies.storing.library.ArticleUpdateTitleResponse
 import com.idickies.storing.library.ArticleRefetchResponse
 import com.idickies.storing.library.ArticleRegenerateAiResponse
+import com.idickies.storing.library.DeepAnalysisResponse
+import com.idickies.storing.library.DeepAnalysisVersionsResponse
+import com.idickies.storing.library.UserNotificationsResponse
 import com.idickies.storing.library.ArticleDetail
 import com.idickies.storing.library.ArticleCategoryAssignmentRequest
 import com.idickies.storing.library.ArticleCategoryAssignmentResponse
@@ -153,6 +156,24 @@ interface ArticleApi {
 
   @POST("articles/{id}/regenerate-ai")
   suspend fun regenerateAi(@Path("id") id: Int): ArticleRegenerateAiResponse
+
+  @POST("articles/{id}/deep-analysis")
+  suspend fun submitDeepAnalysis(@Path("id") id: Int): DeepAnalysisSubmitResponse
+
+  @GET("articles/{id}/deep-analysis")
+  suspend fun deepAnalysis(@Path("id") id: Int): DeepAnalysisResponse
+
+  @GET("articles/{id}/deep-analysis/versions")
+  suspend fun deepAnalysisVersions(@Path("id") id: Int): DeepAnalysisVersionsResponse
+
+  @POST("articles/{id}/deep-analysis/{version}/restore")
+  suspend fun restoreDeepAnalysis(
+    @Path("id") id: Int,
+    @Path("version") version: Int,
+  ): DeepAnalysisRestoreResponse
+
+  @GET("deep-analysis/notifications")
+  suspend fun notifications(@Query("limit") limit: Int = 50): UserNotificationsResponse
 
   @DELETE("articles/{id}")
   suspend fun delete(@Path("id") id: Int)

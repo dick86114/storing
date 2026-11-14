@@ -11,11 +11,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import com.idickies.storing.categories.CategoryCatalogRepository
 import com.idickies.storing.categories.CategoryCreationResult
 import com.idickies.storing.library.ArticleCard
+import com.idickies.storing.library.DeepAnalysisReport
+import com.idickies.storing.library.DeepAnalysisSummary
 import com.idickies.storing.network.ArticleCounts
 import com.idickies.storing.reader.ReadingPositionRepository
 import com.idickies.storing.offline.OfflineDownloadManager
@@ -116,9 +120,18 @@ data class LibraryUiState(
   val bulkResult: NativeBulkResult? = null,
   val bulkExportJob: ArticleBulkExportJob? = null,
   val bulkExportDownloading: Boolean = false,
+  val deepAnalysis: DeepAnalysisUiState = DeepAnalysisUiState(),
 ) {
   val hasMore: Boolean get() = LibraryPaging(page = page, totalPages = totalPages).hasMore
 }
+
+data class DeepAnalysisUiState(
+  val report: DeepAnalysisReport? = null,
+  val status: String? = null,
+  val loading: Boolean = false,
+  val versions: List<DeepAnalysisVersion> = emptyList(),
+  val errorMessage: String? = null,
+)
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
@@ -139,6 +152,8 @@ class LibraryViewModel @Inject constructor(
   private val categoryAssignmentMutex = Mutex()
   private var bulkExportPollJob: Job? = null
   private val lastSeenCounts = mutableMapOf<LibraryView, Int>()
+  private var deepAnalysisJob: Job? = null
+  private var deepAnalysisPollJob: Job? = null
 
   init {
     viewModelScope.launch {
@@ -162,6 +177,91 @@ class LibraryViewModel @Inject constructor(
     viewModelScope.launch { runCatching { offlineDownloadManager.trimAutomaticCache() } }
     loadInitial()
     loadCounts()
+  }
+
+  fun loadDeepAnalysis(articleId: Int) {
+    if (mutableState.value.deepAnalysis.loading) return
+    deepAnalysisJob?.cancel()
+    deepAnalysisJob = viewModelScope.launch {
+      mutableState.update { it.copy(deepAnalysis = it.deepAnalysis.copy(loading = true, errorMessage = null)) }
+      runCatching {
+        val response = repository.deepAnalysis(articleId)
+        val versions = runCatching { repository.deepAnalysisVersions(articleId).versions }.getOrDefault(emptyList())
+        response to versions
+      }.onSuccess { (response, versions) ->
+        mutableState.update {
+          it.copy(
+            deepAnalysis = DeepAnalysisUiState(
+              report = response.report,
+              status = response.summary?.status,
+              versions = versions,
+            ),
+          )
+        }
+        scheduleDeepAnalysisPoll(articleId)
+      }.onFailure { error ->
+        mutableState.update { it.copy(deepAnalysis = it.deepAnalysis.copy(loading = false, errorMessage = error.message ?: "深度报告加载失败")) }
+      }
+    }
+  }
+
+  fun submitDeepAnalysis(articleId: Int) {
+    if (mutableState.value.deepAnalysis.loading) return
+    viewModelScope.launch {
+      mutableState.update { it.copy(deepAnalysis = it.deepAnalysis.copy(loading = true, errorMessage = null, status = "queued")) }
+      runCatching { repository.submitDeepAnalysis(articleId) }
+        .onSuccess { loadDeepAnalysis(articleId) }
+        .onFailure { error ->
+          mutableState.update { it.copy(deepAnalysis = it.deepAnalysis.copy(loading = false, status = null, errorMessage = error.message ?: "深度解析提交失败")) }
+        }
+    }
+  }
+
+  fun restoreDeepAnalysis(articleId: Int, version: Int) {
+    if (mutableState.value.deepAnalysis.loading) return
+    viewModelScope.launch {
+      mutableState.update { it.copy(deepAnalysis = it.deepAnalysis.copy(loading = true, errorMessage = null)) }
+      runCatching { repository.restoreDeepAnalysis(articleId, version) }
+        .onSuccess { loadDeepAnalysis(articleId) }
+        .onFailure { error ->
+          mutableState.update { it.copy(deepAnalysis = it.deepAnalysis.copy(loading = false, errorMessage = error.message ?: "报告版本恢复失败")) }
+        }
+    }
+  }
+
+  private fun scheduleDeepAnalysisPoll(articleId: Int) {
+    val status = mutableState.value.deepAnalysis.status
+    deepAnalysisPollJob?.cancel()
+    if (status != "queued" && status != "running") return
+    deepAnalysisPollJob = viewModelScope.launch {
+      while (isActive) {
+        delay(3000)
+        val result = runCatching { repository.deepAnalysis(articleId) }.getOrNull() ?: continue
+        mutableState.update { current ->
+          current.copy(
+            deepAnalysis = current.deepAnalysis.copy(
+              report = result.report,
+              status = result.summary?.status,
+              loading = false,
+            ),
+          )
+        }
+        val updatedStatus = result.summary?.status
+        if (updatedStatus != "queued" && updatedStatus != "running") {
+          updateArticleDeepStatus(articleId, result.summary)
+          break
+        }
+      }
+    }
+  }
+
+  private fun updateArticleDeepStatus(articleId: Int, summary: DeepAnalysisSummary?) {
+    mutableState.update { state ->
+      state.copy(
+        detail = state.detail?.takeIf { it.id == articleId }?.copy(deepAnalysis = summary),
+        articles = state.articles.map { if (it.id == articleId) it.copy(deepAnalysis = summary) else it },
+      )
+    }
   }
 
   fun select(view: LibraryView) {
@@ -580,6 +680,7 @@ class LibraryViewModel @Inject constructor(
             )
           }
           runCatching { offlineDownloadManager.saveAutomatic(article) }
+          loadDeepAnalysis(article.id)
           if (article.isArchived) loadArchiveCategories(force = true)
         }
         .onFailure { error -> mutableState.update { it.copy(loadingDetail = false, detailError = error.message ?: "加载文章失败") } }
@@ -677,6 +778,9 @@ class LibraryViewModel @Inject constructor(
   }
 
   fun closeDetail() {
+    deepAnalysisPollJob?.cancel()
+    deepAnalysisJob?.cancel()
+    mutableState.update { it.copy(deepAnalysis = DeepAnalysisUiState()) }
     mutableState.value.detail?.id?.let(::refreshReaderAssets)
     mutableState.update { it.copy(detail = null, detailError = null, loadingDetail = false, detailRefreshing = false, savedReadingPosition = null, isReadingOffline = false, isReadingCached = false) }
   }
@@ -1284,4 +1388,11 @@ class LibraryViewModel @Inject constructor(
     if (lastSeenCounts.isEmpty()) lastSeenCounts.putAll(current)
     return current.mapValues { (view, count) -> maxOf(0, count - (lastSeenCounts[view] ?: count)) }
   }
+
+  suspend fun saveDeepAnalysisOffline(articleId: Int, report: DeepAnalysisReport) {
+    offlineDownloadManager.saveDeepAnalysis(articleId, report)
+  }
+
+  fun loadDeepAnalysisOffline(articleId: Int): DeepAnalysisReport? =
+    runBlocking { offlineDownloadManager.loadDeepAnalysis(articleId) }
 }

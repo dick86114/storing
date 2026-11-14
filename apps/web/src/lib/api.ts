@@ -570,6 +570,18 @@ export const api = {
   regenerateArticleAI: (id: number) =>
     fetchJSON<any>(`/articles/${id}/regenerate-ai`, { method: 'POST', timeoutMs: 120000 }),
 
+  submitDeepAnalysis: (id: number) =>
+    fetchJSON<{ jobId: number; status: string }>(`/articles/${id}/deep-analysis`, { method: 'POST', timeoutMs: 30000 }),
+
+  getDeepAnalysis: (id: number) =>
+    fetchJSON<any>(`/articles/${id}/deep-analysis`, { timeoutMs: 30000 }),
+
+  getDeepAnalysisVersions: (id: number) =>
+    fetchJSON<any>(`/articles/${id}/deep-analysis/versions`, { timeoutMs: 30000 }),
+
+  restoreDeepAnalysisVersion: (id: number, version: number) =>
+    fetchJSON<any>(`/articles/${id}/deep-analysis/${version}/restore`, { method: 'POST', timeoutMs: 30000 }),
+
   deleteArticle: (id: number) =>
     fetchJSON<any>(`/articles/${id}`, { method: 'DELETE' }),
 

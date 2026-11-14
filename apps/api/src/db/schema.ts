@@ -268,6 +268,38 @@ export const aiGenerationJobs = pgTable('ai_generation_jobs', {
   index('ai_generation_jobs_status_idx').on(table.status, table.createdAt),
 ]);
 
+/** 用户触发的单篇文章深度报告；版本与普通 AI 摘要完全隔离。 */
+export const articleDeepAnalyses = pgTable('article_deep_analyses', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  articleId: integer('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
+  status: text('status').notNull().default('queued'),
+  contentHash: text('content_hash').notNull(),
+  reportJson: jsonb('report_json'),
+  reportMarkdown: text('report_markdown'),
+  modelSnapshot: text('model_snapshot').notNull(),
+  baseUrlSnapshot: text('base_url_snapshot'),
+  promptTokens: integer('prompt_tokens'),
+  completionTokens: integer('completion_tokens'),
+  totalTokens: integer('total_tokens'),
+  contentTruncated: boolean('content_truncated').notNull().default(false),
+  isCurrent: boolean('is_current').notNull().default(false),
+  version: integer('version').notNull().default(1),
+  errorCode: text('error_code'),
+  errorMessage: text('error_message'),
+  attempts: integer('attempts').notNull().default(0),
+  nextRunAt: timestamp('next_run_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  startedAt: timestamp('started_at'),
+  finishedAt: timestamp('finished_at'),
+}, (table) => [
+  uniqueIndex('article_deep_analyses_user_article_active_idx')
+    .on(table.userId, table.articleId)
+    .where(sql`status IN ('queued', 'running')`),
+  index('article_deep_analyses_user_status_idx').on(table.userId, table.status, table.createdAt),
+]);
+
 /** 批量导出任务：文件保留在服务端私有目录，到期后随记录一起清理。 */
 export const bulkExportJobs = pgTable('bulk_export_jobs', {
   id: serial('id').primaryKey(),

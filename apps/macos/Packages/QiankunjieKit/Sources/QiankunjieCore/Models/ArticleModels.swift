@@ -101,6 +101,7 @@ public struct ArticleAiStatus: Decodable, Equatable, Sendable {
     public let aiErrorMessage: String?
     public let aiModel: String?
     public let aiTotalTokens: Int?
+    public let deepAnalysis: DeepAnalysisSummary?
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -109,6 +110,7 @@ public struct ArticleAiStatus: Decodable, Equatable, Sendable {
         aiErrorMessage = try container.decodeIfPresent(String.self, forKey: .aiErrorMessage)
         aiModel = try container.decodeIfPresent(String.self, forKey: .aiModel)
         aiTotalTokens = try container.decodeIfPresent(Int.self, forKey: .aiTotalTokens)
+        deepAnalysis = try container.decodeIfPresent(DeepAnalysisSummary.self, forKey: .deepAnalysis)
     }
 
     enum CodingKeys: String, CodingKey {
@@ -117,6 +119,7 @@ public struct ArticleAiStatus: Decodable, Equatable, Sendable {
         case aiErrorMessage
         case aiModel
         case aiTotalTokens
+        case deepAnalysis = "deepAnalysis"
     }
 }
 
@@ -143,6 +146,7 @@ public struct ArticleCard: Codable, Hashable, Sendable {
     public let aiErrorMessage: String?
     public let aiModel: String?
     public let aiTotalTokens: Int?
+    public let deepAnalysis: DeepAnalysisSummary?
 
     public init(
         id: Int,
@@ -166,7 +170,8 @@ public struct ArticleCard: Codable, Hashable, Sendable {
         aiErrorCode: String? = nil,
         aiErrorMessage: String? = nil,
         aiModel: String? = nil,
-        aiTotalTokens: Int? = nil
+        aiTotalTokens: Int? = nil,
+        deepAnalysis: DeepAnalysisSummary? = nil
     ) {
         self.id = id
         self.title = title
@@ -190,6 +195,7 @@ public struct ArticleCard: Codable, Hashable, Sendable {
         self.aiErrorMessage = aiErrorMessage
         self.aiModel = aiModel
         self.aiTotalTokens = aiTotalTokens
+        self.deepAnalysis = deepAnalysis
     }
 
     public init(from decoder: any Decoder) throws {
@@ -216,7 +222,8 @@ public struct ArticleCard: Codable, Hashable, Sendable {
             aiErrorCode: try container.decodeIfPresent(String.self, forKey: .aiErrorCode),
             aiErrorMessage: try container.decodeIfPresent(String.self, forKey: .aiErrorMessage),
             aiModel: try container.decodeIfPresent(String.self, forKey: .aiModel),
-            aiTotalTokens: try container.decodeIfPresent(Int.self, forKey: .aiTotalTokens)
+            aiTotalTokens: try container.decodeIfPresent(Int.self, forKey: .aiTotalTokens),
+            deepAnalysis: try container.decodeIfPresent(DeepAnalysisSummary.self, forKey: .deepAnalysis)
         )
     }
 
@@ -243,6 +250,7 @@ public struct ArticleCard: Codable, Hashable, Sendable {
         case aiErrorMessage = "aiErrorMessage"
         case aiModel = "aiModel"
         case aiTotalTokens = "aiTotalTokens"
+        case deepAnalysis = "deepAnalysis"
     }
 }
 

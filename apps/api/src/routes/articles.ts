@@ -5,6 +5,7 @@ import { articles, articleMetadata, categories, users } from '../db/schema.js';
 import { eq, and, asc, desc, count, sql, or, gt, inArray } from 'drizzle-orm';
 import { classifyStoredArticleForArchive } from '../services/ai.service.js';
 import { enqueueAiGeneration, queueArchiveAiIfNeeded } from '../services/ai-generation.service.js';
+import { attachDeepAnalysisSummaries, getDeepAnalysisSummary } from '../services/deep-analysis.service.js';
 import {
   CategoryServiceError,
   getCategoryById,
@@ -194,7 +195,7 @@ function getArticleOrderBy(sort: ArticleSortField, order: SortOrder, hasActionTi
 }
 
 
-async function getArticleRecord(id: number, userId: number) {
+export async function getArticleRecord(id: number, userId: number) {
   const [article] = await db
     .select({
       id: articles.id,
@@ -539,6 +540,15 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
     .orderBy(getArticleOrderBy(sort, order, hasActionTimestamps), desc(articles.id))
     .limit(perPage)
     .offset((page - 1) * perPage);
+  const deepAnalysisMap = await attachDeepAnalysisSummaries(userId, data.map((article) => article.id));
+  const deepAnalysisFallback = {
+    hasDeepAnalysis: false,
+    status: 'not_generated',
+    version: null,
+    generatedAt: null,
+    stale: false,
+    errorCode: null,
+  } as const;
   // 封面回填属于后台增强，绝不能让单篇失效文章拖住整页列表。
   scheduleOutdatedCoverImageBackfill(data, userId);
   // 异步修复缺失的显示字段，不阻塞当前列表响应；下次请求即为修复后的数据
@@ -555,6 +565,7 @@ articlesRoutes.get('/articles', optionalAuth, async (c) => {
       isArchived: article.isArchived ?? false,
       isPublished: article.isPublished ?? false,
       aiTags: article.aiTags ?? [],
+      deepAnalysis: deepAnalysisMap.get(article.id) ?? deepAnalysisFallback,
       category: serializeCategory(category),
       categoryResult: _categoryId ? {
         categoryId: _categoryId,
@@ -649,6 +660,7 @@ articlesRoutes.get('/articles/:id', optionalAuth, async (c) => {
 
   return c.json({
     ...serializeArticleRecord(article),
+    deepAnalysis: await getDeepAnalysisSummary(userId, article.id),
     contentMd: format === 'markdown' ? content : null,
     contentHtml: format === 'html' && content ? sanitizeCapturedHtml(content) : null,
   });
