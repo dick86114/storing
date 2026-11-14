@@ -43,6 +43,7 @@ enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
     case loading
     case offline
     case reader
+    case deepAnalysisConfirmation = "deep-analysis-confirmation"
     case collect
     case tasks
     case settings
@@ -65,6 +66,7 @@ enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
         case .loading: "加载"
         case .offline: "离线"
         case .reader: "阅读器"
+        case .deepAnalysisConfirmation: "深度报告确认"
         case .collect: "快速采集"
         case .tasks: "任务"
         case .settings: "设置"
@@ -126,6 +128,8 @@ struct UILabRootView: View {
                 productionLibrary(.offline)
             case .reader:
                 reader
+            case .deepAnalysisConfirmation:
+                reader(showsDeepAnalysisConfirmation: true)
             case .collect:
                 CollectQuickPopoverView(model: UILabFixtures.collectModel)
             case .tasks:
@@ -237,7 +241,10 @@ struct UILabRootView: View {
         reader(networkClient: UILabFixtures.readerCategoryUnavailableClient)
     }
 
-    private func reader(networkClient: any ReaderNetworkClient) -> some View {
+    private func reader(
+        networkClient: any ReaderNetworkClient = UILabFixtures.readerClient,
+        showsDeepAnalysisConfirmation: Bool = false
+    ) -> some View {
             ReaderPaneView(
                 selection: ReaderSelection(
                     articleID: UILabFixtures.article.id,
@@ -253,7 +260,8 @@ struct UILabRootView: View {
                 webCache: UILabFixtures.appModel.readerWebCache,
                 networkClient: networkClient,
                 onClose: {},
-                onLibraryDidChange: {}
+                onLibraryDidChange: {},
+                showsDeepAnalysisConfirmationOnAppear: showsDeepAnalysisConfirmation
             )
     }
 

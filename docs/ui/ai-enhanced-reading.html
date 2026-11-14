@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Storing AI 增强阅读交互稿</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f3f0;
+      --surface: #fffdfa;
+      --surface-muted: #f8f5f2;
+      --ink: #1b1c1a;
+      --muted: #686b66;
+      --line: #ded8d0;
+      --accent: #1f5f4b;
+      --accent-soft: #e5f0ec;
+      --blue: #2563a8;
+      --blue-soft: #e7eff8;
+      --amber: #8a5a10;
+      --amber-soft: #f8eeda;
+      --red: #a33a34;
+      --red-soft: #fae8e6;
+      --shadow: 0 18px 50px rgba(43, 42, 37, .12);
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); }
+    .page { max-width: 1360px; margin: 0 auto; padding: 32px 24px 80px; }
+    .topbar { display: flex; align-items: center; gap: 18px; margin-bottom: 28px; }
+    .brand { width: 36px; height: 36px; border-radius: 10px; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; }
+    h1, h2, h3 { margin: 0; letter-spacing: -.02em; }
+    h1 { font-size: 26px; }
+    .sub { color: var(--muted); font-size: 14px; margin-top: 4px; }
+    .controls { margin-left: auto; display: flex; gap: 8px; }
+    .seg { display: flex; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 3px; box-shadow: 0 4px 16px rgba(0,0,0,.04); }
+    .seg button { border: 0; background: transparent; padding: 7px 13px; border-radius: 999px; font-size: 13px; color: var(--muted); cursor: pointer; }
+    .seg button.active { background: var(--ink); color: #fff; font-weight: 600; }
+    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 24px; }
+    .summary-card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+    .summary-card strong { display: block; font-size: 13px; }
+    .summary-card span { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+    .browser-frame { border: 1px solid #cbd1cc; border-radius: 14px; overflow: hidden; background: #fff; box-shadow: var(--shadow); }
+    .browser-bar { height: 38px; background: #eeeae5; border-bottom: 1px solid #d9d3ca; display: flex; align-items: center; padding: 0 14px; gap: 7px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background:#c9c2b8; }
+    .url { width: 440px; height: 21px; margin-left: 16px; background: #fff; border-radius: 999px; color:#8b8f89; font-size: 11px; display:flex; align-items:center; padding-left:10px; }
+    .web-shell { display:grid; grid-template-columns:minmax(0,1fr) 360px; min-height:680px; }
+    .list-pane { border-right:1px solid var(--line); background:var(--surface); padding:14px; }
+    .pane-title { display:flex; align-items:center; justify-content:space-between; margin:6px 8px 14px; }
+    .pane-title h2 { font-size:17px; }
+    .filter-row { display:flex; gap:6px; margin:0 8px 14px; }
+    .filter { font-size:12px; color:var(--muted); background:#fff; border:1px solid var(--line); border-radius:999px; padding:5px 9px; }
+    .filter.active { color:#fff; background:var(--ink); border-color:var(--ink); }
+    .article-card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:10px; cursor:pointer; }
+    .article-card.selected { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+    .meta { display:flex; align-items:center; gap:7px; color:var(--muted); font-size:11px; }
+    .article-title { font-size:14px; font-weight:650; line-height:1.45; margin:8px 0 7px; }
+    .article-summary { margin:0; color:var(--muted); font-size:12px; line-height:1.55; }
+    .badges { display:flex; align-items:center; gap:6px; margin-top:10px; }
+    .tag { font-size:11px; color:var(--muted); background:var(--surface-muted); border-radius:5px; padding:3px 5px; }
+    .state-icon { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-size:12px; margin-left:auto; border:1px solid var(--line); background:#fff; }
+    .state-icon.done { color:#fff; background:var(--accent); border-color:var(--accent); }
+    .state-icon.running { color:var(--blue); border-color:#b9d3ea; position:relative; }
+    .state-icon.running::after { content:""; position:absolute; inset:-4px; border-radius:50%; border:1px solid #b9d3ea; animation:pulse 1.5s infinite; }
+    .state-icon.failed { color:var(--red); border-color:#eac7c4; }
+    .reader-pane { background:#fff; }
+    .reader-header { display:flex; align-items:center; gap:10px; padding:13px 16px; border-bottom:1px solid var(--line); }
+    .icon-btn { width:29px; height:29px; border-radius:8px; border:1px solid var(--line); background:#fff; display:grid; place-items:center; color:var(--muted); }
+    .primary-btn { margin-left:auto; border:0; border-radius:8px; background:var(--accent); color:#fff; padding:8px 12px; font-size:13px; font-weight:650; }
+    .ghost-btn { border:1px solid var(--line); background:#fff; border-radius:8px; padding:8px 10px; font-size:13px; color:var(--ink); }
+    .reader-body { padding:24px 26px 34px; }
+    .reader-body h2 { font-size:23px; line-height:1.35; max-width:720px; }
+    .reader-meta { color:var(--muted); font-size:12px; margin:10px 0 20px; }
+    .summary-block { border:1px solid var(--line); background:var(--surface-muted); border-radius:10px; padding:12px; max-width:720px; }
+    .label { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:650; }
+    .dot-square { width:7px; height:7px; border-radius:2px; background:var(--accent); }
+    .summary-block p { margin:8px 0 0; color:var(--muted); font-size:13px; line-height:1.65; }
+    .report-entry { margin-top:12px; max-width:720px; border:1px solid #c8dbd3; background:linear-gradient(120deg,#fff,#f3f8f6); border-radius:12px; padding:14px; }
+    .entry-row { display:flex; align-items:center; gap:10px; }
+    .entry-title { font-size:14px; font-weight:700; }
+    .entry-copy { margin:8px 0 12px; color:var(--muted); font-size:12px; line-height:1.6; }
+    .entry-actions { display:flex; gap:8px; }
+    .entry-actions .primary-btn { margin:0; padding:7px 10px; font-size:12px; }
+    .entry-actions .ghost-btn { padding:7px 10px; font-size:12px; }
+    .reader-content { max-width:720px; margin-top:22px; color:#393c38; font-size:14px; line-height:1.8; }
+    .reader-content p { border-left:2px solid transparent; padding-left:10px; margin:0 0 16px; }
+    .reader-content p.highlight { border-color:var(--accent); background:#f5faf8; }
+    .report-panel { background:var(--surface); border-left:1px solid var(--line); display:flex; flex-direction:column; }
+    .report-head { padding:14px 14px 10px; border-bottom:1px solid var(--line); background:#fff; }
+    .report-tabs { display:flex; gap:5px; margin-top:10px; }
+    .report-tab { font-size:12px; padding:5px 8px; border-radius:6px; color:var(--muted); background:var(--surface-muted); }
+    .report-tab.active { color:#fff; background:var(--ink); }
+    .report-scroll { padding:14px; overflow:auto; height:566px; }
+    .report-card { background:#fff; border:1px solid var(--line); border-radius:11px; padding:13px; margin-bottom:11px; }
+    .report-card h3 { font-size:14px; margin-bottom:8px; }
+    .report-card p { margin:0; color:var(--muted); font-size:12px; line-height:1.65; }
+    .section-no { color:var(--accent); font-size:11px; margin-right:5px; }
+    .source { display:inline-flex; margin-top:8px; font-size:11px; color:var(--accent); background:var(--accent-soft); border-radius:5px; padding:3px 6px; }
+    .viewpoint { border-left:3px solid var(--line); padding-left:10px; margin-top:11px; }
+    .viewpoint.support { border-color:var(--accent); }
+    .viewpoint.oppose { border-color:var(--red); }
+    .viewpoint.conditional { border-color:var(--amber); }
+    .viewpoint strong { display:block; font-size:12px; margin-bottom:4px; }
+    .mobile-wrap { display:flex; justify-content:center; background:#e6e1dc; padding:36px 0 46px; }
+    .phone { width:390px; height:800px; border-radius:42px; background:#171817; padding:10px; box-shadow:var(--shadow); }
+    .phone-screen { height:100%; border-radius:34px; overflow:hidden; background:var(--surface); display:flex; flex-direction:column; }
+    .status { height:26px; display:flex; align-items:center; justify-content:space-between; padding:0 20px; color:#fff; font-size:10px; background:#171817; }
+    .app-top { padding:12px 16px; background:var(--accent); color:#fff; }
+    .app-top h2 { font-size:18px; }
+    .search { margin-top:11px; height:33px; border-radius:9px; background:rgba(255,255,255,.16); display:flex; align-items:center; padding-left:10px; font-size:12px; }
+    .mobile-list { flex:1; overflow:auto; padding:11px; }
+    .mobile-card { background:#fff; border-radius:12px; border:1px solid var(--line); padding:11px; margin-bottom:9px; }
+    .mobile-card h3 { font-size:13px; line-height:1.45; margin:7px 0; }
+    .mobile-summary { color:var(--muted); font-size:11px; line-height:1.55; }
+    .deep-pill { display:inline-flex; align-items:center; gap:4px; margin-top:8px; color:var(--accent); background:var(--accent-soft); border-radius:999px; padding:3px 7px; font-size:10px; font-weight:650; }
+    .deep-pill.running { color:var(--blue); background:var(--blue-soft); }
+    .bottom-bar { display:grid; grid-template-columns:repeat(4,1fr); border-top:1px solid var(--line); background:#fff; }
+    .bottom-bar div { padding:8px 0 9px; text-align:center; color:var(--muted); font-size:10px; }
+    .bottom-bar .active { color:var(--accent); font-weight:700; }
+    .mobile-reader { position:relative; flex:1; background:#fff; overflow:auto; padding:20px 17px 74px; }
+    .mobile-reader h2 { font-size:20px; line-height:1.4; }
+    .mobile-tool { position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:8px; padding:9px 0; background:#fff; border-bottom:1px solid var(--line); }
+    .mobile-report-sheet { position:absolute; left:0; right:0; bottom:0; top:120px; background:var(--surface); border-top:10px solid #fff; border-radius:18px 18px 0 0; box-shadow:0 -16px 44px rgba(0,0,0,.18); display:flex; flex-direction:column; }
+    .sheet-handle { width:38px; height:4px; border-radius:99px; background:#d3cec7; margin:8px auto 4px; }
+    .mobile-report-head { padding:5px 15px 10px; border-bottom:1px solid var(--line); }
+    .mobile-report-body { flex:1; overflow:auto; padding:13px; }
+    .toc { display:flex; gap:6px; overflow:auto; padding:9px 0; }
+    .mobile-tab { white-space:nowrap; border-radius:999px; border:1px solid var(--line); background:#fff; color:var(--muted); font-size:10px; padding:4px 7px; }
+    .mobile-tab.active { color:#fff; background:var(--ink); border-color:var(--ink); }
+    .notice-card { border:1px solid #c8dbd3; background:#f4faf7; border-radius:10px; padding:11px; margin-bottom:10px; }
+    .notice-title { font-weight:700; font-size:12px; }
+    .notice-copy { color:var(--muted); font-size:11px; line-height:1.55; margin-top:4px; }
+    .mac-window { border-radius:12px; overflow:hidden; border:1px solid #bfc6c1; background:#fff; box-shadow:var(--shadow); }
+    .mac-title { height:38px; background:#e8e4df; border-bottom:1px solid #d7d1c9; display:flex; align-items:center; padding:0 12px; gap:8px; }
+    .mac-title .dot { background:#c9c2b8; }
+    .mac-shell { display:grid; grid-template-columns:280px minmax(0,1fr) 390px; height:690px; }
+    .mac-list { border-right:1px solid var(--line); background:var(--surface); padding:12px; }
+    .mac-row { border-radius:9px; padding:10px; margin-bottom:8px; border:1px solid transparent; }
+    .mac-row.selected { background:#fff; border-color:var(--line); box-shadow:0 2px 10px rgba(0,0,0,.04); }
+    .mac-row h3 { font-size:12px; margin:5px 0; line-height:1.4; }
+    .mac-row p { margin:0; font-size:11px; color:var(--muted); line-height:1.5; }
+    .state-mini { float:right; width:18px; height:18px; border-radius:50%; display:grid; place-items:center; font-size:9px; background:var(--accent); color:#fff; }
+    .mac-reader { padding:22px 28px; overflow:auto; }
+    .mac-panel { border-left:1px solid var(--line); background:var(--surface); padding:14px; overflow:auto; }
+    .notification { position:fixed; right:20px; bottom:20px; width:320px; border-radius:12px; background:rgba(28,29,27,.96); color:#fff; box-shadow:0 18px 48px rgba(0,0,0,.28); padding:13px; display:none; }
+    .notification.show { display:block; animation:rise .35s ease; }
+    .notification strong { display:block; font-size:13px; }
+    .notification span { display:block; margin-top:4px; font-size:11px; color:#d9dcd8; line-height:1.5; }
+    @keyframes pulse { 0% { opacity:.9; transform:scale(.85); } 100% { opacity:0; transform:scale(1.28); } }
+    @keyframes rise { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    @media (max-width:1100px) { .web-shell { grid-template-columns:1fr; } .mac-shell { grid-template-columns:1fr; height:auto; } .summary-grid { grid-template-columns:repeat(2,1fr); } }
+    @media (max-width:640px) { .page { padding:18px 10px 50px; } .summary-grid { grid-template-columns:1fr; } .mobile-wrap { transform:scale(.82); } }
+  </style>
+</head>
+<body>
+<main class="page">
+  <header class="topbar">
+    <div class="brand">乾</div>
+    <div>
+      <h1>AI 增强阅读 · 交互稿</h1>
+      <div class="sub">单篇深度报告 → 生成提醒 → 跨端查看与重新生成</div>
+    </div>
+    <nav class="controls seg" aria-label="客户端切换">
+      <button class="active" data-target="web">Web</button>
+      <button data-target="android">Android</button>
+      <button data-target="macos">macOS</button>
+    </nav>
+  </header>
+
+  <section class="summary-grid" aria-label="核心交互">
+    <div class="summary-card"><strong>异步提交</strong><span>点击后立即返回，可关闭页面或切换设备。</span></div>
+    <div class="summary-card"><strong>完成提醒</strong><span>应用内提醒 + 列表图标 + 系统通知。</span></div>
+    <div class="summary-card"><strong>跨端读取</strong><span>报告存服务端，任一端生成后全端可见。</span></div>
+    <div class="summary-card"><strong>跨端重生成</strong><span>任务状态一致，旧报告在新报告成功前可读。</span></div>
+  </section>
+
+  <section id="web" class="screen active" aria-label="Web 交互设计">
+    <div class="browser-frame">
+      <div class="browser-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><div class="url">localhost:1050 · 收件箱</div></div>
+      <div class="web-shell">
+        <div class="list-pane">
+          <div class="pane-title"><h2>收件箱</h2><span class="filter">24 篇</span></div>
+          <div class="filter-row"><span class="filter active">全部</span><span class="filter">深度报告</span><span class="filter">解析中</span><span class="filter">失败</span></div>
+          <article class="article-card selected">
+            <div class="meta"><span>少数派</span><span>8 分钟</span><span class="state-icon done">★</span></div>
+            <div class="article-title">AI 产品的真实留存问题：从尝鲜到日常工作流</div>
+            <p class="article-summary">文章认为多数 AI 工具流失的核心不是模型能力，而是没有进入稳定业务流程……</p>
+            <div class="badges"><span class="tag">AI</span><span class="tag">产品</span><span class="tag">留存</span></div>
+          </article>
+          <article class="article-card">
+            <div class="meta"><span>微信公众号</span><span>12 分钟</span><span class="state-icon running">◌</span></div>
+            <div class="article-title">年度预算里的软件订阅：个人工具如何复盘</div>
+            <p class="article-summary">从订阅数量、使用频率和替代成本三方面评估个人软件支出。</p>
+            <div class="badges"><span class="tag">效率</span><span class="tag">预算</span></div>
+          </article>
+          <article class="article-card">
+            <div class="meta"><span>博客</span><span>6 分钟</span><span class="state-icon failed">!</span></div>
+            <div class="article-title">本地优先软件的同步边界与冲突处理</div>
+            <p class="article-summary">讨论本地优先应用在多设备同步时常见的数据冲突。</p>
+            <div class="badges"><span class="tag">本地优先</span><span class="tag">同步</span></div>
+          </article>
+        </div>
+        <div class="reader-pane">
+          <div class="reader-header">
+            <button class="icon-btn">‹</button><button class="icon-btn">☆</button><button class="icon-btn">⋯</button>
+            <button class="ghost-btn">历史</button><button class="primary-btn">重新解析</button>
+          </div>
+          <div class="reader-body">
+            <h2>AI 产品的真实留存问题：从尝鲜到日常工作流</h2>
+            <div class="reader-meta">少数派 · 2026-11-12 · 8 分钟阅读</div>
+            <section class="summary-block">
+              <div class="label"><i class="dot-square"></i>智能摘要</div>
+              <p>文章主张 AI 产品留存的关键在于嵌入稳定工作流。作者用三个产品阶段拆解尝鲜、复访和习惯形成，并提出评估标准。</p>
+            </section>
+            <section class="report-entry">
+              <div class="entry-row"><span class="state-icon done">★</span><div><div class="entry-title">深度报告已生成</div><div class="meta">版本 2 · 1,840 tokens · 刚刚</div></div></div>
+              <p class="entry-copy">包含核心论点、论证链路、不同观点、风险边界、行动指引和原文引用位置。</p>
+              <div class="entry-actions"><button class="primary-btn">查看报告</button><button class="ghost-btn">复制 Markdown</button></div>
+            </section>
+            <article class="reader-content">
+              <p class="highlight">当用户第一次尝试 AI 工具时，惊艳感往往来自能力跃迁。但这种惊艳并不等于留存。</p>
+              <p>真正决定复访的是任务频率、失败成本和替代路径。作者将这一过程拆解为三个阶段……</p>
+              <p>在习惯阶段，产品需要具备明确触发条件、可预期结果和低迁移成本。</p>
+            </article>
+          </div>
+        </div>
+        <aside class="report-panel" aria-label="深度报告面板">
+          <div class="report-head">
+            <div class="label"><span class="state-icon done">★</span>深度报告</div>
+            <div class="meta" style="margin-top:7px">版本 2 · 基于当前正文 · 未截断</div>
+            <div class="report-tabs"><span class="report-tab active">报告</span><span class="report-tab">引用</span><span class="report-tab">历史</span></div>
+          </div>
+          <div class="report-scroll">
+            <section class="report-card"><h3><span class="section-no">01</span>一段看懂</h3><p>文章反驳“模型更强就自然留存”的假设，认为留存来自高频、可预期、可迁移的工作流位置。建议优先评估任务频率和失败成本，而不是只比较能力演示。</p></section>
+            <section class="report-card"><h3><span class="section-no">02</span>论证链路</h3><p>尝鲜阶段依赖能力差异；复访阶段取决于任务频率和结果稳定性；习惯阶段取决于触发条件、迁移成本和团队协作约束。</p><span class="source">引用：第 2 段</span></section>
+            <section class="report-card"><h3><span class="section-no">03</span>不同观点</h3>
+              <div class="viewpoint support"><strong>支持：流程嵌入有效</strong><p>当任务每天发生且失败代价高，用户更愿意保留工具。</p></div>
+              <div class="viewpoint oppose"><strong>反对：能力仍是首要门槛</strong><p>如果基础质量不稳定，流程嵌入只会放大失败体验。</p></div>
+              <div class="viewpoint conditional"><strong>条件适用</strong><p>个人工具更看重迁移成本，团队工具更看重协作约束。</p></div>
+            </section>
+            <section class="report-card"><h3><span class="section-no">04</span>行动指引</h3><p>列出最近 14 天重复执行的任务，标注频率、失败成本和现有替代路径；只有同时满足高频、高失败成本、低替代性时才保留订阅。</p></section>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <section id="android" class="screen" aria-label="Android 交互设计">
+    <div class="mobile-wrap">
+      <div class="phone"><div class="phone-screen">
+        <div class="status"><span>9:41</span><span>5G · 86</span></div>
+        <div class="app-top"><h2>收件箱</h2><div class="search">搜索文章、标签、报告观点</div></div>
+        <div class="mobile-list">
+          <article class="mobile-card">
+            <div class="meta">少数派 · 8 分钟</div><h3>AI 产品的真实留存问题：从尝鲜到日常工作流</h3>
+            <p class="mobile-summary">文章主张 AI 产品留存的关键在于嵌入稳定工作流。</p>
+            <span class="deep-pill">★ 深度报告</span>
+          </article>
+          <article class="mobile-card">
+            <div class="meta">微信公众号 · 12 分钟</div><h3>年度预算里的软件订阅</h3>
+            <p class="mobile-summary">从订阅数量、使用频率和替代成本三方面评估支出。</p>
+            <span class="deep-pill running">◌ 解析中</span>
+          </article>
+          <article class="mobile-card">
+            <div class="meta">博客 · 6 分钟</div><h3>本地优先软件的同步边界</h3>
+            <p class="mobile-summary">讨论多设备同步的数据冲突。</p>
+          </article>
+        </div>
+        <div class="bottom-bar"><div class="active">收件箱</div><div>归档</div><div>任务</div><div>设置</div></div>
+      </div></div>
+    </div>
+    <div class="mobile-wrap" style="margin-top:-12px">
+      <div class="phone"><div class="phone-screen">
+        <div class="status"><span>9:41</span><span>5G · 86</span></div>
+        <div class="mobile-reader">
+          <div class="mobile-tool"><button class="icon-btn">‹</button><strong style="font-size:12px">阅读</strong><button class="primary-btn" style="margin-left:auto">深度解析</button></div>
+          <h2>AI 产品的真实留存问题</h2>
+          <p class="reader-meta">少数派 · 2026-11-12</p>
+          <p class="mobile-summary">当用户第一次尝试 AI 工具时，惊艳感往往来自能力跃迁，但这种惊艳并不等于留存。</p>
+          <p class="mobile-summary">真正决定复访的是任务频率、失败成本和替代路径。</p>
+          <div class="mobile-report-sheet">
+            <div class="sheet-handle"></div>
+            <div class="mobile-report-head">
+              <div class="entry-row"><span class="state-icon done">★</span><div><div class="entry-title">深度报告</div><div class="meta">版本 2 · 基于当前正文</div></div><button class="ghost-btn" style="margin-left:auto">历史</button></div>
+              <div class="toc"><span class="mobile-tab active">一段看懂</span><span class="mobile-tab">论点</span><span class="mobile-tab">观点</span><span class="mobile-tab">行动</span><span class="mobile-tab">引用</span></div>
+            </div>
+            <div class="mobile-report-body">
+              <section class="notice-card"><div class="notice-title">报告已生成</div><div class="notice-copy">任务由 macOS 发起，报告已同步到当前账号。</div></section>
+              <section class="report-card"><h3>一段看懂</h3><p>留存来自高频、可预期、可迁移的工作流位置。建议优先评估任务频率与失败成本，而不是只看能力演示。</p></section>
+              <section class="report-card"><h3>不同观点</h3><div class="viewpoint support"><strong>支持</strong><p>每日任务更容易形成工具习惯。</p></div><div class="viewpoint oppose"><strong>反对</strong><p>基础质量不稳定会破坏流程价值。</p></div></section>
+              <section class="report-card"><h3>行动指引</h3><p>复盘最近 14 天重复任务，标注频率、失败成本、替代路径，再决定是否保留订阅。</p></section>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </section>
+
+  <section id="macos" class="screen" aria-label="macOS 交互设计">
+    <div class="mac-window">
+      <div class="mac-title"><i class="dot"></i><i class="dot"></i><i class="dot"></i><strong style="margin-left:12px;font-size:12px;color:#686b66">乾坤戒</strong></div>
+      <div class="mac-shell">
+        <aside class="mac-list">
+          <div class="pane-title"><h2 style="font-size:15px">收件箱</h2></div>
+          <article class="mac-row selected"><span class="state-mini">★</span><h3>AI 产品的真实留存问题</h3><p>留存来自稳定工作流，而不是单次惊艳。</p></article>
+          <article class="mac-row"><span class="state-mini" style="background:var(--blue)">◌</span><h3>年度预算里的软件订阅</h3><p>评估个人软件支出与替代成本。</p></article>
+          <article class="mac-row"><h3>本地优先软件的同步边界</h3><p>多设备同步中的数据冲突处理。</p></article>
+        </aside>
+        <section class="mac-reader">
+          <div class="reader-header" style="padding:0 0 14px;border-bottom:1px solid var(--line)"><button class="icon-btn">‹</button><button class="icon-btn">☆</button><button class="ghost-btn">历史</button><button class="primary-btn">重新解析</button></div>
+          <h2 style="font-size:24px;margin-top:20px">AI 产品的真实留存问题</h2>
+          <p class="reader-meta">少数派 · 2026-11-12 · 8 分钟阅读</p>
+          <article class="reader-content"><p class="highlight">当用户第一次尝试 AI 工具时，惊艳感往往来自能力跃迁，但这种惊艳并不等于留存。</p><p>真正决定复访的是任务频率、失败成本和替代路径。</p></article>
+        </section>
+        <aside class="mac-panel">
+          <div class="entry-row"><span class="state-icon done">★</span><div><div class="entry-title">深度报告</div><div class="meta">版本 2 · 当前正文</div></div><button class="ghost-btn" style="margin-left:auto">复制</button></div>
+          <div class="report-scroll" style="height:550px;margin-top:12px">
+            <section class="report-card"><h3>核心论点</h3><p>AI 工具需要占据稳定任务位置。高频任务决定复访，失败成本决定付费意愿，迁移成本决定留存。</p><span class="source">引用：第 2 段</span></section>
+            <section class="report-card"><h3>关键信息</h3><p>原文给出三个阶段：尝鲜、复访、习惯。每个阶段的评估重点不同，不能只看模型评测分数。</p></section>
+            <section class="report-card"><h3>风险与局限</h3><p>案例集中在个人效率场景，直接推广到企业采购可能忽略安全、审批和预算周期约束。</p></section>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <div class="notification show" role="status">
+    <strong>深度报告已生成</strong>
+    <span>《AI 产品的真实留存问题》· 点击查看第 2 版报告</span>
+  </div>
+</main>
+
+<script>
+  const buttons = document.querySelectorAll('.seg button');
+  buttons.forEach((button) => {
+    button.addEventListener('click', () => {
+      buttons.forEach((item) => item.classList.remove('active'));
+      document.querySelectorAll('.screen').forEach((screen) => screen.classList.remove('active'));
+      button.classList.add('active');
+      document.getElementById(button.dataset.target).classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>

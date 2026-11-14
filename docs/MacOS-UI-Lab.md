@@ -17,7 +17,7 @@ apps/macos/scripts/macos-ui-lab.sh update-notice light
 apps/macos/scripts/macos-ui-lab.sh update-notice dark
 ```
 
-脚本会校验 Xcode、生成工程、构建 Debug App、启动指定场景，并输出当前外观对应的截图路径。可用场景与脚本接口保持一致：`login`、`library`、`empty`、`loading`、`offline`、`reader`、`collect`（快速采集弹窗）、`tasks`（历史任务页）、`settings`、`update`、`update-notice`、`current-version`、`category-picker`（分类选择器）、`category-management`（分类管理）、`reader-category-unavailable`（阅读器分类失效）、`category-create-cancel`（慢速创建后取消）。第二个参数可省略，支持 `light` 或 `dark`；省略时使用系统外观，建议截图路径会标记为 `system.png`。
+脚本会校验 Xcode、生成工程、构建 Debug App、启动指定场景，并输出当前外观对应的截图路径。可用场景与脚本接口保持一致：`login`、`library`、`empty`、`loading`、`offline`、`reader`、`deep-analysis-confirmation`（深度报告确认弹窗）、`collect`（快速采集弹窗）、`tasks`（历史任务页）、`settings`、`update`、`update-notice`、`current-version`、`category-picker`（分类选择器）、`category-management`（分类管理）、`reader-category-unavailable`（阅读器分类失效）、`category-create-cancel`（慢速创建后取消）。第二个参数可省略，支持 `light` 或 `dark`；省略时使用系统外观，建议截图路径会标记为 `system.png`。
 
 ## 场景与截图路径
 
@@ -29,6 +29,7 @@ apps/macos/scripts/macos-ui-lab.sh update-notice dark
 | `loading` | 进度、文案和稳定高度 | `artifacts/macos-ui-lab/loading/light.png`、`dark.png` |
 | `offline` | 离线图标、中文错误、重试 | `artifacts/macos-ui-lab/offline/light.png`、`dark.png` |
 | `reader` | 长文、长链接、代码、宽表和关闭按钮 | `artifacts/macos-ui-lab/reader/light.png`、`dark.png` |
+| `deep-analysis-confirmation` | 确认弹窗头部、标题、说明、异步提示与取消/确认按钮 | `artifacts/macos-ui-lab/deep-analysis-confirmation/light.png`、`dark.png` |
 | `collect` | 快速采集浮出弹窗：链接输入、读取剪贴板、提交按钮 | `artifacts/macos-ui-lab/collect/light.png`、`dark.png` |
 | `tasks` | 历史任务页：`pending`/`running`/`completed`/`failed`；完成行打开文章、失败行重试、终态行删除任务 | `artifacts/macos-ui-lab/tasks/light.png`、`dark.png` |
 | `settings` | 版本、环境、外观和快捷键 | `artifacts/macos-ui-lab/settings/light.png`、`dark.png` |

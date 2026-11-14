@@ -1,6 +1,15 @@
 import QiankunjieCore
 import SwiftUI
 
+enum DeepAnalysisEntryAction: Equatable {
+    case viewReport
+    case confirmGeneration
+
+    static func of(summary: DeepAnalysisSummary?) -> DeepAnalysisEntryAction {
+        summary?.hasDeepAnalysis == true ? .viewReport : .confirmGeneration
+    }
+}
+
 enum DeepAnalysisInspector {
     static let sections = [
         "一段看懂",

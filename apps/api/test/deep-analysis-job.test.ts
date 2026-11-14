@@ -7,6 +7,10 @@ const serviceSource = readFileSync(
   new URL('../src/services/deep-analysis.service.ts', import.meta.url),
   'utf8',
 );
+const routeSource = readFileSync(
+  new URL('../src/routes/deep-analysis.ts', import.meta.url),
+  'utf8',
+);
 
 test('深度任务复用活动任务且每用户串行执行', () => {
   assert.match(serviceSource, /sql`\$\{articleDeepAnalyses\.status\} IN \('queued', 'running'\)`/);
@@ -50,4 +54,11 @@ test('任务队列函数签名满足跨端服务契约', () => {
   assert.match(serviceSource, /export async function runDeepAnalysisWorkers\(\): Promise<void>/);
   assert.match(serviceSource, /export async function resumeDeepAnalysisJobs\(\): Promise<void>/);
   assert.match(serviceSource, /export async function retryDeepAnalysisJob\(userId: number, jobId: number\): Promise<void>/);
+});
+
+test('AI 加密密钥异常时返回可操作的重新保存提示', () => {
+  assert.match(routeSource, /USER_AI_ENCRYPTION_KEY_MISSING/);
+  assert.match(routeSource, /USER_AI_SECRET_DECRYPT_FAILED/);
+  assert.match(routeSource, /请到设置页重新保存模型 API Key/);
+  assert.match(routeSource, /aiSecretInvalid \? 409 : 422/);
 });

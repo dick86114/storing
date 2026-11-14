@@ -90,7 +90,7 @@ function MainContent({ children }: { children: ReactNode }) {
   // 游客访问私有路由时重定向到发布页
   useEffect(() => {
      if (bootState.status === 'unauthenticated') {
-       const privateRoutes = ['/inbox', '/favorites', '/archive', '/collect', '/settings', '/admin'];
+       const privateRoutes = ['/inbox', '/favorites', '/archive', '/collect', '/settings', '/admin', '/deep-analysis'];
        if (privateRoutes.some(route => pathname === route || pathname.startsWith(`${route}/`))) {
          window.location.href = '/published';
        }
@@ -208,7 +208,9 @@ function MainContent({ children }: { children: ReactNode }) {
       )}
 
       {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} />}
-      <WechatDetailPanel articleId={selectedId} onClose={closeArticle} onMutate={mutateList} isDesktop={!isMobile} />
+      {!pathname.startsWith('/deep-analysis/') && (
+        <WechatDetailPanel articleId={selectedId} onClose={closeArticle} onMutate={mutateList} isDesktop={!isMobile} />
+      )}
     </>
   );
 }
