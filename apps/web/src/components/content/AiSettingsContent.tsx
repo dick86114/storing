@@ -116,7 +116,12 @@ export function AiSettingsContent() {
     setError(null);
     setNotice(null);
     try {
-      const result = await api.testAiSettings();
+      const result = await api.testAiSettings({
+        provider: form.provider,
+        model: form.model,
+        baseUrl: form.baseUrl,
+        apiKey: form.apiKey || undefined,
+      });
       setNotice(`AI 连接正常，耗时 ${result.latencyMs}ms`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'AI 连接测试失败');

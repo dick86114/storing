@@ -27,6 +27,17 @@ test('AI 设置响应不返回明文 Key 或密文', () => {
   assert.doesNotMatch(getRoute, /apiKeyCiphertext|apiKey\.slice|apiKey\.split|decryptSecret/);
 });
 
+test('AI 密钥解密失败返回可操作提示而不是服务器异常', () => {
+  assert.match(routeSource, /isUserAiSecretError/);
+  assert.match(routeSource, /userAiSecretRecoveryMessage/);
+  assert.match(routeSource, /aiErrorStatus/);
+  assert.match(routeSource, /409/);
+  assert.doesNotMatch(
+    routeSource.match(/aiRoutes\.post\('\/ai\/settings\/test'[\s\S]*?\n\}\);/)?.[0] ?? '',
+    /resolveUserAiSavedApiKey[\s\S]*?try \{/,
+  );
+});
+
 test('保存支持空 Key 保留，删除清空配置，测试使用极小输出', () => {
   const putRoute = routeSource.slice(
     routeSource.indexOf("aiRoutes.put('/ai/settings'"),

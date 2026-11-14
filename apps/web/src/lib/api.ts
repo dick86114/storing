@@ -359,8 +359,17 @@ export const api = {
       timeoutMs: 30_000,
     }),
 
-  testAiSettings: () =>
-    fetchJSON<{ ok: true; latencyMs: number }>('/ai/settings/test', { method: 'POST', timeoutMs: 30_000 }),
+  testAiSettings: (input?: {
+    provider: string;
+    model: string;
+    baseUrl?: string | null;
+    apiKey?: string;
+  }) =>
+    fetchJSON<{ ok: true; latencyMs: number }>('/ai/settings/test', {
+      method: 'POST',
+      body: JSON.stringify(input),
+      timeoutMs: 30_000,
+    }),
 
   getAiJobs: (page = 1, perPage = 10) =>
     fetchJSON<AiJobsResponse>(`/ai/jobs?page=${page}&perPage=${perPage}`),

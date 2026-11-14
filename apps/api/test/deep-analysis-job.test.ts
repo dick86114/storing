@@ -57,9 +57,13 @@ test('任务队列函数签名满足跨端服务契约', () => {
 });
 
 test('AI 加密密钥异常时返回可操作的重新保存提示', () => {
-  assert.match(routeSource, /USER_AI_ENCRYPTION_KEY_MISSING/);
-  assert.match(routeSource, /USER_AI_SECRET_DECRYPT_FAILED/);
-  assert.match(routeSource, /请到设置页重新保存模型 API Key/);
+  const settingsSource = readFileSync(
+    new URL('../src/services/user-ai-settings.service.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(settingsSource, /USER_AI_ENCRYPTION_KEY_MISSING/);
+  assert.match(settingsSource, /USER_AI_SECRET_DECRYPT_FAILED/);
+  assert.match(routeSource, /userAiSecretRecoveryMessage/);
   assert.match(routeSource, /aiSecretInvalid \? 409 : 422/);
 });
 

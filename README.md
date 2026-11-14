@@ -111,6 +111,7 @@ docker-compose -f docker-compose.dev.yml up -d --build
 DATABASE_URL=postgresql://user:password@host:port/database
 
 # AI 主加密密钥；用户模型和 API Key 在设置页按账号录入
+# 部署后必须保持不变；更换后需在设置页重新保存模型 API Key
 USER_AI_ENCRYPTION_KEY=replace-with-base64-encoded-32-byte-key
 
 # 文章抓取服务（可选）

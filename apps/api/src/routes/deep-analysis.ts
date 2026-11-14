@@ -14,6 +14,10 @@ import {
   listUserNotifications,
   markUserNotificationRead,
 } from '../services/user-notification.service.js';
+import {
+  isUserAiSecretError,
+  userAiSecretRecoveryMessage,
+} from '../services/user-ai-settings.service.js';
 
 export const deepAnalysisRoutes = new Hono();
 
@@ -34,13 +38,11 @@ deepAnalysisRoutes.post('/articles/:id/deep-analysis', requireAuth, async (c) =>
   } catch (error) {
     const rawCode = error instanceof Error ? error.message : 'DEEP_ANALYSIS_FAILED';
     const code = rawCode.split(':', 1)[0] || 'DEEP_ANALYSIS_FAILED';
-    const aiSecretInvalid = code === 'USER_AI_ENCRYPTION_KEY_MISSING'
-      || code === 'USER_AI_ENCRYPTION_KEY_INVALID'
-      || code === 'USER_AI_SECRET_DECRYPT_FAILED';
+    const aiSecretInvalid = isUserAiSecretError(error);
     const message = code === 'AI_NOT_CONFIGURED'
       ? '请先配置 AI 模型'
       : aiSecretInvalid
-        ? '本机 AI Key 加密密钥与已保存配置不匹配，请到设置页重新保存模型 API Key'
+        ? userAiSecretRecoveryMessage(error)
         : code === 'DEEP_ANALYSIS_BODY_NOT_FOUND'
           ? '文章正文缺失，请先重新抓取'
           : '深度解析提交失败';

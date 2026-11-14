@@ -11,6 +11,9 @@ import {
   saveUserAiSettings,
   resolveUserAiRuntimeConfig,
   resolveUserAiSavedApiKey,
+  isUserAiSecretError,
+  userAiSecretErrorCode,
+  userAiSecretRecoveryMessage,
 } from '../services/user-ai-settings.service.js';
 import { assertUserAiProvider, assertSafeAiBaseUrl, callUserAi, listAiModels } from '../services/ai-provider.service.js';
 import { listAiGenerationJobs, retryAiGenerationJob } from '../services/ai-generation.service.js';
@@ -46,6 +49,21 @@ function aiErrorCode(error: unknown, fallback: string): string {
 function aiErrorMessage(error: unknown, fallback: string): string {
   const message = error instanceof Error ? error.message : String(error);
   return message.replace(/^AI_[A-Z0-9_]+:\s*/, '').trim() || fallback;
+}
+
+function aiErrorStatus(error: unknown): 400 | 409 {
+  return isUserAiSecretError(error) ? 409 : 400;
+}
+
+function aiErrorPayload(error: unknown, fallback: string) {
+  const secretCode = userAiSecretErrorCode(error);
+  if (secretCode) {
+    return { code: secretCode, message: userAiSecretRecoveryMessage(error) };
+  }
+  return {
+    code: aiErrorCode(error, fallback),
+    message: aiErrorMessage(error, fallback),
+  };
 }
 
 async function findAdminAiTargetUser(userId: number) {
@@ -100,12 +118,7 @@ aiRoutes.post('/ai/models/discover', requireAuth, async (c) => {
     const result = await listAiModels({ ...parsed.data, apiKey });
     return c.json(result);
   } catch (error) {
-    return c.json({
-      error: {
-        code: aiErrorCode(error, 'AI_DISCOVERY_FAILED'),
-        message: aiErrorMessage(error, '获取模型列表失败'),
-      },
-    }, 400);
+    return c.json({ error: aiErrorPayload(error, '获取模型列表失败') }, aiErrorStatus(error));
   }
 });
 
@@ -118,31 +131,26 @@ aiRoutes.post('/ai/settings/test', requireAuth, async (c) => {
     baseUrl: true,
     apiKey: true,
   }).safeParse(body);
-  let config: { provider: string; model: string; baseUrl: string | null; apiKey: string } | null = null;
-  if (parsed.success) {
-    const apiKey = parsed.data.apiKey?.trim() || await resolveUserAiSavedApiKey(userId);
-    if (apiKey) {
-      config = {
-        provider: parsed.data.provider,
-        model: parsed.data.model,
-        baseUrl: parsed.data.baseUrl || null,
-        apiKey,
-      };
-    }
-  }
-  config ??= await resolveUserAiRuntimeConfig(userId);
-  if (!config) return c.json({ error: { code: 'AI_NOT_CONFIGURED', message: '请先保存完整的模型配置' } }, 400);
-  const startedAt = Date.now();
   try {
+    let config: { provider: string; model: string; baseUrl: string | null; apiKey: string } | null = null;
+    if (parsed.success) {
+      const apiKey = parsed.data.apiKey?.trim() || await resolveUserAiSavedApiKey(userId);
+      if (apiKey) {
+        config = {
+          provider: parsed.data.provider,
+          model: parsed.data.model,
+          baseUrl: parsed.data.baseUrl || null,
+          apiKey,
+        };
+      }
+    }
+    config ??= await resolveUserAiRuntimeConfig(userId);
+    if (!config) return c.json({ error: { code: 'AI_NOT_CONFIGURED', message: '请先保存完整的模型配置' } }, 400);
+    const startedAt = Date.now();
     await callUserAi(config, '你是连通性测试助手。', '请只回复 OK', 16);
     return c.json({ ok: true, latencyMs: Date.now() - startedAt });
   } catch (error) {
-    return c.json({
-      error: {
-        code: aiErrorCode(error, 'AI_SETTINGS_TEST_FAILED'),
-        message: aiErrorMessage(error, 'AI 连通性测试失败'),
-      },
-    }, 400);
+    return c.json({ error: aiErrorPayload(error, 'AI 连通性测试失败') }, aiErrorStatus(error));
   }
 });
 
@@ -227,12 +235,7 @@ aiRoutes.post('/ai/admin/users/:userId/settings/test', requireAdmin, async (c) =
     await callUserAi(config, '你是连通性测试助手。', '请只回复 OK', 16);
     return c.json({ ok: true, latencyMs: Date.now() - startedAt });
   } catch (error) {
-    return c.json({
-      error: {
-        code: aiErrorCode(error, 'AI_SETTINGS_TEST_FAILED'),
-        message: aiErrorMessage(error, 'AI 连通性测试失败'),
-      },
-    }, 400);
+    return c.json({ error: aiErrorPayload(error, 'AI 连通性测试失败') }, aiErrorStatus(error));
   }
 });
 
@@ -263,12 +266,7 @@ aiRoutes.post('/ai/admin/users/:userId/models/discover', requireAdmin, async (c)
     if (config.baseUrl) await assertSafeAiBaseUrl(config.baseUrl);
     return c.json(await listAiModels(config));
   } catch (error) {
-    return c.json({
-      error: {
-        code: aiErrorCode(error, 'AI_DISCOVERY_FAILED'),
-        message: aiErrorMessage(error, '获取模型列表失败'),
-      },
-    }, 400);
+    return c.json({ error: aiErrorPayload(error, '获取模型列表失败') }, aiErrorStatus(error));
   }
 });
 

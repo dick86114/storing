@@ -56,6 +56,11 @@ test('AI 设置页包含全部配置项、模型发现、测试、删除和任�
   assert.match(content, /服务账号/);
 });
 
+test('AI 配置测试使用当前表单草稿，允许新 Key 先测试再保存', () => {
+  assert.match(api, /testAiSettings:\s*\([\s\S]*?\)\s*=>[\s\S]*?JSON\.stringify\(input\)/);
+  assert.match(content, /api\.testAiSettings\(\{[\s\S]*provider: form\.provider[\s\S]*apiKey: form\.apiKey/);
+});
+
 test('桌面与移动导航都提供 AI 设置入口', () => {
   assert.match(desktopNav, /AI 模型/);
   assert.match(mobileNav, /AI 模型/);

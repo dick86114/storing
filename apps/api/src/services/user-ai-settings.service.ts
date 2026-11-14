@@ -77,6 +77,39 @@ export function decryptSecret(ciphertext: string): string {
   }
 }
 
+export type UserAiSecretErrorCode =
+  | 'USER_AI_ENCRYPTION_KEY_MISSING'
+  | 'USER_AI_ENCRYPTION_KEY_INVALID'
+  | 'USER_AI_SECRET_DECRYPT_FAILED';
+
+export function userAiSecretErrorCode(error: unknown): UserAiSecretErrorCode | null {
+  const message = error instanceof Error ? error.message : String(error);
+  const code = message.split(':', 1)[0];
+  if (
+    code === 'USER_AI_ENCRYPTION_KEY_MISSING'
+    || code === 'USER_AI_ENCRYPTION_KEY_INVALID'
+    || code === 'USER_AI_SECRET_DECRYPT_FAILED'
+  ) {
+    return code;
+  }
+  return null;
+}
+
+export function isUserAiSecretError(error: unknown): boolean {
+  return userAiSecretErrorCode(error) !== null;
+}
+
+export function userAiSecretRecoveryMessage(error: unknown): string {
+  const code = userAiSecretErrorCode(error);
+  if (code === 'USER_AI_ENCRYPTION_KEY_MISSING') {
+    return '服务端未配置 USER_AI_ENCRYPTION_KEY，请完成部署配置后再保存模型 API Key';
+  }
+  if (code === 'USER_AI_ENCRYPTION_KEY_INVALID') {
+    return '服务端 USER_AI_ENCRYPTION_KEY 格式无效，必须是 Base64 编码的 32 字节密钥';
+  }
+  return '服务端 AI Key 加密密钥与已保存配置不匹配。请确认 USER_AI_ENCRYPTION_KEY 与保存 Key 时一致；无法恢复时，请到设置页重新填写并保存模型 API Key';
+}
+
 export async function ensureUserAiSettingsSchema(): Promise<void> {
   await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS user_ai_settings (
