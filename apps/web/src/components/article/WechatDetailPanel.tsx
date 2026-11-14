@@ -20,6 +20,7 @@ import type { ArticleListMutation } from '@/components/providers/ArticleContext'
 import { CategoryPicker } from '@/components/category/CategoryPicker';
 import { useCategoryCatalog, useRefreshCategoryCatalog } from '@/hooks/useCategoryCatalog';
 import { useCategoryRecents } from '@/hooks/useCategoryRecents';
+import { DeepAnalysisButton } from '@/components/article/DeepAnalysisButton';
 
 const DETAIL_PANEL_DEFAULT_WIDTH = 750;
 const DETAIL_PANEL_MIN_WIDTH = 560;
@@ -2780,7 +2781,14 @@ function DetailContent({
         <button className="detail-panel-close-btn" onClick={onClose} type="button" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer' }}>
           <LeftOutlined style={{ fontSize: '22px', color: 'var(--text)' }} />
         </button>
-        <div style={{ position: 'relative' }}>
+        <div className="detail-panel-header-actions">
+          {isAuthenticated && article && (
+            <DeepAnalysisButton
+              articleId={article.id}
+              initialStatus={article.deepAnalysis?.status ?? null}
+            />
+          )}
+          <div style={{ position: 'relative' }}>
           <button
             className={`detail-panel-action-btn${moreOpen ? ' active' : ''}`}
             type="button"
@@ -2860,9 +2868,11 @@ function DetailContent({
                     )}
                   </>
                 )}
+
               </div>
             </>
           )}
+          </div>
         </div>
       </header>
 

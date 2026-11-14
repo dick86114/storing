@@ -569,7 +569,8 @@ struct CompactArticleListView: View {
 
     @ViewBuilder
     private func aiStatusBadge(_ article: ArticleCard) -> some View {
-        if article.aiStatus != nil {
+        if article.aiStatus != nil || article.deepAnalysis?.status != nil {
+            HStack(spacing: 6) {
             Text(aiStatusText(article.aiStatus))
                 .qiankunjieFont(.labelMedium)
                 .padding(.horizontal, 7)
@@ -579,7 +580,28 @@ struct CompactArticleListView: View {
                 .overlay {
                     Capsule().strokeBorder(QiankunjieColors.outline(for: colorScheme))
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                if let deepStatus = article.deepAnalysis?.status, deepStatus != "not_generated" {
+                    Text(Self.deepStatusText(deepStatus))
+                        .qiankunjieFont(.labelMedium)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(QiankunjieColors.surface(for: colorScheme))
+                        .clipShape(Capsule())
+                        .overlay {
+                            Capsule().strokeBorder(QiankunjieColors.outline(for: colorScheme))
+                        }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private static func deepStatusText(_ status: String) -> String {
+        switch status {
+        case "queued", "running": "深度解析中"
+        case "succeeded": "深度报告"
+        case "failed": "深度解析失败"
+        default: "深度报告"
         }
     }
 

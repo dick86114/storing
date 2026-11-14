@@ -14,6 +14,8 @@ public protocol ReaderNetworkClient: Sendable {
     func unpublish(articleID: Int) async throws -> ReaderPublicationResult
     func refetch(articleID: Int) async throws -> ReaderRefetchResult
     func regenerateAI(articleID: Int) async throws -> ReaderAIResult
+    func submitDeepAnalysis(articleID: Int) async throws -> DeepAnalysisResponse
+    func deepAnalysis(articleID: Int) async throws -> DeepAnalysisResponse
     func classifyArticle(articleID: Int) async throws -> ReaderAIResult
     func delete(articleID: Int) async throws -> ReaderDeleteResult
     func permanentDelete(articleID: Int) async throws
@@ -285,6 +287,27 @@ public struct ReaderArticle: Sendable {
     public var contentMarkdown: String? { detail.contentMarkdown }
 }
 
+public struct DeepAnalysisResponse: Codable, Hashable, Sendable {
+    public let report: DeepAnalysisReport?
+    public let summary: DeepAnalysisSummary?
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        report = try container.decodeIfPresent(DeepAnalysisReport.self, forKey: .report)
+        summary = try container.decodeIfPresent(DeepAnalysisSummary.self, forKey: .summary)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case report
+        case summary
+    }
+
+    public init(report: DeepAnalysisReport?, summary: DeepAnalysisSummary?) {
+        self.report = report
+        self.summary = summary
+    }
+}
+
 extension ReaderArticle {
     /// 动作会更新收藏、归档、分类等可变状态，缓存时合并为最新详情。
     func detailForCache(title: String?) -> ArticleDetail {
@@ -335,6 +358,7 @@ public final class ReaderModel {
     public private(set) var actionError: AppError?
     public private(set) var contentToken = ""
     public private(set) var savedReadingState: Data?
+    public private(set) var deepAnalysis: DeepAnalysisResponse?
     public var onDeleted: (() -> Void)?
     @ObservationIgnored public var onCategoryAffectingChange: (() -> Void)?
 
@@ -345,6 +369,7 @@ public final class ReaderModel {
     private var requestGeneration = 0
     private var actionGeneration = 0
     private var aiPollTask: Task<Void, Never>?
+    private var deepAnalysisPollTask: Task<Void, Never>?
 
     public init(
         client: any ReaderNetworkClient = APIClient(),
@@ -368,6 +393,8 @@ public final class ReaderModel {
         articleID = nil
         selection = nil
         savedReadingState = nil
+        deepAnalysis = nil
+        deepAnalysisPollTask?.cancel()
         isPerformingAction = false
         actionError = nil
         actionErrorMessage = nil
@@ -394,6 +421,8 @@ public final class ReaderModel {
         actionGeneration += 1
         requestGeneration += 1
         stopAIPolling()
+        deepAnalysis = nil
+        deepAnalysisPollTask?.cancel()
         await load(selection, requestGeneration: requestGeneration)
     }
 
@@ -423,6 +452,8 @@ public final class ReaderModel {
         savedReadingState = positionStore.readingState(
             articleID: selection.articleID
         )
+        deepAnalysis = nil
+        deepAnalysisPollTask?.cancel()
 
         if !ignoresCache {
             let cached = try? await articleCache.load(
@@ -438,6 +469,7 @@ public final class ReaderModel {
                 contentToken = UUID().uuidString
                 errorMessage = nil
                 isLoading = false
+                scheduleDeepAnalysisPollingIfPending()
                 scheduleAIPollingIfPending()
                 return
             }
@@ -452,6 +484,7 @@ public final class ReaderModel {
             article = ReaderArticle(detail: detail)
             contentToken = UUID().uuidString
             errorMessage = nil
+            scheduleDeepAnalysisPollingIfPending()
             scheduleAIPollingIfPending()
             isLoading = false
             try? await articleCache.save(
@@ -562,6 +595,49 @@ public final class ReaderModel {
     }
 
     @discardableResult
+    public func submitDeepAnalysis() async -> Bool {
+        guard let selection else { return false }
+        deepAnalysis = DeepAnalysisResponse(report: nil, summary: DeepAnalysisSummary(status: "queued"))
+        do {
+            let response = try await client.submitDeepAnalysis(articleID: selection.articleID)
+            if response.summary == nil {
+                deepAnalysis = DeepAnalysisResponse(
+                    report: nil,
+                    summary: DeepAnalysisSummary(status: "queued")
+                )
+            } else {
+                deepAnalysis = response
+            }
+        } catch {
+            deepAnalysis = DeepAnalysisResponse(report: nil, summary: DeepAnalysisSummary(status: "failed"))
+            actionErrorMessage = Self.message(for: error)
+            return false
+        }
+        await loadDeepAnalysis(selection: selection)
+        scheduleDeepAnalysisPollingIfPending()
+        return true
+    }
+
+    public func loadDeepAnalysisForCurrentArticle() async {
+        guard let selection else { return }
+        await loadDeepAnalysis(selection: selection)
+    }
+
+    private func loadDeepAnalysis(selection: ReaderSelection) async {
+        do {
+            deepAnalysis = try await client.deepAnalysis(articleID: selection.articleID)
+        } catch {
+            if deepAnalysis == nil {
+                deepAnalysis = DeepAnalysisResponse(
+                    report: nil,
+                    summary: DeepAnalysisSummary(status: "not_generated")
+                )
+            }
+        }
+        scheduleDeepAnalysisPollingIfPending()
+    }
+
+    @discardableResult
     public func classifyArticle() async -> Bool {
         await performAction { articleID, actionGeneration in
             _ = try await self.client.classifyArticle(articleID: articleID)
@@ -623,6 +699,30 @@ public final class ReaderModel {
             return
         }
         startAIPolling()
+    }
+
+    private func scheduleDeepAnalysisPollingIfPending() {
+        guard
+            let selection,
+            let status = deepAnalysis?.summary?.status,
+            status == "queued" || status == "running",
+            deepAnalysisPollTask == nil
+        else {
+            return
+        }
+        deepAnalysisPollTask = Task { [weak self] in
+            defer { self?.deepAnalysisPollTask = nil }
+            let pollingSelection = selection
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3))
+                guard let self else { return }
+                await self.loadDeepAnalysis(selection: pollingSelection)
+                let status = self.deepAnalysis?.summary?.status
+                if status != "queued" && status != "running" {
+                    break
+                }
+            }
+        }
     }
 
     private func startAIPolling() {
@@ -1015,6 +1115,14 @@ private struct ReaderCategoryUpdateEnvelope: Decodable {
 
     public func regenerateAI(articleID: Int) async throws -> ReaderAIResult {
         try await send(.post("articles/\(articleID)/regenerate-ai"), authenticated: true)
+    }
+
+    public func submitDeepAnalysis(articleID: Int) async throws -> DeepAnalysisResponse {
+        try await send(.post(DeepAnalysisAPIPaths.submit(articleID: articleID)), authenticated: true)
+    }
+
+    public func deepAnalysis(articleID: Int) async throws -> DeepAnalysisResponse {
+        try await send(.get(DeepAnalysisAPIPaths.submit(articleID: articleID)), authenticated: true)
     }
 
     public func classifyArticle(articleID: Int) async throws -> ReaderAIResult {

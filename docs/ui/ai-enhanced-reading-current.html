@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Storing · AI 增强阅读现状界面原型</title>
+<style>
+:root{
+  --bg:#ededed; --surface:#faf9f7; --card:#fff; --ink:#242523; --muted:#6d716c;
+  --line:#dedad3; --accent:#57755a; --accent-soft:#e6efe7; --blue:#2f6fac; --blue-soft:#e8f0f8;
+  --amber:#96650f; --amber-soft:#f7edda; --red:#a8433c; --red-soft:#fae9e7;
+  --shadow:0 12px 36px rgba(40,39,35,.12); --radius:12px;
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink)}
+button{font:inherit;border:0;background:none;cursor:pointer;color:inherit}
+.prototype{max-width:1480px;margin:0 auto;padding:24px 20px 70px}
+.proto-head{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+.logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(145deg,#2f4a37,#71926f);color:#fff;display:grid;place-items:center;font-weight:700}
+h1{margin:0;font-size:20px} .proto-sub{color:var(--muted);font-size:12px;margin-top:3px}
+.client-tabs{margin-left:auto;display:flex;background:#fff;border:1px solid var(--line);border-radius:999px;padding:3px}
+.client-tabs button{padding:7px 13px;border-radius:999px;font-size:12px;color:var(--muted)}
+.client-tabs .active{background:var(--ink);color:#fff;font-weight:650}
+.flow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.flow button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 10px;font-size:12px;color:var(--muted)}
+.flow .active{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);font-weight:650}
+.screen{display:none}.screen.active{display:block}
+.browser{border:1px solid #c9cec9;border-radius:12px;overflow:hidden;background:#fff;box-shadow:var(--shadow)}
+.browser-bar{height:34px;background:#e8e6e2;border-bottom:1px solid #d8d4cd;display:flex;align-items:center;gap:6px;padding:0 12px}
+.browser-bar i{width:7px;height:7px;border-radius:50%;background:#c5c0b7}
+.browser-url{width:420px;height:20px;margin-left:16px;border-radius:99px;background:#fff;color:#8b8f89;font-size:10px;display:flex;align-items:center;padding-left:8px}
+.web-shell{position:relative;min-height:780px;background:var(--bg);overflow:hidden}
+.web-main{padding:0 clamp(16px,4vw,54px)}
+.web-nav{height:60px;display:flex;align-items:center;gap:16px;background:rgba(250,249,247,.94);border-bottom:1px solid var(--line);backdrop-filter:blur(16px);position:relative;z-index:1}
+.web-brand{display:flex;align-items:center;gap:8px;font-weight:650}.divider-v{width:1px;height:22px;background:var(--line)}
+.web-tabs{display:flex;gap:4px}
+.web-tab{display:flex;align-items:center;gap:6px;padding:7px 11px;border-radius:9px;color:var(--muted);font-size:12.5px}
+.web-tab.active{background:var(--accent-soft);color:var(--accent);font-weight:650}
+.web-actions{margin-left:auto;display:flex;align-items:center;gap:13px;color:var(--muted);font-size:12px}
+.avatar{width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:10px}
+.list-toolbar{display:flex;align-items:center;justify-content:space-between;padding:18px 0 14px}
+.bulk{background:var(--accent);color:#fff;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:650}
+.sort{display:flex;align-items:center;gap:8px}.sort select{border:1px solid var(--line);border-radius:9px;padding:7px 9px;font-size:12px;background:#fff;color:var(--muted)}
+.icon-sq{width:31px;height:31px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--muted);display:grid;place-items:center}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px;padding-bottom:32px;transition:.2s}
+.cards.narrow{grid-template-columns:minmax(300px,430px)}
+.card{position:relative;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:13px;box-shadow:0 1px 3px rgba(0,0,0,.03)}
+.card.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.card-top{display:flex;justify-content:space-between;gap:10px}.card h3{margin:7px 0;font-size:14px;line-height:1.45}
+.card p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}
+.card-menu{color:var(--muted);font-weight:700}.card-foot{display:flex;align-items:center;gap:8px;margin-top:11px;color:var(--muted);font-size:11px}
+.source{display:flex;align-items:center;gap:4px}.source i{width:14px;height:14px;border-radius:4px;background:#d9483b;color:#fff;display:grid;place-items:center;font-size:8px;font-style:normal}
+.ai-state{margin-left:auto}.deep-chip{display:inline-flex;align-items:center;gap:4px;border-radius:99px;padding:3px 7px;font-size:10.5px;font-weight:650}
+.deep-chip.done{color:var(--accent);background:var(--accent-soft)}.deep-chip.running{color:var(--blue);background:var(--blue-soft)}.deep-chip.failed{color:var(--red);background:var(--red-soft)}
+.web-detail{position:absolute;top:60px;right:0;bottom:0;width:min(520px,48%);background:var(--surface);border-left:1px solid var(--line);box-shadow:-16px 0 42px rgba(0,0,0,.1);transform:translateX(105%);transition:.25s;display:flex;flex-direction:column;z-index:2}
+.web-detail.open{transform:translateX(0)}
+.detail-head{height:44px;display:flex;align-items:center;padding:0 12px;border-bottom:1px solid var(--line);background:#fff}
+.detail-actions{margin-left:auto;display:flex;align-items:center;gap:6px}.more-btn{font-size:17px;color:var(--muted)}
+.primary{background:var(--accent);color:#fff;border-radius:8px;padding:7px 10px;font-size:12px;font-weight:650}
+.ghost{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 9px;font-size:12px}
+.detail-body{flex:1;overflow:auto;padding:18px}
+.detail-cover{height:110px;border-radius:9px;background:linear-gradient(125deg,#dfe7df,#f4f1ea);margin-bottom:13px}
+.detail-title{font-size:19px;font-weight:500;line-height:1.4;margin:0}
+.detail-meta{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11.5px;margin:10px 0}
+.avatar-sm{width:22px;height:22px;border-radius:50%;background:#57606a;color:#fff;display:grid;place-items:center;font-size:8px}
+.ai-card{border:1px solid var(--line);border-radius:9px;background:#fff;padding:11px;margin-top:14px}
+.ai-card-head{display:flex;align-items:center;gap:6px;color:var(--accent);font-size:12px;font-weight:650}
+.ai-card p{margin:7px 0 0;color:var(--muted);font-size:12.5px;line-height:1.65}
+.deep-card{margin-top:11px;border:1px solid #c9dacf;background:linear-gradient(120deg,#fff,#f3f8f4);border-radius:10px;padding:12px}
+.deep-card h4{display:flex;align-items:center;gap:7px;margin:0;font-size:13px}.deep-card p{margin:8px 0 11px;color:var(--muted);font-size:12px;line-height:1.6}
+.article-body{margin-top:20px;color:#3d403c;font-size:13px;line-height:1.8}.article-body section{border-left:2px solid transparent;padding-left:9px;margin:0 0 14px}
+.article-body section.active{border-color:var(--accent);background:#f5faf6}
+.report-sheet{position:absolute;right:12px;top:56px;bottom:12px;width:348px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);display:flex;flex-direction:column;transform:translateX(calc(100% + 24px));transition:.22s;z-index:3}
+.report-sheet.open{transform:translateX(0)}
+.sheet-head{padding:12px;border-bottom:1px solid var(--line)}.sheet-head h4{margin:0;font-size:14px}.meta-row{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:11px;margin-top:6px}
+.tabs{display:flex;gap:5px;margin-top:10px}.tabs span{padding:4px 7px;border-radius:6px;background:#f4f2ef;color:var(--muted);font-size:11px}.tabs .active{background:var(--ink);color:#fff}
+.sheet-body{flex:1;overflow:auto;padding:12px}
+.report-block{border:1px solid var(--line);border-radius:9px;padding:11px;margin-bottom:9px}.report-block h5{margin:0 0 6px;font-size:12.5px}.report-block p{margin:0;color:var(--muted);font-size:11.5px;line-height:1.62}
+.quote{display:inline-flex;margin-top:7px;color:var(--accent);background:var(--accent-soft);border-radius:5px;padding:3px 5px;font-size:10.5px}
+.viewpoint{border-left:3px solid var(--line);padding-left:8px;margin-top:9px}.viewpoint.support{border-color:var(--accent)}.viewpoint.oppose{border-color:var(--red)}.viewpoint.conditional{border-color:var(--amber)}
+.viewpoint strong{display:block;font-size:11.5px;margin-bottom:3px}.viewpoint p{margin:0}
+.mobile-stage{display:flex;gap:30px;justify-content:center;align-items:flex-start;flex-wrap:wrap;background:#e2ded9;padding:28px;border-radius:14px}
+.phone{width:390px;height:810px;border-radius:42px;background:#171817;padding:10px;box-shadow:var(--shadow)}
+.phone-screen{position:relative;height:100%;border-radius:34px;overflow:hidden;background:#f6f4f1;display:flex;flex-direction:column}
+.status{height:27px;display:flex;justify-content:space-between;align-items:center;color:#fff;background:#171817;padding:0 18px;font-size:10px}
+.app-nav{height:54px;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 13px;border-bottom:1px solid var(--line)}
+.app-brand{display:flex;align-items:center;gap:7px;font-weight:650}.app-icons{display:flex;gap:11px;color:var(--muted)}
+.phone-toolbar{display:flex;align-items:center;justify-content:space-between;padding:11px 13px}
+.m-list{flex:1;overflow:auto;padding:0 12px 14px}
+.m-card{background:#fff;border-radius:13px;overflow:hidden;border:1px solid var(--line);margin-bottom:11px}
+.cover{height:112px;background:linear-gradient(125deg,#dce6de,#f2eee7);display:flex;align-items:end;padding:9px;color:#63706a;font-size:10px}
+.m-card-body{padding:11px}.m-meta{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:10.5px}
+.m-card h3{margin:7px 0;font-size:13.5px;line-height:1.45}.m-card p{margin:0;color:var(--muted);font-size:11.5px;line-height:1.55}
+.m-state{display:flex;align-items:center;gap:6px;margin-top:9px;color:var(--muted);font-size:10.5px}
+.tags{display:flex;gap:5px;margin-top:9px}.tag{color:var(--muted);background:#f4f2ef;border-radius:5px;padding:3px 5px;font-size:10px}
+.bottom-nav{height:64px;display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-top:1px solid var(--line)}
+.bottom-nav span{display:grid;place-items:center;color:var(--muted);font-size:10px}.bottom-nav .active{color:var(--accent);font-weight:700}
+.reader{flex:1;position:relative;background:#fff;overflow:hidden;display:flex;flex-direction:column}
+.reader-scroll{flex:1;overflow:auto;padding:17px 16px 75px}
+.reader-top{height:49px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--line);padding:0 13px;background:#fff}
+.reader-title{font-size:18px;line-height:1.4;margin:0}.reader-meta{color:var(--muted);font-size:10.5px;margin:7px 0 13px}
+.reader-action{height:68px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--line);background:#fff;padding:0 10px}
+.read-original{display:flex;align-items:center;gap:6px;color:var(--accent);font-size:12px}
+.reader-actions{display:flex;align-items:center;gap:2px}.r-action{width:52px;display:grid;place-items:center;color:var(--muted);font-size:9.5px}
+.r-action i{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:16px;font-style:normal}
+.r-action.active{color:var(--accent)}.r-action.active i{background:var(--accent-soft)}
+.m-sheet{position:absolute;left:0;right:0;bottom:0;top:110px;background:#fff;border-radius:18px 18px 0 0;box-shadow:0 -16px 46px rgba(0,0,0,.18);display:flex;flex-direction:column;transform:translateY(105%);transition:.22s}
+.m-sheet.open{transform:translateY(0)}.m-handle{width:38px;height:4px;border-radius:99px;background:#d6d1ca;margin:8px auto}
+.m-sheet-head{padding:2px 14px 10px;border-bottom:1px solid var(--line)}.m-sheet-body{flex:1;overflow:auto;padding:12px}
+.m-notification{position:absolute;top:31px;left:9px;right:9px;background:rgba(248,247,244,.96);border-radius:14px;padding:10px;box-shadow:0 10px 28px rgba(0,0,0,.18);display:none}
+.m-notification.show{display:block}.m-notification strong{display:block;font-size:11px}.m-notification span{display:block;color:var(--muted);font-size:10px;margin-top:3px}
+.mac-window{border:1px solid #c6cbc6;border-radius:12px;overflow:hidden;background:#fff;box-shadow:var(--shadow)}
+.mac-title{height:36px;background:#e7e4e0;border-bottom:1px solid #d6d1ca;display:flex;align-items:center;gap:7px;padding:0 12px}
+.mac-title i{width:8px;height:8px;border-radius:50%;background:#c5c0b7}.mac-title strong{margin-left:12px;font-size:11px;color:#6d716c}
+.mac-shell{display:grid;grid-template-columns:210px 330px minmax(0,1fr);height:730px}
+.mac-side{background:#f6f5f2;border-right:1px solid var(--line);padding:11px}.side-item{display:flex;align-items:center;gap:8px;padding:8px 9px;border-radius:8px;color:#5f645f;font-size:12px}.side-item.active{background:#e6e4e0;color:#1e1f1d;font-weight:650}
+.mac-list{background:#fbfaf8;border-right:1px solid var(--line);overflow:auto;padding:10px}.mac-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}.mac-row{border-radius:9px;background:#fff;border:1px solid var(--line);padding:9px;margin-bottom:8px}
+.mac-row.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}.mac-row h3{margin:0 0 5px;font-size:12px;line-height:1.4}.mac-row p{margin:0;color:var(--muted);font-size:11px;line-height:1.5}.mac-state{display:flex;align-items:center;gap:5px;margin-top:7px;color:var(--muted);font-size:10px}
+.mac-reader{position:relative;overflow:hidden;display:flex;flex-direction:column;background:#fff}
+.mac-reader-head{padding:18px 22px 12px;border-bottom:1px solid var(--line)}.mac-reader-head h2{margin:0;font-size:19px}.mac-meta{display:flex;gap:8px;color:var(--muted);font-size:10.5px;margin-top:6px}
+.mac-actionbar{display:flex;align-items:center;gap:7px;padding:9px 18px;border-bottom:1px solid var(--line);overflow-x:auto}
+.mac-btn{white-space:nowrap;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:11px;color:#535752}.mac-btn.primary{border-color:var(--accent);color:#fff;background:var(--accent);font-weight:650}
+.mac-body{flex:1;overflow:auto;padding:20px 26px;color:#3b3e3a;font-size:12.5px;line-height:1.8}
+.mac-report{position:absolute;top:0;right:0;bottom:0;width:390px;background:#faf9f7;border-left:1px solid var(--line);box-shadow:-16px 0 38px rgba(0,0,0,.1);transform:translateX(105%);transition:.22s;display:flex;flex-direction:column}
+.mac-report.open{transform:translateX(0)}
+.os-notification{position:fixed;right:18px;bottom:18px;width:315px;background:rgba(32,33,31,.95);color:#fff;border-radius:12px;padding:12px;box-shadow:0 18px 46px rgba(0,0,0,.28);display:none;z-index:20}
+.os-notification.show{display:block;animation:rise .3s ease}.os-notification strong{display:block;font-size:12.5px}.os-notification span{display:block;margin-top:4px;color:#d9dcd8;font-size:11px;line-height:1.5}
+.notes{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:18px}.note{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px}.note strong{font-size:12px}.note p{margin:5px 0 0;color:var(--muted);font-size:11px;line-height:1.55}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:1200px){.mac-shell{grid-template-columns:180px 280px 1fr}.web-detail{width:100%}.report-sheet{width:calc(100% - 24px)}}
+@media(max-width:800px){.mac-shell{grid-template-columns:1fr;height:auto}.mac-list,.mac-side{display:none}.mobile-stage{padding:10px}.phone{transform:scale(.86);margin:-42px 0}.notes{grid-template-columns:1fr 1fr}.browser-url{width:210px}}
+</style>
+</head>
+<body>
+<main class="prototype">
+  <header class="proto-head">
+    <div class="logo">乾</div>
+    <div><h1>AI 增强阅读 · 按现有三端界面设计</h1><div class="proto-sub">不改变信息架构：入口放在当前卡片、详情层、阅读器操作栏和系统通知里</div></div>
+    <nav class="client-tabs" aria-label="客户端">
+      <button class="active" data-screen="web-current">Web</button><button data-screen="android-current">Android</button><button data-screen="mac-current">macOS</button>
+    </nav>
+  </header>
+
+  <nav class="flow" aria-label="交互流程">
+    <button data-flow="idle">未生成</button><button data-flow="running" class="active">生成中</button><button data-flow="done">已完成</button><button data-flow="failed">失败/旧报告</button><button data-flow="offline">离线</button>
+  </nav>
+
+  <section id="web-current" class="screen active">
+    <div class="browser">
+      <div class="browser-bar"><i></i><i></i><i></i><div class="browser-url">localhost:1050 · 收件箱</div></div>
+      <div class="web-shell">
+        <div class="web-main">
+          <nav class="web-nav">
+            <div class="web-brand"><span class="logo" style="width:24px;height:24px;border-radius:7px">乾</span>乾坤戒</div><span class="divider-v"></span>
+            <div class="web-tabs"><span class="web-tab active">▦ 收件箱 24</span><span class="web-tab">♡ 收藏</span><span class="web-tab">▤ 归档</span><span class="web-tab">··· 更多</span></div>
+            <div class="web-actions"><span>☁</span><span>⌕</span><span class="avatar">演</span><span>演示用户 ▾</span></div>
+          </nav>
+          <div class="list-toolbar"><button class="bulk">批量操作</button><div class="sort"><select><option>最新收录</option></select><span class="icon-sq">↕</span></div></div>
+          <div class="cards narrow">
+            <article class="card selected" data-open-web><div class="card-top"><h3>如何建立真正可持续的个人知识库</h3><span class="card-menu">⋮</span></div><p>文章把个人知识系统拆成收集、处理、连接和复用四层，并强调复用频率才是系统是否值得维护的判断标准。</p><div class="card-foot"><span class="source"><i>少</i>少数派</span><span data-web-card-state>深度报告</span><span>2 天前</span></div></article>
+            <article class="card"><div class="card-top"><h3>AI 产品的真实留存问题：从尝鲜到日常工作流</h3><span class="card-menu">⋮</span></div><p>作者认为留存取决于任务频率、失败成本和替代路径，而不是单次演示的惊艳程度。</p><div class="card-foot"><span class="source"><i>博</i>产品博客</span><span class="deep-chip running">◌ 深度解析中</span><span>3 天前</span></div></article>
+            <article class="card"><div class="card-top"><h3>本地优先软件的同步边界与冲突处理</h3><span class="card-menu">⋮</span></div><p>讨论多设备同步、离线编辑和数据冲突的常见处理方式。</p><div class="card-foot"><span class="source"><i>博</i>技术博客</span><span class="deep-chip failed">! 解析失败</span><span>5 天前</span></div></article>
+          </div>
+        </div>
+
+        <aside class="web-detail open">
+          <header class="detail-head"><button data-close-web style="font-size:19px;color:var(--muted)">‹</button><strong style="font-size:12.5px">文章详情</strong><div class="detail-actions"><button class="ghost">历史</button><button class="primary" data-web-generate>深度解析</button><button class="more-btn">⋮</button></div></header>
+          <div class="detail-body">
+            <div class="detail-cover"></div><h2 class="detail-title">如何建立真正可持续的个人知识库</h2>
+            <div class="detail-meta"><span class="avatar-sm">少</span><span>少数派</span><span>·</span><span>11 分钟</span><span>·</span><span>2 天前</span></div>
+            <section class="ai-card"><div class="ai-card-head">✦ 智能摘要<span style="margin-left:auto;color:var(--muted);font-weight:400">已完成</span></div><p>文章提出四层知识系统：收集只负责进入，处理负责压缩，连接负责建立关系，复用负责验证价值。判断标准是内容是否再次出现并改变决策。</p></section>
+            <section class="deep-card"><h4><span class="deep-chip done" data-web-state>★ 深度报告</span><span style="color:var(--muted);font-size:11px;font-weight:400">版本 2 · 刚刚</span></h4><p>已生成核心论点、论证链路、不同观点、关键数据、风险边界、行动指引和原文引用锚点。</p><div style="display:flex;gap:7px"><button class="primary" data-open-web-report>查看报告</button><button class="ghost" data-web-generate>重新解析</button></div></section>
+            <article class="article-body"><section class="active">多数人的知识库从收藏开始失效：收集速度远高于处理速度，内容进入后没有再次被调用。</section><section>可持续系统需要把“保存”变成“处理”，把“分类”变成“连接”，把“查找”变成“复用”。</section><section>作者建议用决策场景反推信息结构，例如写作、选型、复盘和季度目标。</section></article>
+          </div>
+        </aside>
+
+        <aside class="report-sheet open">
+          <header class="sheet-head"><h4>深度报告</h4><div class="meta-row"><span class="deep-chip done">版本 2</span><span>当前正文 · 未截断</span><button class="ghost" style="margin-left:auto">复制</button></div><div class="tabs"><span class="active">一段看懂</span><span>论点</span><span>观点</span><span>行动</span><span>引用</span></div></header>
+          <div class="sheet-body"><section class="report-block"><h5>一段看懂</h5><p>这篇文章的关键不是建立更完整的分类，而是让知识被复用。收集、处理、连接、复用四层中，最容易被忽略的是“处理”：如果没有压缩和转述，收藏只会制造噪音。</p></section><section class="report-block"><h5>论证链路</h5><p>收藏过载导致检索成本升高；检索成本升高让内容不再被调用；缺少调用就无法验证知识价值。因此系统应先服务高频场景，而不是追求完备分类。</p><span class="quote">原文第 2 段</span></section><section class="report-block"><h5>不同观点</h5><div class="viewpoint support"><strong>支持</strong><p>以写作和复盘为出口，能让知识库形成反馈闭环。</p></div><div class="viewpoint oppose"><strong>反对</strong><p>过度设计处理流程可能比收藏过载更快让系统被放弃。</p></div><div class="viewpoint conditional"><strong>条件适用</strong><p>四层模型适合长期知识工作者，临时资料仍适合轻量收藏。</p></div></section></div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <section id="android-current" class="screen">
+    <div class="mobile-stage">
+      <div class="phone"><div class="phone-screen"><div class="status"><span>9:41</span><span>5G ▮</span></div><nav class="app-nav"><div class="app-brand"><span class="logo" style="width:22px;height:22px;border-radius:6px">乾</span>乾坤戒</div><div class="app-icons"><span>⇧</span><span>⌕</span><span>＋</span></div></nav><div class="phone-toolbar"><button class="bulk">批量操作</button><div class="sort"><select><option>最新收录</option></select><span class="icon-sq">↕</span></div></div><div class="m-list">
+        <article class="m-card"><div class="cover">正文封面</div><div class="m-card-body"><div class="m-meta"><span class="source"><i>少</i>少数派</span><span>· 11 分钟</span></div><h3>如何建立真正可持续的个人知识库</h3><p>文章把个人知识系统拆成收集、处理、连接和复用四层。</p><div class="m-state"><span>AI 已完成</span><span class="deep-chip done">★ 深度报告</span></div><div class="tags"><span>知识管理</span><span>工作流</span><span>长期主义</span></div></div></article>
+        <article class="m-card"><div class="cover" style="background:linear-gradient(125deg,#dfe6ea,#f1efe9)">正文封面</div><div class="m-card-body"><div class="m-meta"><span class="source"><i>博</i>产品博客</span><span>· 8 分钟</span></div><h3>AI 产品的真实留存问题</h3><p>留存取决于任务频率、失败成本和替代路径。</p><div class="m-state"><span>AI 已完成</span><span class="deep-chip running">◌ 解析中</span></div><div class="tags"><span>AI</span><span>产品</span></div></div></article>
+        <article class="m-card"><div class="cover" style="background:linear-gradient(125deg,#e7e2db,#f5f2ec)">正文封面</div><div class="m-card-body"><div class="m-meta"><span class="source"><i>博</i>技术博客</span><span>· 6 分钟</span></div><h3>本地优先软件的同步边界</h3><p>讨论多设备同步和数据冲突。</p><div class="m-state"><span>AI 已完成</span><span class="deep-chip failed">! 失败</span></div></div></article>
+      </div><nav class="bottom-nav"><span class="active">▦<br>收件箱</span><span>♡<br>收藏</span><span>▤<br>归档</span><span>···<br>更多</span></nav></div></div>
+
+      <div class="phone"><div class="phone-screen"><div class="status"><span>9:41</span><span>5G ▮</span></div><div class="reader"><div class="reader-top"><button style="font-size:18px;color:var(--muted)">‹</button><strong style="font-size:12px">阅读</strong><button class="primary" style="margin-left:auto" data-m-generate>深度解析</button></div><div class="reader-scroll"><h2 class="reader-title">如何建立真正可持续的个人知识库</h2><div class="reader-meta">少数派 · 11 分钟 · 2 天前</div><section class="ai-card"><div class="ai-card-head">✦ 智能摘要</div><p>收集、处理、连接、复用构成可持续知识系统；复用频率是判断内容价值的核心标准。</p></section><section class="deep-card"><h4><span class="deep-chip done">★ 深度报告</span><span style="font-size:10px;color:var(--muted)">版本 2 · 同步自 Web</span></h4><p>支持离线查看；重新生成需网络连接。</p><div style="display:flex;gap:6px"><button class="primary" data-open-m-sheet>查看报告</button><button class="ghost" data-m-generate>重新解析</button></div></section><p style="color:#3b3e3a;font-size:12.5px;line-height:1.8">多数人的知识库从收藏开始失效：收集速度远高于处理速度。真正可持续的系统要让知识在写作、选型、复盘中再次出现。</p></div><div class="m-sheet"><div class="m-handle"></div><div class="m-sheet-head"><h4 style="margin:0;font-size:14px">深度报告</h4><div class="meta-row"><span class="deep-chip done">版本 2</span><span>当前正文</span><button class="ghost" style="margin-left:auto">历史</button></div><div class="tabs"><span class="active">一段看懂</span><span>论点</span><span>观点</span><span>行动</span><span>引用</span></div></div><div class="m-sheet-body"><section class="report-block"><h5>一段看懂</h5><p>系统应服务复用，而不是追求分类完备。处理层的压缩与转述决定后续能否被调用。</p></section><section class="report-block"><h5>行动指引</h5><p>为每类内容指定一个明确出口：文章进入前先说明它未来服务哪个决策或作品。</p></section><section class="report-block"><h5>离线状态</h5><p>当前报告来自本地缓存；重新解析按钮已禁用，恢复网络后可生成新版本。</p></section></div></div><div class="reader-action"><button class="read-original"><span class="source"><i>少</i></span>阅读原文</button><div class="reader-actions"><span class="r-action"><i>♡</i>收藏</span><span class="r-action"><i>▤</i>归档</span><span class="r-action"><i>⇧</i>分享</span><span class="r-action active" data-open-m-sheet><i>★</i>深度</span></div></div><div class="m-notification"><strong>深度报告已生成</strong><span>如何建立真正可持续的个人知识库 · 点击查看</span></div></div></div></div>
+    </div>
+  </section>
+
+  <section id="mac-current" class="screen">
+    <div class="mac-window"><div class="mac-title"><i></i><i></i><i></i><strong>乾坤戒</strong></div><div class="mac-shell">
+      <aside class="mac-side"><div class="side-item active">▦ 收件箱</div><div class="side-item">♡ 收藏</div><div class="side-item">▤ 归档</div><div class="side-item">◷ 采集历史</div><div class="side-item">⚙ 设置</div></aside>
+      <section class="mac-list"><div class="mac-toolbar"><strong style="font-size:12px">收件箱</strong><span class="icon-sq">↕</span></div>
+        <article class="mac-row selected"><h3>如何建立真正可持续的个人知识库</h3><p>收集、处理、连接、复用四层决定知识系统是否可持续。</p><div class="mac-state"><span>AI 已完成</span><span class="deep-chip done">★ 深度报告</span></div></article>
+        <article class="mac-row"><h3>AI 产品的真实留存问题</h3><p>留存来自高频任务和低替代性。</p><div class="mac-state"><span>AI 已完成</span><span class="deep-chip running">◌ 解析中</span></div></article>
+        <article class="mac-row"><h3>本地优先软件的同步边界</h3><p>多设备同步中的数据冲突处理。</p><div class="mac-state"><span>AI 已完成</span><span class="deep-chip failed">! 失败</span></div></article>
+      </section>
+      <section class="mac-reader"><header class="mac-reader-head"><h2>如何建立真正可持续的个人知识库</h2><div class="mac-meta"><span>少数派</span><span>未知作者</span><span>2026-11-12</span><span>AI 已完成</span><span class="deep-chip done">★ 深度报告</span></div></header><nav class="mac-actionbar"><button class="mac-btn">★ 收藏</button><button class="mac-btn">▤ 归档并分类</button><button class="mac-btn">◌ 公开</button><button class="mac-btn">↻ 重新抓取正文</button><button class="mac-btn">✦ 重新生成 AI 摘要和标签</button><button class="mac-btn primary" data-open-mac>深度报告</button><span style="margin-left:auto"></span><button class="mac-btn">⇪ 导出</button><button class="mac-btn">⌘ 打开原始网页</button><button class="mac-btn">🗑 删除</button></nav><article class="mac-body"><section class="ai-card"><div class="ai-card-head">✦ AI 摘要</div><p>文章提出收集、处理、连接、复用四层模型，并认为复用频率是知识系统价值的核心判断标准。</p></section><section style="margin-top:17px">多数人的知识库从收藏开始失效：收集速度远高于处理速度，内容进入后没有再次被调用。</section><section style="margin:14px 0">可持续系统需要把“保存”变成“处理”，把“分类”变成“连接”，把“查找”变成“复用”。</section><section>作者建议用写作、选型、复盘和季度目标这些真实决策场景反推信息结构。</section></article>
+        <aside class="mac-report"><header class="sheet-head"><h4>深度报告</h4><div class="meta-row"><span class="deep-chip done">版本 2</span><span>当前正文 · 1,840 tokens</span><button class="ghost" style="margin-left:auto" data-close-mac>关闭</button></div><div class="tabs"><span class="active">一段看懂</span><span>论点</span><span>观点</span><span>行动</span><span>引用</span></div></header><div class="sheet-body"><section class="report-block"><h5>核心论点</h5><p>知识库的问题不是容量，而是出口。没有写作、决策、复盘等出口，分类越细维护成本越高。</p><span class="quote">原文第 2 段</span></section><section class="report-block"><h5>关键信息</h5><p>四层模型包含收集、处理、连接、复用；每层有不同的输入、动作和验收标准。</p></section><section class="report-block"><h5>不同观点</h5><div class="viewpoint support"><strong>支持</strong><p>以复用为约束能防止无限收藏。</p></div><div class="viewpoint oppose"><strong>反对</strong><p>流程过重会降低捕获速度，尤其对临时资料不友好。</p></div><div class="viewpoint conditional"><strong>条件适用</strong><p>高价值长文适合四层处理，短资讯适合只读不存。</p></div></section></div></aside>
+      </section>
+    </div></div>
+  </section>
+
+  <div class="os-notification" id="os-notification"><strong>深度报告已生成</strong><span>《如何建立真正可持续的个人知识库》· 点击查看第 2 版报告</span></div>
+  <section class="notes"><article class="note"><strong>Web</strong><p>沿用顶部页签、批量操作、排序、卡片流和右侧详情层；报告作为详情层内二级抽屉，不挤占主列表。</p></article><article class="note"><strong>Android</strong><p>沿用封面卡片和底部操作栏；深度报告入口放在摘要卡和底部第四个操作位，报告用底部弹层。</p></article><article class="note"><strong>macOS</strong><p>沿用三栏结构；报告作为阅读栏右侧 Inspector 覆盖层，不新增第四个固定分栏。</p></article><article class="note"><strong>状态</strong><p>列表只增加一个紧凑状态胶囊；完成通知、失败重试、旧版本可读和离线缓存共用同一状态模型。</p></article></section>
+</main>
+<script>
+const tabs=document.querySelectorAll('.client-tabs button'),screens=document.querySelectorAll('.screen'),flows=document.querySelectorAll('.flow button');
+function switchScreen(name){tabs.forEach(x=>x.classList.toggle('active',x.dataset.screen===name));screens.forEach(x=>x.classList.toggle('active',x.id===name));}
+tabs.forEach(x=>x.onclick=()=>switchScreen(x.dataset.screen));
+function applyFlow(state){const text=state==='running'?'◌ 深度解析中':state==='done'?'★ 深度报告':state==='failed'?'! 解析失败':state==='offline'?'★ 离线报告':'生成深度报告';document.querySelectorAll('[data-web-card-state]').forEach(x=>{x.textContent=text;x.className='deep-chip '+(state==='running'?'running':state==='failed'?'failed':'done')});const notify=document.getElementById('os-notification');if(state==='done'){notify.classList.add('show');setTimeout(()=>notify.classList.remove('show'),3200)}else notify.classList.remove('show')}
+flows.forEach(x=>x.onclick=()=>{flows.forEach(y=>y.classList.toggle('active',y===x));applyFlow(x.dataset.flow)});
+const webDetail=document.querySelector('.web-detail'),webReport=document.querySelector('#web-current .report-sheet');
+document.querySelectorAll('[data-open-web]').forEach(x=>x.onclick=()=>webDetail.classList.add('open'));
+document.querySelector('[data-close-web]').onclick=()=>{webDetail.classList.remove('open');webReport.classList.remove('open')};
+document.querySelector('[data-open-web-report]').onclick=()=>webReport.classList.toggle('open');
+document.querySelectorAll('[data-web-generate]').forEach(x=>x.onclick=()=>{webDetail.classList.add('open');applyFlow('running');setTimeout(()=>applyFlow('done'),1800)});
+const mSheet=document.querySelector('.m-sheet'),mNotify=document.querySelector('.m-notification');
+document.querySelectorAll('[data-open-m-sheet]').forEach(x=>x.onclick=()=>mSheet.classList.add('open'));
+document.querySelectorAll('[data-m-generate]').forEach(x=>x.onclick=()=>{mSheet.classList.remove('open');mNotify.classList.add('show');setTimeout(()=>{mNotify.classList.remove('show');mSheet.classList.add('open')},1600)});
+const macReport=document.querySelector('.mac-report');document.querySelector('[data-open-mac]').onclick=()=>macReport.classList.add('open');document.querySelector('[data-close-mac]').onclick=()=>macReport.classList.remove('open');
+</script>
+</body>
+</html>

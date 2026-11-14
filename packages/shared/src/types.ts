@@ -56,6 +56,7 @@ export interface Article {
   aiTotalTokens?: number | null;
   category?: Category | null;
   categoryResult?: ArticleCategoryResult | null;
+  deepAnalysis?: ArticleDeepAnalysisSummary | null;
 }
 
 // 列表项简化版本（API 列表接口返回）
@@ -86,6 +87,7 @@ export interface ArticleListItem {
   coverImage?: string | null;  // 封面图 URL（可选）
   category?: Category | null;
   categoryResult?: ArticleCategoryResult | null;
+  deepAnalysis?: ArticleDeepAnalysisSummary | null;
 }
 
 export interface PaginatedResponse<T> {
@@ -150,3 +152,12 @@ export interface BulkExportJob {
   finishedAt: string | null;
   expiresAt: string | null;
 }
+export interface ArticleDeepAnalysisSummary {
+  hasDeepAnalysis: boolean;
+  status: 'not_generated' | 'queued' | 'running' | 'succeeded' | 'failed';
+  version: number | null;
+  generatedAt: string | null;
+  stale: boolean;
+  errorCode: string | null;
+}
+
