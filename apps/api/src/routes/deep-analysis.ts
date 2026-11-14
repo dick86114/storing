@@ -32,13 +32,22 @@ deepAnalysisRoutes.post('/articles/:id/deep-analysis', requireAuth, async (c) =>
     const result = await enqueueDeepAnalysis(userId, articleId);
     return c.json({ articleId, ...result });
   } catch (error) {
-    const code = error instanceof Error ? error.message : 'DEEP_ANALYSIS_FAILED';
+    const rawCode = error instanceof Error ? error.message : 'DEEP_ANALYSIS_FAILED';
+    const code = rawCode.split(':', 1)[0] || 'DEEP_ANALYSIS_FAILED';
+    const aiSecretInvalid = code === 'USER_AI_ENCRYPTION_KEY_MISSING'
+      || code === 'USER_AI_ENCRYPTION_KEY_INVALID'
+      || code === 'USER_AI_SECRET_DECRYPT_FAILED';
     const message = code === 'AI_NOT_CONFIGURED'
       ? '请先配置 AI 模型'
-      : code === 'DEEP_ANALYSIS_BODY_NOT_FOUND'
-        ? '文章正文缺失，请先重新抓取'
-        : '深度解析提交失败';
-    return c.json({ error: { code, message } }, code === 'AI_NOT_CONFIGURED' ? 400 : 422);
+      : aiSecretInvalid
+        ? '本机 AI Key 加密密钥与已保存配置不匹配，请到设置页重新保存模型 API Key'
+        : code === 'DEEP_ANALYSIS_BODY_NOT_FOUND'
+          ? '文章正文缺失，请先重新抓取'
+          : '深度解析提交失败';
+    return c.json(
+      { error: { code, message } },
+      code === 'AI_NOT_CONFIGURED' ? 400 : aiSecretInvalid ? 409 : 422,
+    );
   }
 });
 
@@ -52,7 +61,6 @@ deepAnalysisRoutes.get('/articles/:id/deep-analysis', requireAuth, async (c) => 
   const article = await getArticleRecord(articleId, userId);
   if (!article) return c.json({ error: { code: 'NOT_FOUND', message: '文章不在你的资料库中' } }, 404);
   const summary = await getDeepAnalysisSummary(userId, articleId);
-  if (!summary.hasDeepAnalysis) return c.json({ report: null, summary });
   const [report] = await db
     .select({
       version: articleDeepAnalyses.version,

@@ -12,10 +12,10 @@ test('文章卡片在现有页脚展示深度报告状态', () => {
   assert.match(card, /深度解析中|深度报告|解析失败/);
 });
 
-test('详情层摘要下方包含入口卡和二级抽屉', () => {
-  assert.match(detail, /<DeepAnalysisPanel/);
-  assert.match(detail, /articleTitle=\{article\.title\}/);
-  assert.match(detail, /summaryCollapsed/);
+test('文章详情右上角只保留深度报告状态按钮', () => {
+  assert.match(detail, /<DeepAnalysisButton/);
+  assert.match(detail, /detail-panel-header-actions/);
+  assert.doesNotMatch(detail, /<DeepAnalysisPanel/);
 });
 
 test('列表状态样式使用状态色变量', () => {

@@ -32,6 +32,7 @@ struct ReaderPaneView: View {
     @State private var isCategoryPickerPresented = false
     @State private var categorySheetMode: ReaderCategorySheetMode?
     @State private var isDeepAnalysisPresented = false
+    @State private var isDeepAnalysisConfirming = false
     @Environment(\.colorScheme) private var colorScheme
 
     init(
@@ -47,7 +48,8 @@ struct ReaderPaneView: View {
         networkClient: any ReaderNetworkClient = APIClient(),
         onClose: @escaping () -> Void,
         onLibraryDidChange: @escaping () -> Void,
-        onCategoryAffectingChange: @escaping () -> Void = {}
+        onCategoryAffectingChange: @escaping () -> Void = {},
+        showsDeepAnalysisConfirmationOnAppear: Bool = false
     ) {
         self.selection = selection
         self.userID = userID
@@ -69,6 +71,7 @@ struct ReaderPaneView: View {
         )
         readerModel.onCategoryAffectingChange = onCategoryAffectingChange
         _model = State(initialValue: readerModel)
+        _isDeepAnalysisConfirming = State(initialValue: showsDeepAnalysisConfirmationOnAppear)
     }
 
     var body: some View {
@@ -106,7 +109,13 @@ struct ReaderPaneView: View {
             categorySheetMode = nil
             if let selection {
                 await model.open(selection)
+                if !selection.isGuest {
+                    await model.loadDeepAnalysisForCurrentArticle()
+                }
             }
+        }
+        .onChange(of: model.deepAnalysis?.summary?.status) { _, newValue in
+            handleDeepAnalysisStatusChange(newValue)
         }
     }
 
@@ -184,10 +193,16 @@ struct ReaderPaneView: View {
                 status: model.deepAnalysis?.summary?.status,
                 offline: false,
                 onGenerate: {
-                    Task { await model.submitDeepAnalysis() }
+                    isDeepAnalysisPresented = false
+                    DispatchQueue.main.async {
+                        isDeepAnalysisConfirming = true
+                    }
                 },
                 onRetry: {
-                    Task { await model.submitDeepAnalysis() }
+                    isDeepAnalysisPresented = false
+                    DispatchQueue.main.async {
+                        isDeepAnalysisConfirming = true
+                    }
                 },
                 onShowHistory: {}
             )
@@ -249,7 +264,19 @@ struct ReaderPaneView: View {
             if isRenaming {
                 renameSheet
             }
+            if isDeepAnalysisConfirming {
+                DeepAnalysisConfirmationView(
+                    articleTitle: model.titleOverride ?? article.title,
+                    onCancel: { isDeepAnalysisConfirming = false },
+                    onConfirm: {
+                        isDeepAnalysisConfirming = false
+                        beginDeepAnalysisGeneration()
+                    }
+                )
+                .transition(.opacity)
+            }
         }
+        .animation(.easeOut(duration: 0.16), value: isDeepAnalysisConfirming)
     }
 
     private var renameSheet: some View {
@@ -573,8 +600,13 @@ struct ReaderPaneView: View {
             // 归档前先选分类，或明确交给 AI 判断。
             categorySheetMode = .archive
         case .deepAnalysis:
-            isDeepAnalysisPresented = true
-            Task { await model.loadDeepAnalysisForCurrentArticle() }
+            switch DeepAnalysisEntryAction.of(summary: model.deepAnalysis?.summary) {
+            case .viewReport:
+                isDeepAnalysisPresented = true
+                Task { await model.loadDeepAnalysisForCurrentArticle() }
+            case .confirmGeneration:
+                isDeepAnalysisConfirming = true
+            }
         default:
             pendingAction = action
         }
@@ -601,8 +633,8 @@ struct ReaderPaneView: View {
             case .regenerateAI:
                 await model.regenerateAI()
             case .deepAnalysis:
-                isDeepAnalysisPresented = true
-                Task { await model.loadDeepAnalysisForCurrentArticle() }
+                beginDeepAnalysisGeneration()
+                return
             case .delete:
                 await model.delete()
                 return
@@ -620,6 +652,37 @@ struct ReaderPaneView: View {
             if action != .inbox, action != .archive, model.actionErrorMessage == nil {
                 onLibraryDidChange()
             }
+        }
+    }
+
+    private func beginDeepAnalysisGeneration() {
+        guard let articleID = selection?.articleID else { return }
+        isDeepAnalysisPresented = false
+        let articleTitle = model.titleOverride ?? model.article?.title
+        Task {
+            let submitted = await model.submitDeepAnalysis()
+            if submitted {
+                DeepAnalysisBackgroundMonitor.shared.start(
+                    articleID: articleID,
+                    articleTitle: articleTitle,
+                    client: networkClient
+                )
+                await DeepAnalysisNotificationService.shared.prepare()
+            } else {
+                await DeepAnalysisNotificationService.shared.notify(
+                    .failed(articleTitle: articleTitle),
+                    articleID: articleID
+                )
+            }
+        }
+    }
+
+    private func handleDeepAnalysisStatusChange(_ status: String?) {
+        switch status {
+        case "queued", "running", "succeeded", "failed":
+            onLibraryDidChange()
+        default:
+            break
         }
     }
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '@/lib/api';
 
 type DeepAnalysisSummary = {
@@ -164,42 +165,50 @@ export function DeepAnalysisPanel({ articleId, articleTitle }: { articleId: numb
         )}
       </section>
 
-      {open && (
-        <aside className="deep-analysis-drawer" role="dialog" aria-label="深度报告">
-          <header className="deep-analysis-drawer-head">
-            <strong>深度报告</strong>
-            <div>
-              <button type="button" onClick={copyMarkdown}>复制 Markdown</button>
-              <button type="button" onClick={loadVersions}>历史版本</button>
-              <button type="button" onClick={() => setOpen(false)}>关闭</button>
-            </div>
-          </header>
-          {loading && <div className="deep-analysis-loading">正在加载…</div>}
-          {!loading && report && reportSections.map((section) => (
-            <section className="deep-analysis-section" key={section.title}>
-              <h3>{section.title}</h3>
-              {section.render(report)}
-            </section>
-          ))}
-          {!loading && !report && <p className="deep-analysis-empty">当前还没有成功生成的报告。</p>}
-          {versions.length > 0 && (
-            <section className="deep-analysis-section" aria-label="历史版本">
-              <h3>历史版本</h3>
-              <ul>
-                {versions.map((item) => (
-                  <li key={item.id}>
-                    <span>版本 {item.version}{item.isCurrent ? ' · 当前' : ''}{item.status === 'failed' ? ' · 失败' : ''}</span>
-                    {!item.isCurrent && item.status === 'succeeded' && (
-                      <button type="button" onClick={async () => { await api.restoreDeepAnalysisVersion(articleId, item.version); await loadReport(); }}>
-                        恢复
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-        </aside>
+      {open && typeof document !== 'undefined' && createPortal(
+        <>
+          <div
+            className="deep-analysis-drawer-backdrop"
+            onClick={() => setOpen(false)}
+            aria-hidden="true"
+          />
+          <aside className="deep-analysis-drawer" role="dialog" aria-modal="true" aria-label="深度报告">
+            <header className="deep-analysis-drawer-head">
+              <strong>深度报告</strong>
+              <div>
+                <button type="button" onClick={copyMarkdown}>复制 Markdown</button>
+                <button type="button" onClick={loadVersions}>历史版本</button>
+                <button type="button" onClick={() => setOpen(false)}>关闭</button>
+              </div>
+            </header>
+            {loading && <div className="deep-analysis-loading">正在加载…</div>}
+            {!loading && report && reportSections.map((section) => (
+              <section className="deep-analysis-section" key={section.title}>
+                <h3>{section.title}</h3>
+                {section.render(report)}
+              </section>
+            ))}
+            {!loading && !report && <p className="deep-analysis-empty">当前还没有成功生成的报告。</p>}
+            {versions.length > 0 && (
+              <section className="deep-analysis-section" aria-label="历史版本">
+                <h3>历史版本</h3>
+                <ul>
+                  {versions.map((item) => (
+                    <li key={item.id}>
+                      <span>版本 {item.version}{item.isCurrent ? ' · 当前' : ''}{item.status === 'failed' ? ' · 失败' : ''}</span>
+                      {!item.isCurrent && item.status === 'succeeded' && (
+                        <button type="button" onClick={async () => { await api.restoreDeepAnalysisVersion(articleId, item.version); await loadReport(); }}>
+                          恢复
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </aside>
+        </>,
+        document.body,
       )}
     </>
   );

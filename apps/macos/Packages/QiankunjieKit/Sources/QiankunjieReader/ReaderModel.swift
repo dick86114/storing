@@ -594,17 +594,28 @@ public final class ReaderModel {
         }
     }
 
-    public func submitDeepAnalysis() async {
-        guard let selection else { return }
+    @discardableResult
+    public func submitDeepAnalysis() async -> Bool {
+        guard let selection else { return false }
         deepAnalysis = DeepAnalysisResponse(report: nil, summary: DeepAnalysisSummary(status: "queued"))
         do {
-            deepAnalysis = try await client.submitDeepAnalysis(articleID: selection.articleID)
+            let response = try await client.submitDeepAnalysis(articleID: selection.articleID)
+            if response.summary == nil {
+                deepAnalysis = DeepAnalysisResponse(
+                    report: nil,
+                    summary: DeepAnalysisSummary(status: "queued")
+                )
+            } else {
+                deepAnalysis = response
+            }
         } catch {
             deepAnalysis = DeepAnalysisResponse(report: nil, summary: DeepAnalysisSummary(status: "failed"))
             actionErrorMessage = Self.message(for: error)
-            return
+            return false
         }
         await loadDeepAnalysis(selection: selection)
+        scheduleDeepAnalysisPollingIfPending()
+        return true
     }
 
     public func loadDeepAnalysisForCurrentArticle() async {
@@ -616,8 +627,14 @@ public final class ReaderModel {
         do {
             deepAnalysis = try await client.deepAnalysis(articleID: selection.articleID)
         } catch {
-            deepAnalysis = DeepAnalysisResponse(report: nil, summary: DeepAnalysisSummary(status: "failed"))
+            if deepAnalysis == nil {
+                deepAnalysis = DeepAnalysisResponse(
+                    report: nil,
+                    summary: DeepAnalysisSummary(status: "not_generated")
+                )
+            }
         }
+        scheduleDeepAnalysisPollingIfPending()
     }
 
     @discardableResult
@@ -688,7 +705,8 @@ public final class ReaderModel {
         guard
             let selection,
             let status = deepAnalysis?.summary?.status,
-            status == "queued" || status == "running"
+            status == "queued" || status == "running",
+            deepAnalysisPollTask == nil
         else {
             return
         }

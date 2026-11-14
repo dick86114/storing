@@ -13,6 +13,8 @@
     "@ant-design/icons": "^6.2.2",
     "@storing/shared": "workspace:*",
     "clsx": "^2.1.0",
+    "html2canvas-pro": "^2.6.4",
+    "jspdf": "^4.2.1",
     "next": "^15.5.18",
     "qrcode": "^1.5.4",
     "react": "^19.1.0",

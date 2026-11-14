@@ -37,3 +37,14 @@ test('抽屉样式保持现有主题变量并支持窄屏', () => {
   assert.match(css.match(/\.deep-analysis-drawer\s*\{[^}]*\}/)?.[0] ?? '', /var\(--surface\)/);
   assert.match(css.match(/\.deep-analysis-section\s*\{[^}]*\}/)?.[0] ?? '', /var\(--border\)/);
 });
+
+test('报告抽屉通过 Portal 脱离菜单裁切并位于操作菜单之上', () => {
+  assert.match(panel, /import \{ createPortal \} from 'react-dom'/);
+  assert.match(panel, /document\.body/);
+  assert.match(panel, /deep-analysis-drawer-backdrop/);
+
+  const drawerStyle = css.match(/\.deep-analysis-drawer\s*\{[^}]*\}/)?.[0] ?? '';
+  const backdropStyle = css.match(/\.deep-analysis-drawer-backdrop\s*\{[^}]*\}/)?.[0] ?? '';
+  assert.match(drawerStyle, /z-index:\s*2000/);
+  assert.match(backdropStyle, /z-index:\s*1900/);
+});

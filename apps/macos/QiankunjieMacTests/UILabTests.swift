@@ -6,7 +6,8 @@ import Testing
 struct UILabTests {
     @Test func 界面实验室覆盖全部核心场景() {
         #expect(UILabScenario.allCases.map(\.rawValue) == [
-            "login", "library", "empty", "loading", "offline", "reader", "collect", "tasks", "settings", "ai-settings", "update",
+            "login", "library", "empty", "loading", "offline", "reader", "deep-analysis-confirmation",
+            "collect", "tasks", "settings", "ai-settings", "update",
             "update-notice", "current-version", "category-picker", "category-management",
             "reader-category-unavailable", "category-create-cancel",
         ])
