@@ -746,7 +746,7 @@ struct ReaderPaneView: View {
         guard oldStatus != newStatus else { return }
         let wasActive = oldStatus == "queued" || oldStatus == "running"
         let isActive = newStatus == "queued" || newStatus == "running"
-        if wasActive || isActive {
+        if oldStatus != nil, wasActive || isActive {
             onLibraryDidChange()
         }
     }
