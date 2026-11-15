@@ -1,21 +1,17 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { BulbOutlined, LoadingOutlined, ReadOutlined, ReloadOutlined } from '@ant-design/icons';
+import { LoadingOutlined, ReadOutlined } from '@ant-design/icons';
 import { useDeepAnalysisTask } from '@/hooks/useDeepAnalysisTask';
 
 type DeepAnalysisButtonProps = {
   articleId: number;
   initialStatus?: string | null;
-  onRequestGenerate?: () => void;
-  onRequestFailure?: () => void;
 };
 
 export function DeepAnalysisButton({
   articleId,
   initialStatus,
-  onRequestGenerate,
-  onRequestFailure,
 }: DeepAnalysisButtonProps) {
   const router = useRouter();
   const { summary, status, pending, submitting } = useDeepAnalysisTask(
@@ -23,53 +19,31 @@ export function DeepAnalysisButton({
     initialStatus,
   );
   const hasReport = summary?.hasDeepAnalysis === true || status === 'succeeded';
-  const failed = status === 'failed';
   const busy = pending || submitting;
-  const failureMessage = failed
-    ? summary?.errorMessage?.trim() || '生成失败，请稍后重试'
-    : null;
+
+  if (!hasReport && !busy) return null;
 
   const handleClick = async () => {
-    if (busy) return;
     if (hasReport) {
       router.push(`/deep-analysis/${articleId}`);
       return;
     }
-    if (failed) {
-      onRequestFailure?.();
-      return;
-    }
-    onRequestGenerate?.();
-    return;
   };
 
-  const label = busy
-    ? '生成中'
-    : hasReport
-      ? '查看深度解析报告'
-      : failed
-        ? '重新生成'
-        : '深度解析';
+  const label = '深度报告';
 
   return (
     <button
-      className={`detail-deep-analysis-btn${busy ? ' is-running' : ''}${hasReport ? ' is-ready' : ''}`}
+      className="detail-panel-action-btn"
       type="button"
       onClick={handleClick}
-      disabled={busy}
+      disabled={busy && !hasReport}
+      title={busy && !hasReport ? '深度报告生成中' : '查看深度报告'}
+      aria-label={busy && !hasReport ? '深度报告生成中' : '深度报告'}
       aria-live="polite"
     >
-      {busy ? (
-        <LoadingOutlined spin />
-      ) : hasReport ? (
-        <ReadOutlined />
-      ) : failed ? (
-        <ReloadOutlined />
-      ) : (
-        <BulbOutlined />
-      )}
-      <span>{label}</span>
-      {failed && <span className="visually-hidden">{failureMessage}</span>}
+      {busy ? <LoadingOutlined spin /> : <ReadOutlined />}
+      <span className="detail-panel-action-label">{label}</span>
     </button>
   );
 }

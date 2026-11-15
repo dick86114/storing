@@ -47,9 +47,12 @@ const report = {
   },
 };
 
-test('详情页按钮覆盖生成、生成中和查看报告三种文案', () => {
-  assert.match(button, /'生成中'/);
-  assert.match(button, /'查看深度解析报告'/);
+test('详情页报告入口仅在已有报告或生成中显示，并复用底部按钮样式', () => {
+  assert.match(button, /if \(!hasReport && !busy\) return null/);
+  assert.match(button, /className="detail-panel-action-btn"/);
+  assert.match(button, /detail-panel-action-label/);
+  assert.match(button, /const label = '深度报告'/);
+  assert.doesNotMatch(button, /查看深度解析报告|重新生成|深度解析/);
   assert.match(button, /router\.push\(`\/deep-analysis\/\$\{articleId\}`\)/);
   assert.match(button, /useDeepAnalysisTask/);
 });

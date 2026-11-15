@@ -3292,8 +3292,6 @@ function DetailContent({
             <DeepAnalysisButton
               articleId={article.id}
               initialStatus={article.deepAnalysis?.status ?? null}
-              onRequestGenerate={() => setDeepAnalysisConfirmOpen(true)}
-              onRequestFailure={() => setDeepAnalysisFailureOpen(true)}
             />
           )}
           {article && isAuthenticated && (
