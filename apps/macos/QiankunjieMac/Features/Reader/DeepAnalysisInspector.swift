@@ -96,28 +96,14 @@ enum DeepAnalysisInspector {
             } message: {
                 Text(confirmAction?.message ?? "")
             }
-            .popover(isPresented: $showsFailureReason, arrowEdge: .bottom) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Label("失败原因", systemImage: "exclamationmark.triangle")
-                        .font(.headline)
-                        .foregroundStyle(errorColor)
-
-                    Text(failureReason)
-                        .font(.callout)
-                        .foregroundStyle(secondary)
-                        .textSelection(.enabled)
-
-                    HStack {
-                        Spacer()
-                        Button("重新生成") {
-                            showsFailureReason = false
-                            confirmAction = .regenerate
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
+            .alert("深度报告生成失败", isPresented: $showsFailureReason) {
+                Button("关闭", role: .cancel) {}
+                Button("重新生成") {
+                    showsFailureReason = false
+                    onGenerate()
                 }
-                .padding(18)
-                .frame(width: 380, alignment: .leading)
+            } message: {
+                Text(failureReason)
             }
         }
 

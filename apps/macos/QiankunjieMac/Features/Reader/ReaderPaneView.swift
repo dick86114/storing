@@ -33,6 +33,7 @@ struct ReaderPaneView: View {
     @State private var categorySheetMode: ReaderCategorySheetMode?
     @State private var isDeepAnalysisPresented = false
     @State private var isDeepAnalysisConfirming = false
+    @State private var showsArticleLoadingPlaceholder = false
     @Environment(\.colorScheme) private var colorScheme
 
     init(
@@ -78,17 +79,21 @@ struct ReaderPaneView: View {
 
     var body: some View {
         Group {
-            if let selection, let article = model.article, article.id == selection.articleID {
-                reader(article)
-            } else if selection != nil, model.isLoading, model.article == nil {
-                stateView(title: "正在加载文章", systemImage: "doc.text")
-            } else if selection != nil, let errorMessage = model.errorMessage {
-                errorView(errorMessage)
+            if let selection {
+                if let article = model.article, article.id == selection.articleID {
+                    reader(article)
+                } else if let errorMessage = model.errorMessage {
+                    errorView(errorMessage)
+                } else if showsArticleLoadingPlaceholder, model.isLoading {
+                    stateView(title: "正在加载文章", systemImage: "doc.text")
+                } else if let article = model.article {
+                    reader(article)
+                        .allowsHitTesting(false)
+                } else {
+                    Color.clear
+                }
             } else {
-                stateView(
-                    title: selection == nil ? "未选择文章" : "文章不可用",
-                    systemImage: "doc.text"
-                )
+                stateView(title: "未选择文章", systemImage: "doc.text")
             }
         }
         .background(QiankunjieColors.background(for: colorScheme))
@@ -99,6 +104,28 @@ struct ReaderPaneView: View {
         }
         .onChange(of: userID) { _, _ in
             isDeepAnalysisPresented = false
+        }
+        .onChange(of: selection) { _, _ in
+            showsArticleLoadingPlaceholder = false
+            isDeepAnalysisPresented = false
+        }
+        .onChange(of: model.isLoading) { _, isLoading in
+            let expectedArticleID = selection?.articleID
+            guard isLoading else {
+                showsArticleLoadingPlaceholder = false
+                return
+            }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(250))
+                guard
+                    !Task.isCancelled,
+                    model.isLoading,
+                    model.articleID == expectedArticleID
+                else {
+                    return
+                }
+                showsArticleLoadingPlaceholder = true
+            }
         }
         .overlay {
             if let selectedImageURL {
@@ -119,11 +146,8 @@ struct ReaderPaneView: View {
                 }
             }
         }
-        .onChange(of: selection) { _, _ in
-            isDeepAnalysisPresented = false
-        }
-        .onChange(of: model.deepAnalysis?.summary?.status) { _, newValue in
-            handleDeepAnalysisStatusChange(newValue)
+        .onChange(of: model.deepAnalysis?.summary?.status) { oldValue, newValue in
+            handleDeepAnalysisStatusChange(from: oldValue, to: newValue)
         }
     }
 
@@ -718,12 +742,12 @@ struct ReaderPaneView: View {
         }
     }
 
-    private func handleDeepAnalysisStatusChange(_ status: String?) {
-        switch status {
-        case "queued", "running", "succeeded", "failed":
+    private func handleDeepAnalysisStatusChange(from oldStatus: String?, to newStatus: String?) {
+        guard oldStatus != newStatus else { return }
+        let wasActive = oldStatus == "queued" || oldStatus == "running"
+        let isActive = newStatus == "queued" || newStatus == "running"
+        if wasActive || isActive {
             onLibraryDidChange()
-        default:
-            break
         }
     }
 }

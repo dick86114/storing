@@ -1,5 +1,5 @@
 export const DEEP_ANALYSIS_INPUT_CHAR_LIMIT = 24000;
-const DEEP_ANALYSIS_MAX_TOKENS = 4800;
+const DEEP_ANALYSIS_MAX_TOKENS = 6000;
 
 export type DeepAnalysisStance = 'support' | 'oppose' | 'conditional';
 export type DeepAnalysisFactBasis = 'source' | 'inference';
@@ -62,24 +62,137 @@ function requireArray(value: unknown, label: string): unknown[] {
   return value;
 }
 
-function parseJsonObject(raw: string): Record<string, unknown> {
-  const trimmed = raw.trim();
-  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  const text = (fenced?.[1] ?? trimmed).trim();
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start === -1 || end <= start) {
-    throw new Error('AI_OUTPUT_INVALID: 模型输出不是有效 JSON 对象');
-  }
-  try {
-    const parsed = JSON.parse(text.slice(start, end + 1));
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      throw new Error('not-object');
+function repairJsonText(value: string): string {
+  let escapedNewlines = '';
+  let inString = false;
+  let escaped = false;
+  for (const character of value) {
+    if (inString) {
+      if (escaped) {
+        escapedNewlines += character;
+        escaped = false;
+      } else if (character === '\\') {
+        escapedNewlines += character;
+        escaped = true;
+      } else if (character === '"') {
+        escapedNewlines += character;
+        inString = false;
+      } else if (character === '\n') {
+        escapedNewlines += '\\n';
+      } else if (character === '\r') {
+        escapedNewlines += '\\r';
+      } else if (character === '\t') {
+        escapedNewlines += '\\t';
+      } else {
+        escapedNewlines += character;
+      }
+    } else {
+      if (character === '"') inString = true;
+      escapedNewlines += character;
     }
-    return parsed as Record<string, unknown>;
-  } catch {
-    throw new Error('AI_OUTPUT_INVALID: 模型输出不是有效 JSON 对象');
   }
+
+  let repaired = '';
+  inString = false;
+  escaped = false;
+  for (let index = 0; index < escapedNewlines.length; index += 1) {
+    const character = escapedNewlines[index];
+    if (inString) {
+      repaired += character;
+      if (escaped) {
+        escaped = false;
+      } else if (character === '\\') {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      repaired += character;
+      continue;
+    }
+    if (character === ',') {
+      let next = index + 1;
+      while (next < escapedNewlines.length && /\s/.test(escapedNewlines[next])) next += 1;
+      if (escapedNewlines[next] === '}' || escapedNewlines[next] === ']') continue;
+    }
+    repaired += character;
+  }
+  return repaired;
+}
+
+function parseJsonCandidate(value: string): Record<string, unknown> | null {
+  for (const candidate of [value, repairJsonText(value)]) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // 继续尝试修复后的版本。
+    }
+  }
+  return null;
+}
+
+function parseJsonObject(raw: string): Record<string, unknown> {
+  const text = raw.replace(/^\uFEFF/, '').trim();
+  if (!text.includes('{')) {
+    throw new Error('AI_OUTPUT_INVALID: 模型没有返回 JSON 报告');
+  }
+
+  const candidates: string[] = [];
+  for (let start = 0; start < text.length; start += 1) {
+    if (text[start] !== '{') continue;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let index = start; index < text.length; index += 1) {
+      const character = text[index];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (character === '\\') {
+          escaped = true;
+        } else if (character === '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (character === '"') {
+        inString = true;
+      } else if (character === '{') {
+        depth += 1;
+      } else if (character === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          candidates.push(text.slice(start, index + 1));
+          start = index;
+          break;
+        }
+      }
+    }
+  }
+
+  const parsedObjects: Array<Record<string, unknown>> = [];
+  for (const candidate of candidates) {
+    const parsed = parseJsonCandidate(candidate);
+    if (parsed) parsedObjects.push(parsed);
+  }
+  if (parsedObjects.length > 0) {
+    const reportObjects = parsedObjects.filter((item) => 'executiveSummary' in item);
+    if (reportObjects.length > 0) {
+      return reportObjects.sort((left, right) => Object.keys(right).length - Object.keys(left).length)[0];
+    }
+    const largestObject = parsedObjects.sort((left, right) => Object.keys(right).length - Object.keys(left).length)[0];
+    if (Object.keys(largestObject).length >= 5) {
+      return largestObject;
+    }
+  }
+
+  throw new Error('AI_OUTPUT_INVALID: 模型返回的 JSON 报告不完整或格式异常，可能被输出长度限制截断；请重新生成，若仍失败请换用输出能力更强的模型');
 }
 
 function parseCoreArguments(value: unknown) {
@@ -202,15 +315,18 @@ export function buildDeepAnalysisPrompt(input: {
 
   return {
     system: [
-      '你是专业文章深度解析助手。使用中文输出，仅输出 JSON，不得输出解释或 Markdown。',
+      '你是专业文章深度解析助手。使用中文输出，仅输出 JSON 对象且必须完整，不得输出 Markdown、代码围栏、注释、前后说明或尾随逗号。',
       '只依据原文分析，不得编造外部数据；区分原文事实与模型推断，关键结论尽量提供原文位置。',
-      '输出结构：{"executiveSummary":"不超过 1000 字","coreArguments":[{"claim":"","evidence":"","quoteAnchor":""}],',
+      '输出结构：{"executiveSummary":"","coreArguments":[{"claim":"","evidence":"","quoteAnchor":""}],',
       '"reasoningChain":[""],"keyFacts":[{"fact":"","basis":"source 或 inference","quoteAnchor":""}],',
       '"viewpoints":[{"stance":"support 或 oppose 或 conditional","summary":"","reasoning":""}],',
       '"risks":[""],"actions":[{"action":"","condition":""}],"questions":[""],"readingPath":[""],',
       '"aiWriting":{"score":0,"summary":"","signals":[{"label":"","detail":"","leaning":"ai 或 human 或 neutral"}]}}。',
-      '不同观点应尽量覆盖支持、反对或条件适用。',
-      'AI 写作判断只依据文本特征：score 为 0-100，0 更像人工、100 更像 AI；signals 至少 3 条、最多 6 条。',
+      '严格控制输出长度：executiveSummary 不超过 300 字；coreArguments 3-4 项，claim 不超过 60 字、evidence 不超过 100 字；reasoningChain 3-5 项，每项不超过 60 字。',
+      'keyFacts 4-6 项，每项 fact 不超过 80 字；viewpoints 3 项，summary 不超过 40 字、reasoning 不超过 80 字；risks 3-4 项，每项不超过 60 字。',
+      'actions 3-4 项，action 不超过 60 字、condition 不超过 40 字；questions 3-4 项，每项不超过 50 字；readingPath 3-4 项，每项不超过 50 字。',
+      '不同观点应覆盖支持、反对或条件适用。',
+      'AI 写作判断只依据文本特征：score 为 0-100，0 更像人工、100 更像 AI；summary 不超过 120 字；signals 恰好 3 条，label 不超过 12 字、detail 不超过 60 字。',
       '判断依据要具体到用词、句式、段落结构、细节密度、引用方式和情绪表达，不得编造文本中不存在的特征。',
       '不要断言作者身份，不要使用“AI 检测器”“抄袭”或确定性结论；证据不足时 score 放在 40-60 并说明不确定。',
       '仅为“写得规范”“结构工整”时不要直接判为 AI，学术写作、编辑润色和人机协作都可能造成相似特征。',

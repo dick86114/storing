@@ -42,12 +42,14 @@ test('深度报告提示词限制 24000 字符并强制中文 JSON', () => {
   const longText = '长'.repeat(24001);
   const prompt = buildDeepAnalysisPrompt({ title: '标题', summary: '摘要', content: longText });
   assert.equal(prompt.contentTruncated, true);
-  assert.equal(prompt.maxTokens, 4800);
+  assert.equal(prompt.maxTokens, 6000);
   assert.match(prompt.system, /中文/);
   assert.match(prompt.system, /仅输出 JSON/);
   assert.match(prompt.system, /原文/);
   assert.match(prompt.system, /不得编造外部数据/);
   assert.match(prompt.system, /aiWriting/);
+  assert.match(prompt.system, /coreArguments 3-4 项/);
+  assert.match(prompt.system, /signals 恰好 3 条/);
   assert.match(prompt.system, /0 更像人工、100 更像 AI/);
   assert.match(prompt.user, /已截断到 24000 个字符/);
   assert.ok(prompt.user.length < 25200);
@@ -66,6 +68,32 @@ test('解析合法报告并保留原文事实与推断区分', () => {
 test('解析支持代码块包裹的 JSON', () => {
   const report = parseDeepAnalysisReport('```json\n' + JSON.stringify(validReport) + '\n```');
   assert.equal(report.coreArguments.length, 1);
+});
+
+test('解析支持 JSON 前后夹带说明文字', () => {
+  const report = parseDeepAnalysisReport(
+    '下面是分析结果：\n```json\n' + JSON.stringify(validReport) + '\n```\n以上是完整报告。',
+  );
+  assert.equal(report.executiveSummary, validReport.executiveSummary);
+});
+
+test('解析会修正常见尾随逗号和字符串内裸换行', () => {
+  const withTrailingComma = JSON.stringify(validReport).replace(
+    '"risks":["分类过细","捕获速度下降"]',
+    '"risks":["分类过细","捕获速度下降",]',
+  );
+  assert.equal(parseDeepAnalysisReport(withTrailingComma).risks.length, 2);
+
+  const withRawNewline = JSON.stringify(validReport).replace(
+    '文章主张知识库必须服务复用。',
+    '文章主张知识库\n必须服务复用。',
+  );
+  assert.match(parseDeepAnalysisReport(withRawNewline).executiveSummary, /必须服务复用/);
+});
+
+test('截断的 JSON 会提示输出不完整而不是笼统格式错误', () => {
+  const truncated = JSON.stringify(validReport).slice(0, -80);
+  assert.throws(() => parseDeepAnalysisReport(truncated), /输出长度限制截断/);
 });
 
 test('非法 JSON、缺失字段、无效观点和事实依据都会失败', () => {

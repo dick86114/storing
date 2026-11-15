@@ -358,8 +358,30 @@ export async function runDeepAnalysisWorkers(): Promise<void> {
       if (!runtimeConfig) throw new Error('AI_NOT_CONFIGURED');
       const input = await buildArticleDeepInput(job.userId, job.articleId);
       const prompt = buildDeepAnalysisPrompt(input);
-      const aiResult = await callUserAi(runtimeConfig, prompt.system, prompt.user, prompt.maxTokens);
-      const report = parseDeepAnalysisReport(aiResult.content);
+      let aiResult = await callUserAi(runtimeConfig, prompt.system, prompt.user, prompt.maxTokens);
+      let report: DeepAnalysisReport;
+      try {
+        report = parseDeepAnalysisReport(aiResult.content);
+      } catch (error) {
+        if (!errorText(error).startsWith('AI_OUTPUT_INVALID:')) throw error;
+        const retryResult = await callUserAi(
+          runtimeConfig,
+          `${prompt.system} 上一次响应未通过 JSON 校验。本次必须只输出一个最小、完整、可直接 JSON.parse 的单行对象，严格使用规定数组数量的下限，不要任何额外字符。`,
+          prompt.user,
+          prompt.maxTokens,
+        );
+        try {
+          report = parseDeepAnalysisReport(retryResult.content);
+        } catch (retryError) {
+          throw new Error(`${errorText(retryError)}（已自动重试一次）`);
+        }
+        aiResult = {
+          content: retryResult.content,
+          promptTokens: sumTokenCount(aiResult.promptTokens, retryResult.promptTokens),
+          completionTokens: sumTokenCount(aiResult.completionTokens, retryResult.completionTokens),
+          totalTokens: sumTokenCount(aiResult.totalTokens, retryResult.totalTokens),
+        };
+      }
       await completeDeepAnalysisJob(job, report, {
         promptTokens: aiResult.promptTokens,
         completionTokens: aiResult.completionTokens,
@@ -380,6 +402,11 @@ export async function runDeepAnalysisWorkers(): Promise<void> {
       await failDeepAnalysisJob(job, error);
     }
   }
+}
+
+function sumTokenCount(left: number | null, right: number | null): number | null {
+  if (left === null && right === null) return null;
+  return (left ?? 0) + (right ?? 0);
 }
 
 export async function resumeDeepAnalysisJobs(): Promise<void> {
