@@ -274,6 +274,9 @@ abstract class ArticleCacheDatabase : RoomDatabase() {
 
     val MIGRATION_5_6 = object : Migration(5, 6) {
       override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE article_card_cache ADD COLUMN deepStatus TEXT")
+        database.execSQL("ALTER TABLE article_card_cache ADD COLUMN deepVersion INTEGER")
+        database.execSQL("ALTER TABLE article_card_cache ADD COLUMN deepStale INTEGER NOT NULL DEFAULT 0")
         database.execSQL("ALTER TABLE offline_articles RENAME TO offline_articles_legacy")
         database.execSQL(
           """
