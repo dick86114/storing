@@ -287,14 +287,78 @@ public struct ReaderArticle: Sendable {
     public var contentMarkdown: String? { detail.contentMarkdown }
 }
 
+public struct DeepAnalysisReportRecord: Codable, Hashable, Sendable {
+    public var version: Int?
+    public var reportJson: DeepAnalysisReport?
+    public var reportMarkdown: String?
+    public var providerSnapshot: String?
+    public var modelSnapshot: String?
+    public var promptTokens: Int?
+    public var completionTokens: Int?
+    public var totalTokens: Int?
+    public var contentTruncated: Bool?
+    public var attempts: Int?
+    public var durationMs: Int?
+    public var generatedAt: Date?
+
+    public init(
+        version: Int? = nil,
+        reportJson: DeepAnalysisReport? = nil,
+        reportMarkdown: String? = nil,
+        providerSnapshot: String? = nil,
+        modelSnapshot: String? = nil,
+        promptTokens: Int? = nil,
+        completionTokens: Int? = nil,
+        totalTokens: Int? = nil,
+        contentTruncated: Bool? = nil,
+        attempts: Int? = nil,
+        durationMs: Int? = nil,
+        generatedAt: Date? = nil
+    ) {
+        self.version = version
+        self.reportJson = reportJson
+        self.reportMarkdown = reportMarkdown
+        self.providerSnapshot = providerSnapshot
+        self.modelSnapshot = modelSnapshot
+        self.promptTokens = promptTokens
+        self.completionTokens = completionTokens
+        self.totalTokens = totalTokens
+        self.contentTruncated = contentTruncated
+        self.attempts = attempts
+        self.durationMs = durationMs
+        self.generatedAt = generatedAt
+    }
+}
+
 public struct DeepAnalysisResponse: Codable, Hashable, Sendable {
-    public let report: DeepAnalysisReport?
+    public let reportRecord: DeepAnalysisReportRecord?
     public let summary: DeepAnalysisSummary?
+
+    public var report: DeepAnalysisReport? {
+        reportRecord?.reportJson
+    }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        report = try container.decodeIfPresent(DeepAnalysisReport.self, forKey: .report)
+        if let record = try? container.decode(DeepAnalysisReportRecord.self, forKey: .report),
+           record.reportJson != nil
+            || record.version != nil
+            || record.reportMarkdown != nil
+            || record.modelSnapshot != nil
+            || record.generatedAt != nil {
+            reportRecord = record
+        } else if let legacyReport = try? container.decode(DeepAnalysisReport.self, forKey: .report) {
+            reportRecord = DeepAnalysisReportRecord(reportJson: legacyReport)
+        } else {
+            reportRecord = nil
+        }
         summary = try container.decodeIfPresent(DeepAnalysisSummary.self, forKey: .summary)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(reportRecord, forKey: .report)
+        try container.encodeIfPresent(summary, forKey: .summary)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -303,7 +367,12 @@ public struct DeepAnalysisResponse: Codable, Hashable, Sendable {
     }
 
     public init(report: DeepAnalysisReport?, summary: DeepAnalysisSummary?) {
-        self.report = report
+        self.reportRecord = report.map { DeepAnalysisReportRecord(reportJson: $0) }
+        self.summary = summary
+    }
+
+    public init(reportRecord: DeepAnalysisReportRecord?, summary: DeepAnalysisSummary?) {
+        self.reportRecord = reportRecord
         self.summary = summary
     }
 }

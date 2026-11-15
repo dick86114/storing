@@ -65,7 +65,14 @@ enum UILabFixtures {
         aiSummary: "用于检查标题、摘要、来源、标签和正文排版的可重复夹具。",
         aiCategory: "产品设计",
         aiTags: ["macOS", "阅读器", "UI Lab"],
-        isFavorited: true
+        isFavorited: true,
+        deepAnalysis: DeepAnalysisSummary(
+            hasDeepAnalysis: true,
+            status: "succeeded",
+            version: 2,
+            generatedAt: ISO8601DateFormatter().date(from: "2026-11-15T02:10:00Z"),
+            stale: false
+        )
     )
 
     static let categoryFixtures = [
@@ -158,7 +165,25 @@ enum UILabFixtures {
             title: "三栏资料库紧凑列表压力样例",
             source: "固定样例",
             aiSummary: "验证较长标题和多行摘要不会被裁切到不可读。",
-            aiTags: ["资料库"]
+            aiTags: ["资料库"],
+            deepAnalysis: DeepAnalysisSummary(
+                status: "running",
+                version: 1,
+                stale: false
+            )
+        ),
+        ArticleCard(
+            id: 1003,
+            title: "深度报告失败的样例",
+            source: "固定样例",
+            aiSummary: "用于检查失败状态图标和提示文案，不会访问真实任务。",
+            aiTags: ["状态"],
+            deepAnalysis: DeepAnalysisSummary(
+                status: "failed",
+                version: 1,
+                stale: false,
+                errorCode: "AI_TIMEOUT"
+            )
         ),
     ]
 
@@ -197,6 +222,136 @@ enum UILabFixtures {
         isPublished: true,
         contentHTML: readerHTML
     )
+
+    static let deepAnalysisArticle = DeepAnalysisArticleContext(
+        title: "Mac 拖废纸篓卸载 = 白卸？残留文件悄悄占了好几个 G",
+        author: "小麦",
+        source: "苹果黑科技",
+        publishTime: ISO8601DateFormatter().date(from: "2026-11-13T07:49:00Z"),
+        coverImageURL: nil
+    )
+
+    static let deepAnalysisSummary = DeepAnalysisSummary(
+        hasDeepAnalysis: true,
+        status: "succeeded",
+        version: 3,
+        generatedAt: ISO8601DateFormatter().date(from: "2026-11-15T03:08:00Z"),
+        stale: false
+    )
+
+    static let deepAnalysisResponse = DeepAnalysisResponse(
+        reportRecord: deepAnalysisRecord,
+        summary: deepAnalysisSummary
+    )
+
+    static let deepAnalysisInlineDetail = ArticleDetail(
+        id: article.id,
+        title: deepAnalysisArticle.title,
+        author: deepAnalysisArticle.author,
+        source: deepAnalysisArticle.source,
+        originalURL: article.originalURL,
+        publicID: article.publicID,
+        publishTime: deepAnalysisArticle.publishTime,
+        createdAt: article.createdAt,
+        aiSummary: "用一篇 Mac 卸载工具文章验证深度报告内嵌阅读体验。",
+        aiCategory: "产品设计",
+        aiTags: ["macOS", "卸载", "UI Lab"],
+        isFavorited: true,
+        isPublished: true,
+        contentHTML: readerHTML
+    )
+
+    static let deepAnalysisRecord: DeepAnalysisReportRecord = {
+        let report = try! JSONDecoder.qiankunjie.decode(
+            DeepAnalysisReport.self,
+            from: Data(deepAnalysisReportJSON.utf8)
+        )
+        return DeepAnalysisReportRecord(
+            version: 3,
+            reportJson: report,
+            reportMarkdown: nil,
+            providerSnapshot: "custom",
+            modelSnapshot: "mimo-v2.6-flash",
+            promptTokens: 2124,
+            completionTokens: 3056,
+            totalTokens: 5180,
+            contentTruncated: false,
+            attempts: 1,
+            durationMs: 80_000,
+            generatedAt: ISO8601DateFormatter().date(from: "2026-11-15T03:08:00Z")
+        )
+    }()
+
+    private static let deepAnalysisReportJSON = """
+    {
+      "executiveSummary": "这篇文章讨论 Mac 上把应用拖进废纸篓并不等于彻底卸载。作者认为缓存、偏好设置和后台启动项会继续占用空间，并推荐使用免费开源的 Peel 逐条扫描残留文件。文章给出了安装方式、权限要求、保护区范围和不可恢复操作，适合希望手动审阅清理项的用户。",
+      "coreArguments": [
+        {"claim": "拖进废纸篓只删除应用本体，不会清理全部关联文件", "evidence": "缓存、设置和后台启动项仍可能留在资源库中，文章用白卸概括这种落差", "quoteAnchor": "开头问题段"},
+        {"claim": "Peel 把软件和残留文件一起列出，并解释每个文件的归属理由", "evidence": "它根据软件标识、签名团队和 Homebrew 记录判断文件归属，低把握文件默认不勾选", "quoteAnchor": "功能介绍段"},
+        {"claim": "删除策略偏保守，移入废纸篓后仍可通过 History 恢复", "evidence": "文章反复强调不直接清空，真正释放空间还需要用户手动清理废纸篓", "quoteAnchor": "删除策略段"},
+        {"claim": "工具设置了明确的系统门槛和权限门槛", "evidence": "仅支持 macOS 26 及以上，完全磁盘访问权限决定扫描是否完整", "quoteAnchor": "安装与权限段"},
+        {"claim": "敏感目录被划入保护区，降低误删风险", "evidence": "iCloud、钥匙串、密钥、邮件、照片图库和 iPhone 备份不会被移走", "quoteAnchor": "保护区段"}
+      ],
+      "reasoningChain": [
+        "先指出拖废纸篓卸载后仍会留下缓存、设置和启动项，建立问题背景",
+        "引入 Peel，说明它会扫描残留并给出每个文件的归属理由",
+        "强调低置信度文件默认不勾选，选中项只移入废纸篓，形成可逆流程",
+        "补充 macOS 26 门槛、完全磁盘访问权限和保护区，界定可用范围",
+        "最后提醒四类 History 无法恢复的操作，要求用户逐条审阅"
+      ],
+      "keyFacts": [
+        {"fact": "Peel 仅支持 macOS 26 及以上系统，更早系统无法安装", "basis": "source", "quoteAnchor": "安装说明"},
+        {"fact": "Peel 是免费开源项目，许可证为 GPL-3.0 或更高版本，仓库约 450 Star，当前版本 1.3.0", "basis": "source", "quoteAnchor": "项目信息段"},
+        {"fact": "安装方式包括 Homebrew cask 和 GitHub Releases 的 dmg", "basis": "source", "quoteAnchor": "安装方式段"},
+        {"fact": "没有付费版、没有广告、不用注册账号", "basis": "source", "quoteAnchor": "官方说明段"},
+        {"fact": "卸载时只把文件移入废纸篓，需要用户自行清空才真正释放空间", "basis": "source", "quoteAnchor": "删除流程段"},
+        {"fact": "残留文件有时能占好几个 G 属于概括性表述，文章没有给出具体实测数据", "basis": "inference", "quoteAnchor": "开头段"}
+      ],
+      "viewpoints": [
+        {"stance": "support", "summary": "逐条解释归属理由比一键清理更适合普通用户", "reasoning": "可逆流程和低置信度默认不勾选降低了误删风险，也保留了对文件的控制感"},
+        {"stance": "conditional", "summary": "工具价值取决于系统版本和用户是否愿意逐条审阅", "reasoning": "macOS 26 门槛排除了旧设备，完全磁盘访问权限和手动勾选又提高了使用成本"},
+        {"stance": "oppose", "summary": "占好几个 G 的说法缺少实测支撑", "reasoning": "文章没有给出典型应用的残留体积、文件数量和对比样本，读者难以判断收益是否普遍"},
+        {"stance": "conditional", "summary": "History 可恢复不代表所有操作都能撤回", "reasoning": "Homebrew 卸载清理和重置隐私权限等四类操作无法恢复，仍需要用户提前理解风险"}
+      ],
+      "risks": [
+        "低置信度文件如果被误勾选，仍可能移走其他应用共用的文件",
+        "四类 History 无法恢复的操作需要用户逐条确认，不能把可恢复当成绝对安全",
+        "旧系统用户无法安装，文章的工具推荐并不覆盖全部 Mac 用户",
+        "不给完全磁盘访问权限时扫描不完整，清理效果可能低于预期",
+        "第三方网站和商店可能存在仿冒收费版本，必须从官方渠道下载"
+      ],
+      "actions": [
+        {"action": "先确认 Mac 是否运行 macOS 26 或更新版本", "condition": "准备安装 Peel 前"},
+        {"action": "只从 GitHub Releases、官网或 Homebrew 获取安装包", "condition": "下载和安装时"},
+        {"action": "在系统设置里授予完全磁盘访问权限", "condition": "希望扫描更完整时"},
+        {"action": "逐条阅读残留文件的归属理由，取消不确认的勾选", "condition": "执行卸载前"},
+        {"action": "确认不需要恢复后，再到访达清空废纸篓", "condition": "完成 Peel 清理后"}
+      ],
+      "questions": [
+        "典型应用卸载后残留文件的体积分布是什么样的？",
+        "Peel 对没有明显签名或 Homebrew 记录的软件识别准确率如何？",
+        "macOS 26 以下是否有同等安全机制的替代方案？",
+        "四类不可恢复操作的完整清单和触发条件在哪里查看？"
+      ],
+      "readingPath": [
+        "先读开头问题段，理解拖废纸篓不等于彻底卸载",
+        "再读功能介绍，弄清楚扫描、理由和可回滚机制",
+        "接着确认系统门槛和安装方式，判断自己的机器是否适用",
+        "重点阅读保护区和四类不可恢复操作",
+        "最后结合自己的清理习惯决定是否采用"
+      ],
+      "aiWriting": {
+        "score": 68,
+        "summary": "文章结构工整、段落长度接近，抽象概括较多；同时包含具体版本、安装命令和操作步骤，更像是 AI 辅助整理或人机协作，而不是完全自动生成。",
+        "signals": [
+          {"label": "段落长度过于均衡", "detail": "多个段落的长度和收尾方式接近，转折词重复出现。", "leaning": "ai"},
+          {"label": "抽象概括偏多", "detail": "频繁使用安全性、可逆性和适用性等概括词。", "leaning": "ai"},
+          {"label": "包含具体版本与命令", "detail": "给出了 1.3.0、macOS 26 和 brew 安装命令。", "leaning": "human"},
+          {"label": "引用来源较泛化", "detail": "多次转述官网和仓库说明，但没有逐条给出链接。", "leaning": "neutral"}
+        ]
+      }
+    }
+    """
 
     static let authModel = AuthModel(
         repository: AuthRepository(
@@ -568,15 +723,18 @@ actor UILabReaderClient: ReaderNetworkClient {
     private var detail: ArticleDetail
     private let categories: [ArticleCategory]
     private let categoryService: FixtureCategoryCatalogService?
+    private let deepAnalysisResponse: DeepAnalysisResponse?
 
     init(
         detail: ArticleDetail,
         categories: [ArticleCategory],
-        categoryService: FixtureCategoryCatalogService? = nil
+        categoryService: FixtureCategoryCatalogService? = nil,
+        deepAnalysisResponse: DeepAnalysisResponse? = nil
     ) {
         self.detail = detail
         self.categories = categories
         self.categoryService = categoryService
+        self.deepAnalysisResponse = deepAnalysisResponse
     }
 
     func articleDetail(_ selection: ReaderSelection) async throws -> ArticleDetail {
@@ -621,7 +779,8 @@ actor UILabReaderClient: ReaderNetworkClient {
     }
 
     func deepAnalysis(articleID: Int) async throws -> DeepAnalysisResponse {
-        DeepAnalysisResponse(report: nil, summary: DeepAnalysisSummary(status: "queued"))
+        deepAnalysisResponse
+            ?? DeepAnalysisResponse(report: nil, summary: DeepAnalysisSummary(status: "queued"))
     }
 
     func classifyArticle(articleID: Int) async throws -> ReaderAIResult {
@@ -697,6 +856,13 @@ extension UILabFixtures {
         detail: readerCategoryUnavailableDetail,
         categories: readerCategories,
         categoryService: categoryService
+    )
+
+    static let readerDeepAnalysisClient = UILabReaderClient(
+        detail: deepAnalysisInlineDetail,
+        categories: readerCategories,
+        categoryService: categoryService,
+        deepAnalysisResponse: deepAnalysisResponse
     )
 }
 

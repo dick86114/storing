@@ -110,8 +110,11 @@ struct ArticleActionBar: View {
         let actionAvailability = availability
         HStack(spacing: 8) {
             let accountActionsDisabled = !actionAvailability.allowsAccountActions
-            let isDeepAnalysisRunning = model.deepAnalysis?.summary?.status == "queued"
-                || model.deepAnalysis?.summary?.status == "running"
+            let deepAnalysisSummary = model.deepAnalysis?.summary
+            let isDeepAnalysisRunning = deepAnalysisSummary?.status == "queued"
+                || deepAnalysisSummary?.status == "running"
+            let hasDeepAnalysisReport = model.deepAnalysis?.report != nil
+                || deepAnalysisSummary?.hasDeepAnalysis == true
 
             actionButton(
                 model.article?.isFavorited == true ? "star.fill" : "star",
@@ -163,12 +166,18 @@ struct ArticleActionBar: View {
             }
             .disabled(accountActionsDisabled)
             actionButton(
-                "bubbles.and.sparkles.fill",
-                isDeepAnalysisRunning ? "深度报告生成中" : "深度报告"
+                hasDeepAnalysisReport ? "bubbles.and.sparkles.fill" : "bubbles.and.sparkles",
+                isDeepAnalysisRunning
+                    ? (hasDeepAnalysisReport ? "查看深度报告，新一版生成中" : "深度报告生成中")
+                    : (hasDeepAnalysisReport ? "查看深度报告" : "生成深度报告"),
+                isSelected: hasDeepAnalysisReport
             ) {
                 onAction(.deepAnalysis)
             }
-            .disabled(accountActionsDisabled || isDeepAnalysisRunning)
+            .disabled(
+                accountActionsDisabled
+                    || (isDeepAnalysisRunning && !hasDeepAnalysisReport)
+            )
 
             HStack(spacing: 2) {
                 contentWidthButton(.normal, systemImage: "arrow.right.and.line.vertical.and.arrow.left")

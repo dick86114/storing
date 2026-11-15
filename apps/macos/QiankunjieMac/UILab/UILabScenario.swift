@@ -44,6 +44,8 @@ enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
     case offline
     case reader
     case deepAnalysisConfirmation = "deep-analysis-confirmation"
+    case deepAnalysisReport = "deep-analysis-report"
+    case deepAnalysisInline = "deep-analysis-inline"
     case collect
     case tasks
     case settings
@@ -67,6 +69,8 @@ enum UILabScenario: String, CaseIterable, Hashable, Identifiable, Sendable {
         case .offline: "离线"
         case .reader: "阅读器"
         case .deepAnalysisConfirmation: "深度报告确认"
+        case .deepAnalysisReport: "深度报告预览"
+        case .deepAnalysisInline: "深度报告内嵌"
         case .collect: "快速采集"
         case .tasks: "任务"
         case .settings: "设置"
@@ -130,6 +134,21 @@ struct UILabRootView: View {
                 reader
             case .deepAnalysisConfirmation:
                 reader(showsDeepAnalysisConfirmation: true)
+            case .deepAnalysisReport:
+                DeepAnalysisInspector.Root(
+                    record: UILabFixtures.deepAnalysisRecord,
+                    summary: UILabFixtures.deepAnalysisSummary,
+                    article: UILabFixtures.deepAnalysisArticle,
+                    offline: false,
+                    onClose: {},
+                    onGenerate: {},
+                    onRetry: {}
+                )
+            case .deepAnalysisInline:
+                reader(
+                    networkClient: UILabFixtures.readerDeepAnalysisClient,
+                    showsDeepAnalysisReport: true
+                )
             case .collect:
                 CollectQuickPopoverView(model: UILabFixtures.collectModel)
             case .tasks:
@@ -243,7 +262,8 @@ struct UILabRootView: View {
 
     private func reader(
         networkClient: any ReaderNetworkClient = UILabFixtures.readerClient,
-        showsDeepAnalysisConfirmation: Bool = false
+        showsDeepAnalysisConfirmation: Bool = false,
+        showsDeepAnalysisReport: Bool = false
     ) -> some View {
             ReaderPaneView(
                 selection: ReaderSelection(
@@ -261,7 +281,8 @@ struct UILabRootView: View {
                 networkClient: networkClient,
                 onClose: {},
                 onLibraryDidChange: {},
-                showsDeepAnalysisConfirmationOnAppear: showsDeepAnalysisConfirmation
+                showsDeepAnalysisConfirmationOnAppear: showsDeepAnalysisConfirmation,
+                showsDeepAnalysisReportOnAppear: showsDeepAnalysisReport
             )
     }
 

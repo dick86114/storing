@@ -7,6 +7,7 @@ struct UILabTests {
     @Test func 界面实验室覆盖全部核心场景() {
         #expect(UILabScenario.allCases.map(\.rawValue) == [
             "login", "library", "empty", "loading", "offline", "reader", "deep-analysis-confirmation",
+            "deep-analysis-report", "deep-analysis-inline",
             "collect", "tasks", "settings", "ai-settings", "update",
             "update-notice", "current-version", "category-picker", "category-management",
             "reader-category-unavailable", "category-create-cancel",
@@ -15,6 +16,15 @@ struct UILabTests {
         #expect(UILabFixtures.user.id == 9001)
         #expect(UILabFixtures.updateCompletionNotice.version == "0.2.0")
         #expect(UILabFixtures.updateCompletionNotice.previousVersion == "0.1.0")
+    }
+
+    @Test func 深度报告预览夹具覆盖完整报告和审计信息() {
+        let record = UILabFixtures.deepAnalysisRecord
+
+        #expect(record.reportJson?.coreArguments.count == 5)
+        #expect(record.reportJson?.aiWriting?.score == 68)
+        #expect(record.modelSnapshot == "mimo-v2.6-flash")
+        #expect(record.totalTokens == 5180)
     }
 
     @Test func 界面实验室覆盖分类导航选择器和管理页() {

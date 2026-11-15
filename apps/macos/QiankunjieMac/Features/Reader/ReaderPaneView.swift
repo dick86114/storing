@@ -49,7 +49,8 @@ struct ReaderPaneView: View {
         onClose: @escaping () -> Void,
         onLibraryDidChange: @escaping () -> Void,
         onCategoryAffectingChange: @escaping () -> Void = {},
-        showsDeepAnalysisConfirmationOnAppear: Bool = false
+        showsDeepAnalysisConfirmationOnAppear: Bool = false,
+        showsDeepAnalysisReportOnAppear: Bool = false
     ) {
         self.selection = selection
         self.userID = userID
@@ -72,6 +73,7 @@ struct ReaderPaneView: View {
         readerModel.onCategoryAffectingChange = onCategoryAffectingChange
         _model = State(initialValue: readerModel)
         _isDeepAnalysisConfirming = State(initialValue: showsDeepAnalysisConfirmationOnAppear)
+        _isDeepAnalysisPresented = State(initialValue: showsDeepAnalysisReportOnAppear)
     }
 
     var body: some View {
@@ -95,6 +97,9 @@ struct ReaderPaneView: View {
             categorySheetMode = nil
             model.prepareUser(userID: newValue)
         }
+        .onChange(of: userID) { _, _ in
+            isDeepAnalysisPresented = false
+        }
         .overlay {
             if let selectedImageURL {
                 ImageZoomOverlay(url: selectedImageURL) {
@@ -114,12 +119,74 @@ struct ReaderPaneView: View {
                 }
             }
         }
+        .onChange(of: selection) { _, _ in
+            isDeepAnalysisPresented = false
+        }
         .onChange(of: model.deepAnalysis?.summary?.status) { _, newValue in
             handleDeepAnalysisStatusChange(newValue)
         }
     }
 
     private func reader(_ article: ReaderArticle) -> some View {
+        ZStack {
+            if isDeepAnalysisPresented {
+                deepAnalysisPage(article)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else {
+                articleReader(article)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.18), value: isDeepAnalysisPresented)
+        .overlay {
+            if isDeepAnalysisConfirming {
+                DeepAnalysisConfirmationView(
+                    articleTitle: model.titleOverride ?? article.title,
+                    onCancel: { isDeepAnalysisConfirming = false },
+                    onConfirm: {
+                        isDeepAnalysisConfirming = false
+                        beginDeepAnalysisGeneration()
+                    }
+                )
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.16), value: isDeepAnalysisConfirming)
+    }
+
+    private func deepAnalysisPage(_ article: ReaderArticle) -> some View {
+        DeepAnalysisInspector.Root(
+            record: model.deepAnalysis?.reportRecord,
+            summary: model.deepAnalysis?.summary,
+            article: DeepAnalysisArticleContext(
+                title: model.titleOverride ?? article.title,
+                author: article.author,
+                source: article.source,
+                publishTime: article.publishTime,
+                coverImageURL: article.coverImage.flatMap(URL.init(string:))
+            ),
+            offline: false,
+            onClose: {
+                isDeepAnalysisPresented = false
+            },
+            onGenerate: {
+                isDeepAnalysisPresented = false
+                DispatchQueue.main.async {
+                    isDeepAnalysisConfirming = true
+                }
+            },
+            onRetry: {
+                isDeepAnalysisPresented = false
+                DispatchQueue.main.async {
+                    isDeepAnalysisConfirming = true
+                }
+            }
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(QiankunjieColors.background(for: colorScheme))
+    }
+
+    private func articleReader(_ article: ReaderArticle) -> some View {
         VStack(spacing: 0) {
             header(article, displayTitle: model.titleOverride ?? article.title)
             Divider()
@@ -187,26 +254,6 @@ struct ReaderPaneView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
         }
-        .sheet(isPresented: $isDeepAnalysisPresented) {
-            DeepAnalysisInspector.Root(
-                report: model.deepAnalysis?.report,
-                status: model.deepAnalysis?.summary?.status,
-                offline: false,
-                onGenerate: {
-                    isDeepAnalysisPresented = false
-                    DispatchQueue.main.async {
-                        isDeepAnalysisConfirming = true
-                    }
-                },
-                onRetry: {
-                    isDeepAnalysisPresented = false
-                    DispatchQueue.main.async {
-                        isDeepAnalysisConfirming = true
-                    }
-                },
-                onShowHistory: {}
-            )
-        }
         .sheet(item: $categorySheetMode) { mode in
             ReaderCategoryPickerContainer(
                 model: model,
@@ -264,19 +311,7 @@ struct ReaderPaneView: View {
             if isRenaming {
                 renameSheet
             }
-            if isDeepAnalysisConfirming {
-                DeepAnalysisConfirmationView(
-                    articleTitle: model.titleOverride ?? article.title,
-                    onCancel: { isDeepAnalysisConfirming = false },
-                    onConfirm: {
-                        isDeepAnalysisConfirming = false
-                        beginDeepAnalysisGeneration()
-                    }
-                )
-                .transition(.opacity)
-            }
         }
-        .animation(.easeOut(duration: 0.16), value: isDeepAnalysisConfirming)
     }
 
     private var renameSheet: some View {
@@ -600,7 +635,10 @@ struct ReaderPaneView: View {
             // 归档前先选分类，或明确交给 AI 判断。
             categorySheetMode = .archive
         case .deepAnalysis:
-            switch DeepAnalysisEntryAction.of(summary: model.deepAnalysis?.summary) {
+            switch DeepAnalysisEntryAction.of(
+                summary: model.deepAnalysis?.summary,
+                hasReport: model.deepAnalysis?.report != nil
+            ) {
             case .viewReport:
                 isDeepAnalysisPresented = true
                 Task { await model.loadDeepAnalysisForCurrentArticle() }
