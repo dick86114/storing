@@ -147,10 +147,29 @@ data class DeepAnalysisAiWritingSignal(
 )
 
 @Serializable
-data class DeepAnalysisResponse(
-  val report: DeepAnalysisReport? = null,
-  val summary: DeepAnalysisSummary? = null,
+data class DeepAnalysisReportRecord(
+  val version: Int? = null,
+  @SerialName("reportJson") val reportJson: DeepAnalysisReport? = null,
+  @SerialName("reportMarkdown") val reportMarkdown: String? = null,
+  @SerialName("providerSnapshot") val providerSnapshot: String? = null,
+  @SerialName("modelSnapshot") val modelSnapshot: String? = null,
+  @SerialName("promptTokens") val promptTokens: Int? = null,
+  @SerialName("completionTokens") val completionTokens: Int? = null,
+  @SerialName("totalTokens") val totalTokens: Int? = null,
+  @SerialName("contentTruncated") val contentTruncated: Boolean = false,
+  val attempts: Int? = null,
+  @SerialName("durationMs") val durationMs: Int? = null,
+  val generatedAt: String? = null,
 )
+
+@Serializable
+data class DeepAnalysisResponse(
+  val report: DeepAnalysisReportRecord? = null,
+  val summary: DeepAnalysisSummary? = null,
+) {
+  val currentReport: DeepAnalysisReport?
+    get() = report?.reportJson
+}
 
 @Serializable
 data class DeepAnalysisVersionsResponse(

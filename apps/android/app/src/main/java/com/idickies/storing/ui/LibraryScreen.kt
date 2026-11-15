@@ -2307,8 +2307,8 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
   var moreExpanded by remember { mutableStateOf(false) }
   var categoryPickerOpen by remember { mutableStateOf(false) }
   var showCategoryReason by remember { mutableStateOf(false) }
-  var showDeepAnalysis by remember { mutableStateOf(false) }
-  var showDeepAnalysisHistory by remember { mutableStateOf(false) }
+  var showDeepAnalysis by remember(article.id) { mutableStateOf(false) }
+  var showDeepAnalysisHistory by remember(article.id) { mutableStateOf(false) }
   var showLibrarySearch by rememberSaveable { mutableStateOf(false) }
   BackHandler(onBack = onBack)
   val publicUrl = article.publicId?.let { "https://storing.idickies.cc/p/$it" }
@@ -2474,7 +2474,10 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
         onFavorite = onFavorite,
         onArchive = onArchive,
         onShare = ::shareOriginalUrl,
-        onDeepAnalysis = onDeepAnalysis,
+        onDeepAnalysis = {
+          showDeepAnalysis = true
+          onDeepAnalysis()
+        },
       )
       if (canManage && processingAction != null) {
         Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
@@ -2654,23 +2657,43 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
       offlineReport = deepAnalysis.report ?: onLoadDeepAnalysisOffline(article.id)
     }
     DeepAnalysisSheet(
+      articleTitle = article.displayTitle,
+      articleSource = article.source,
+      articleAuthor = article.author,
+      articlePublishTime = article.publishTime,
+      articleCoverImage = article.coverImage,
       report = offlineReport,
-      statusText = when (deepAnalysis.status) {
-        "queued", "running" -> "解析中"
-        "succeeded" -> "已有报告"
-        "failed" -> "解析失败"
+      record = deepAnalysis.record,
+      statusText = when {
+        deepAnalysis.loading && deepAnalysis.status == null -> "加载中"
+        deepAnalysis.status == "queued" || deepAnalysis.status == "running" -> "解析中"
+        deepAnalysis.status == "succeeded" -> "已有报告"
+        deepAnalysis.status == "failed" -> "解析失败"
         else -> "未生成"
       },
-      offline = isReadingOffline || isReadingCached,
-      onDismiss = onDismissDeepAnalysis,
+      offline = isReadingOffline,
+      loading = deepAnalysis.loading,
+      errorMessage = deepAnalysis.errorMessage,
+      onDismiss = {
+        showDeepAnalysis = false
+        onDismissDeepAnalysis()
+      },
       onGenerate = onSubmitDeepAnalysis,
       onRetry = onSubmitDeepAnalysis,
-      onShowHistory = onShowDeepAnalysisHistory,
+      onReload = onDeepAnalysis,
+      onShowHistory = {
+        showDeepAnalysis = false
+        showDeepAnalysisHistory = true
+        onShowDeepAnalysisHistory()
+      },
     )
   }
   if (showDeepAnalysisHistory) {
     QiankunjieAlertDialog(
-      onDismissRequest = onDismissDeepAnalysisHistory,
+      onDismissRequest = {
+        showDeepAnalysisHistory = false
+        onDismissDeepAnalysisHistory()
+      },
       title = { Text("历史版本") },
       text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2693,7 +2716,14 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
           }
         }
       },
-      confirmButton = { TextButton(onClick = onDismissDeepAnalysisHistory) { Text("关闭") } },
+      confirmButton = {
+        TextButton(
+          onClick = {
+            showDeepAnalysisHistory = false
+            onDismissDeepAnalysisHistory()
+          },
+        ) { Text("关闭") }
+      },
     )
   }
   confirmProcessing?.let { action ->

@@ -127,6 +127,7 @@ data class LibraryUiState(
 
 data class DeepAnalysisUiState(
   val report: DeepAnalysisReport? = null,
+  val record: DeepAnalysisReportRecord? = null,
   val status: String? = null,
   val loading: Boolean = false,
   val versions: List<DeepAnalysisVersion> = emptyList(),
@@ -192,7 +193,8 @@ class LibraryViewModel @Inject constructor(
         mutableState.update {
           it.copy(
             deepAnalysis = DeepAnalysisUiState(
-              report = response.report,
+              report = response.currentReport,
+              record = response.report,
               status = response.summary?.status,
               versions = versions,
             ),
@@ -240,7 +242,8 @@ class LibraryViewModel @Inject constructor(
         mutableState.update { current ->
           current.copy(
             deepAnalysis = current.deepAnalysis.copy(
-              report = result.report,
+              report = result.currentReport,
+              record = result.report,
               status = result.summary?.status,
               loading = false,
             ),

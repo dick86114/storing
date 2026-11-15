@@ -38,6 +38,39 @@ class DeepAnalysisModelsTest {
   }
 
   @Test
+  fun `deep analysis response unwraps the report json record`() {
+    val response = json.decodeFromString<DeepAnalysisResponse>(
+      """
+      {
+        "report": {
+          "version": 3,
+          "reportJson": {
+            "executiveSummary": "完整摘要",
+            "coreArguments": [{"claim": "主张", "evidence": "依据"}],
+            "reasoningChain": ["第一步"],
+            "keyFacts": [{"fact": "事实", "basis": "source"}],
+            "viewpoints": [{"stance": "support", "summary": "支持", "reasoning": "理由"}],
+            "risks": ["风险"],
+            "actions": [{"action": "动作", "condition": "条件"}],
+            "questions": ["问题"],
+            "readingPath": ["路径"]
+          },
+          "totalTokens": 5180,
+          "durationMs": 82000,
+          "generatedAt": "2026-11-15T05:08:00Z"
+        },
+        "summary": {"hasDeepAnalysis": true, "status": "succeeded", "version": 3}
+      }
+      """.trimIndent(),
+    )
+
+    assertEquals(3, response.report?.version)
+    assertEquals("完整摘要", response.currentReport?.executiveSummary)
+    assertEquals("主张", response.currentReport?.coreArguments?.single()?.claim)
+    assertEquals(5180, response.report?.totalTokens)
+  }
+
+  @Test
   fun `article card exposes deep analysis state`() {
     val card = ArticleCard(id = 1, deepAnalysis = DeepAnalysisSummary())
     assertEquals("not_generated", card.deepAnalysis?.status)
