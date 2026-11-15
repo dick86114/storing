@@ -1,6 +1,7 @@
 package com.idickies.storing.ui.components
 
 import com.idickies.storing.ui.theme.isQiankunjieDarkTheme
+import com.idickies.storing.R
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,7 +25,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
-import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Public
@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -428,12 +429,13 @@ private fun ArticleMetadata(article: ArticleCard, color: androidx.compose.ui.gra
     }
     Spacer(modifier = Modifier.weight(1f))
     article.deepAnalysis?.takeIf { it.status != "not_generated" }?.let { deepAnalysis ->
+      val icon = when (deepAnalysis.status) {
+        "succeeded" -> androidx.compose.ui.graphics.vector.ImageVector.vectorResource(R.drawable.ic_bubbles_sparkles_fill)
+        "failed" -> Icons.Outlined.ErrorOutline
+        else -> Icons.Outlined.Sync
+      }
       Icon(
-        imageVector = when (deepAnalysis.status) {
-          "succeeded" -> Icons.Outlined.CheckCircle
-          "failed" -> Icons.Outlined.ErrorOutline
-          else -> Icons.Outlined.Sync
-        },
+        imageVector = icon,
         contentDescription = when (deepAnalysis.status) {
           "succeeded" -> "深度报告已生成"
           "failed" -> "深度解析失败"

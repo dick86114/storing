@@ -980,11 +980,20 @@ public final class LibraryModel {
     }
 
     private func scheduleAIPollingIfPending() {
-        guard articles.contains(where: { $0.aiStatus == "queued" || $0.aiStatus == "running" }) else {
+        guard hasPendingLibraryJobs else {
             stopAIPolling()
             return
         }
         startAIPolling()
+    }
+
+    private var hasPendingLibraryJobs: Bool {
+        articles.contains { article in
+            article.aiStatus == "queued"
+                || article.aiStatus == "running"
+                || article.deepAnalysis?.status == "queued"
+                || article.deepAnalysis?.status == "running"
+        }
     }
 
     private func startAIPolling() {
@@ -1008,7 +1017,7 @@ public final class LibraryModel {
     /// 列表轮询只回读当前筛选下已加载页，避免“排队中”占位一直停留。
     @discardableResult
     public func refreshAIStatusesOnce() async -> Bool {
-        guard articles.contains(where: { $0.aiStatus == "queued" || $0.aiStatus == "running" }) else {
+        guard hasPendingLibraryJobs else {
             stopAIPolling()
             return false
         }
@@ -1052,7 +1061,7 @@ public final class LibraryModel {
                 onCatalogAffectingChange?()
             }
             scheduleAIPollingIfPending()
-            return articles.contains(where: { $0.aiStatus == "queued" || $0.aiStatus == "running" })
+            return hasPendingLibraryJobs
         } catch {
             // 轮询失败保留当前列表，下一轮继续尝试。
             return true

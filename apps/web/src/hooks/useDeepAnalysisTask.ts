@@ -21,6 +21,7 @@ export type DeepAnalysisSummary = {
 };
 
 type DeepAnalysisTaskState = {
+  articleId: number | null;
   summary: DeepAnalysisSummary | null;
   submitting: boolean;
   error: string | null;
@@ -33,6 +34,7 @@ export function useDeepAnalysisTask(
   initialStatus?: string | null,
 ) {
   const [state, setState] = useState<DeepAnalysisTaskState>({
+    articleId: articleId ?? null,
     summary: initialStatus
       ? {
         hasDeepAnalysis: initialStatus === 'succeeded',
@@ -52,49 +54,65 @@ export function useDeepAnalysisTask(
     const response = await api.getDeepAnalysis(articleId);
     const summary = response?.summary as DeepAnalysisSummary | null;
     if (summary) {
-      setState((current) => ({ ...current, summary, error: null }));
+      setState((current) => (
+        current.articleId === articleId
+          ? { ...current, summary, error: null }
+          : current
+      ));
     }
     return summary;
   }, [articleId]);
 
   useEffect(() => {
-    setState((current) => ({
-      ...current,
-      summary: initialStatus
-        ? {
-          hasDeepAnalysis: initialStatus === 'succeeded',
-          status: initialStatus as DeepAnalysisStatus,
-          version: current.summary?.version ?? null,
-          generatedAt: current.summary?.generatedAt ?? null,
-          stale: current.summary?.stale ?? false,
-          errorCode: current.summary?.errorCode ?? null,
-        errorMessage: current.summary?.errorMessage ?? null,
-        }
-        : current.summary,
-    }));
-  }, [initialStatus]);
+    setState((current) => {
+      const sameArticle = current.articleId === articleId;
+      return {
+        articleId: articleId ?? null,
+        summary: articleId == null
+          ? null
+          : initialStatus
+            ? {
+              hasDeepAnalysis: initialStatus === 'succeeded',
+              status: initialStatus as DeepAnalysisStatus,
+              version: sameArticle ? current.summary?.version ?? null : null,
+              generatedAt: sameArticle ? current.summary?.generatedAt ?? null : null,
+              stale: sameArticle ? current.summary?.stale ?? false : false,
+              errorCode: sameArticle ? current.summary?.errorCode ?? null : null,
+              errorMessage: sameArticle ? current.summary?.errorMessage ?? null : null,
+            }
+            : sameArticle
+              ? current.summary
+              : null,
+        submitting: sameArticle ? current.submitting : false,
+        error: null,
+      };
+    });
+  }, [articleId, initialStatus]);
 
   useEffect(() => {
     if (!articleId) {
-      setState((current) => ({ ...current, summary: null, error: null }));
       return;
     }
 
     let cancelled = false;
-    setState((current) => ({ ...current, error: null }));
     refresh().catch((error) => {
       if (cancelled) return;
-      setState((current) => ({
-        ...current,
-        error: error instanceof Error ? error.message : '深度报告状态加载失败',
-      }));
+      setState((current) => (
+        current.articleId === articleId
+          ? {
+            ...current,
+            error: error instanceof Error ? error.message : '深度报告状态加载失败',
+          }
+          : current
+      ));
     });
     return () => {
       cancelled = true;
     };
   }, [articleId, refresh]);
 
-  const pending = state.summary?.status === 'queued' || state.summary?.status === 'running';
+  const summary = state.articleId === articleId ? state.summary : null;
+  const pending = summary?.status === 'queued' || summary?.status === 'running';
 
   useEffect(() => {
     if (!articleId || !pending) return;
@@ -104,16 +122,20 @@ export function useDeepAnalysisTask(
 
     const poll = async () => {
       try {
-        const summary = await refresh();
-        if (!cancelled && (summary?.status === 'queued' || summary?.status === 'running')) {
+        const polledSummary = await refresh();
+        if (!cancelled && (polledSummary?.status === 'queued' || polledSummary?.status === 'running')) {
           timer = setTimeout(poll, POLL_INTERVAL_MS);
         }
       } catch (error) {
         if (!cancelled) {
-          setState((current) => ({
-            ...current,
-            error: error instanceof Error ? error.message : '深度报告状态刷新失败',
-          }));
+          setState((current) => (
+            current.articleId === articleId
+              ? {
+                ...current,
+                error: error instanceof Error ? error.message : '深度报告状态刷新失败',
+              }
+              : current
+          ));
           timer = setTimeout(poll, POLL_INTERVAL_MS);
         }
       }
@@ -127,7 +149,7 @@ export function useDeepAnalysisTask(
   }, [articleId, pending, refresh]);
 
   const generate = useCallback(async () => {
-    if (!articleId || state.submitting) return false;
+    if (!articleId || state.submitting || state.articleId !== articleId) return false;
 
     setState((current) => ({
       ...current,
@@ -149,34 +171,42 @@ export function useDeepAnalysisTask(
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : '深度解析提交失败';
-      setState((current) => ({
-        ...current,
-        submitting: false,
-        error: message,
-        summary: current.summary
-          ? { ...current.summary, status: 'failed' }
-          : {
-            hasDeepAnalysis: false,
-            status: 'failed',
-            version: null,
-            generatedAt: null,
-            stale: false,
-            errorCode: null,
-          errorMessage: null,
-          },
-      }));
+      setState((current) => (
+        current.articleId === articleId
+          ? {
+            ...current,
+            submitting: false,
+            error: message,
+            summary: current.summary
+              ? { ...current.summary, status: 'failed' }
+              : {
+                hasDeepAnalysis: false,
+                status: 'failed',
+                version: null,
+                generatedAt: null,
+                stale: false,
+                errorCode: null,
+                errorMessage: null,
+              },
+          }
+          : current
+      ));
       return false;
     } finally {
-      setState((current) => ({ ...current, submitting: false }));
+      setState((current) => (
+        current.articleId === articleId
+          ? { ...current, submitting: false }
+          : current
+      ));
     }
-  }, [articleId, refresh, state.submitting]);
+  }, [articleId, refresh, state.articleId, state.submitting]);
 
   return {
-    summary: state.summary,
-    status: state.summary?.status ?? null,
+    summary,
+    status: summary?.status ?? null,
     pending,
-    submitting: state.submitting,
-    error: state.error,
+    submitting: state.articleId === articleId ? state.submitting : false,
+    error: state.articleId === articleId ? state.error : null,
     generate,
     refresh,
   };

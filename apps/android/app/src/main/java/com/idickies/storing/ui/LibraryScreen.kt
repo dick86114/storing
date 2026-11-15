@@ -233,6 +233,7 @@ import com.idickies.storing.library.archiveSourceFilters
 import com.idickies.storing.library.toggleArchiveBatchSelection
 import com.idickies.storing.reader.ReaderWebView
 import com.idickies.storing.reader.ReaderPreferences
+import androidx.compose.material.icons.outlined.WarningAmber
 import com.idickies.storing.reader.ReaderPreferencesViewModel
 import com.idickies.storing.reader.ReaderColorScheme
 import com.idickies.storing.reader.ReaderDocument
@@ -2307,9 +2308,11 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
   var categoryPickerOpen by remember { mutableStateOf(false) }
   var showCategoryReason by remember { mutableStateOf(false) }
   var showDeepAnalysis by remember(article.id) { mutableStateOf(false) }
+  var showDeepAnalysisFailure by remember(article.id) { mutableStateOf(false) }
   var confirmDeepAnalysisDelete by remember(article.id) { mutableStateOf(false) }
   var confirmDeepAnalysisRegenerate by remember(article.id) { mutableStateOf(false) }
   var showLibrarySearch by rememberSaveable { mutableStateOf(false) }
+  val currentDeepAnalysisStatus = deepAnalysis.status ?: article.deepAnalysis?.status
   BackHandler(onBack = onBack)
   val publicUrl = article.publicId?.let { "https://storing.idickies.cc/p/$it" }
 
@@ -2468,15 +2471,20 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
         originalUrl = article.originalUrl,
         isFavorited = article.isFavorited,
         isArchived = article.isArchived,
-        deepAnalysisStatus = article.deepAnalysis?.status,
+        deepAnalysisStatus = currentDeepAnalysisStatus,
         shareEnabled = !article.originalUrl.isNullOrBlank(),
         onOpenOriginal = { article.originalUrl?.let { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) } },
         onFavorite = onFavorite,
         onArchive = onArchive,
         onShare = ::shareOriginalUrl,
         onDeepAnalysis = {
-          showDeepAnalysis = true
-          onDeepAnalysis()
+          if (currentDeepAnalysisStatus == "failed") {
+            showDeepAnalysisFailure = true
+            onDeepAnalysis()
+          } else {
+            showDeepAnalysis = true
+            onDeepAnalysis()
+          }
         },
       )
       if (canManage && processingAction != null) {
@@ -2683,6 +2691,39 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
       onRetry = onSubmitDeepAnalysis,
       onReload = onDeepAnalysis,
       onDelete = { confirmDeepAnalysisDelete = true },
+    )
+  }
+  if (showDeepAnalysisFailure) {
+    QiankunjieAlertDialog(
+      onDismissRequest = { showDeepAnalysisFailure = false },
+      icon = {
+        Icon(
+          Icons.Outlined.WarningAmber,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.error,
+        )
+      },
+      title = { Text("深度解析失败") },
+      text = {
+        Text(
+          deepAnalysis.errorMessage
+            ?: deepAnalysis.summary?.errorMessage
+            ?: article.deepAnalysis?.errorMessage
+            ?: "服务端未返回具体原因，可能是网络、AI 配置或任务执行异常。",
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      },
+      dismissButton = {
+        TextButton(onClick = { showDeepAnalysisFailure = false }) { Text("关闭") }
+      },
+      confirmButton = {
+        TextButton(
+          onClick = {
+            showDeepAnalysisFailure = false
+            onSubmitDeepAnalysis()
+          },
+        ) { Text("重新生成") }
+      },
     )
   }
   if (confirmDeepAnalysisRegenerate) {

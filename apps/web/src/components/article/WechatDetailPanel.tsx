@@ -21,6 +21,7 @@ import { CategoryPicker } from '@/components/category/CategoryPicker';
 import { useCategoryCatalog, useRefreshCategoryCatalog } from '@/hooks/useCategoryCatalog';
 import { useCategoryRecents } from '@/hooks/useCategoryRecents';
 import { DeepAnalysisButton } from '@/components/article/DeepAnalysisButton';
+import { useDeepAnalysisTask } from '@/hooks/useDeepAnalysisTask';
 
 const DETAIL_PANEL_DEFAULT_WIDTH = 750;
 const DETAIL_PANEL_MIN_WIDTH = 560;
@@ -2405,9 +2406,35 @@ function DetailContent({
     || ''
   ).trim();
   const detailHeaderBadge = sourceIcon.kind === 'wechat' ? '公众号' : sourceIcon.label;
-  const deepAnalysisStatus = article?.deepAnalysis?.status ?? null;
+  const deepAnalysisTask = useDeepAnalysisTask(
+    article?.id ?? null,
+    article?.deepAnalysis?.status ?? null,
+  );
+  const previousDeepAnalysisStatus = useRef<string | null>(null);
+  const deepAnalysisStatus = deepAnalysisTask.status ?? article?.deepAnalysis?.status ?? null;
   const deepAnalysisFailed = deepAnalysisStatus === 'failed';
-  const deepAnalysisBusy = deepAnalysisStatus === 'queued' || deepAnalysisStatus === 'running';
+  const deepAnalysisBusy = deepAnalysisTask.pending || deepAnalysisTask.submitting;
+  const deepAnalysisSucceeded = deepAnalysisTask.summary?.hasDeepAnalysis === true
+    || deepAnalysisStatus === 'succeeded';
+  const deepAnalysisErrorMessage = deepAnalysisTask.summary?.errorMessage?.trim()
+    || article?.deepAnalysis?.errorMessage?.trim()
+    || '服务端未返回具体原因，可能是网络、AI 配置或任务执行异常。';
+
+  useEffect(() => {
+    if (deepAnalysisTask.error) showToast(deepAnalysisTask.error);
+  }, [deepAnalysisTask.error, showToast]);
+
+  useEffect(() => {
+    const status = deepAnalysisTask.status;
+    const previous = previousDeepAnalysisStatus.current;
+    const wasRunning = previous === 'queued' || previous === 'running';
+    const isTerminal = status === 'succeeded' || status === 'failed';
+    if (wasRunning && isTerminal) {
+      mutateArticle();
+      onMutate();
+    }
+    previousDeepAnalysisStatus.current = status;
+  }, [deepAnalysisTask.status, mutateArticle, onMutate]);
   useEffect(() => {
     return () => {
       if (sharePoster?.imageUrl) URL.revokeObjectURL(sharePoster.imageUrl);
@@ -2728,6 +2755,16 @@ function DetailContent({
     }, article.isFavorited ? '取消收藏失败' : '收藏失败');
   }
 
+  async function handleSubmitDeepAnalysis() {
+    if (!article) return;
+    const submitted = await deepAnalysisTask.generate();
+    setDeepAnalysisConfirmOpen(false);
+    if (!submitted) return;
+    mutateArticle();
+    onMutate();
+    showToast('深度解析报告已提交，生成完成后可查看');
+  }
+
   // 归档功能
   async function handleArchive() {
     if (!article) return;
@@ -2832,7 +2869,15 @@ function DetailContent({
                       disabled={deepAnalysisBusy}
                     >
                       <BulbOutlined />
-                      <span>{deepAnalysisBusy ? '深度报告生成中…' : deepAnalysisFailed ? '查看失败原因' : '生成深度报告'}</span>
+                      <span>
+                        {deepAnalysisBusy
+                          ? '深度解析报告生成中'
+                          : deepAnalysisFailed
+                            ? '深度解析报告生成失败'
+                            : deepAnalysisSucceeded
+                              ? '重新生成深度解析报告'
+                              : '生成深度解析报告'}
+                      </span>
                     </button>
                     {article?.isArchived && (
                       <button className="app-menu-item detail-more-menu-item" type="button" onClick={() => { setMoreOpen(false); setMoveCategoryPickerOpen(true); }} disabled={!!pendingAction}>
@@ -2906,13 +2951,17 @@ function DetailContent({
           <div className="confirm-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="deep-analysis-confirm-title" onClick={(event) => event.stopPropagation()}>
             <div className="confirm-dialog-icon" aria-hidden="true"><BulbOutlined /></div>
             <div className="confirm-dialog-content">
-              <h2 id="deep-analysis-confirm-title" className="confirm-dialog-title">生成深度报告？</h2>
+              <h2 id="deep-analysis-confirm-title" className="confirm-dialog-title">
+                {deepAnalysisSucceeded ? '重新生成深度解析报告？' : '生成深度解析报告？'}
+              </h2>
               <p className="confirm-dialog-copy">AI 会解析《{article.title}》的核心论点、关键信息和不同观点。</p>
-              <p className="confirm-dialog-note">任务会异步执行；生成完成后可在顶部菜单查看报告。</p>
+              <p className="confirm-dialog-note">任务会异步执行；生成完成后可从底部“解析”按钮查看报告。</p>
             </div>
             <div className="confirm-dialog-actions">
               <button className="confirm-dialog-button confirm-dialog-button--secondary" type="button" onClick={() => setDeepAnalysisConfirmOpen(false)}>取消</button>
-              <button className="confirm-dialog-button" type="button" onClick={() => { setDeepAnalysisConfirmOpen(false); showToast('深度报告已提交，生成完成后可查看'); }}>生成报告</button>
+              <button className="confirm-dialog-button" type="button" onClick={() => { void handleSubmitDeepAnalysis(); }} disabled={deepAnalysisBusy}>
+                {deepAnalysisSucceeded ? '重新生成' : '生成报告'}
+              </button>
             </div>
           </div>
         </section>
@@ -2925,7 +2974,7 @@ function DetailContent({
             <div className="confirm-dialog-content">
               <h2 id="deep-analysis-failure-title" className="confirm-dialog-title">深度报告生成失败</h2>
               <p className="confirm-dialog-copy">可以查看失败原因后重新生成，已有报告不会受影响。</p>
-              <p className="confirm-dialog-note">{article.deepAnalysis?.errorMessage?.trim() || '服务端未返回具体原因，可能是网络、AI 配置或任务执行异常。'}</p>
+              <p className="confirm-dialog-note">{deepAnalysisErrorMessage}</p>
             </div>
             <div className="confirm-dialog-actions">
               <button className="confirm-dialog-button confirm-dialog-button--secondary" type="button" onClick={() => setDeepAnalysisFailureOpen(false)}>关闭</button>
@@ -3291,7 +3340,7 @@ function DetailContent({
           {isAuthenticated && article && (
             <DeepAnalysisButton
               articleId={article.id}
-              initialStatus={article.deepAnalysis?.status ?? null}
+              hasReport={deepAnalysisSucceeded}
             />
           )}
           {article && isAuthenticated && (

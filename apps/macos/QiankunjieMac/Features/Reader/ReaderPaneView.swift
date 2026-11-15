@@ -84,11 +84,11 @@ struct ReaderPaneView: View {
                     reader(article)
                 } else if let errorMessage = model.errorMessage {
                     errorView(errorMessage)
-                } else if showsArticleLoadingPlaceholder, model.isLoading {
-                    stateView(title: "正在加载文章", systemImage: "doc.text")
                 } else if let article = model.article {
                     reader(article)
                         .allowsHitTesting(false)
+                } else if showsArticleLoadingPlaceholder, model.isLoading {
+                    stateView(title: "正在加载文章", systemImage: "doc.text")
                 } else {
                     Color.clear
                 }

@@ -183,42 +183,46 @@ class LibraryViewModel @Inject constructor(
   }
 
   fun loadDeepAnalysis(articleId: Int) {
-    if (mutableState.value.deepAnalysis.loading) return
     deepAnalysisJob?.cancel()
     deepAnalysisJob = viewModelScope.launch {
-      mutableState.update { it.copy(deepAnalysis = it.deepAnalysis.copy(loading = true, errorMessage = null)) }
-      runCatching {
-        val response = repository.deepAnalysis(articleId)
-        val versions = runCatching { repository.deepAnalysisVersions(articleId).versions }.getOrDefault(emptyList())
-        response to versions
-      }.onSuccess { (response, versions) ->
-        mutableState.update {
-          it.copy(
-            deepAnalysis = DeepAnalysisUiState(
-              report = response.currentReport,
-              record = response.report,
-              status = response.summary?.status,
-              summary = response.summary,
-              versions = versions,
-            ),
-          )
-        }
-        scheduleDeepAnalysisPoll(articleId)
-      }.onFailure { error ->
-        mutableState.update { it.copy(deepAnalysis = it.deepAnalysis.copy(loading = false, errorMessage = error.message ?: "深度报告加载失败")) }
-      }
+      fetchAndApplyDeepAnalysis(articleId)
     }
   }
 
   fun submitDeepAnalysis(articleId: Int) {
-    if (mutableState.value.deepAnalysis.loading) return
+    deepAnalysisJob?.cancel()
+    deepAnalysisPollJob?.cancel()
     viewModelScope.launch {
       mutableState.update { it.copy(deepAnalysis = it.deepAnalysis.copy(loading = true, errorMessage = null, status = "queued")) }
       runCatching { repository.submitDeepAnalysis(articleId) }
-        .onSuccess { loadDeepAnalysis(articleId) }
+        .onSuccess { fetchAndApplyDeepAnalysis(articleId) }
         .onFailure { error ->
           mutableState.update { it.copy(deepAnalysis = it.deepAnalysis.copy(loading = false, status = null, errorMessage = error.message ?: "深度解析提交失败")) }
         }
+    }
+  }
+
+  private suspend fun fetchAndApplyDeepAnalysis(articleId: Int) {
+    mutableState.update { it.copy(deepAnalysis = it.deepAnalysis.copy(loading = true, errorMessage = null)) }
+    runCatching {
+      val response = repository.deepAnalysis(articleId)
+      val versions = runCatching { repository.deepAnalysisVersions(articleId).versions }.getOrDefault(emptyList())
+      response to versions
+    }.onSuccess { (response, versions) ->
+      mutableState.update {
+        it.copy(
+          deepAnalysis = DeepAnalysisUiState(
+            report = response.currentReport,
+            record = response.report,
+            status = response.summary?.status,
+            summary = response.summary,
+            versions = versions,
+          ),
+        )
+      }
+      scheduleDeepAnalysisPoll(articleId)
+    }.onFailure { error ->
+      mutableState.update { it.copy(deepAnalysis = it.deepAnalysis.copy(loading = false, errorMessage = error.message ?: "深度报告加载失败")) }
     }
   }
 
@@ -236,6 +240,8 @@ class LibraryViewModel @Inject constructor(
 
   fun deleteDeepAnalysis(articleId: Int) {
     if (mutableState.value.deepAnalysis.deleting) return
+    deepAnalysisJob?.cancel()
+    deepAnalysisPollJob?.cancel()
     viewModelScope.launch {
       mutableState.update { it.copy(deepAnalysis = it.deepAnalysis.copy(deleting = true, errorMessage = null)) }
       runCatching { repository.deleteDeepAnalysis(articleId) }
@@ -670,6 +676,8 @@ class LibraryViewModel @Inject constructor(
 
   /** Opens a saved local copy first, falling back to the network only when no usable copy exists. */
   fun open(id: Int) {
+    deepAnalysisJob?.cancel()
+    deepAnalysisPollJob?.cancel()
     viewModelScope.launch {
       val card = mutableState.value.articles.firstOrNull { it.id == id }
       mutableState.update {
@@ -681,6 +689,7 @@ class LibraryViewModel @Inject constructor(
           savedReadingPosition = null,
           isReadingOffline = false,
           isReadingCached = false,
+          deepAnalysis = DeepAnalysisUiState(),
         )
       }
       val position = runCatching { readingPositionRepository.get(id)?.scrollPercentage }.getOrNull()
@@ -721,6 +730,8 @@ class LibraryViewModel @Inject constructor(
 
   /** Opens a local article directly from offline-content management without any network request. */
   fun openOffline(id: Int) {
+    deepAnalysisJob?.cancel()
+    deepAnalysisPollJob?.cancel()
     viewModelScope.launch {
       mutableState.update {
         it.copy(
@@ -731,6 +742,7 @@ class LibraryViewModel @Inject constructor(
           savedReadingPosition = null,
           isReadingOffline = false,
           isReadingCached = false,
+          deepAnalysis = DeepAnalysisUiState(),
         )
       }
       val offline = runCatching { offlineDownloadManager.loadPinnedForReading(id) }.getOrNull()
@@ -798,8 +810,21 @@ class LibraryViewModel @Inject constructor(
   }
 
   fun openByPublicId(publicId: String) {
+    deepAnalysisJob?.cancel()
+    deepAnalysisPollJob?.cancel()
     viewModelScope.launch {
-      mutableState.update { it.copy(loadingDetail = true, detail = null, detailError = null, detailRefreshing = false, savedReadingPosition = null, isReadingOffline = false, isReadingCached = false) }
+      mutableState.update {
+        it.copy(
+          loadingDetail = true,
+          detail = null,
+          detailError = null,
+          detailRefreshing = false,
+          savedReadingPosition = null,
+          isReadingOffline = false,
+          isReadingCached = false,
+          deepAnalysis = DeepAnalysisUiState(),
+        )
+      }
       runCatching { repository.detail(0, publicId) }
         .onSuccess { article ->
           mutableState.update { it.copy(loadingDetail = false, detail = article, isReadingOffline = false, isReadingCached = false) }

@@ -1322,6 +1322,10 @@ h4 {
   color: var(--accent);
 }
 
+.detail-panel-action-btn.is-active {
+  color: var(--accent);
+}
+
 .detail-panel-footer-actions {
   display: grid;
   grid-auto-flow: column;
@@ -1351,6 +1355,14 @@ h4 {
   height: 22px;
   display: grid;
   place-items: center;
+  margin: 0 auto;
+}
+
+.detail-panel-footer .detail-panel-action-btn .detail-report-icon {
+  width: 22px;
+  height: 22px;
+  display: block;
+  flex: 0 0 auto;
   margin: 0 auto;
 }
 
@@ -1384,6 +1396,10 @@ h4 {
 
   .detail-panel-footer .bookmark-icon,
   .detail-panel-footer .detail-panel-action-btn .anticon {
+    margin: 0;
+  }
+
+  .detail-panel-footer .detail-panel-action-btn .detail-report-icon {
     margin: 0;
   }
 }

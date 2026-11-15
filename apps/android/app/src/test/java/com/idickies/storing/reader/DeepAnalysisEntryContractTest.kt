@@ -27,6 +27,22 @@ class DeepAnalysisEntryContractTest {
   }
 
   @Test
+  fun `deep report action exposes all reader states`() {
+    val actionBar = read("src/main/java/com/idickies/storing/ui/components/ReaderActionBar.kt")
+    val library = read("src/main/java/com/idickies/storing/ui/LibraryScreen.kt")
+    val card = read("src/main/java/com/idickies/storing/ui/components/QiankunjieArticleCard.kt")
+
+    assertTrue(actionBar.contains("ic_bubbles_sparkles_fill"))
+    assertTrue(actionBar.contains("ic_sparkles_rectangle_stack"))
+    assertTrue(actionBar.contains("\"生成中\""))
+    assertTrue(actionBar.contains("\"解析失败\""))
+    assertTrue(actionBar.contains("\"解析\""))
+    assertTrue(library.contains("showDeepAnalysisFailure = true"))
+    assertTrue(library.contains("重新生成"))
+    assertTrue(card.contains("ic_bubbles_sparkles_fill"))
+  }
+
+  @Test
   fun `deep report sheet scrolls through every section`() {
     val sheet = read("src/main/java/com/idickies/storing/ui/DeepAnalysisReportContent.kt")
 

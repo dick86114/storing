@@ -1,5 +1,6 @@
 package com.idickies.storing.ui.components
 
+import com.idickies.storing.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,9 +16,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.MoveToInbox
+import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -26,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -59,6 +61,24 @@ fun ReaderActionBar(
   // 微信导入等内部内容使用 qiankunjie:// 标识，不能当作网页原文打开。
   val originalEnabled = originalUrl?.let { it.startsWith("http://") || it.startsWith("https://") } == true
   val originalTint = if (originalEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+  val deepAnalysisGenerating = deepAnalysisStatus == "queued" || deepAnalysisStatus == "running"
+  val deepAnalysisSucceeded = deepAnalysisStatus == "succeeded"
+  val deepAnalysisFailed = deepAnalysisStatus == "failed"
+  val deepAnalysisIcon = when {
+    deepAnalysisGenerating -> ImageVector.vectorResource(R.drawable.ic_sparkles_rectangle_stack)
+    deepAnalysisFailed -> Icons.Outlined.WarningAmber
+    else -> ImageVector.vectorResource(R.drawable.ic_bubbles_sparkles_fill)
+  }
+  val deepAnalysisLabel = when {
+    deepAnalysisGenerating -> "生成中"
+    deepAnalysisFailed -> "解析失败"
+    else -> "解析"
+  }
+  val deepAnalysisTint = when {
+    deepAnalysisSucceeded -> MaterialTheme.colorScheme.primary
+    deepAnalysisFailed -> MaterialTheme.colorScheme.error
+    else -> MaterialTheme.colorScheme.onSurfaceVariant
+  }
   QiankunjieCompactBottomBar(modifier = modifier) {
     Row(
       modifier = Modifier.fillMaxWidth(),
@@ -92,13 +112,9 @@ fun ReaderActionBar(
         verticalAlignment = Alignment.CenterVertically,
       ) {
         ReaderAction(
-          icon = Icons.Outlined.History,
-          label = when (deepAnalysisStatus) {
-            "queued", "running" -> "解析中"
-            "succeeded" -> "深度报告"
-            else -> "深度"
-          },
-          tint = if (deepAnalysisStatus == "succeeded") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+          icon = deepAnalysisIcon,
+          label = deepAnalysisLabel,
+          tint = deepAnalysisTint,
           onClick = onDeepAnalysis,
         )
         ReaderAction(

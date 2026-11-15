@@ -47,14 +47,15 @@ const report = {
   },
 };
 
-test('详情页报告入口仅在已有报告或生成中显示，并复用底部按钮样式', () => {
-  assert.match(button, /if \(!hasReport && !busy\) return null/);
-  assert.match(button, /className="detail-panel-action-btn"/);
+test('详情页报告入口仅在已有报告时显示，并复用激活状态按钮样式', () => {
+  assert.match(button, /if \(!hasReport\) return null/);
+  assert.match(button, /className="detail-panel-action-btn is-active"/);
   assert.match(button, /detail-panel-action-label/);
-  assert.match(button, /const label = '深度报告'/);
-  assert.doesNotMatch(button, /查看深度解析报告|重新生成|深度解析/);
+  assert.match(button, /detail-report-icon/);
+  assert.match(button, />解析</);
+  assert.doesNotMatch(button, /生成中|深度报告|重新生成/);
   assert.match(button, /router\.push\(`\/deep-analysis\/\$\{articleId\}`\)/);
-  assert.match(button, /useDeepAnalysisTask/);
+  assert.match(button, /hasReport/);
 });
 
 test('报告独立页包含目录、主旨和两类数据图表', () => {

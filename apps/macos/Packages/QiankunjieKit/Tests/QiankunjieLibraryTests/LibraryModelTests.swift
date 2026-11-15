@@ -579,6 +579,36 @@ struct LibraryModelTests {
         #expect(model.articles.first?.aiStatus == "succeeded")
     }
 
+    @Test func 列表会刷新生成完成的深度报告() async {
+        let article = ArticleCard(
+            id: 42,
+            title: "文章 42",
+            source: "测试来源",
+            deepAnalysis: DeepAnalysisSummary(status: "running")
+        )
+        let repository = 模拟资料库仓库(pages: [1: .fixture(ids: [42], page: 1, totalPages: 1)])
+        await repository.setArticleCard(article)
+        let model = LibraryModel(repository: repository, cache: EmptyLibraryCache())
+        await model.load(reset: true)
+
+        await repository.setArticleCard(
+            ArticleCard(
+                id: 42,
+                title: "文章 42",
+                source: "测试来源",
+                deepAnalysis: DeepAnalysisSummary(
+                    hasDeepAnalysis: true,
+                    status: "succeeded",
+                    version: 1
+                )
+            )
+        )
+        await model.refreshAIStatusesOnce()
+
+        #expect(model.articles.first?.deepAnalysis?.status == "succeeded")
+        #expect(model.articles.first?.deepAnalysis?.hasDeepAnalysis == true)
+    }
+
     @Test func 同步列表重载不会清除当前选择() async {
         let repository = 模拟资料库仓库(
             pages: [1: .fixture(ids: [41], page: 1, totalPages: 1)]
