@@ -47,6 +47,8 @@ turbo/.turbo/
 .claude/
 output/
 tmp/
+.playwright/
+artifacts/
 
 # Android local build files
 apps/android/.gradle/

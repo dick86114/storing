@@ -3,7 +3,7 @@
 AI驱动的个人稍后阅读平台，让你的文章收藏变成真正的知识资产。
 
 ## 项目介绍
-![alt text](ui/logo.png)
+![Storing Logo](apps/web/public/logo.png)
 乾坤戒是一个现代化的稍后阅读应用，集成了AI智能摘要和分类功能，帮助你更好地管理和阅读收藏的文章。
 
 ## 技术栈
