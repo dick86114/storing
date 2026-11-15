@@ -132,6 +132,7 @@ data class DeepAnalysisUiState(
   val loading: Boolean = false,
   val versions: List<DeepAnalysisVersion> = emptyList(),
   val errorMessage: String? = null,
+  val deleting: Boolean = false,
 )
 
 @HiltViewModel
@@ -227,6 +228,31 @@ class LibraryViewModel @Inject constructor(
         .onSuccess { loadDeepAnalysis(articleId) }
         .onFailure { error ->
           mutableState.update { it.copy(deepAnalysis = it.deepAnalysis.copy(loading = false, errorMessage = error.message ?: "报告版本恢复失败")) }
+        }
+    }
+  }
+
+  fun deleteDeepAnalysis(articleId: Int) {
+    if (mutableState.value.deepAnalysis.deleting) return
+    viewModelScope.launch {
+      mutableState.update { it.copy(deepAnalysis = it.deepAnalysis.copy(deleting = true, errorMessage = null)) }
+      runCatching { repository.deleteDeepAnalysis(articleId) }
+        .onSuccess {
+          offlineDownloadManager.deleteDeepAnalysis(articleId)
+          mutableState.update { state ->
+            state.copy(
+              deepAnalysis = DeepAnalysisUiState(),
+              detail = state.detail?.takeIf { detail -> detail.id == articleId }?.copy(
+                deepAnalysis = DeepAnalysisSummary(),
+              ),
+              articles = state.articles.map { card ->
+                if (card.id == articleId) card.copy(deepAnalysis = DeepAnalysisSummary()) else card
+              },
+            )
+          }
+        }
+        .onFailure { error ->
+          mutableState.update { it.copy(deepAnalysis = it.deepAnalysis.copy(deleting = false, errorMessage = error.message ?: "深度报告删除失败")) }
         }
     }
   }

@@ -97,6 +97,7 @@ public enum DeepAnalysisPresentation: Equatable, Sendable {
 
 public enum DeepAnalysisAPIPaths {
     public static func submit(articleID: Int) -> String { "articles/\(articleID)/deep-analysis" }
+    public static func delete(articleID: Int) -> String { "articles/\(articleID)/deep-analysis" }
     public static func versions(articleID: Int) -> String { "articles/\(articleID)/deep-analysis/versions" }
     public static func restore(articleID: Int, version: Int) -> String { "articles/\(articleID)/deep-analysis/\(version)/restore" }
 }

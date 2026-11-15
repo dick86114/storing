@@ -9,6 +9,7 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   CompassOutlined,
+  DeleteOutlined,
   DownOutlined,
   DownloadOutlined,
   FileMarkdownOutlined,
@@ -299,6 +300,9 @@ export function DeepAnalysisReportPage({ articleId }: { articleId: number }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [exporting, setExporting] = useState<'pdf' | 'md' | null>(null);
   const [regenerating, setRegenerating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmRegenerate, setConfirmRegenerate] = useState(false);
 
   const { data: article } = useSWR<ArticleMeta>(
     Number.isFinite(articleId) ? `article-meta:${articleId}` : null,
@@ -353,6 +357,21 @@ export function DeepAnalysisReportPage({ articleId }: { articleId: number }) {
       showToast(submitError instanceof Error ? submitError.message : '重新生成失败');
     } finally {
       setRegenerating(false);
+    }
+  };
+
+  const deleteReport = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await api.deleteDeepAnalysis(articleId);
+      setConfirmDelete(false);
+      goBack();
+      showToast('深度报告已删除');
+    } catch (deleteError) {
+      showToast(deleteError instanceof Error ? deleteError.message : '删除深度报告失败');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -417,7 +436,7 @@ export function DeepAnalysisReportPage({ articleId }: { articleId: number }) {
         <button
           type="button"
           className="deep-report-action-btn"
-          onClick={regenerate}
+          onClick={() => setConfirmRegenerate(true)}
           disabled={regenerating || pending}
         >
           {regenerating || pending ? <LoadingOutlined spin /> : <ReloadOutlined />}
@@ -460,7 +479,57 @@ export function DeepAnalysisReportPage({ articleId }: { articleId: number }) {
             </div>
           )}
         </div>
+        <button
+          type="button"
+          className="deep-report-action-btn is-danger"
+          onClick={() => setConfirmDelete(true)}
+          disabled={deleting}
+        >
+          {deleting ? <LoadingOutlined spin /> : <DeleteOutlined />}
+          {deleting ? '删除中' : '删除报告'}
+        </button>
       </div>
+      {confirmRegenerate && (
+        <div className="deep-report-confirm-mask">
+          <div className="deep-report-confirm" role="dialog" aria-modal="true" aria-label="重新生成深度报告">
+            <h2>重新生成深度报告？</h2>
+            <p>AI 会基于当前正文创建新一版报告。生成完成前仍可阅读当前内容。</p>
+            <div className="deep-report-confirm-actions">
+              <button type="button" onClick={() => setConfirmRegenerate(false)}>取消</button>
+              <button
+                type="button"
+                className="is-primary"
+                onClick={() => {
+                  setConfirmRegenerate(false);
+                  void regenerate();
+                }}
+                disabled={regenerating || pending}
+              >
+                重新生成
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {confirmDelete && (
+        <div className="deep-report-confirm-mask">
+          <div className="deep-report-confirm is-destructive" role="dialog" aria-modal="true" aria-label="删除深度报告">
+            <h2>删除深度报告？</h2>
+            <p>这篇文章的全部历史版本都会删除。删除后需要重新生成才能恢复。</p>
+            <div className="deep-report-confirm-actions">
+              <button type="button" onClick={() => setConfirmDelete(false)}>取消</button>
+              <button
+                type="button"
+                className="is-danger"
+                onClick={() => void deleteReport()}
+                disabled={deleting}
+              >
+                删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 

@@ -87,6 +87,7 @@ class ArticleRepository @Inject constructor(
   suspend fun regenerateAi(id: Int) = api.regenerateAi(id)
   suspend fun submitDeepAnalysis(id: Int) = api.submitDeepAnalysis(id)
   suspend fun deepAnalysis(id: Int) = api.deepAnalysis(id)
+  suspend fun deleteDeepAnalysis(id: Int) = api.deleteDeepAnalysis(id)
   suspend fun deepAnalysisVersions(id: Int) = api.deepAnalysisVersions(id)
   suspend fun restoreDeepAnalysis(id: Int, version: Int) = api.restoreDeepAnalysis(id, version)
   suspend fun notifications(): UserNotificationsResponse = api.notifications()

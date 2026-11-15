@@ -180,6 +180,15 @@ struct ReaderPaneView: View {
                 DispatchQueue.main.async {
                     isDeepAnalysisConfirming = true
                 }
+            },
+            onDelete: {
+                Task {
+                    let deleted = await model.deleteDeepAnalysis()
+                    if deleted {
+                        isDeepAnalysisPresented = false
+                        onLibraryDidChange()
+                    }
+                }
             }
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)

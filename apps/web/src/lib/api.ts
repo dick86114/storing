@@ -585,6 +585,9 @@ export const api = {
   getDeepAnalysis: (id: number) =>
     fetchJSON<any>(`/articles/${id}/deep-analysis`, { timeoutMs: 30000 }),
 
+  deleteDeepAnalysis: (id: number) =>
+    fetchJSON<any>(`/articles/${id}/deep-analysis`, { method: 'DELETE', timeoutMs: 30000 }),
+
   getDeepAnalysisVersions: (id: number) =>
     fetchJSON<any>(`/articles/${id}/deep-analysis/versions`, { timeoutMs: 30000 }),
 

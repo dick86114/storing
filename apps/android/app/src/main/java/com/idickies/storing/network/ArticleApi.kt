@@ -163,6 +163,9 @@ interface ArticleApi {
   @GET("articles/{id}/deep-analysis")
   suspend fun deepAnalysis(@Path("id") id: Int): DeepAnalysisResponse
 
+  @DELETE("articles/{id}/deep-analysis")
+  suspend fun deleteDeepAnalysis(@Path("id") id: Int): DeepAnalysisDeleteResponse
+
   @GET("articles/{id}/deep-analysis/versions")
   suspend fun deepAnalysisVersions(@Path("id") id: Int): DeepAnalysisVersionsResponse
 

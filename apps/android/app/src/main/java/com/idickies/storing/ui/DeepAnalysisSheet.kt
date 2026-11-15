@@ -31,11 +31,12 @@ fun DeepAnalysisSheet(
   offline: Boolean,
   loading: Boolean,
   errorMessage: String?,
+  deleting: Boolean,
   onDismiss: () -> Unit,
   onGenerate: () -> Unit,
   onRetry: () -> Unit,
   onReload: () -> Unit,
-  onShowHistory: () -> Unit,
+  onDelete: () -> Unit,
 ) {
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -76,11 +77,12 @@ fun DeepAnalysisSheet(
       offline = offline,
       loading = loading,
       errorMessage = errorMessage,
+      deleting = deleting,
       onDismiss = onDismiss,
       onGenerate = onGenerate,
       onRetry = onRetry,
       onReload = onReload,
-      onShowHistory = onShowHistory,
+      onDelete = onDelete,
     )
   }
 }

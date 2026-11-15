@@ -142,7 +142,8 @@ struct UILabRootView: View {
                     offline: false,
                     onClose: {},
                     onGenerate: {},
-                    onRetry: {}
+                    onRetry: {},
+                    onDelete: {}
                 )
             case .deepAnalysisInline:
                 reader(

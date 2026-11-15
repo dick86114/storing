@@ -21,11 +21,14 @@ test('三端状态枚举保持一致', () => {
 
 test('三端 API 路径保持一致', () => {
   assert.match(apiRoute, /\/articles\/:id\/deep-analysis/);
+  assert.match(apiRoute, /deepAnalysisRoutes\.delete\('\/articles\/:id\/deep-analysis'/);
   assert.match(apiRoute, /\/articles\/:id\/deep-analysis\/versions/);
   assert.match(apiRoute, /\/articles\/:id\/deep-analysis\/:version\/restore/);
   assert.match(webApi, /\/articles\/\$\{id\}\/deep-analysis/);
+  assert.match(webApi, /\/articles\/\$\{id\}\/deep-analysis`, \{ method: 'DELETE'/);
   assert.match(webApi, /\/articles\/\$\{id\}\/deep-analysis\/\$\{version\}\/restore/);
   assert.match(androidApi, /articles\/\{id\}\/deep-analysis/);
+  assert.match(androidApi, /@DELETE\("articles\/\{id\}\/deep-analysis"\)/);
   assert.match(androidApi, /articles\/\{id\}\/deep-analysis\/\{version\}\/restore/);
 });
 

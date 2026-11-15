@@ -34,8 +34,10 @@ enum DeepAnalysisInspector {
         let onClose: () -> Void
         let onGenerate: () -> Void
         let onRetry: () -> Void
+        let onDelete: () -> Void
 
         @Environment(\.colorScheme) private var colorScheme
+        @State private var confirmAction: DeepAnalysisConfirmAction?
 
         private var presentation: DeepAnalysisPresentation {
             DeepAnalysisPresentation.of(summary?.status)
@@ -57,7 +59,7 @@ enum DeepAnalysisInspector {
                         article: article,
                         presentation: presentation,
                         offline: offline,
-                        onGenerate: onGenerate
+                        onGenerate: { confirmAction = .regenerate }
                     )
                 } else {
                     DeepAnalysisEmptyState(
@@ -70,6 +72,29 @@ enum DeepAnalysisInspector {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(QiankunjieColors.background(for: colorScheme))
+            .confirmationDialog(
+                confirmAction?.title ?? "",
+                isPresented: Binding(
+                    get: { confirmAction != nil },
+                    set: { if !$0 { confirmAction = nil } }
+                ),
+                titleVisibility: confirmAction == nil ? .hidden : .visible
+            ) {
+                Button(confirmAction?.confirmTitle ?? "确认", role: confirmAction == .delete ? .destructive : nil) {
+                    let action = confirmAction
+                    confirmAction = nil
+                    if action == .regenerate {
+                        onGenerate()
+                    } else if action == .delete {
+                        onDelete()
+                    }
+                }
+                Button("取消", role: .cancel) {
+                    confirmAction = nil
+                }
+            } message: {
+                Text(confirmAction?.message ?? "")
+            }
         }
 
         private var toolbar: some View {
@@ -100,7 +125,9 @@ enum DeepAnalysisInspector {
                         .font(.headline)
                 }
 
-                statusChip
+                if presentation == .running || presentation == .failed || presentation == .idle {
+                    statusChip
+                }
 
                 if summary?.stale == true {
                     Label("基于旧版正文", systemImage: "clock.arrow.circlepath")
@@ -125,7 +152,9 @@ enum DeepAnalysisInspector {
                 }
 
                 if report != nil {
-                    Button(action: onGenerate) {
+                    Button {
+                        confirmAction = .regenerate
+                    } label: {
                         Label("重新生成", systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(.bordered)
@@ -135,6 +164,15 @@ enum DeepAnalysisInspector {
                             ? "新一版报告生成中"
                             : "重新生成一份深度报告"
                     )
+
+                    Button {
+                        confirmAction = .delete
+                    } label: {
+                        Label("删除报告", systemImage: "trash")
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(errorColor)
+                    .help("删除这篇文章的全部深度报告版本")
                 }
             }
             .padding(.horizontal, 20)
@@ -180,6 +218,34 @@ enum DeepAnalysisInspector {
             colorScheme == .dark
                 ? QiankunjieColors.darkError
                 : QiankunjieColors.lightError
+        }
+    }
+}
+
+private enum DeepAnalysisConfirmAction {
+    case regenerate
+    case delete
+
+    var title: String {
+        switch self {
+        case .regenerate: "重新生成深度报告？"
+        case .delete: "删除深度报告？"
+        }
+    }
+
+    var confirmTitle: String {
+        switch self {
+        case .regenerate: "重新生成"
+        case .delete: "删除"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .regenerate:
+            "AI 会基于当前正文创建新一版报告。生成完成前仍可阅读当前内容。"
+        case .delete:
+            "这篇文章的全部历史版本都会删除。删除后需要重新生成才能恢复。"
         }
     }
 }

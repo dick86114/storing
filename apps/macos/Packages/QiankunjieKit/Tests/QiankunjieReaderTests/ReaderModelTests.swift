@@ -818,6 +818,11 @@ private actor 模拟阅读客户端: ReaderNetworkClient {
         return DeepAnalysisResponse(report: nil, summary: DeepAnalysisSummary(status: "queued"))
     }
 
+    func deleteDeepAnalysis(articleID: Int) async throws -> DeepAnalysisResponse {
+        paths.append("DELETE articles/\(articleID)/deep-analysis")
+        return DeepAnalysisResponse(report: nil, summary: DeepAnalysisSummary())
+    }
+
     func classifyArticle(articleID: Int) async throws -> ReaderAIResult {
         classificationRequestCount += 1
         notifyClassificationRequestWaiters()

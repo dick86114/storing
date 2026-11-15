@@ -458,3 +458,17 @@ export async function restoreDeepAnalysisVersion(
       .where(eq(articleDeepAnalyses.id, target.id));
   });
 }
+
+export async function deleteDeepAnalysisForUser(
+  userId: number,
+  articleId: number,
+): Promise<{ deletedVersions: number }> {
+  const deleted = await db
+    .delete(articleDeepAnalyses)
+    .where(and(
+      eq(articleDeepAnalyses.userId, userId),
+      eq(articleDeepAnalyses.articleId, articleId),
+    ))
+    .returning({ id: articleDeepAnalyses.id });
+  return { deletedVersions: deleted.length };
+}

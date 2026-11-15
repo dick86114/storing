@@ -211,6 +211,12 @@ class OfflineDownloadManager @Inject constructor(
     }.getOrNull()
   }
 
+  suspend fun deleteDeepAnalysis(articleId: Int) = withContext(Dispatchers.IO) {
+    val userId = prepareUser()
+    val record = dao.get(userId, articleId) ?: return@withContext
+    File(File(record.localHtmlPath).parentFile, "deep-analysis.json").delete()
+  }
+
   /** 下载文章内容为固定离线保存：HTML + 封面 + 内嵌图片。 */
   suspend fun download(
     article: ArticleDetail,

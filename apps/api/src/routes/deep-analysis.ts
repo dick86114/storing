@@ -9,6 +9,7 @@ import {
   getDeepAnalysisSummary,
   getDeepAnalysisVersions,
   restoreDeepAnalysisVersion,
+  deleteDeepAnalysisForUser,
 } from '../services/deep-analysis.service.js';
 import {
   listUserNotifications,
@@ -124,6 +125,25 @@ deepAnalysisRoutes.post('/articles/:id/deep-analysis/:version/restore', requireA
     }
     return c.json({ error: { code: 'DEEP_ANALYSIS_RESTORE_FAILED', message: '报告版本恢复失败' } }, 500);
   }
+});
+
+deepAnalysisRoutes.delete('/articles/:id/deep-analysis', requireAuth, async (c) => {
+  const idParam = c.req.param('id');
+  const articleId = idParam === undefined ? NaN : parseInt(idParam, 10);
+  if (!idParam || !Number.isInteger(articleId) || articleId <= 0) {
+    return c.json({ error: { code: 'BAD_REQUEST', message: '文章 ID 无效' } }, 400);
+  }
+  const userId = getCurrentUser(c).id as number;
+  const article = await getArticleRecord(articleId, userId);
+  if (!article) {
+    return c.json({ error: { code: 'NOT_FOUND', message: '文章不在你的资料库中' } }, 404);
+  }
+  const result = await deleteDeepAnalysisForUser(userId, articleId);
+  return c.json({
+    articleId,
+    summary: await getDeepAnalysisSummary(userId, articleId),
+    message: result.deletedVersions > 0 ? '深度报告已删除' : '当前文章没有深度报告',
+  });
 });
 
 deepAnalysisRoutes.get('/notifications', requireAuth, async (c) => {

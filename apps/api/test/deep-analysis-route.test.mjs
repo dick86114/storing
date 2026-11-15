@@ -19,9 +19,11 @@ test('文章归属校验优先于任务提交和报告读取', () => {
   assert.match(routeSource, /return c\.json\(\{ error: \{ code: 'NOT_FOUND'/);
 });
 
-test('接口覆盖报告、版本、恢复和稳定错误码', () => {
+test('接口覆盖报告、删除、版本、恢复和稳定错误码', () => {
   assert.match(routeSource, /enqueueDeepAnalysis/);
   assert.match(routeSource, /getDeepAnalysisSummary/);
+  assert.match(routeSource, /deepAnalysisRoutes\.delete\('\/articles\/:id\/deep-analysis'/);
+  assert.match(routeSource, /deleteDeepAnalysisForUser/);
   assert.match(routeSource, /getDeepAnalysisVersions/);
   assert.match(routeSource, /restoreDeepAnalysisVersion/);
   assert.match(routeSource, /AI_NOT_CONFIGURED/);

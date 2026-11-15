@@ -70,8 +70,13 @@ test('报告独立页包含目录、主旨和两类数据图表', () => {
   assert.match(page, /不是作者身份鉴定/);
 });
 
-test('报告页支持重新生成、保存和分享 PDF 与 Markdown', () => {
+test('报告页支持确认后重新生成、删除、保存和分享', () => {
   assert.match(page, /api\.submitDeepAnalysis/);
+  assert.match(page, /setConfirmRegenerate\(true\)/);
+  assert.match(page, /重新生成深度报告？/);
+  assert.match(page, /api\.deleteDeepAnalysis/);
+  assert.match(page, /setConfirmDelete\(true\)/);
+  assert.match(page, /删除深度报告？/);
   assert.match(page, /saveMarkdown/);
   assert.match(page, /savePdf/);
   assert.match(page, /shareFile/);

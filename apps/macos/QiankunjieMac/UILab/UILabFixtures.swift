@@ -783,6 +783,10 @@ actor UILabReaderClient: ReaderNetworkClient {
             ?? DeepAnalysisResponse(report: nil, summary: DeepAnalysisSummary(status: "queued"))
     }
 
+    func deleteDeepAnalysis(articleID: Int) async throws -> DeepAnalysisResponse {
+        DeepAnalysisResponse(report: nil, summary: DeepAnalysisSummary())
+    }
+
     func classifyArticle(articleID: Int) async throws -> ReaderAIResult {
         ReaderAIResult(ok: true)
     }

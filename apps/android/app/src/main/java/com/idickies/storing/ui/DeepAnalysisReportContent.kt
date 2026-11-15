@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -31,18 +32,15 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.FormatLineSpacing
-import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Link
-import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -99,11 +97,12 @@ internal fun DeepAnalysisReportContent(
   offline: Boolean,
   loading: Boolean,
   errorMessage: String?,
+  deleting: Boolean,
   onDismiss: () -> Unit,
   onGenerate: () -> Unit,
   onRetry: () -> Unit,
   onReload: () -> Unit,
-  onShowHistory: () -> Unit,
+  onDelete: () -> Unit,
 ) {
   val thoughts = remember(report) {
     report?.let(DeepAnalysisReportAnalytics::sectionThoughts).orEmpty()
@@ -113,6 +112,7 @@ internal fun DeepAnalysisReportContent(
     modifier = Modifier
       .fillMaxSize()
       .background(MaterialTheme.colorScheme.background)
+      .statusBarsPadding()
       .navigationBarsPadding(),
     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 36.dp),
   ) {
@@ -122,8 +122,9 @@ internal fun DeepAnalysisReportContent(
         loading = loading,
         offline = offline,
         showActions = report != null,
+        deleting = deleting,
         onGenerate = onGenerate,
-        onShowHistory = onShowHistory,
+        onDelete = onDelete,
         onDismiss = onDismiss,
       )
     }
@@ -138,7 +139,8 @@ internal fun DeepAnalysisReportContent(
           onGenerate = onGenerate,
           onRetry = onRetry,
           onReload = onReload,
-          onShowHistory = onShowHistory,
+          onDelete = onDelete,
+          deleting = deleting,
         )
       }
       return@LazyColumn
@@ -260,12 +262,11 @@ private fun DeepAnalysisTopBar(
   loading: Boolean,
   offline: Boolean,
   showActions: Boolean,
+  deleting: Boolean,
   onGenerate: () -> Unit,
-  onShowHistory: () -> Unit,
+  onDelete: () -> Unit,
   onDismiss: () -> Unit,
 ) {
-  var menuExpanded by remember { mutableStateOf(false) }
-
   Row(
     modifier = Modifier
       .fillMaxWidth()
@@ -292,46 +293,40 @@ private fun DeepAnalysisTopBar(
       )
       Text("深度报告", style = MaterialTheme.typography.titleLarge)
     }
-    StatusPill(text = statusText)
+    if (statusText != "已有报告" && statusText != "加载中") {
+      StatusPill(text = statusText)
+    }
     if (loading) {
       CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
     }
     if (showActions) {
-      Box {
-        IconButton(onClick = { menuExpanded = true }) {
-          Icon(Icons.Outlined.MoreVert, contentDescription = "报告操作")
-        }
-        DropdownMenu(
-          expanded = menuExpanded,
-          onDismissRequest = { menuExpanded = false },
-          modifier = Modifier.border(
-            1.dp,
-            MaterialTheme.colorScheme.outline.copy(alpha = 0.72f),
-            RoundedCornerShape(14.dp),
-          ),
-          shape = RoundedCornerShape(14.dp),
-          containerColor = MaterialTheme.colorScheme.surface,
-          tonalElevation = 0.dp,
-          shadowElevation = 8.dp,
-        ) {
-          DropdownMenuItem(
-            text = { Text(if (loading) "生成中" else "重新生成") },
-            leadingIcon = { Icon(Icons.Outlined.Refresh, contentDescription = null) },
-            enabled = !offline && !loading,
-            onClick = {
-              menuExpanded = false
-              onGenerate()
-            },
-          )
-          DropdownMenuItem(
-            text = { Text("历史版本") },
-            leadingIcon = { Icon(Icons.Outlined.History, contentDescription = null) },
-            onClick = {
-              menuExpanded = false
-              onShowHistory()
-            },
-          )
-        }
+      IconButton(
+        onClick = onGenerate,
+        enabled = !offline && !loading && !deleting,
+      ) {
+        Icon(
+          Icons.Outlined.Refresh,
+          contentDescription = "重新生成深度报告",
+          tint = if (offline || loading) {
+            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+          } else {
+            MaterialTheme.colorScheme.onSurface
+          },
+        )
+      }
+      IconButton(
+        onClick = onDelete,
+        enabled = !loading && !deleting,
+      ) {
+        Icon(
+          Icons.Outlined.DeleteOutline,
+          contentDescription = "删除深度报告",
+          tint = if (deleting) {
+            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+          } else {
+            MaterialTheme.colorScheme.error
+          },
+        )
       }
     }
     IconButton(onClick = onDismiss) {
@@ -359,6 +354,34 @@ private fun StatusPill(text: String) {
       color = color,
     )
   }
+}
+
+@Composable
+internal fun DeepAnalysisDeleteConfirmation(
+  deleting: Boolean,
+  onDismiss: () -> Unit,
+  onConfirm: () -> Unit,
+) {
+  QiankunjieAlertDialog(
+    onDismissRequest = { if (!deleting) onDismiss() },
+    icon = {
+      Icon(
+        Icons.Outlined.DeleteOutline,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.error,
+      )
+    },
+    title = { Text("删除深度报告？") },
+    text = { Text("这篇文章的全部历史版本都会删除。删除后需要重新生成才能恢复。") },
+    dismissButton = {
+      TextButton(onClick = onDismiss, enabled = !deleting) { Text("取消") }
+    },
+    confirmButton = {
+      TextButton(onClick = onConfirm, enabled = !deleting) {
+        Text("删除", color = MaterialTheme.colorScheme.error)
+      }
+    },
+  )
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -1491,7 +1514,8 @@ private fun DeepAnalysisEmptyReport(
   onGenerate: () -> Unit,
   onRetry: () -> Unit,
   onReload: () -> Unit,
-  onShowHistory: () -> Unit,
+  onDelete: () -> Unit,
+  deleting: Boolean,
 ) {
   Column(
     modifier = Modifier
@@ -1552,7 +1576,7 @@ private fun DeepAnalysisEmptyReport(
           Text("生成深度报告")
         }
       }
-      TextButton(onClick = onShowHistory, enabled = !loading) { Text("历史版本") }
+      TextButton(onClick = onDelete, enabled = !loading && !deleting) { Text("删除报告") }
     }
   }
 }

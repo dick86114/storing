@@ -16,6 +16,7 @@ public protocol ReaderNetworkClient: Sendable {
     func regenerateAI(articleID: Int) async throws -> ReaderAIResult
     func submitDeepAnalysis(articleID: Int) async throws -> DeepAnalysisResponse
     func deepAnalysis(articleID: Int) async throws -> DeepAnalysisResponse
+    func deleteDeepAnalysis(articleID: Int) async throws -> DeepAnalysisResponse
     func classifyArticle(articleID: Int) async throws -> ReaderAIResult
     func delete(articleID: Int) async throws -> ReaderDeleteResult
     func permanentDelete(articleID: Int) async throws
@@ -692,6 +693,19 @@ public final class ReaderModel {
         await loadDeepAnalysis(selection: selection)
     }
 
+    @discardableResult
+    public func deleteDeepAnalysis() async -> Bool {
+        guard let selection else { return false }
+        do {
+            deepAnalysisPollTask?.cancel()
+            deepAnalysis = try await client.deleteDeepAnalysis(articleID: selection.articleID)
+            return true
+        } catch {
+            actionErrorMessage = Self.message(for: error)
+            return false
+        }
+    }
+
     private func loadDeepAnalysis(selection: ReaderSelection) async {
         do {
             deepAnalysis = try await client.deepAnalysis(articleID: selection.articleID)
@@ -1192,6 +1206,10 @@ private struct ReaderCategoryUpdateEnvelope: Decodable {
 
     public func deepAnalysis(articleID: Int) async throws -> DeepAnalysisResponse {
         try await send(.get(DeepAnalysisAPIPaths.submit(articleID: articleID)), authenticated: true)
+    }
+
+    public func deleteDeepAnalysis(articleID: Int) async throws -> DeepAnalysisResponse {
+        try await send(.delete(DeepAnalysisAPIPaths.delete(articleID: articleID)), authenticated: true)
     }
 
     public func classifyArticle(articleID: Int) async throws -> ReaderAIResult {

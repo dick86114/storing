@@ -17,3 +17,10 @@ data class DeepAnalysisRestoreResponse(
   val version: Int,
   val summary: DeepAnalysisSummary? = null,
 )
+
+@Serializable
+data class DeepAnalysisDeleteResponse(
+  @SerialName("articleId") val articleId: Int,
+  val summary: DeepAnalysisSummary,
+  val message: String,
+)
