@@ -80,7 +80,7 @@ struct ReaderPaneView: View {
         Group {
             if let selection, let article = model.article, article.id == selection.articleID {
                 reader(article)
-            } else if selection != nil, model.isLoading {
+            } else if selection != nil, model.isLoading, model.article == nil {
                 stateView(title: "正在加载文章", systemImage: "doc.text")
             } else if selection != nil, let errorMessage = model.errorMessage {
                 errorView(errorMessage)

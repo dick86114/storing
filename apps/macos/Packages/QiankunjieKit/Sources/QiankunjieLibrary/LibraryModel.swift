@@ -230,10 +230,6 @@ public final class LibraryModel {
             return
         }
 
-        if reset, let cachedPage {
-            apply(cachedPage, fromCache: true)
-        }
-
         do {
             let freshPage = try await repository.load(query)
             guard requestGeneration == generation else {

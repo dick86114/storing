@@ -521,8 +521,6 @@ public final class ReaderModel {
         savedReadingState = positionStore.readingState(
             articleID: selection.articleID
         )
-        deepAnalysis = nil
-        deepAnalysisPollTask?.cancel()
 
         if !ignoresCache {
             let cached = try? await articleCache.load(

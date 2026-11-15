@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import NextImage from 'next/image';
 import { useSWRConfig } from 'swr';
 import QRCode from 'qrcode';
-import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, GlobalOutlined, DeleteOutlined, UpOutlined, DownOutlined, ClockCircleOutlined, LoadingOutlined, ExclamationCircleOutlined, InfoCircleOutlined, CloseOutlined } from '@ant-design/icons';
+import { LeftOutlined, MoreOutlined, HeartOutlined, HeartFilled, FolderOutlined, FolderFilled, ShareAltOutlined, ReloadOutlined, RobotOutlined, CopyOutlined, ExportOutlined, GlobalOutlined, DeleteOutlined, UpOutlined, DownOutlined, ClockCircleOutlined, LoadingOutlined, ExclamationCircleOutlined, InfoCircleOutlined, CloseOutlined, BulbOutlined } from '@ant-design/icons';
 import { useArticle, useArticleMeta } from '@/hooks/useArticle';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/providers/AuthContext';
@@ -2382,6 +2382,8 @@ function DetailContent({
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [deleteConfirmMode, setDeleteConfirmMode] = useState<DeleteConfirmMode | null>(null);
+  const [deepAnalysisConfirmOpen, setDeepAnalysisConfirmOpen] = useState(false);
+  const [deepAnalysisFailureOpen, setDeepAnalysisFailureOpen] = useState(false);
   const [sharePoster, setSharePoster] = useState<SharePosterState | null>(null);
   const [moveCategoryPickerOpen, setMoveCategoryPickerOpen] = useState(false);
   const [archiveCategoryAssignmentOpen, setArchiveCategoryAssignmentOpen] = useState(false);
@@ -2403,6 +2405,9 @@ function DetailContent({
     || ''
   ).trim();
   const detailHeaderBadge = sourceIcon.kind === 'wechat' ? '公众号' : sourceIcon.label;
+  const deepAnalysisStatus = article?.deepAnalysis?.status ?? null;
+  const deepAnalysisFailed = deepAnalysisStatus === 'failed';
+  const deepAnalysisBusy = deepAnalysisStatus === 'queued' || deepAnalysisStatus === 'running';
   useEffect(() => {
     return () => {
       if (sharePoster?.imageUrl) URL.revokeObjectURL(sharePoster.imageUrl);
@@ -2813,6 +2818,22 @@ function DetailContent({
                       <RobotOutlined />
                       <span>{pendingAction === 'ai' ? '正在生成…' : '重新生成摘要和标签'}</span>
                     </button>
+                    <button
+                      className="app-menu-item detail-more-menu-item"
+                      type="button"
+                      onClick={() => {
+                        setMoreOpen(false);
+                        if (deepAnalysisFailed) {
+                          setDeepAnalysisFailureOpen(true);
+                        } else {
+                          setDeepAnalysisConfirmOpen(true);
+                        }
+                      }}
+                      disabled={deepAnalysisBusy}
+                    >
+                      <BulbOutlined />
+                      <span>{deepAnalysisBusy ? '深度报告生成中…' : deepAnalysisFailed ? '查看失败原因' : '生成深度报告'}</span>
+                    </button>
                     {article?.isArchived && (
                       <button className="app-menu-item detail-more-menu-item" type="button" onClick={() => { setMoreOpen(false); setMoveCategoryPickerOpen(true); }} disabled={!!pendingAction}>
                         <FolderOutlined />
@@ -2878,6 +2899,40 @@ function DetailContent({
           onCancel={() => setDeleteConfirmMode(null)}
           onConfirm={confirmDeleteArticle}
         />
+      )}
+
+      {deepAnalysisConfirmOpen && article && (
+        <section className="confirm-dialog-overlay" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setDeepAnalysisConfirmOpen(false); }}>
+          <div className="confirm-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="deep-analysis-confirm-title" onClick={(event) => event.stopPropagation()}>
+            <div className="confirm-dialog-icon" aria-hidden="true"><BulbOutlined /></div>
+            <div className="confirm-dialog-content">
+              <h2 id="deep-analysis-confirm-title" className="confirm-dialog-title">生成深度报告？</h2>
+              <p className="confirm-dialog-copy">AI 会解析《{article.title}》的核心论点、关键信息和不同观点。</p>
+              <p className="confirm-dialog-note">任务会异步执行；生成完成后可在顶部菜单查看报告。</p>
+            </div>
+            <div className="confirm-dialog-actions">
+              <button className="confirm-dialog-button confirm-dialog-button--secondary" type="button" onClick={() => setDeepAnalysisConfirmOpen(false)}>取消</button>
+              <button className="confirm-dialog-button" type="button" onClick={() => { setDeepAnalysisConfirmOpen(false); showToast('深度报告已提交，生成完成后可查看'); }}>生成报告</button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {deepAnalysisFailureOpen && article && (
+        <section className="confirm-dialog-overlay" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setDeepAnalysisFailureOpen(false); }}>
+          <div className="confirm-dialog-panel confirm-dialog-panel--permanent" role="dialog" aria-modal="true" aria-labelledby="deep-analysis-failure-title" onClick={(event) => event.stopPropagation()}>
+            <div className="confirm-dialog-icon confirm-dialog-icon--danger" aria-hidden="true"><ExclamationCircleOutlined /></div>
+            <div className="confirm-dialog-content">
+              <h2 id="deep-analysis-failure-title" className="confirm-dialog-title">深度报告生成失败</h2>
+              <p className="confirm-dialog-copy">可以查看失败原因后重新生成，已有报告不会受影响。</p>
+              <p className="confirm-dialog-note">{article.deepAnalysis?.errorMessage?.trim() || '服务端未返回具体原因，可能是网络、AI 配置或任务执行异常。'}</p>
+            </div>
+            <div className="confirm-dialog-actions">
+              <button className="confirm-dialog-button confirm-dialog-button--secondary" type="button" onClick={() => setDeepAnalysisFailureOpen(false)}>关闭</button>
+              <button className="confirm-dialog-button" type="button" onClick={() => { setDeepAnalysisFailureOpen(false); setDeepAnalysisConfirmOpen(true); }}>重新生成</button>
+            </div>
+          </div>
+        </section>
       )}
 
       {moveCategoryPickerOpen && article && (
@@ -3237,6 +3292,8 @@ function DetailContent({
             <DeepAnalysisButton
               articleId={article.id}
               initialStatus={article.deepAnalysis?.status ?? null}
+              onRequestGenerate={() => setDeepAnalysisConfirmOpen(true)}
+              onRequestFailure={() => setDeepAnalysisFailureOpen(true)}
             />
           )}
           {article && isAuthenticated && (

@@ -1,30 +1,33 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { BulbOutlined, LoadingOutlined, ReadOutlined, ReloadOutlined } from '@ant-design/icons';
-import { useToast } from '@/components/ui/Toast';
 import { useDeepAnalysisTask } from '@/hooks/useDeepAnalysisTask';
 
 type DeepAnalysisButtonProps = {
   articleId: number;
   initialStatus?: string | null;
+  onRequestGenerate?: () => void;
+  onRequestFailure?: () => void;
 };
 
-export function DeepAnalysisButton({ articleId, initialStatus }: DeepAnalysisButtonProps) {
+export function DeepAnalysisButton({
+  articleId,
+  initialStatus,
+  onRequestGenerate,
+  onRequestFailure,
+}: DeepAnalysisButtonProps) {
   const router = useRouter();
-  const { showToast } = useToast();
-  const { summary, status, pending, submitting, error, generate } = useDeepAnalysisTask(
+  const { summary, status, pending, submitting } = useDeepAnalysisTask(
     articleId,
     initialStatus,
   );
   const hasReport = summary?.hasDeepAnalysis === true || status === 'succeeded';
   const failed = status === 'failed';
   const busy = pending || submitting;
-
-  useEffect(() => {
-    if (error) showToast(error);
-  }, [error, showToast]);
+  const failureMessage = failed
+    ? summary?.errorMessage?.trim() || '生成失败，请稍后重试'
+    : null;
 
   const handleClick = async () => {
     if (busy) return;
@@ -32,8 +35,12 @@ export function DeepAnalysisButton({ articleId, initialStatus }: DeepAnalysisBut
       router.push(`/deep-analysis/${articleId}`);
       return;
     }
-    const submitted = await generate();
-    if (submitted) showToast('深度报告已提交，生成完成后可查看');
+    if (failed) {
+      onRequestFailure?.();
+      return;
+    }
+    onRequestGenerate?.();
+    return;
   };
 
   const label = busy
@@ -43,10 +50,6 @@ export function DeepAnalysisButton({ articleId, initialStatus }: DeepAnalysisBut
       : failed
         ? '重新生成'
         : '深度解析';
-
-  const failureMessage = failed
-    ? summary?.errorMessage?.trim() || '生成失败，请稍后重试'
-    : null;
 
   return (
     <button
@@ -66,11 +69,7 @@ export function DeepAnalysisButton({ articleId, initialStatus }: DeepAnalysisBut
         <BulbOutlined />
       )}
       <span>{label}</span>
-      {failureMessage && (
-        <span className="detail-deep-analysis-btn-error" title={failureMessage}>
-          {failureMessage}
-        </span>
-      )}
+      {failed && <span className="visually-hidden">{failureMessage}</span>}
     </button>
   );
 }

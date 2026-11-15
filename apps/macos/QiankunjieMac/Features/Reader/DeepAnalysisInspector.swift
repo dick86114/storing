@@ -38,6 +38,7 @@ enum DeepAnalysisInspector {
 
         @Environment(\.colorScheme) private var colorScheme
         @State private var confirmAction: DeepAnalysisConfirmAction?
+        @State private var showsFailureReason = false
 
         private var presentation: DeepAnalysisPresentation {
             DeepAnalysisPresentation.of(summary?.status)
@@ -95,6 +96,34 @@ enum DeepAnalysisInspector {
             } message: {
                 Text(confirmAction?.message ?? "")
             }
+            .popover(isPresented: $showsFailureReason, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("失败原因", systemImage: "exclamationmark.triangle")
+                        .font(.headline)
+                        .foregroundStyle(errorColor)
+
+                    Text(failureReason)
+                        .font(.callout)
+                        .foregroundStyle(secondary)
+                        .textSelection(.enabled)
+
+                    HStack {
+                        Spacer()
+                        Button("重新生成") {
+                            showsFailureReason = false
+                            confirmAction = .regenerate
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+                .padding(18)
+                .frame(width: 380, alignment: .leading)
+            }
+        }
+
+        private var failureReason: String {
+            let message = summary?.errorMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return message?.isEmpty == false ? message ?? "" : "服务端未返回具体原因，可能是网络、AI 配置或任务执行异常。"
         }
 
         private var toolbar: some View {
@@ -126,7 +155,13 @@ enum DeepAnalysisInspector {
                 }
 
                 if presentation == .running || presentation == .failed || presentation == .idle {
-                    statusChip
+                    Button(action: presentation == .failed ? { showsFailureReason = true } : {}) {
+                        statusChip
+                    }
+                    .buttonStyle(QiankunjiePlainButtonStyle())
+                    .disabled(presentation != .failed)
+                    .help(presentation == .failed ? "查看失败原因" : statusText)
+                    .accessibilityLabel(presentation == .failed ? "查看失败原因" : statusText)
                 }
 
                 if summary?.stale == true {
