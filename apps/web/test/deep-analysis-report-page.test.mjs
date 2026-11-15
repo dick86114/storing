@@ -49,13 +49,15 @@ const report = {
 
 test('详情页报告入口仅在已有报告时显示，并复用激活状态按钮样式', () => {
   assert.match(button, /if \(!hasReport\) return null/);
-  assert.match(button, /className="detail-panel-action-btn is-active"/);
+  assert.match(button, /className="detail-panel-action-btn detail-report-action is-active"/);
   assert.match(button, /detail-panel-action-label/);
-  assert.match(button, /detail-report-icon/);
+  assert.match(button, /FileTextOutlined/);
   assert.match(button, />解析</);
   assert.doesNotMatch(button, /生成中|深度报告|重新生成/);
   assert.match(button, /router\.push\(`\/deep-analysis\/\$\{articleId\}`\)/);
   assert.match(button, /hasReport/);
+  assert.match(css, /\.detail-panel-footer \.detail-panel-action-btn\.detail-report-action \{[^}]*flex-direction: column/s);
+  assert.match(css, /@media \(min-width: 641px\)[\s\S]*flex-direction: row !important/);
 });
 
 test('报告独立页包含目录、主旨和两类数据图表', () => {

@@ -1349,20 +1349,19 @@ h4 {
   text-align: center;
 }
 
+.detail-panel-footer .detail-panel-action-btn.detail-report-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
 .detail-panel-footer .bookmark-icon,
 .detail-panel-footer .detail-panel-action-btn .anticon {
   width: 22px;
   height: 22px;
   display: grid;
   place-items: center;
-  margin: 0 auto;
-}
-
-.detail-panel-footer .detail-panel-action-btn .detail-report-icon {
-  width: 22px;
-  height: 22px;
-  display: block;
-  flex: 0 0 auto;
   margin: 0 auto;
 }
 
@@ -1396,10 +1395,6 @@ h4 {
 
   .detail-panel-footer .bookmark-icon,
   .detail-panel-footer .detail-panel-action-btn .anticon {
-    margin: 0;
-  }
-
-  .detail-panel-footer .detail-panel-action-btn .detail-report-icon {
     margin: 0;
   }
 }
