@@ -2782,12 +2782,6 @@ function DetailContent({
           <LeftOutlined style={{ fontSize: '22px', color: 'var(--text)' }} />
         </button>
         <div className="detail-panel-header-actions">
-          {isAuthenticated && article && (
-            <DeepAnalysisButton
-              articleId={article.id}
-              initialStatus={article.deepAnalysis?.status ?? null}
-            />
-          )}
           <div style={{ position: 'relative' }}>
           <button
             className={`detail-panel-action-btn${moreOpen ? ' active' : ''}`}
@@ -3239,6 +3233,12 @@ function DetailContent({
         <div className="detail-panel-footer-actions">
           {/* 书签按钮 —— 所有用户可用 */}
           {article && <BookmarkButton onClick={handleSaveBookmark} />}
+          {isAuthenticated && article && (
+            <DeepAnalysisButton
+              articleId={article.id}
+              initialStatus={article.deepAnalysis?.status ?? null}
+            />
+          )}
           {article && isAuthenticated && (
             <>
               <button className="detail-panel-action-btn" onClick={handleArchive} type="button" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', cursor: 'pointer' }}>

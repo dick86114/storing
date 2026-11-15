@@ -17711,6 +17711,14 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   transition: border-color var(--transition), background var(--transition), color var(--transition), transform var(--transition);
 }
 
+.detail-deep-analysis-btn-error {
+  overflow: hidden;
+  max-width: 120px;
+  font-weight: 500;
+  color: var(--danger);
+  text-overflow: ellipsis;
+}
+
 .detail-deep-analysis-btn:hover:not(:disabled) {
   border-color: color-mix(in oklch, var(--accent) 45%, var(--border));
   color: var(--accent);
@@ -19229,9 +19237,28 @@ body.detail-panel-open .detail-panel:not(.mobile-detail-panel) .manual-capture-p
   }
 
   .detail-deep-analysis-btn {
-    max-width: 138px;
-    padding: 0 8px;
+    width: 48px;
+    min-width: 48px;
+    height: auto;
+    min-height: 44px;
+    flex-direction: column;
+    gap: 4px;
+    padding: 1px 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
     font-size: 11px;
+    font-weight: 500;
+  }
+
+  .detail-deep-analysis-btn-error {
+    display: none;
+  }
+
+  .detail-deep-analysis-btn .anticon {
+    font-size: 20px;
+    width: 22px;
+    height: 22px;
   }
 }
 

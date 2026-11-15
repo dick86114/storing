@@ -17,6 +17,7 @@ export type DeepAnalysisSummary = {
   generatedAt: string | null;
   stale: boolean;
   errorCode: string | null;
+  errorMessage?: string | null;
 };
 
 type DeepAnalysisTaskState = {
@@ -67,6 +68,7 @@ export function useDeepAnalysisTask(
           generatedAt: current.summary?.generatedAt ?? null,
           stale: current.summary?.stale ?? false,
           errorCode: current.summary?.errorCode ?? null,
+        errorMessage: current.summary?.errorMessage ?? null,
         }
         : current.summary,
     }));
@@ -160,6 +162,7 @@ export function useDeepAnalysisTask(
             generatedAt: null,
             stale: false,
             errorCode: null,
+          errorMessage: null,
           },
       }));
       return false;

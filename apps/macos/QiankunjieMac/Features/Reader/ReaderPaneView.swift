@@ -170,16 +170,10 @@ struct ReaderPaneView: View {
                 isDeepAnalysisPresented = false
             },
             onGenerate: {
-                isDeepAnalysisPresented = false
-                DispatchQueue.main.async {
-                    isDeepAnalysisConfirming = true
-                }
+                beginDeepAnalysisGeneration()
             },
             onRetry: {
-                isDeepAnalysisPresented = false
-                DispatchQueue.main.async {
-                    isDeepAnalysisConfirming = true
-                }
+                beginDeepAnalysisGeneration()
             },
             onDelete: {
                 Task {

@@ -28,6 +28,7 @@ export type DeepAnalysisSummary = {
   generatedAt: Date | null;
   stale: boolean;
   errorCode: string | null;
+  errorMessage: string | null;
 };
 
 export const DEEP_ANALYSIS_MAX_ATTEMPTS = 3;
@@ -39,6 +40,7 @@ const notGeneratedSummary: DeepAnalysisSummary = {
   generatedAt: null,
   stale: false,
   errorCode: null,
+  errorMessage: null,
 };
 
 export async function ensureDeepAnalysisSchema(): Promise<void> {
@@ -96,6 +98,7 @@ function normalizeSummary(row: typeof articleDeepAnalyses.$inferSelect): DeepAna
     generatedAt: row.finishedAt,
     stale: row.status === 'succeeded' && !row.isCurrent,
     errorCode: row.errorCode,
+    errorMessage: row.errorMessage,
   };
 }
 

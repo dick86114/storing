@@ -1,6 +1,5 @@
 package com.idickies.storing.ui.components
 
-import com.idickies.storing.ai.aiStatusText
 import com.idickies.storing.ui.theme.isQiankunjieDarkTheme
 
 import androidx.compose.foundation.background
@@ -18,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.core.animateFloatAsState
@@ -25,6 +25,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Sync
@@ -202,40 +203,6 @@ fun QiankunjieArticleCard(
           }
         }
         ArticleMetadata(article, color = colors.onSurfaceVariant)
-        if (article.deepAnalysis?.status != null && article.deepAnalysis.status != "not_generated") {
-          Row(
-            modifier = Modifier.padding(top = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-          ) {
-            Icon(
-              imageVector = when (article.deepAnalysis.status) {
-                "succeeded" -> Icons.Outlined.CheckCircle
-                else -> Icons.Outlined.Sync
-              },
-              contentDescription = null,
-              modifier = Modifier.size(14.dp),
-              tint = when (article.deepAnalysis.status) {
-                "succeeded" -> colors.primary
-                "failed" -> colors.error
-                else -> colors.onSurfaceVariant
-              },
-            )
-            Text(
-              when (article.deepAnalysis.status) {
-                "queued", "running" -> "深度解析中"
-                "succeeded" -> "深度报告"
-                "failed" -> "深度解析失败"
-                else -> "深度报告"
-              },
-              style = MaterialTheme.typography.labelMedium,
-              color = when (article.deepAnalysis.status) {
-                "failed" -> colors.error
-                else -> colors.onSurfaceVariant
-              },
-            )
-          }
-        }
         Text(
           article.displayTitle,
           style = MaterialTheme.typography.titleLarge,
@@ -254,12 +221,6 @@ fun QiankunjieArticleCard(
             overflow = TextOverflow.Ellipsis,
           )
         }
-        Text(
-          aiStatusText(article.aiStatus),
-          style = MaterialTheme.typography.labelMedium,
-          color = colors.onSurfaceVariant,
-          modifier = Modifier.padding(top = 10.dp),
-        )
         if (article.aiTags.isNotEmpty()) {
           Row(
             modifier = Modifier.padding(top = 14.dp).fillMaxWidth(),
@@ -432,6 +393,7 @@ fun QiankunjieCompactArticleRow(
 @Composable
 private fun ArticleMetadata(article: ArticleCard, color: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary) {
   Row(
+    modifier = Modifier.fillMaxWidth(),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(6.dp),
   ) {
@@ -463,6 +425,28 @@ private fun ArticleMetadata(article: ArticleCard, color: androidx.compose.ui.gra
         ArticleCardStatusMarker.Archived -> Icon(Icons.Outlined.Inventory2, contentDescription = "已归档", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         ArticleCardStatusMarker.Published -> Icon(Icons.Outlined.Public, contentDescription = "已公开", modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.tertiary)
       }
+    }
+    Spacer(modifier = Modifier.weight(1f))
+    article.deepAnalysis?.takeIf { it.status != "not_generated" }?.let { deepAnalysis ->
+      Icon(
+        imageVector = when (deepAnalysis.status) {
+          "succeeded" -> Icons.Outlined.CheckCircle
+          "failed" -> Icons.Outlined.ErrorOutline
+          else -> Icons.Outlined.Sync
+        },
+        contentDescription = when (deepAnalysis.status) {
+          "succeeded" -> "深度报告已生成"
+          "failed" -> "深度解析失败"
+          "queued", "running" -> "深度解析中"
+          else -> "深度报告"
+        },
+        modifier = Modifier.size(14.dp),
+        tint = when (deepAnalysis.status) {
+          "succeeded" -> MaterialTheme.colorScheme.primary
+          "failed" -> MaterialTheme.colorScheme.error
+          else -> MaterialTheme.colorScheme.onSurfaceVariant
+        },
+      )
     }
   }
 }

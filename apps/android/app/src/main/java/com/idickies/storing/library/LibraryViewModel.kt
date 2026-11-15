@@ -129,6 +129,7 @@ data class DeepAnalysisUiState(
   val report: DeepAnalysisReport? = null,
   val record: DeepAnalysisReportRecord? = null,
   val status: String? = null,
+  val summary: DeepAnalysisSummary? = null,
   val loading: Boolean = false,
   val versions: List<DeepAnalysisVersion> = emptyList(),
   val errorMessage: String? = null,
@@ -197,6 +198,7 @@ class LibraryViewModel @Inject constructor(
               report = response.currentReport,
               record = response.report,
               status = response.summary?.status,
+              summary = response.summary,
               versions = versions,
             ),
           )
@@ -271,6 +273,7 @@ class LibraryViewModel @Inject constructor(
               report = result.currentReport,
               record = result.report,
               status = result.summary?.status,
+              summary = result.summary,
               loading = false,
             ),
           )

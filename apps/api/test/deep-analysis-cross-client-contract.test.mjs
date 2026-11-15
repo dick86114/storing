@@ -7,6 +7,7 @@ const apiRoute = read('../src/routes/deep-analysis.ts');
 const sharedTypes = read('../../../packages/shared/src/types.ts');
 const androidModels = read('../../../apps/android/app/src/main/java/com/idickies/storing/library/ArticleModels.kt');
 const androidApi = read('../../../apps/android/app/src/main/java/com/idickies/storing/network/ArticleApi.kt');
+const deepService = read('../src/services/deep-analysis.service.ts');
 const macModels = read('../../../apps/macos/Packages/QiankunjieKit/Sources/QiankunjieCore/Models/DeepAnalysisModels.swift');
 const macArticleModels = read('../../../apps/macos/Packages/QiankunjieKit/Sources/QiankunjieCore/Models/ArticleModels.swift');
 const webApi = read('../../../apps/web/src/lib/api.ts');
@@ -36,6 +37,13 @@ test('三端模型暴露统一的列表状态字段', () => {
   assert.match(sharedTypes, /deepAnalysis\?: ArticleDeepAnalysisSummary \| null/);
   assert.match(androidModels, /@SerialName\("deepAnalysis"\) val deepAnalysis: DeepAnalysisSummary\? = null/);
   assert.match(macArticleModels, /public let deepAnalysis: DeepAnalysisSummary\?/);
+});
+
+test('三端模型透传深度报告失败原因', () => {
+  assert.match(sharedTypes, /errorMessage\?: string \| null/);
+  assert.match(androidModels, /@SerialName\("errorMessage"\) val errorMessage: String\? = null/);
+  assert.match(macModels, /public var errorMessage: String\?/);
+  assert.match(deepService, /errorMessage: row\.errorMessage/);
 });
 
 test('客户端不直接写普通摘要状态', () => {

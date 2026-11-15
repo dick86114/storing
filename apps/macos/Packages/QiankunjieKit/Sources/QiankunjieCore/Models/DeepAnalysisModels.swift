@@ -7,6 +7,7 @@ public struct DeepAnalysisSummary: Codable, Hashable, Sendable {
     public var generatedAt: Date?
     public var stale: Bool
     public var errorCode: String?
+    public var errorMessage: String?
 
     public init(
         hasDeepAnalysis: Bool = false,
@@ -14,7 +15,8 @@ public struct DeepAnalysisSummary: Codable, Hashable, Sendable {
         version: Int? = nil,
         generatedAt: Date? = nil,
         stale: Bool = false,
-        errorCode: String? = nil
+        errorCode: String? = nil,
+        errorMessage: String? = nil
     ) {
         self.hasDeepAnalysis = hasDeepAnalysis
         self.status = status
@@ -22,6 +24,7 @@ public struct DeepAnalysisSummary: Codable, Hashable, Sendable {
         self.generatedAt = generatedAt
         self.stale = stale
         self.errorCode = errorCode
+        self.errorMessage = errorMessage
     }
 }
 

@@ -159,5 +159,6 @@ export interface ArticleDeepAnalysisSummary {
   generatedAt: string | null;
   stale: boolean;
   errorCode: string | null;
+  errorMessage?: string | null;
 }
 

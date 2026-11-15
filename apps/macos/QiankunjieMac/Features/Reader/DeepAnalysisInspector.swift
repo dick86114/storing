@@ -1431,6 +1431,19 @@ struct DeepAnalysisEmptyState: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 460)
 
+            if let failureMessage = summary?.errorMessage?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !failureMessage.isEmpty,
+               presentation == .failed {
+                Text(failureMessage)
+                    .font(.callout.monospaced())
+                    .foregroundStyle(secondary.opacity(0.9))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 520)
+                    .padding(12)
+                    .background(QiankunjieColors.surface(for: colorScheme))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+
             if presentation == .running {
                 ProgressView()
                     .controlSize(.regular)

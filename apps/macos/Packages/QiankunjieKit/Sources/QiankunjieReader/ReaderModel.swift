@@ -515,7 +515,6 @@ public final class ReaderModel {
         self.selection = selection
         titleOverride = nil
         isDeleted = false
-        isLoading = true
         errorMessage = nil
         actionErrorMessage = nil
         actionError = nil
@@ -544,6 +543,8 @@ public final class ReaderModel {
                 return
             }
         }
+
+        isLoading = true
 
         do {
             let detail = try await client.articleDetail(selection)
@@ -679,7 +680,14 @@ public final class ReaderModel {
                 deepAnalysis = response
             }
         } catch {
-            deepAnalysis = DeepAnalysisResponse(report: nil, summary: DeepAnalysisSummary(status: "failed"))
+            deepAnalysis = DeepAnalysisResponse(
+                report: nil,
+                summary: DeepAnalysisSummary(
+                    status: "failed",
+                    errorCode: Self.deepAnalysisErrorCode(for: error),
+                    errorMessage: Self.message(for: error)
+                )
+            )
             actionErrorMessage = Self.message(for: error)
             return false
         }
@@ -965,6 +973,10 @@ public final class ReaderModel {
         case .server:
             "服务暂时不可用，请稍后重试"
         }
+    }
+
+    private static func deepAnalysisErrorCode(for error: any Error) -> String? {
+        error is AppError ? "AI_GENERATION_FAILED" : nil
     }
 }
 

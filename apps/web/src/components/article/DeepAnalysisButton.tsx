@@ -44,6 +44,10 @@ export function DeepAnalysisButton({ articleId, initialStatus }: DeepAnalysisBut
         ? '重新生成'
         : '深度解析';
 
+  const failureMessage = failed
+    ? summary?.errorMessage?.trim() || '生成失败，请稍后重试'
+    : null;
+
   return (
     <button
       className={`detail-deep-analysis-btn${busy ? ' is-running' : ''}${hasReport ? ' is-ready' : ''}`}
@@ -62,6 +66,11 @@ export function DeepAnalysisButton({ articleId, initialStatus }: DeepAnalysisBut
         <BulbOutlined />
       )}
       <span>{label}</span>
+      {failureMessage && (
+        <span className="detail-deep-analysis-btn-error" title={failureMessage}>
+          {failureMessage}
+        </span>
+      )}
     </button>
   );
 }

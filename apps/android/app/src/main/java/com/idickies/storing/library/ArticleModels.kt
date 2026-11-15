@@ -89,6 +89,7 @@ data class DeepAnalysisSummary(
   @SerialName("generatedAt") val generatedAt: String? = null,
   val stale: Boolean = false,
   val errorCode: String? = null,
+  @SerialName("errorMessage") val errorMessage: String? = null,
 )
 
 @Serializable

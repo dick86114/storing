@@ -378,8 +378,6 @@ struct CompactArticleListView: View {
                         .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
                         .lineLimit(2)
 
-                    aiStatusBadge(article)
-
                     HStack(spacing: 8) {
                         if model.isSearching {
                             Label(
@@ -395,6 +393,9 @@ struct CompactArticleListView: View {
                         if let time = displayTime(article) {
                             Label(time, systemImage: "clock")
                         }
+
+                        DeepAnalysisStatusMark(summary: article.deepAnalysis)
+
                     }
                     .qiankunjieFont(.labelMedium)
                     .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
@@ -458,6 +459,8 @@ struct CompactArticleListView: View {
                         if let time = displayTime(article) {
                             Label(time, systemImage: "clock")
                         }
+
+                        DeepAnalysisStatusMark(summary: article.deepAnalysis)
                     }
                     .qiankunjieFont(.labelMedium)
                     .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
@@ -476,8 +479,6 @@ struct CompactArticleListView: View {
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
                     }
-
-                    aiStatusBadge(article)
 
                     tags(article)
                 }
@@ -565,27 +566,6 @@ struct CompactArticleListView: View {
                 )
             )
             .accessibilityLabel("文章封面")
-    }
-
-    @ViewBuilder
-    private func aiStatusBadge(_ article: ArticleCard) -> some View {
-        if article.aiStatus != nil || article.deepAnalysis?.status != nil {
-            HStack(spacing: 6) {
-                if let aiStatus = article.aiStatus {
-                    Text(aiStatusText(aiStatus))
-                        .qiankunjieFont(.labelMedium)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .background(QiankunjieColors.surface(for: colorScheme))
-                        .clipShape(Capsule())
-                        .overlay {
-                            Capsule().strokeBorder(QiankunjieColors.outline(for: colorScheme))
-                        }
-                }
-                DeepAnalysisStatusMark(summary: article.deepAnalysis)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
     }
 
     private func coverImage(_ article: ArticleCard) -> some View {

@@ -12,9 +12,9 @@ test('文章卡片在现有页脚展示深度报告状态', () => {
   assert.match(card, /深度解析中|深度报告|解析失败/);
 });
 
-test('文章详情右上角只保留深度报告状态按钮', () => {
+test('文章详情底部展示深度报告入口', () => {
   assert.match(detail, /<DeepAnalysisButton/);
-  assert.match(detail, /detail-panel-header-actions/);
+  assert.match(detail, /detail-panel-footer-actions/);
   assert.doesNotMatch(detail, /<DeepAnalysisPanel/);
 });
 

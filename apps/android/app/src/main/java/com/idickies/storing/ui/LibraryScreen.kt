@@ -2673,7 +2673,7 @@ private fun ArticleReader(article: ArticleDetail, canManage: Boolean, readerColo
       },
       offline = isReadingOffline,
       loading = deepAnalysis.loading,
-      errorMessage = deepAnalysis.errorMessage,
+      errorMessage = deepAnalysis.errorMessage ?: deepAnalysis.summary?.errorMessage,
       deleting = deepAnalysis.deleting,
       onDismiss = {
         showDeepAnalysis = false
