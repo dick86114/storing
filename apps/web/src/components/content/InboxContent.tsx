@@ -415,6 +415,7 @@ function InboxContentInner() {
                   result={bulkResult}
                   exportJob={bulkExportJob}
                   selectedCount={selection.selectedIds.size}
+                  allSelectedArchived={false}
                   view="inbox"
                   loading={bulkActions.loadingAction !== null}
                 />

@@ -20,6 +20,7 @@ export interface BulkActionBarProps {
   view: BulkToolbarView;
   mode: boolean;
   selectedCount: number;
+  allSelectedArchived: boolean;
   loading: boolean;
   onToggleMode: () => void;
   onSelectAll: () => void;
@@ -87,6 +88,7 @@ export function BulkActionBar({
   view,
   mode,
   selectedCount,
+  allSelectedArchived,
   loading,
   onToggleMode,
   onSelectAll,
@@ -101,7 +103,9 @@ export function BulkActionBar({
   const [menuOpen, setMenuOpen] = useState(false);
   const [trackedExportJob, setTrackedExportJob] = useState<BulkExportJob | null>(exportJob ?? null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const actions = VIEW_ACTIONS[view];
+  const actions = view === 'favorites' && !allSelectedArchived
+    ? VIEW_ACTIONS.favorites.filter((action) => action !== 'set-category' && action !== 'reclassify')
+    : VIEW_ACTIONS[view];
 
   useEffect(() => {
     if (!menuOpen) return;

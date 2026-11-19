@@ -1944,6 +1944,7 @@ private fun LibraryList(
             isSelecting = batchMode,
             menuExpanded = bulkMenuExpanded,
             selectedIds = selectedArticleIds,
+            selectedArticles = state.articles.filter { it.id in selectedArticleIds },
             runningAction = state.bulkRunningAction,
             result = state.bulkResult,
             exportJob = state.bulkExportJob,

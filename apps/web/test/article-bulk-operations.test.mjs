@@ -69,3 +69,12 @@ test('四个列表复用统一批量操作栏', () => {
     assert.match(source, /selectable=\{bulkMode\}/, file);
   }
 });
+
+test('收件箱和收藏的批量分类动作按归档状态收敛', () => {
+  const actionBar = read('src/components/article/BulkActionBar.tsx');
+  const favorites = read('src/components/content/FavoritesContent.tsx');
+
+  assert.doesNotMatch(actionBar, /VIEW_ACTIONS\.inbox[\s\S]{0,160}'set-category'/);
+  assert.match(actionBar, /view === 'favorites' && !allSelectedArchived/);
+  assert.match(favorites, /allSelectedArchived = useMemo/);
+});

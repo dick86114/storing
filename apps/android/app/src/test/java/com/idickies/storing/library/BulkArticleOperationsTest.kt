@@ -25,6 +25,28 @@ class BulkArticleOperationsTest {
   }
 
   @Test
+  fun `收藏批量分类动作要求全部已归档`() {
+    val favoriteAction = bulkToolbarActions(LibraryView.Favorites)
+    assertFalse(favoriteAction.contains(BulkToolbarAction.SetCategory))
+    assertFalse(favoriteAction.contains(BulkToolbarAction.ReclassifyCategory))
+
+    val unarchivedActions = bulkToolbarActions(
+      LibraryView.Favorites,
+      listOf(ArticleCard(id = 1), ArticleCard(id = 2, isArchived = true)),
+    )
+    assertFalse(unarchivedActions.contains(BulkToolbarAction.SetCategory))
+    assertFalse(unarchivedActions.contains(BulkToolbarAction.ReclassifyCategory))
+    assertTrue(unarchivedActions.contains(BulkToolbarAction.GenerateAi))
+
+    val archivedActions = bulkToolbarActions(
+      LibraryView.Favorites,
+      listOf(ArticleCard(id = 3, isArchived = true), ArticleCard(id = 4, isArchived = true)),
+    )
+    assertTrue(archivedActions.contains(BulkToolbarAction.SetCategory))
+    assertTrue(archivedActions.contains(BulkToolbarAction.ReclassifyCategory))
+  }
+
+  @Test
   fun `Android不包含批量Obsidian动作`() {
     assertFalse(BulkToolbarAction.entries.any { it.name == "BulkObsidian" })
   }

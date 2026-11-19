@@ -56,6 +56,7 @@ fun AndroidBulkActionBar(
   isSelecting: Boolean,
   menuExpanded: Boolean,
   selectedIds: Set<Int>,
+  selectedArticles: List<com.idickies.storing.library.ArticleCard>,
   runningAction: BulkToolbarAction?,
   result: NativeBulkResult?,
   exportJob: com.idickies.storing.library.ArticleBulkExportJob?,
@@ -116,7 +117,7 @@ fun AndroidBulkActionBar(
         style = MaterialTheme.typography.labelLarge,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
       )
-      bulkToolbarActions(view).forEach { action ->
+      bulkToolbarActions(view, selectedArticles).forEach { action ->
         DropdownMenuItem(
           text = {
             Text(

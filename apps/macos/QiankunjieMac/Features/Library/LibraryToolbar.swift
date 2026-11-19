@@ -541,7 +541,14 @@ struct LibraryToolbar: View {
                     Divider()
                 }
 
-                ForEach(BulkArticlePolicy.actions(in: group, for: model.view), id: \.self) { action in
+                ForEach(
+                    BulkArticlePolicy.actions(
+                        in: group,
+                        for: selectedArticles(),
+                        view: model.view
+                    ),
+                    id: \.self
+                ) { action in
                     Button(actionTitle(action)) {
                         switch action {
                         case .archive:
@@ -562,6 +569,10 @@ struct LibraryToolbar: View {
         .buttonStyle(QiankunjiePlainButtonStyle())
         .disabled(model.bulkSelection.isEmpty || model.bulkRunningAction != nil)
         .help("选择批量操作")
+    }
+
+    private func selectedArticles() -> [ArticleCard] {
+        model.articles.filter { model.bulkSelection.contains($0.id) }
     }
 
     private var exitBulkButton: some View {

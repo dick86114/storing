@@ -51,9 +51,22 @@ public enum BulkArticlePolicy {
     /// 单篇文章右键菜单需要按文章状态过滤收藏与发布动作。
     public static func actions(
         in group: BulkActionGroup,
-        for article: ArticleCard
+        for article: ArticleCard,
+        view: LibraryView
     ) -> [BulkToolbarAction] {
-        availableActions(in: group, for: article)
+        availableActions(in: group, for: article, view: view)
+    }
+
+    /// 批量菜单按所选文章聚合判断；分类动作要求全部文章都已归档。
+    public static func actions(
+        in group: BulkActionGroup,
+        for articles: [ArticleCard],
+        view: LibraryView
+    ) -> [BulkToolbarAction] {
+        availableActions(in: group, for: view).filter { action in
+            guard action == .setCategory || action == .reclassify else { return true }
+            return !articles.isEmpty && articles.allSatisfy(\.isArchived)
+        }
     }
 
     private static func availableActions(
@@ -66,9 +79,10 @@ public enum BulkArticlePolicy {
 
     private static func availableActions(
         in group: BulkActionGroup,
-        for article: ArticleCard
+        for article: ArticleCard,
+        view: LibraryView
     ) -> [BulkToolbarAction] {
-        availableActions(in: group, for: .archive).filter { action in
+        availableActions(in: group, for: view).filter { action in
             switch action {
             case .favorite:
                 !article.isFavorited
@@ -82,6 +96,8 @@ public enum BulkArticlePolicy {
                 !article.isPublished
             case .unpublish:
                 article.isPublished
+            case .setCategory, .reclassify:
+                article.isArchived
             default:
                 true
             }
@@ -106,7 +122,10 @@ public enum BulkArticlePolicy {
         case .inbox:
             [.favorite, .archive, .generateAI, .publish, .exportZIP, .bulkObsidian, .delete, .permanentDelete]
         case .favorites:
-            [.unfavorite, .archive, .generateAI, .publish, .exportZIP, .bulkObsidian, .delete, .permanentDelete]
+            [
+                .unfavorite, .archive, .setCategory, .reclassify, .generateAI,
+                .publish, .exportZIP, .bulkObsidian, .delete, .permanentDelete,
+            ]
         case .archive:
             [
                 .favorite, .unfavorite, .unarchive, .setCategory, .reclassify, .generateAI,

@@ -311,8 +311,11 @@ struct CompactArticleListView: View {
                             Divider()
 
                             ForEach(
-                                targetArticle.map { BulkArticlePolicy.actions(in: group, for: $0) }
-                                    ?? BulkArticlePolicy.actions(in: group, for: model.view),
+                                BulkArticlePolicy.actions(
+                                    in: group,
+                                    for: targetArticle.map { [$0] } ?? selectedArticles(),
+                                    view: model.view
+                                ),
                                 id: \.self
                             ) { action in
                                 contextMenuButton(action, targetArticleID: targetArticleID)

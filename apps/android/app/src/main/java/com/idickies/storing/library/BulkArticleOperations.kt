@@ -32,43 +32,55 @@ enum class BulkToolbarAction {
   ExportZip,
 }
 
-fun bulkToolbarActions(view: LibraryView): List<BulkToolbarAction> = when (view) {
-  LibraryView.Inbox -> listOf(
-    BulkToolbarAction.Favorite,
-    BulkToolbarAction.Archive,
-    BulkToolbarAction.Delete,
-    BulkToolbarAction.PermanentDelete,
-    BulkToolbarAction.GenerateAi,
-    BulkToolbarAction.Publish,
-    BulkToolbarAction.ExportZip,
-  )
-  LibraryView.Favorites -> listOf(
-    BulkToolbarAction.Unfavorite,
-    BulkToolbarAction.Archive,
-    BulkToolbarAction.Delete,
-    BulkToolbarAction.PermanentDelete,
-    BulkToolbarAction.GenerateAi,
-    BulkToolbarAction.Publish,
-    BulkToolbarAction.ExportZip,
-  )
-  LibraryView.Archive -> listOf(
-    BulkToolbarAction.Favorite,
-    BulkToolbarAction.Unfavorite,
-    BulkToolbarAction.Unarchive,
+fun bulkToolbarActions(view: LibraryView, articles: List<ArticleCard> = emptyList()): List<BulkToolbarAction> {
+  val baseActions = when (view) {
+    LibraryView.Inbox -> listOf(
+      BulkToolbarAction.Favorite,
+      BulkToolbarAction.Archive,
+      BulkToolbarAction.Delete,
+      BulkToolbarAction.PermanentDelete,
+      BulkToolbarAction.GenerateAi,
+      BulkToolbarAction.Publish,
+      BulkToolbarAction.ExportZip,
+    )
+    LibraryView.Favorites -> listOf(
+      BulkToolbarAction.Unfavorite,
+      BulkToolbarAction.Archive,
+      BulkToolbarAction.SetCategory,
+      BulkToolbarAction.ReclassifyCategory,
+      BulkToolbarAction.Delete,
+      BulkToolbarAction.PermanentDelete,
+      BulkToolbarAction.GenerateAi,
+      BulkToolbarAction.Publish,
+      BulkToolbarAction.ExportZip,
+    )
+    LibraryView.Archive -> listOf(
+      BulkToolbarAction.Favorite,
+      BulkToolbarAction.Unfavorite,
+      BulkToolbarAction.Unarchive,
+      BulkToolbarAction.SetCategory,
+      BulkToolbarAction.ReclassifyCategory,
+      BulkToolbarAction.GenerateAi,
+      BulkToolbarAction.Delete,
+      BulkToolbarAction.PermanentDelete,
+      BulkToolbarAction.Publish,
+      BulkToolbarAction.Unpublish,
+      BulkToolbarAction.ExportZip,
+    )
+    LibraryView.Published -> listOf(
+      BulkToolbarAction.Unpublish,
+      BulkToolbarAction.Delete,
+      BulkToolbarAction.PermanentDelete,
+      BulkToolbarAction.ExportZip,
+    )
+  }
+  if (view != LibraryView.Favorites) return baseActions
+  val selectedArticleIds = articles.map { it.id }.toSet()
+  val selectedArticles = articles.filter { it.id in selectedArticleIds }
+  val allSelectedArchived = selectedArticles.isNotEmpty() && selectedArticles.all { it.isArchived }
+  return if (allSelectedArchived) baseActions else baseActions - setOf(
     BulkToolbarAction.SetCategory,
     BulkToolbarAction.ReclassifyCategory,
-    BulkToolbarAction.GenerateAi,
-    BulkToolbarAction.Delete,
-    BulkToolbarAction.PermanentDelete,
-    BulkToolbarAction.Publish,
-    BulkToolbarAction.Unpublish,
-    BulkToolbarAction.ExportZip,
-  )
-  LibraryView.Published -> listOf(
-    BulkToolbarAction.Unpublish,
-    BulkToolbarAction.Delete,
-    BulkToolbarAction.PermanentDelete,
-    BulkToolbarAction.ExportZip,
   )
 }
 

@@ -411,6 +411,7 @@ function ArchiveContentInner() {
             result={bulkResult}
             exportJob={bulkExportJob}
             selectedCount={selection.selectedIds.size}
+            allSelectedArchived
             view="archive"
           />
         ) : null}

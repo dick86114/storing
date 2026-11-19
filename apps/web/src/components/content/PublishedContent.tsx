@@ -105,6 +105,7 @@ export function PublishedContent() {
           result={bulkResult}
           exportJob={bulkExportJob}
           selectedCount={selection.selectedIds.size}
+          allSelectedArchived={false}
           view="published"
         />
       )}

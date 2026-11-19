@@ -33,24 +33,73 @@ struct BulkArticlePolicyTests {
         let publish = BulkActionGroup.publish
 
         #expect(
-            BulkArticlePolicy.actions(in: organize, for: ArticleCard(id: 1))
+            BulkArticlePolicy.actions(in: organize, for: ArticleCard(id: 1), view: .archive)
                 == [.favorite]
         )
         #expect(
             BulkArticlePolicy.actions(
                 in: organize,
-                for: ArticleCard(id: 2, isFavorited: true)
+                for: ArticleCard(id: 2, isFavorited: true),
+                view: .archive
             ) == [.unfavorite]
         )
         #expect(
-            BulkArticlePolicy.actions(in: publish, for: ArticleCard(id: 3))
+            BulkArticlePolicy.actions(in: publish, for: ArticleCard(id: 3), view: .archive)
                 == [.publish, .exportZIP, .bulkObsidian]
         )
         #expect(
             BulkArticlePolicy.actions(
                 in: publish,
-                for: ArticleCard(id: 4, isPublished: true)
+                for: ArticleCard(id: 4, isPublished: true),
+                view: .archive
             ) == [.unpublish, .exportZIP, .bulkObsidian]
+        )
+    }
+
+    @Test func 收件箱单篇文章菜单不包含分类动作() {
+        let categorize = BulkActionGroup.categorize
+
+        #expect(
+            BulkArticlePolicy.actions(in: categorize, for: ArticleCard(id: 1), view: .inbox)
+                == [.generateAI]
+        )
+    }
+
+    @Test func 收藏批量菜单只有全部已归档才显示分类动作() {
+        let categorize = BulkActionGroup.categorize
+
+        #expect(
+            BulkArticlePolicy.actions(in: categorize, for: [ArticleCard(id: 1)], view: .favorites)
+                == [.generateAI]
+        )
+        #expect(
+            BulkArticlePolicy.actions(
+                in: categorize,
+                for: [ArticleCard(id: 2, isArchived: true), ArticleCard(id: 3)],
+                view: .favorites
+            )
+                == [.generateAI]
+        )
+        #expect(
+            BulkArticlePolicy.actions(
+                in: categorize,
+                for: [ArticleCard(id: 4, isArchived: true), ArticleCard(id: 5, isArchived: true)],
+                view: .favorites
+            )
+                == [.setCategory, .reclassify, .generateAI]
+        )
+    }
+
+    @Test func 收藏里只有已归档文章才有分类动作() {
+        let categorize = BulkActionGroup.categorize
+
+        #expect(
+            BulkArticlePolicy.actions(in: categorize, for: ArticleCard(id: 1), view: .favorites)
+                == [.generateAI]
+        )
+        #expect(
+            BulkArticlePolicy.actions(in: categorize, for: ArticleCard(id: 2, isArchived: true), view: .favorites)
+                == [.setCategory, .reclassify, .generateAI]
         )
     }
 

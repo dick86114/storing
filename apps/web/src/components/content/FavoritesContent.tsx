@@ -77,6 +77,12 @@ function FavoritesContentInner() {
   }, [bulkMode, selection]);
   const allArticlesRef = useRef(allArticles);
   allArticlesRef.current = allArticles;
+  const allSelectedArchived = useMemo(
+    () => [...selection.selectedIds].every(
+      (id) => allArticles.find((article) => article.id === id)?.isArchived === true,
+    ),
+    [allArticles, selection.selectedIds],
+  );
 
   const handleContinueReading = () => {
     if (!bookmarkPrompt) return;
@@ -439,6 +445,7 @@ function FavoritesContentInner() {
                   result={bulkResult}
                   exportJob={bulkExportJob}
                   selectedCount={selection.selectedIds.size}
+                  allSelectedArchived={allSelectedArchived}
                   view="favorites"
                 />
               ) : undefined}
