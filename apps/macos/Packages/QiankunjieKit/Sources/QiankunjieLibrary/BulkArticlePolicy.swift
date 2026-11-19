@@ -64,8 +64,24 @@ public enum BulkArticlePolicy {
         view: LibraryView
     ) -> [BulkToolbarAction] {
         availableActions(in: group, for: view).filter { action in
-            guard action == .setCategory || action == .reclassify else { return true }
-            return !articles.isEmpty && articles.allSatisfy(\.isArchived)
+            switch action {
+            case .favorite:
+                articles.contains { !$0.isFavorited }
+            case .unfavorite:
+                articles.contains { $0.isFavorited }
+            case .archive:
+                articles.contains { !$0.isArchived }
+            case .unarchive:
+                articles.contains { $0.isArchived }
+            case .publish:
+                articles.contains { !$0.isPublished }
+            case .unpublish:
+                articles.contains { $0.isPublished }
+            case .setCategory, .reclassify:
+                !articles.isEmpty && articles.allSatisfy(\.isArchived)
+            default:
+                true
+            }
         }
     }
 

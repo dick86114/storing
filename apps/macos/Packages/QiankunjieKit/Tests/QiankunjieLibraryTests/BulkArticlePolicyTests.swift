@@ -90,6 +90,27 @@ struct BulkArticlePolicyTests {
         )
     }
 
+    @Test func 归档批量菜单按文章状态聚合整理动作() {
+        let organize = BulkActionGroup.organize
+        let mixed = [
+            ArticleCard(id: 1, isFavorited: true, isArchived: true),
+            ArticleCard(id: 2, isArchived: true),
+        ]
+        let allFavorited = [
+            ArticleCard(id: 3, isFavorited: true, isArchived: true),
+            ArticleCard(id: 4, isFavorited: true, isArchived: true),
+        ]
+
+        #expect(
+            BulkArticlePolicy.actions(in: organize, for: mixed, view: .archive)
+                == [.favorite, .unfavorite, .unarchive]
+        )
+        #expect(
+            BulkArticlePolicy.actions(in: organize, for: allFavorited, view: .archive)
+                == [.unfavorite, .unarchive]
+        )
+    }
+
     @Test func 收藏里只有已归档文章才有分类动作() {
         let categorize = BulkActionGroup.categorize
 
