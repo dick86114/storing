@@ -254,6 +254,9 @@ final class AppModel {
         collectModel.onArticleImported = { [weak self] _ in
             self?.refreshInboxAfterArticleImport()
         }
+        collectModel.onJobsChanged = { [weak self] in
+            self?.synchronizeSelectedFailedCollectJob()
+        }
         self.libraryModel.bulkExportHandler = { job in
             let finishedJob = try await bulkExportService.poll(jobID: job.id)
             return try await bulkExportService.save(finishedJob)
@@ -542,6 +545,11 @@ final class AppModel {
         } else {
             openCollectArticle(job)
         }
+    }
+
+    private func synchronizeSelectedFailedCollectJob() {
+        guard selectedFailedCollectJobID != nil, selectedFailedCollectJob == nil else { return }
+        selectedFailedCollectJobID = nil
     }
 
     func closeCollectFailureDetail() {

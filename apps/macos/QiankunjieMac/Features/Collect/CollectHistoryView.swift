@@ -200,13 +200,15 @@ struct CollectJobRow: View {
     var onDelete: (() -> Void)?
     @Environment(\.colorScheme) private var colorScheme
 
+    private var diagnostics: CollectFailureDiagnostics { CollectFailureDiagnostics(job: job) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 10) {
                 statusIcon
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(job.title ?? job.url)
+                    Text(diagnostics.displayTitle)
                         .qiankunjieFont(.titleMedium)
                         .foregroundStyle(QiankunjieColors.onSurface(for: colorScheme))
                         .lineLimit(2)
@@ -228,7 +230,7 @@ struct CollectJobRow: View {
                     .lineLimit(1)
 
                     if job.status == "failed" {
-                        Text(job.errorSummary ?? job.error ?? "采集失败")
+                        Text(diagnostics.summary)
                             .qiankunjieFont(.bodyMedium)
                             .foregroundStyle(
                                 colorScheme == .dark
@@ -237,7 +239,7 @@ struct CollectJobRow: View {
                             )
                             .lineLimit(3)
 
-                        if let hint = job.errorHint {
+                        if let hint = diagnostics.hint {
                             Text(hint)
                                 .qiankunjieFont(.labelMedium)
                                 .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
@@ -292,6 +294,17 @@ struct CollectJobRow: View {
                 )
         }
         .contentShape(Rectangle())
+        .focusable(onSelect != nil)
+        .onKeyPress(.return) {
+            guard onSelect != nil else { return .ignored }
+            onSelect?()
+            return .handled
+        }
+        .onKeyPress(.space) {
+            guard onSelect != nil else { return .ignored }
+            onSelect?()
+            return .handled
+        }
         .onTapGesture { onSelect?() }
         .qiankunjieInteractiveHover(isActive: onSelect != nil)
         .help(onSelect == nil ? "" : job.status == "failed" ? "在右侧查看失败详情" : "在右侧打开正文")

@@ -113,21 +113,7 @@ struct CollectTasksView: View {
                             model.pendingDeletionJobID = job.id
                         } : nil
                     )
-                    .contextMenu {
-                        if let url = CollectTaskLink.url(for: job) {
-                            Button {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(url.absoluteString, forType: .string)
-                            } label: {
-                                Label("复制链接", systemImage: "link")
-                            }
-                            Button {
-                                NSWorkspace.shared.open(url)
-                            } label: {
-                                Label("用默认浏览器打开", systemImage: "safari")
-                            }
-                        }
-                    }
+                    .modifier(CollectTaskLinkContextMenu(job: job))
                 }
 
                 if model.hasMore {

@@ -31,9 +31,12 @@ public final class CollectModel {
     public var pendingDeletionJobID: Int?
     public var isClearConfirmationPresented = false
     public var onArticleImported: (@MainActor (CollectJob) -> Void)?
+    @ObservationIgnored public var onJobsChanged: (@MainActor () -> Void)?
 
     public private(set) var userID: Int?
-    public private(set) var jobs: [CollectJob] = []
+    public private(set) var jobs: [CollectJob] = [] {
+        didSet { onJobsChanged?() }
+    }
     public private(set) var currentJob: CollectJob?
     public private(set) var total = 0
     public private(set) var hasMore = false
