@@ -109,21 +109,81 @@ test('远程 HTML 的正文容器只有错误图片时仍拒绝', async () => {
   );
 });
 
-test('平台或作者删除文章的变体不能通过标题、HTML 或 Markdown', async () => {
-  const variants = ['该文章已被平台删除，请稍后再试。', '该文章已被作者删除，请稍后再试。', '该文章已被发布者删除，请稍后再试。'];
+test('删除或停止访问提示不能通过标题、JSON、HTML 或 Markdown', async () => {
+  const variants = [
+    '该文章已被平台删除，请稍后再试。',
+    '该文章已被作者删除，请稍后再试。',
+    '该文章已被发布者删除，请稍后再试。',
+    '该内容因用户投诉已停止访问。',
+    '该内容因用户投诉无法查看。',
+    '该内容涉嫌违规，无法查看。',
+    '该文章已经无法查看。',
+    '该页面已不存在。',
+    '该内容已由平台删除。',
+    '该文章已被系统删除或屏蔽。',
+    '该文章已被删除 | 微信公众平台',
+  ];
   for (const variant of variants) {
+    const notice = variant.repeat(8);
+    const html = `<div id="js_content"><p>${notice}</p></div>`;
+    for (const candidate of ['title', 'json', 'html', 'markdown']) {
+      await assert.rejects(
+        captureWechatArticleInMemory('https://mp.weixin.qq.com/s/deleted', {
+          fetchJson: async () => candidate === 'json' ? { content_noencode: html } : null,
+          fetchPageMeta: async () => ({ title: candidate === 'title' ? variant : '待抓取文章', source: '微信公众号' }),
+          fetchContent: async (_article, format) => {
+            if (candidate !== format) return null;
+            return format === 'html' ? html : notice;
+          },
+        }),
+        candidate === 'title' ? /页面要求访问验证或内容不可用/ : /未返回有效正文/,
+        `${candidate} 应拒绝提示「${variant}」`,
+      );
+    }
+  }
+});
+
+test('保留 HTML 块和 Markdown 行边界以识别独立的删除提示', async () => {
+  const details = '微信公众平台提示，请稍后再试。'.repeat(10);
+  const candidates = {
+    html: `<div id="js_content"><p>该文章已被删除</p><p>${details}</p></div>`,
+    markdown: `## **该文章已被删除**\n\n${details}`,
+  };
+  for (const [candidate, content] of Object.entries(candidates)) {
     await assert.rejects(
-      captureWechatArticleInMemory(`https://mp.weixin.qq.com/s/deleted-${variants.indexOf(variant)}`, {
+      captureWechatArticleInMemory('https://mp.weixin.qq.com/s/notice-block', {
         fetchJson: async () => null,
-        fetchPageMeta: async () => ({ title: '文章已被平台删除', source: '微信公众号' }),
-        fetchContent: async (_article, format) => format === 'html'
-          ? `<html><head><title>待抓取文章</title></head><body><div id="js_content"><p>${variant.repeat(12)}</p></div></body></html>`
-          : variant.repeat(8),
+        fetchPageMeta: async () => ({ title: '待抓取文章', source: '微信公众号' }),
+        fetchContent: async (_article, format) => candidate === format ? content : null,
       }),
       /微信公众号正文抓取失败/,
+      `${candidate} 应拒绝独立的删除提示`,
     );
   }
 });
+
+for (const candidate of ['json', 'html', 'markdown']) {
+  test(`${candidate} 正文提到端口被屏蔽时仍可采集`, async () => {
+    const paragraphs = [
+      'SMB 是局域网里的直达通道。',
+      '部分端口可能被运营商或防火墙屏蔽，就算不被屏蔽，在公网上直接使用SMB无异于把自己的传输使用内容发给别人。',
+      '管理员看到「该链接不可用，请检查网络」时，可以先检查网络访问范围和权限设置。',
+    ];
+    const html = `<div id="js_content">${paragraphs.map((paragraph) => `<p>${paragraph}</p>`).join('')}</div>`;
+    const result = await captureWechatArticleInMemory('https://mp.weixin.qq.com/s/smb-webdav', {
+      fetchJson: async () => candidate === 'json' ? { content_noencode: html } : null,
+      fetchPageMeta: async () => ({ title: 'SMB 和 WebDAV 文件共享', source: '微信公众号' }),
+      fetchContent: async (_article, format) => {
+        if (candidate !== format) return null;
+        return format === 'html' ? html : paragraphs.join('\n\n');
+      },
+    });
+
+    assert.match(result.contentMarkdown || '', /被运营商或防火墙屏蔽/);
+    assert.match(result.contentMarkdown || '', /传输使用内容发给别人/);
+    assert.match(result.contentMarkdown || '', /该链接不可用，请检查网络/);
+  });
+}
 
 test('至少一种格式得到有效正文时才返回可持久化候选', async () => {
   const paragraph = '这是一段有效正文，包含足够长度用于验证，并且需要在 Markdown 中保留正文图片。'.repeat(3);

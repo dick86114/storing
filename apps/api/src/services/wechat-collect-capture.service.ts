@@ -136,12 +136,27 @@ const BLOCKED_CONTENT_PATTERNS = [
   /请稍后重新打开/i,
 ];
 
+const UNAVAILABLE_PAGE_SUBJECT = '(?:文章|内容|页面|链接|公众号)';
+const UNAVAILABLE_PAGE_ACTION = '(?:删除|移除|下线|屏蔽|封禁)';
+const UNAVAILABLE_PAGE_ACTOR = '(?:微信公众平台|微信平台|平台|发布者|作者|管理员|系统|腾讯|运营)';
+const UNAVAILABLE_PAGE_STATUS = [
+  `(?:被${UNAVAILABLE_PAGE_ACTOR}?|由${UNAVAILABLE_PAGE_ACTOR}|遭)${UNAVAILABLE_PAGE_ACTION}`,
+  '无法(?:查看|阅读|访问)|不可(?:查看|阅读)|不存在|失效|过期|访问受限|不可用|停止访问',
+].join('|');
+const UNAVAILABLE_PAGE_REASON = '(?:因(?:违规|(?:用户)?投诉)|涉嫌违规|被多人投诉)';
+const UNAVAILABLE_PAGE_NOTICE = new RegExp(
+  '(?:^|[\\r\\n。！？]) *(?:#{1,6} +)?[*_]*'
+  + `(?:(?:该|此|本|这篇|这条|这个)? *${UNAVAILABLE_PAGE_SUBJECT} *`
+  + `(?:${UNAVAILABLE_PAGE_REASON} *[，,]? *)?(?:目前|当前|暂时|暂)? *`
+  + `(?:已(?:经)? *${UNAVAILABLE_PAGE_ACTION}|(?:已(?:经)? *)?(?:${UNAVAILABLE_PAGE_STATUS}))`
+  + `(?:(?:或|或者)(?:已被)?${UNAVAILABLE_PAGE_ACTION})?`
+  + `|无法(?:查看|阅读|访问) *(?:该|此|本|这篇|这条|这个) *${UNAVAILABLE_PAGE_SUBJECT})`
+  + '(?:了)?[*_]*(?= *(?:[\\r\\n，。！？；：,.!?;:…|—·-]|$))',
+);
+
 function looksLikeUnavailablePage(text: string) {
-  const probe = text.replace(/\s+/g, ' ').trim();
-  if (!probe) return false;
-  const subject = '(?:文章|内容|页面|链接|公众号)';
-  const unavailable = '(?:已?(?:删除|移除|下线|屏蔽|封禁)|被[^。！？\\n]{0,20}(?:删除|移除|下线|屏蔽|封禁)|遭(?:删除|移除|下线)|无法(?:查看|阅读)|不可(?:查看|阅读)|不存在|已失效|已过期|违规|停止访问|无法访问|访问受限|不可用)';
-  return new RegExp(`${subject}.{0,24}${unavailable}|${unavailable}.{0,24}${subject}`, 'i').test(probe);
+  // 在标题、句首或独立行识别页面状态，避免误判正文中转述的提示。
+  return UNAVAILABLE_PAGE_NOTICE.test(text.replace(/[^\S\r\n]+/g, ' ').trim());
 }
 
 function normalizeMarkdown(value: string) {
@@ -221,7 +236,7 @@ function isUsableCapturedHtml(
   if (BLOCKED_TITLE_PATTERNS.some((pattern) => pattern.test(title))) return false;
   if (looksLikeUnavailablePage(title)) return false;
   if (BLOCKED_CONTENT_PATTERNS.some((pattern) => pattern.test(bodyText))) return false;
-  if (looksLikeUnavailablePage(bodyText)) return false;
+  if (doc.body && looksLikeUnavailablePage(markdownForNode(doc.body))) return false;
   if (!trustedStructure && !options.allowImageOnly) return false;
   if (articleText.length >= 80) return true;
   if (articleImages > 0 && options.allowImageOnly) return true;
