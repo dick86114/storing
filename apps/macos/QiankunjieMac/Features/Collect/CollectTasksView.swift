@@ -1,3 +1,4 @@
+import AppKit
 import QiankunjieCollect
 import QiankunjieCore
 import QiankunjieDesignSystem
@@ -5,9 +6,9 @@ import SwiftUI
 
 struct CollectTasksView: View {
     @Bindable var model: CollectModel
-    /// 右侧当前打开的正文。
     var selectedArticleID: Int?
-    let onOpenArticle: @MainActor (CollectJob) -> Void
+    var selectedFailedJobID: Int?
+    let onSelectJob: @MainActor (CollectJob) -> Void
     @Environment(\.colorScheme) private var colorScheme
 
     private var deletionConfirmation: Binding<Bool> {
@@ -103,16 +104,30 @@ struct CollectTasksView: View {
                 ForEach(model.jobs, id: \.id) { job in
                     CollectJobRow(
                         job: job,
-                        isSelected: job.articleId != nil && job.articleId == selectedArticleID,
+                        isSelected: job.status == "failed" ? job.id == selectedFailedJobID
+                            : job.articleId != nil && job.articleId == selectedArticleID,
                         isMutating: model.mutatingJobIDs.contains(job.id),
-                        onOpenArticle: job.articleId == nil ? nil : {
-                            onOpenArticle(job)
-                        },
+                        onSelect: job.status == "failed" || job.articleId != nil ? { onSelectJob(job) } : nil,
                         onRetry: job.status == "failed" ? { retry(job) } : nil,
                         onDelete: job.isTerminal ? {
                             model.pendingDeletionJobID = job.id
                         } : nil
                     )
+                    .contextMenu {
+                        if let url = CollectTaskLink.url(for: job) {
+                            Button {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(url.absoluteString, forType: .string)
+                            } label: {
+                                Label("复制链接", systemImage: "link")
+                            }
+                            Button {
+                                NSWorkspace.shared.open(url)
+                            } label: {
+                                Label("用默认浏览器打开", systemImage: "safari")
+                            }
+                        }
+                    }
                 }
 
                 if model.hasMore {

@@ -3,13 +3,12 @@ import QiankunjieCore
 import QiankunjieDesignSystem
 import SwiftUI
 
-/// 历史任务列表栏（左侧列表 + 右侧正文，与资料库列表栏同构）。
-/// 顶部工具栏：标题 + 计数 + 采集（浮出弹窗）/ 刷新 / 清理；点击任务记录在右侧打开正文。
+/// 历史任务列表栏，选中任务后在右侧显示正文或失败详情。
 struct CollectHistoryView: View {
     @Bindable var model: CollectModel
-    let onOpenArticle: @MainActor (CollectJob) -> Void
-    /// 右侧当前打开的正文（用于高亮列表行）。
+    let onSelectJob: @MainActor (CollectJob) -> Void
     var selectedArticleID: Int?
+    var selectedFailedJobID: Int?
     /// 未登录时点击「登录」。
     var onRequestLogin: () -> Void = {}
     @Environment(\.colorScheme) private var colorScheme
@@ -30,7 +29,8 @@ struct CollectHistoryView: View {
                 CollectTasksView(
                     model: model,
                     selectedArticleID: selectedArticleID,
-                    onOpenArticle: onOpenArticle
+                    selectedFailedJobID: selectedFailedJobID,
+                    onSelectJob: onSelectJob
                 )
             }
         }
@@ -192,10 +192,10 @@ struct CollectHistoryView: View {
 
 struct CollectJobRow: View {
     let job: CollectJob
-    /// 右侧正文是否正显示这条任务的正文。
+    /// 右侧是否正显示这条任务的内容。
     var isSelected = false
     var isMutating = false
-    var onOpenArticle: (() -> Void)?
+    var onSelect: (() -> Void)?
     var onRetry: (() -> Void)?
     var onDelete: (() -> Void)?
     @Environment(\.colorScheme) private var colorScheme
@@ -292,13 +292,13 @@ struct CollectJobRow: View {
                 )
         }
         .contentShape(Rectangle())
-        .onTapGesture {
-            guard onOpenArticle != nil else { return }
-            openArticle()
+        .onTapGesture { onSelect?() }
+        .qiankunjieInteractiveHover(isActive: onSelect != nil)
+        .help(onSelect == nil ? "" : job.status == "failed" ? "在右侧查看失败详情" : "在右侧打开正文")
+        .accessibilityAddTraits(onSelect == nil ? [] : .isButton)
+        .accessibilityAction {
+            onSelect?()
         }
-        .qiankunjieInteractiveHover(isActive: onOpenArticle != nil)
-        .help(onOpenArticle == nil ? "" : "在右侧打开正文")
-        .accessibilityAddTraits(onOpenArticle == nil ? [] : .isButton)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
@@ -345,10 +345,6 @@ struct CollectJobRow: View {
         case "failed": "采集失败"
         default: job.status
         }
-    }
-
-    private func openArticle() {
-        onOpenArticle?()
     }
 
     private func retryJob() {

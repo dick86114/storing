@@ -12,7 +12,8 @@ public struct CollectJob: Codable, Hashable, Sendable {
     public let title: String?
     public let error: String?
     public let errorSummary: String?
-    public let errorDetails: [String]
+    private let storedErrorDetails: [String]?
+    public var errorDetails: [String] { storedErrorDetails ?? [] }
     public let errorHint: String?
     public let createdAt: Date?
     public let updatedAt: Date?
@@ -35,7 +36,7 @@ public struct CollectJob: Codable, Hashable, Sendable {
         case title
         case error
         case errorSummary = "errorSummary"
-        case errorDetails = "errorDetails"
+        case storedErrorDetails = "errorDetails"
         case errorHint = "errorHint"
         case createdAt = "createdAt"
         case updatedAt = "updatedAt"

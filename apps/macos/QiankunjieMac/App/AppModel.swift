@@ -183,6 +183,14 @@ final class AppModel {
     private var hasExplicitDestinationSelection = false
     var selectedArticleID: Int?
     var selectedReaderSelection: ReaderSelection?
+    private var selectedFailedCollectJobID: Int?
+
+    var selectedFailedCollectJob: CollectJob? {
+        guard destination == .collectHistory, let user,
+              collectModel.userID == user.id, let selectedFailedCollectJobID
+        else { return nil }
+        return collectModel.jobs.first { $0.id == selectedFailedCollectJobID && $0.status == "failed" }
+    }
     var isLoginPresented = false
     var isSearchPresented = false
     private(set) var updateCheckRequestID = 0
@@ -506,6 +514,7 @@ final class AppModel {
     }
 
     func selectArticle(_ articleID: Int?) {
+        selectedFailedCollectJobID = nil
         selectedArticleID = articleID
         guard let articleID else {
             selectedReaderSelection = nil
@@ -525,6 +534,20 @@ final class AppModel {
         selectArticle(nil)
     }
 
+    func selectCollectHistoryJob(_ job: CollectJob) {
+        guard destination == .collectHistory, let user, collectModel.userID == user.id else { return }
+        if job.status == "failed" {
+            selectArticle(nil)
+            selectedFailedCollectJobID = job.id
+        } else {
+            openCollectArticle(job)
+        }
+    }
+
+    func closeCollectFailureDetail() {
+        selectedFailedCollectJobID = nil
+    }
+
     func openCollectArticle(_ job: CollectJob) {
         guard
             isAuthenticated,
@@ -533,6 +556,7 @@ final class AppModel {
             return
         }
 
+        selectedFailedCollectJobID = nil
         selectedArticleID = articleID
         selectedReaderSelection = ReaderSelection(
             articleID: articleID,

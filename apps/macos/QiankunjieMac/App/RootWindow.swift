@@ -111,7 +111,7 @@ struct RootWindow: View {
         ) {
             listColumn
         } reader: {
-            readerPane
+            workspaceDetail
         }
     }
 
@@ -119,9 +119,19 @@ struct RootWindow: View {
         NavigationSplitView {
             listColumn
         } detail: {
-            readerPane
+            workspaceDetail
         }
         .navigationSplitViewStyle(.automatic)
+    }
+
+    @ViewBuilder
+    private var workspaceDetail: some View {
+        if let job = model.selectedFailedCollectJob {
+            CollectFailureDetailView(job: job, onClose: model.closeCollectFailureDetail)
+                .id(job.id)
+        } else {
+            readerPane
+        }
     }
 
     private var settingsContent: some View {
@@ -200,8 +210,9 @@ struct RootWindow: View {
             } else if model.destination == .collectHistory {
                 CollectHistoryView(
                     model: model.collectModel,
-                    onOpenArticle: model.openCollectArticle,
+                    onSelectJob: model.selectCollectHistoryJob,
                     selectedArticleID: model.selectedArticleID,
+                    selectedFailedJobID: model.selectedFailedCollectJob?.id,
                     onRequestLogin: model.presentLogin
                 )
             } else {

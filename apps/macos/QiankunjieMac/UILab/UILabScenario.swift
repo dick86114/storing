@@ -112,6 +112,7 @@ struct UILabRootView: View {
     let scenario: UILabScenario
     @State private var stateLibraryModel: LibraryModel?
     @State private var presentationMode: ArticleListPresentationMode = .compactList
+    @State private var selectedCollectJobID: Int?
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -153,13 +154,7 @@ struct UILabRootView: View {
             case .collect:
                 CollectQuickPopoverView(model: UILabFixtures.collectModel)
             case .tasks:
-                CollectHistoryView(
-                    model: UILabFixtures.collectModel,
-                    onOpenArticle: { _ in }
-                )
-                .task {
-                    await UILabFixtures.collectModel.refreshJobs()
-                }
+                tasks
             case .settings:
                 SettingsGeneralView(
                     model: UILabFixtures.appModel.settingsModel,
@@ -219,6 +214,27 @@ struct UILabRootView: View {
         .foregroundStyle(QiankunjieColors.onBackground(for: colorScheme))
         .preferredColorScheme(UILabAppearance.commandLineColorScheme())
         .navigationTitle("UI Lab · \(scenario.displayName)")
+    }
+
+    private var tasks: some View {
+        let model = UILabFixtures.collectModel
+        let selectedJob = model.jobs.first { $0.id == selectedCollectJobID }
+        return LibraryWorkspaceView(overrideWidth: nil, onCommitWidth: { _ in }) {
+            CollectHistoryView(
+                model: model,
+                onSelectJob: { selectedCollectJobID = $0.id },
+                selectedArticleID: selectedJob?.articleId,
+                selectedFailedJobID: selectedJob?.status == "failed" ? selectedJob?.id : nil
+            )
+        } reader: {
+            if let selectedJob, selectedJob.status == "failed" {
+                CollectFailureDetailView(job: selectedJob) { selectedCollectJobID = nil }
+                    .id(selectedJob.id)
+            } else {
+                ContentUnavailableView("请选择采集任务", systemImage: "clock")
+            }
+        }
+        .task { await model.refreshJobs() }
     }
 
     private var library: some View {
