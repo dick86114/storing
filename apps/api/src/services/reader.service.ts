@@ -5,6 +5,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { JSDOM } from 'jsdom';
 import { assertSafeOutboundUrl } from './outbound-url-policy.service.js';
 import { buildWeChatContentFromSnapshot } from './wechat-transcript.js';
+import { describeCaptureError, type CaptureTrace } from './collect-capture-diagnostics.js';
 import {
   extractTextFromHtml,
   extractPreferredCoverImage,
@@ -468,7 +469,7 @@ export function extractWechatEmbeddedDataFromHtml(html: string): any | null {
   };
 }
 
-async function fetchWechatEmbeddedData(url: string): Promise<any | null> {
+async function fetchWechatEmbeddedData(url: string, onStatus?: (status: number) => void): Promise<any | null> {
   const res = await fetch(url, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -478,6 +479,7 @@ async function fetchWechatEmbeddedData(url: string): Promise<any | null> {
     redirect: 'follow',
     signal: AbortSignal.timeout(45000),
   });
+  onStatus?.(res.status);
   if (!res.ok) throw new Error(`Wechat public page error: ${res.status}`);
   const html = await res.text();
   return extractWechatEmbeddedDataFromHtml(html);
@@ -1179,12 +1181,13 @@ function cleanHtml(html: string): string {
  * @param url 原始文章 URL
  * @param format 格式：markdown 或 html
  */
-async function fetchContent(url: string, format: 'markdown' | 'html' = 'markdown'): Promise<string> {
+async function fetchContent(url: string, format: 'markdown' | 'html' = 'markdown', onStatus?: (status: number) => void): Promise<string> {
   const apiUrl = `${READER_API_BASE}?url=${encodeURIComponent(url)}&format=${format}`;
   const res = await fetch(apiUrl, {
     headers: { 'User-Agent': 'StoringBot/1.0' },
     signal: AbortSignal.timeout(30000),
   });
+  onStatus?.(res.status);
   if (!res.ok) throw new Error(`Reader API error: ${res.status}`);
   const raw = await res.text();
   const content = isWechatArticleUrl(url) ? normalizeWechatContentHtml(raw) : raw;
@@ -1206,33 +1209,48 @@ async function fetchContent(url: string, format: 'markdown' | 'html' = 'markdown
  * content_noencode / picture_page_info_list / title / nick_name 等完整字段，
  * 是正文与图片的兜底数据源。
  */
-export async function fetchWechatJson(url: string): Promise<any> {
+export async function fetchWechatJson(url: string, trace?: CaptureTrace): Promise<any> {
   const apiUrl = `${READER_API_BASE}?url=${encodeURIComponent(url)}&format=json`;
   let readerError: Error | null = null;
+  const startedAt = performance.now();
+  let readerStatus: number | undefined;
 
   try {
     const res = await fetch(apiUrl, {
       headers: { 'User-Agent': 'StoringBot/1.0' },
       signal: AbortSignal.timeout(30000),
     });
+    readerStatus = res.status;
     if (!res.ok && res.status !== 204) throw new Error(`Reader API json error: ${res.status}`);
+    let outcome = '响应为空';
     if (res.status !== 204) {
       const responseText = await res.text();
       if (responseText.trim()) {
         const data = JSON.parse(responseText) as any;
-        if (data?.base_resp?.ret === 0 && data?.content_noencode) return data;
+        if (data?.base_resp?.ret === 0 && data?.content_noencode) {
+          trace?.('Reader JSON', startedAt, `HTTP ${res.status}；已取得结构化正文`);
+          return data;
+        }
+        const code = data?.base_resp?.ret;
+        outcome = Number.isSafeInteger(code) && code !== 0 ? `Reader 返回业务码 ${code}` : '响应缺少结构化正文';
       }
     }
+    trace?.('Reader JSON', startedAt, `HTTP ${res.status}；${outcome}`);
   } catch (error) {
     readerError = error instanceof Error ? error : new Error(String(error));
+    const reason = describeCaptureError(readerError);
+    trace?.('Reader JSON', startedAt, readerStatus && !reason.startsWith('HTTP ') ? `HTTP ${readerStatus}；${reason}` : reason);
   }
 
+  const embeddedStartedAt = performance.now();
+  let embeddedStatus: number | undefined;
   try {
-    const embeddedData = await fetchWechatEmbeddedData(url);
-    if (embeddedData?.content_noencode || embeddedData?.picture_page_info_list?.length) {
-      return embeddedData;
-    }
+    const embeddedData = await fetchWechatEmbeddedData(url, (status) => { embeddedStatus = status; });
+    const hasBody = embeddedData?.content_noencode || embeddedData?.picture_page_info_list?.length;
+    trace?.('微信页面内嵌数据', embeddedStartedAt, `HTTP ${embeddedStatus}；${hasBody ? '已提取正文或图片' : '未找到内嵌正文或图片'}`);
+    if (hasBody) return embeddedData;
   } catch (error) {
+    trace?.('微信页面内嵌数据', embeddedStartedAt, describeCaptureError(error));
     const embeddedError = error instanceof Error ? error.message : String(error);
     if (readerError) throw new Error(`${readerError.message}; embedded page fallback: ${embeddedError}`);
     throw error;
@@ -1280,6 +1298,7 @@ async function fetchArticleContentFromSourceData(
   format: 'markdown' | 'html',
   htmlVariant: HtmlVariant,
   allowStoredContent: boolean,
+  trace?: CaptureTrace,
 ): Promise<string | null> {
   let content: string | null = null;
 
@@ -1306,17 +1325,25 @@ async function fetchArticleContentFromSourceData(
   }
 
   if (!content && article.originalUrl) {
+    const startedAt = performance.now();
+    const step = `Reader ${format === 'html' ? 'HTML' : 'Markdown'}`;
+    let status: number | undefined;
     try {
-      const fetched = await fetchContent(article.originalUrl, format);
+      const fetched = await fetchContent(article.originalUrl, format, (value) => { status = value; });
+      let outcome = fetched?.trim() ? '响应未通过通用正文校验' : '响应为空或清洗后为空';
       if (fetched && hasUsefulContent(fetched, format)) {
-        if (format === 'markdown' && !hasLocalResourceRefs(fetched)) {
+        if (format === 'markdown' && hasLocalResourceRefs(fetched)) {
+          outcome = '正文包含本地资源引用';
+        } else {
           content = fetched;
-        } else if (format === 'html') {
-          content = fetched;
+          outcome = '已取得候选正文';
         }
       }
+      trace?.(step, startedAt, `HTTP ${status}；${outcome}`);
     } catch (e) {
-      console.error(`Reader API fetch failed for article ${articleId}:`, (e as Error).message);
+      const reason = describeCaptureError(e);
+      if (trace) trace(step, startedAt, status && !reason.startsWith('HTTP ') ? `HTTP ${status}；${reason}` : reason);
+      else console.error(`Reader API fetch failed for article ${articleId}:`, (e as Error).message);
     }
   }
 
@@ -1327,7 +1354,7 @@ async function fetchArticleContentFromSourceData(
     // 1. 先尝试 json 格式（能拿到 content_noencode 完整数据）
     if (!rawContent.content_noencode) {
       try {
-        const wechatJson = await fetchWechatJson(article.originalUrl);
+        const wechatJson = await fetchWechatJson(article.originalUrl, trace);
         if (wechatJson && wechatJson.content_noencode) {
           rawContent = {
             ...rawContent,
@@ -1336,7 +1363,7 @@ async function fetchArticleContentFromSourceData(
           };
         }
       } catch (e) {
-        console.error(`Wechat json fallback failed for article ${articleId}:`, (e as Error).message);
+        if (!trace) console.error(`Wechat json fallback failed for article ${articleId}:`, (e as Error).message);
       }
     }
 
@@ -1389,6 +1416,8 @@ async function fetchArticleContentFromSourceData(
 
   // 3. 公众号文章：json/md/html 都失败时，最后尝试 SingleFile 抓取
   if (!content && article.originalUrl && /mp\.weixin\.qq\.com/i.test(article.originalUrl)) {
+    const startedAt = performance.now();
+    const step = `SingleFile ${format === 'html' ? 'HTML' : 'Markdown'} 回退`;
     try {
       const captured = format === 'html'
         ? await fetchSingleFileCaptureContent(article.originalUrl, htmlVariant)
@@ -1396,8 +1425,10 @@ async function fetchArticleContentFromSourceData(
       if (captured && hasUsefulContent(captured, format)) {
         content = captured;
       }
+      trace?.(step, startedAt, content ? '已取得候选正文' : '未取得符合要求的正文');
     } catch (e) {
-      console.error(`SingleFile fallback for WeChat article ${articleId} failed:`, (e as Error).message);
+      if (trace) trace(step, startedAt, describeCaptureError(e));
+      else console.error(`SingleFile fallback for WeChat article ${articleId} failed:`, (e as Error).message);
     }
   }
 
@@ -1417,8 +1448,9 @@ export async function fetchCapturedArticleContent(
   article: ArticleContentSource,
   format: 'markdown' | 'html',
   htmlVariant: HtmlVariant = 'desktop',
+  trace?: CaptureTrace,
 ): Promise<string | null> {
-  return fetchArticleContentFromSourceData(article, 0, format, htmlVariant, false);
+  return fetchArticleContentFromSourceData(article, 0, format, htmlVariant, false, trace);
 }
 
 export async function fetchArticleContentFromSources(

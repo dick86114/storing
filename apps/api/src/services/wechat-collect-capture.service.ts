@@ -7,6 +7,7 @@ import {
   hasUsefulContent,
 } from './reader.service.js';
 import type { HtmlVariant } from './singlefile.service.js';
+import { describeCaptureError, WECHAT_CAPTURE_FAILURE_PREFIX, type CaptureTrace } from './collect-capture-diagnostics.js';
 
 export type WechatCapturePageMeta = {
   title: string | null;
@@ -23,8 +24,8 @@ export type WechatCollectCapture = {
 };
 
 export type WechatCaptureDependencies = {
-  fetchJson: (url: string) => Promise<any>;
-  fetchPageMeta: (url: string) => Promise<WechatCapturePageMeta | null>;
+  fetchJson: (url: string, trace?: CaptureTrace) => Promise<any>;
+  fetchPageMeta: (url: string, trace?: CaptureTrace) => Promise<WechatCapturePageMeta | null>;
   fetchContent: (
     article: {
       originalUrl: string | null;
@@ -34,6 +35,7 @@ export type WechatCaptureDependencies = {
     },
     format: 'markdown' | 'html',
     htmlVariant?: HtmlVariant,
+    trace?: CaptureTrace,
   ) => Promise<string | null>;
 };
 
@@ -68,7 +70,8 @@ function extractSource(url: string, doc?: Document) {
   return new URL(url).hostname.replace(/^www\./, '').slice(0, 80);
 }
 
-export async function fetchWechatPageMeta(url: string): Promise<WechatCapturePageMeta | null> {
+export async function fetchWechatPageMeta(url: string, trace?: CaptureTrace): Promise<WechatCapturePageMeta | null> {
+  const startedAt = performance.now();
   try {
     const res = await fetch(url, {
       headers: {
@@ -76,7 +79,10 @@ export async function fetchWechatPageMeta(url: string): Promise<WechatCapturePag
       },
       signal: AbortSignal.timeout(12000),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      trace?.('微信页面元数据', startedAt, `HTTP ${res.status}`);
+      return null;
+    }
 
     const html = await res.text();
     const dom = new JSDOM(html);
@@ -88,11 +94,13 @@ export async function fetchWechatPageMeta(url: string): Promise<WechatCapturePag
       || doc.querySelector('meta[name="author"]')?.getAttribute('content')?.trim()
       || '微信公众号';
 
+    trace?.('微信页面元数据', startedAt, `HTTP ${res.status}；${title === url ? '未提取到页面标题' : titleRejection(title) ?? '已提取到页面标题'}`);
     return {
       title: title === url ? null : title,
       source: source.slice(0, 80),
     };
-  } catch {
+  } catch (error) {
+    trace?.('微信页面元数据', startedAt, describeCaptureError(error));
     return null;
   }
 }
@@ -159,6 +167,18 @@ function looksLikeUnavailablePage(text: string) {
   return UNAVAILABLE_PAGE_NOTICE.test(text.replace(/[^\S\r\n]+/g, ' ').trim());
 }
 
+const VERIFICATION_NOTICE = /访问验证|安全验证|人机验证|环境异常|验证码|slide to verify|refreshing too often|操作过于频繁|访问过于频繁/i;
+
+function titleRejection(title: string): string | null {
+  if (!BLOCKED_TITLE_PATTERNS.some((pattern) => pattern.test(title)) && !looksLikeUnavailablePage(title)) return null;
+  return VERIFICATION_NOTICE.test(title) ? '页面要求访问验证' : '页面提示内容不可用';
+}
+
+function contentRejection(text: string, structuredText = text): string | null {
+  if (!BLOCKED_CONTENT_PATTERNS.some((pattern) => pattern.test(text)) && !looksLikeUnavailablePage(structuredText)) return null;
+  return VERIFICATION_NOTICE.test(text) ? '页面要求访问验证' : '页面提示内容不可用';
+}
+
 function normalizeMarkdown(value: string) {
   return value
     .replace(/[ \t]+\n/g, '\n')
@@ -216,11 +236,11 @@ export function convertCapturedHtmlToMarkdown(html: string): string {
   return body ? normalizeMarkdown(markdownForNode(body)) : '';
 }
 
-function isUsableCapturedHtml(
+function capturedHtmlRejection(
   html: string | null,
   options: { allowImageOnly?: boolean } = {},
-): html is string {
-  if (!html || !hasUsefulContent(html, 'html')) return false;
+): string | null {
+  if (!html?.trim()) return '未取得 HTML';
   const dom = new JSDOM(html);
   const doc = dom.window.document;
   const title = extractTitle(doc, '');
@@ -228,35 +248,28 @@ function isUsableCapturedHtml(
   const articleBody = doc.querySelector('#js_content');
   const articleText = (articleBody?.textContent || '').replace(/\s+/g, ' ').trim();
   const articleImages = articleBody?.querySelectorAll('img').length || 0;
-  const trustedStructure = Boolean(
-    articleBody
-    || doc.querySelector('#js_article, #activity-name, meta[property="og:type"][content="article"]'),
-  );
+  const trustedStructure = articleBody
+    || doc.querySelector('#js_article, #activity-name, meta[property="og:type"][content="article"]');
 
-  if (BLOCKED_TITLE_PATTERNS.some((pattern) => pattern.test(title))) return false;
-  if (looksLikeUnavailablePage(title)) return false;
-  if (BLOCKED_CONTENT_PATTERNS.some((pattern) => pattern.test(bodyText))) return false;
-  if (doc.body && looksLikeUnavailablePage(markdownForNode(doc.body))) return false;
-  if (!trustedStructure && !options.allowImageOnly) return false;
-  if (articleText.length >= 80) return true;
-  if (articleImages > 0 && options.allowImageOnly) return true;
-  if (bodyText.length >= 80) return true;
-  return Boolean(options.allowImageOnly && doc.querySelector('img'));
+  const blocked = titleRejection(title) ?? contentRejection(bodyText, doc.body ? markdownForNode(doc.body) : '');
+  if (blocked) return blocked;
+  if (!trustedStructure && !options.allowImageOnly) return '缺少微信正文结构（正文容器或文章标记）';
+  const hasEnoughContent = articleText.length >= 80 || bodyText.length >= 80
+    || (options.allowImageOnly && Boolean(articleImages || doc.querySelector('img')));
+  if (!hasEnoughContent) return `正文不足（页面提取 ${bodyText.length} 字符，最低要求 80 字符）`;
+  return hasUsefulContent(html, 'html') ? null : 'HTML 未通过通用正文校验';
 }
 
-function isUsableCapturedMarkdown(
-  markdown: string | null,
-  options: { allowImageOnly?: boolean } = {},
-): markdown is string {
-  if (!markdown || !hasUsefulContent(markdown, 'markdown')) return false;
-  if (BLOCKED_CONTENT_PATTERNS.some((pattern) => pattern.test(markdown))) return false;
-  if (looksLikeUnavailablePage(markdown)) return false;
+function capturedMarkdownRejection(markdown: string | null): string | null {
+  if (!markdown?.trim()) return '未取得 Markdown';
+  const blocked = contentRejection(markdown);
+  if (blocked) return blocked;
   const textOnly = markdown
     .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
     .replace(/\[[^\]]+\]\([^)]+\)/g, '$1')
     .trim();
-  if (textOnly.length >= 80) return true;
-  return options.allowImageOnly === true && /!\[[^\]]*\]\([^)]+\)/.test(markdown);
+  if (textOnly.length < 80) return `正文不足（提取 ${textOnly.length} 字符，最低要求 80 字符）`;
+  return hasUsefulContent(markdown, 'markdown') ? null : 'Markdown 未通过通用正文校验';
 }
 
 const defaultDependencies: WechatCaptureDependencies = {
@@ -273,14 +286,29 @@ export async function captureWechatArticleInMemory(
   normalizedUrl: string,
   dependencies: WechatCaptureDependencies = defaultDependencies,
 ): Promise<WechatCollectCapture> {
-  const fallbackTitle = normalizedUrl;
-  const fallbackSource = '微信公众号';
-  const wechatJson = await dependencies.fetchJson(normalizedUrl).catch((error) => {
-    console.error('Wechat json fetch failed:', error instanceof Error ? error.message : error);
-    return null;
-  });
-  let title = fallbackTitle;
-  let source = fallbackSource;
+  const details: string[] = [];
+  const trace: CaptureTrace = (step, startedAt, outcome) => {
+    details.push(`${step}（${Math.round(performance.now() - startedAt)} ms）：${outcome}`);
+  };
+  async function attempt<T>(step: string, fetchValue: () => Promise<T>, rejection: (value: T) => string | null) {
+    const startedAt = performance.now();
+    const previousCount = details.length;
+    try {
+      const value = await fetchValue();
+      const reason = rejection(value);
+      if (reason && (value != null || details.length === previousCount)) trace(step, startedAt, reason);
+      return { value, accepted: reason === null };
+    } catch (error) {
+      if (details.length === previousCount) trace(step, startedAt, describeCaptureError(error));
+      return { value: null, accepted: false };
+    }
+  }
+  const failure = (summary: string) => new Error([WECHAT_CAPTURE_FAILURE_PREFIX + summary, ...details].join('\n'));
+
+  const { value: wechatJson } = await attempt('微信结构化数据', () => dependencies.fetchJson(normalizedUrl, trace),
+    (value) => value?.content_noencode || value?.picture_page_info_list?.length ? null : '未取得结构化正文或图片');
+  let title = normalizedUrl;
+  let source = '微信公众号';
   let coverImage: string | null = null;
   let content: Record<string, unknown> = {
     collectMethod: 'reader',
@@ -300,8 +328,10 @@ export async function captureWechatArticleInMemory(
     if (typeof wechatJson.title === 'string' && wechatJson.title) title = wechatJson.title;
     if (typeof wechatJson.nick_name === 'string' && wechatJson.nick_name) source = wechatJson.nick_name;
 
-    const structuredHtml = await buildHtmlFromRawContent(content);
-    if (isUsableCapturedHtml(structuredHtml, { allowImageOnly: true })) {
+    const { value: structuredHtml, accepted } = await attempt('微信结构化正文校验',
+      () => buildHtmlFromRawContent(content),
+      (value) => capturedHtmlRejection(value, { allowImageOnly: true }));
+    if (structuredHtml && accepted) {
       return {
         title,
         source,
@@ -312,15 +342,15 @@ export async function captureWechatArticleInMemory(
       };
     }
   } else {
-    const pageMeta = await dependencies.fetchPageMeta(normalizedUrl);
+    const { value: pageMeta } = await attempt('微信页面元数据', () => dependencies.fetchPageMeta(normalizedUrl, trace),
+      (value) => value?.title ? null : '未提取到页面标题');
     if (pageMeta?.title) title = pageMeta.title;
     if (pageMeta?.source) source = pageMeta.source;
   }
-  if (BLOCKED_TITLE_PATTERNS.some((pattern) => pattern.test(title))) {
-    throw new Error('微信公众号正文抓取失败：页面要求访问验证或内容不可用');
-  }
-  if (looksLikeUnavailablePage(title)) {
-    throw new Error('微信公众号正文抓取失败：页面要求访问验证或内容不可用');
+  const rejectedTitle = titleRejection(title);
+  if (rejectedTitle) {
+    details.push(`微信页面标题：${rejectedTitle}`);
+    throw failure('页面要求访问验证或内容不可用');
   }
 
   const article = {
@@ -331,8 +361,10 @@ export async function captureWechatArticleInMemory(
   };
   // HTML 通常已包含正文和图片；成功后再从内存派生 Markdown，
   // 避免第二路远程抓取和重复图片上传，也避免等待更慢的回退链。
-  const contentHtml = await dependencies.fetchContent(article, 'html', 'desktop');
-  if (isUsableCapturedHtml(contentHtml)) {
+  const { value: contentHtml, accepted: htmlAccepted } = await attempt('HTML 正文抓取',
+    () => dependencies.fetchContent(article, 'html', 'desktop', trace),
+    (value) => capturedHtmlRejection(value));
+  if (contentHtml && htmlAccepted) {
     return {
       title,
       source,
@@ -343,9 +375,11 @@ export async function captureWechatArticleInMemory(
     };
   }
 
-  const contentMarkdown = await dependencies.fetchContent(article, 'markdown', 'desktop');
-  if (!isUsableCapturedMarkdown(contentMarkdown)) {
-    throw new Error('微信公众号正文抓取失败：所有可用抓取方式均未返回有效正文');
+  const { value: contentMarkdown, accepted: markdownAccepted } = await attempt('Markdown 正文抓取',
+    () => dependencies.fetchContent(article, 'markdown', 'desktop', trace),
+    (value) => capturedMarkdownRejection(value));
+  if (!contentMarkdown || !markdownAccepted) {
+    throw failure('所有可用抓取方式均未返回有效正文');
   }
 
   return {

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { getCurrentUser, requireAuth } from '../middleware/auth.js';
+import { formatCollectError } from '../services/collect-capture-diagnostics.js';
 import { clearFinishedCollectJobs, createCollectJob, deleteCollectJob, getCollectJob, listCollectJobs, retryCollectJob, USER_COLLECT_SOURCES } from '../services/collect.service.js';
 
 export const collectRoutes = new Hono();
@@ -12,62 +13,6 @@ const collectSchema = z.object({
 const mobileCollectSchema = collectSchema.extend({
   source: z.enum(['android', 'android_share']).default('android'),
 });
-
-function formatCollectError(error?: string | null) {
-  if (!error) {
-    return {
-      summary: null,
-      details: [] as string[],
-      hint: null as string | null,
-    };
-  }
-
-  const normalized = error.replace(/\s+/g, ' ').trim();
-  const details: string[] = [];
-  let summary = normalized;
-  let hint: string | null = null;
-
-  if (/desktop:/i.test(normalized) || /mobile:/i.test(normalized)) {
-    summary = '网页正文未通过有效性校验';
-    const parts = normalized.split('；').map((part) => part.trim()).filter(Boolean);
-    for (const part of parts) {
-      const strategyMatch = part.match(/^([^：:]+)：\s*(desktop|mobile):\s*(.+)$/i);
-      if (strategyMatch) {
-        const [, strategy, variant, message] = strategyMatch;
-        details.push(`${strategy} ${variant.toLowerCase() === 'desktop' ? '桌面抓取' : '移动抓取'}：${message}`);
-      } else if (/^desktop:/i.test(part)) {
-        details.push(`桌面抓取：${part.replace(/^desktop:\s*/i, '')}`);
-      } else if (/^mobile:/i.test(part)) {
-        details.push(`移动抓取：${part.replace(/^mobile:\s*/i, '')}`);
-      } else {
-        details.push(part);
-      }
-    }
-  } else if (/验证码|风控|验证页|captcha|verification/i.test(normalized)) {
-    summary = '采集被站点风控或验证页拦截';
-    details.push(normalized);
-  } else if (/正文过短|缺少有效正文|壳页|异常页/i.test(normalized)) {
-    summary = '抓取结果不像有效正文';
-    details.push(normalized);
-  } else if (/SingleFile 服务失败/i.test(normalized)) {
-    summary = '网页镜像服务执行失败';
-    details.push(normalized);
-  } else {
-    details.push(normalized);
-  }
-
-  if (/验证码|风控|验证页|captcha|verification/i.test(normalized)) {
-    hint = '建议稍后重试；如果站点分桌面/移动页，可优先使用更稳定的入口链接。';
-  } else if (/Chromium executable not found|spawn single-file ENOENT|spawn docker ENOENT|spawn npx ENOENT/i.test(normalized)) {
-    hint = '当前运行环境缺少本地浏览器抓取依赖；Docker 部署建议确认 singlefile sidecar 已启动并重建镜像，或配置 SINGLEFILE_BROWSER_EXECUTABLE_PATH 指向可用 Chromium。';
-  } else if (/正文过短|缺少有效正文|壳页|异常页/i.test(normalized)) {
-    hint = '建议检查链接是否跳转到了活动页、壳页或登录页，再重新采集。';
-  } else if (/SingleFile 服务失败/i.test(normalized)) {
-    hint = '建议检查 SingleFile sidecar、本机命令或网络访问状态。';
-  }
-
-  return { summary, details, hint };
-}
 
 function serializeJob(job: any, includeResult = true) {
   const errorInfo = formatCollectError(job.error);

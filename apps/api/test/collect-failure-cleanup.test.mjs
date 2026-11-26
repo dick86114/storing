@@ -4,6 +4,7 @@ import { test } from 'node:test';
 
 const collectService = readFileSync(new URL('../src/services/collect.service.ts', import.meta.url), 'utf8');
 const wechatCaptureService = readFileSync(new URL('../src/services/wechat-collect-capture.service.ts', import.meta.url), 'utf8');
+const captureDiagnostics = readFileSync(new URL('../src/services/collect-capture-diagnostics.ts', import.meta.url), 'utf8');
 
 function getWechatJobImplementation() {
   const match = collectService.match(/async function processWechatJob[\s\S]*?\n}\n\ntype PreparedCapture/);
@@ -15,8 +16,13 @@ test('微信公众号正文校验失败时不会写入共享文章或收件箱�
   const processWechat = getWechatJobImplementation();
 
   assert.match(
+    captureDiagnostics,
+    /WECHAT_CAPTURE_FAILURE_PREFIX = '微信公众号正文抓取失败：'/,
+    '正文抓取失败必须使用统一的失败前缀',
+  );
+  assert.match(
     wechatCaptureService,
-    /dependencies\.fetchContent\(article, 'html', 'desktop'\)[\s\S]*?微信公众号正文抓取失败/,
+    /WECHAT_CAPTURE_FAILURE_PREFIX[\s\S]*?dependencies\.fetchContent\(article, 'html', 'desktop', trace\)[\s\S]*?dependencies\.fetchContent\(article, 'markdown', 'desktop', trace\)[\s\S]*?failure\('所有可用抓取方式均未返回有效正文'\)/,
     '正文必须在内存中完成抓取和有效性校验',
   );
 

@@ -13,6 +13,26 @@ test('坏链接在微信 JSON、页面元数据和两种正文回退都为空时
   );
 });
 
+test('失败任务保留各路抓取的耗时与拒绝原因，省略原始响应和异常文本', async () => {
+  await assert.rejects(
+    captureWechatArticleInMemory('https://mp.weixin.qq.com/s/broken', {
+      fetchJson: async () => { throw new Error('Reader API json error: 503'); },
+      fetchPageMeta: async () => { throw new DOMException('private-url', 'TimeoutError'); },
+      fetchContent: async (_article, format) => format === 'html'
+        ? '<title>待抓取文章</title><p>' + 'private-body'.repeat(12) + '</p>'
+        : '这篇文章目前无法查看。',
+    }),
+    (error: Error) => {
+      assert.match(error.message, /结构化数据.*\d+ ms.*HTTP 503/);
+      assert.match(error.message, /页面元数据.*\d+ ms.*超时/);
+      assert.match(error.message, /HTML.*\d+ ms.*缺少微信正文结构/);
+      assert.match(error.message, /Markdown.*\d+ ms.*内容不可用/);
+      assert.doesNotMatch(error.message, /private-url|private-body/);
+      return true;
+    },
+  );
+});
+
 test('Reader 返回微信验证壳页时不能通过正文有效性校验', async () => {
   const shellText = '当前访问环境异常，请完成访问验证后继续查看内容。'.repeat(8);
   await assert.rejects(
