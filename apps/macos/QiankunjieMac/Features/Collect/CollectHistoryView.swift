@@ -278,23 +278,22 @@ struct CollectJobRow: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
-            RoundedRectangle(cornerRadius: QiankunjieRadius.control, style: .continuous)
-                .fill(
-                    isSelected
-                        ? QiankunjieColors.accent(for: colorScheme).opacity(0.12)
-                        : QiankunjieColors.surface(for: colorScheme)
-                )
+            GlassSurface(role: .control, cornerRadius: QiankunjieRadius.control) {
+                Color.clear
+            }
         }
         .overlay {
-            RoundedRectangle(cornerRadius: QiankunjieRadius.control, style: .continuous)
-                .strokeBorder(
-                    isSelected
-                        ? QiankunjieColors.accent(for: colorScheme).opacity(0.55)
-                        : QiankunjieColors.outline(for: colorScheme)
-                )
+            if isSelected {
+                RoundedRectangle(cornerRadius: QiankunjieRadius.control, style: .continuous)
+                    .strokeBorder(
+                        QiankunjieColors.accent(for: colorScheme),
+                        lineWidth: 1.5
+                    )
+            }
         }
         .contentShape(Rectangle())
         .focusable(onSelect != nil)
+        .focusEffectDisabled()
         .onKeyPress(.return) {
             guard onSelect != nil else { return .ignored }
             onSelect?()

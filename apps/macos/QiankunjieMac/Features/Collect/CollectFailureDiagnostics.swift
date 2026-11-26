@@ -5,15 +5,25 @@ struct CollectFailureDiagnostics {
     let job: CollectJob
 
     var summary: String {
-        Self.redact(nonempty(job.errorSummary) ?? nonempty(job.error) ?? "采集失败")
+        let reason = nonempty(job.errorSummary)
+            ?? nonempty(job.error).map { $0.components(separatedBy: .newlines).first ?? $0 }
+            ?? "采集失败"
+        return Self.redact(reason)
     }
 
     var hint: String? { nonempty(job.errorHint).map(Self.redact) }
 
-    var details: [String] { job.errorDetails.compactMap { nonempty($0).map(Self.redact) } }
+    var details: [String] {
+        job.errorDetails.compactMap { nonempty($0).map(Self.redact) }.filter { $0 != summary }
+    }
 
-    var logText: String {
-        nonempty(job.error).map(Self.redact) ?? nonempty(details.joined(separator: "\n")) ?? "服务端未返回错误日志。"
+    var additionalLogText: String? {
+        guard let raw = nonempty(job.error).map(Self.redact) else { return nil }
+        let displayed = Set([summary] + details)
+        let remaining = raw.components(separatedBy: .newlines).filter {
+            !displayed.contains($0.trimmingCharacters(in: .whitespaces))
+        }
+        return nonempty(remaining.joined(separator: "\n"))
     }
 
     var displayURL: String? {
@@ -49,10 +59,12 @@ struct CollectFailureDiagnostics {
             fields.map { "\($0.0)：\($0.1)" }.joined(separator: "\n"),
             "失败原因\n\(summary)",
         ]
-        if !details.isEmpty, details.joined(separator: "\n") != logText {
+        if !details.isEmpty {
             sections.append("抓取详情\n\(details.joined(separator: "\n"))")
         }
-        sections.append("错误日志\n\(logText)")
+        if let additionalLogText {
+            sections.append("错误日志\n\(additionalLogText)")
+        }
         return sections.joined(separator: "\n\n") + "\n"
     }
 

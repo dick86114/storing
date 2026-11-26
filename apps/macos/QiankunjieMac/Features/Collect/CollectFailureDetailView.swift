@@ -32,10 +32,11 @@ struct CollectFailureDetailView: View {
                                     NSPasteboard.general.setString(link.absoluteString, forType: .string)
                                 }
                             }
-                            Text(displayURL)
-                                .qiankunjieFont(.bodyMedium)
-                                .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
-                                .textSelection(.enabled)
+                            if displayURL != diagnostics.displayTitle {
+                                Text(displayURL)
+                                    .qiankunjieFont(.bodyMedium)
+                                    .foregroundStyle(QiankunjieColors.onSurfaceVariant(for: colorScheme))
+                            }
                         }
                     }
                     .textSelection(.enabled)
@@ -49,7 +50,7 @@ struct CollectFailureDetailView: View {
                         }
                     }
 
-                    if !diagnostics.details.isEmpty, diagnostics.details.joined(separator: "\n") != diagnostics.logText {
+                    if !diagnostics.details.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("抓取详情").qiankunjieFont(.titleMedium).accessibilityAddTraits(.isHeader)
                             ForEach(Array(diagnostics.details.enumerated()), id: \.offset) { item in
@@ -58,18 +59,20 @@ struct CollectFailureDetailView: View {
                         }
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("错误日志").qiankunjieFont(.titleMedium).accessibilityAddTraits(.isHeader)
-                        Text(diagnostics.logText)
-                            .qiankunjieFont(.bodyMedium)
-                            .monospaced()
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(12)
-                            .background(
-                                QiankunjieColors.surfaceVariant(for: colorScheme),
-                                in: RoundedRectangle(cornerRadius: QiankunjieRadius.control)
-                            )
+                    if let additionalLogText = diagnostics.additionalLogText {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("错误日志").qiankunjieFont(.titleMedium).accessibilityAddTraits(.isHeader)
+                            Text(additionalLogText)
+                                .qiankunjieFont(.bodyMedium)
+                                .monospaced()
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(12)
+                                .background(
+                                    QiankunjieColors.surfaceVariant(for: colorScheme),
+                                    in: RoundedRectangle(cornerRadius: QiankunjieRadius.control)
+                                )
+                        }
                     }
 
                     VStack(alignment: .leading, spacing: 8) {

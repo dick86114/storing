@@ -73,7 +73,7 @@ struct CollectFailureDiagnosticsTests {
             details: ["file:///Users/alice/secret.log"],
             hint: "signature=visible-signature"
         ))
-        let visible = [diagnostics.summary, diagnostics.logText, diagnostics.details.joined(), diagnostics.hint ?? ""].joined(separator: "\n")
+        let visible = [diagnostics.summary, diagnostics.additionalLogText ?? "", diagnostics.details.joined(), diagnostics.hint ?? ""].joined(separator: "\n")
         let report = diagnostics.exportText(appVersion: "1", systemVersion: "macOS")
         for secret in ["visible-secret", "visible-session", "visible-signature", "/Users/alice"] {
             #expect(!visible.contains(secret))
@@ -90,9 +90,41 @@ struct CollectFailureDiagnosticsTests {
         #expect(Set([withoutError, withEmptyDetails]).count == 1)
         let noLog = CollectFailureDiagnostics(job: withoutError)
         #expect(withError.summary == rawError)
-        #expect(withError.logText == rawError)
+        #expect(withError.additionalLogText == nil)
         #expect(noLog.summary == "采集失败")
-        #expect(noLog.logText == "服务端未返回错误日志。")
+        #expect(noLog.additionalLogText == nil)
+    }
+
+    @Test func 多行失败只在详情中展示各次抓取并保留额外日志() throws {
+        let error = """
+        微信公众号正文抓取失败：所有可用抓取方式均未返回有效正文
+        微信结构化数据（18 ms）：HTTP 503
+        HTML 正文抓取（6312 ms）：缺少微信正文结构（正文容器或文章标记）
+        Markdown 正文抓取（5977 ms）：内容不可用
+        """
+        let diagnostics = CollectFailureDiagnostics(job: try makeJob(
+            error: error,
+            summary: "微信公众号正文抓取失败：所有可用抓取方式均未返回有效正文",
+            details: [
+                "微信结构化数据（18 ms）：HTTP 503",
+                "HTML 正文抓取（6312 ms）：缺少微信正文结构（正文容器或文章标记）",
+                "Markdown 正文抓取（5977 ms）：内容不可用",
+            ]
+        ))
+        #expect(diagnostics.summary == "微信公众号正文抓取失败：所有可用抓取方式均未返回有效正文")
+        #expect(diagnostics.details == [
+            "微信结构化数据（18 ms）：HTTP 503",
+            "HTML 正文抓取（6312 ms）：缺少微信正文结构（正文容器或文章标记）",
+            "Markdown 正文抓取（5977 ms）：内容不可用",
+        ])
+        #expect(diagnostics.additionalLogText == nil)
+
+        let withExtraLog = CollectFailureDiagnostics(job: try makeJob(
+            error: "读取失败\nHTTP 502\n堆栈：TimeoutError",
+            details: ["读取失败"]
+        ))
+        #expect(withExtraLog.details == [])
+        #expect(withExtraLog.additionalLogText == "HTTP 502\n堆栈：TimeoutError")
     }
 
     @Test func 缺少标题时详情和历史行使用脱敏链接() throws {

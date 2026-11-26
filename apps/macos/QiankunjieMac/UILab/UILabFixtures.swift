@@ -560,7 +560,7 @@ enum UILabFixtures {
           {"id":7000,"url":"https://example.com/collect-queued","normalized_url":"https://example.com/collect-queued","status":"pending","stage":"排队等待抓取","article_id":null,"title":"排队中的固定采集任务","error_details":[]},
           {"id":7001,"url":"https://example.com/collect-running","normalized_url":"https://example.com/collect-running","status":"running","stage":"正在提取正文","article_id":null,"title":"运行中的固定采集任务","error_details":[]},
           {"id":7002,"url":"https://example.com/collect-complete","normalized_url":"https://example.com/collect-complete","status":"completed","stage":"finished","article_id":1001,"title":"已完成的固定采集任务","error_details":[]},
-          {"id":7003,"url":"https://example.com/collect-failed","normalized_url":"https://example.com/collect-failed","status":"failed","stage":"failed","article_id":null,"title":"失败的固定采集任务","error":"fixture timeout","error_summary":"内容提取超时","error_details":["fixture timeout"],"error_hint":"重试时使用同一个固定夹具"}
+          {"id":7003,"url":"https://example.com/collect-failed","normalized_url":"https://example.com/collect-failed","status":"failed","stage":"failed","article_id":null,"title":"失败的固定采集任务","error":"微信公众号正文抓取失败：所有可用抓取方式均未返回有效正文\\n微信结构化数据（18 ms）：HTTP 503\\n微信页面元数据（412 ms）：超时\\nHTML 正文抓取（6312 ms）：缺少微信正文结构（正文容器或文章标记）\\nMarkdown 正文抓取（5977 ms）：内容不可用","error_summary":"微信公众号正文抓取失败：所有可用抓取方式均未返回有效正文","error_details":["微信结构化数据（18 ms）：HTTP 503","微信页面元数据（412 ms）：超时","HTML 正文抓取（6312 ms）：缺少微信正文结构（正文容器或文章标记）","Markdown 正文抓取（5977 ms）：内容不可用"],"error_hint":"请用浏览器打开原链接，确认文章是否仍能访问。"}
         ]
         """
         let decoder = JSONDecoder()
